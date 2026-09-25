@@ -36,7 +36,7 @@ import { SuggestionMenuController, getDefaultReactSlashMenuItems, useComponentsC
 import type { DefaultReactSuggestionItem, SuggestionMenuProps } from '@blocknote/react'
 import { SuggestionMenu, insertOrUpdateBlockForSlashMenu } from '@blocknote/core/extensions'
 
-import { CheckCircle2, Code, FileText, Heading1, Heading2, Heading3, IconMotion, Image as ImageIcon, Lightbulb, Link2, List, ListCollapse, ListOrdered, Minus, Network, Quote, Type } from '../../../lib/icons.js'
+import { CheckCircle2, Code, FileText, Flag, Heading1, Heading2, Heading3, IconMotion, Image as ImageIcon, Lightbulb, Link2, List, ListCollapse, ListOrdered, Minus, Network, Quote, Type } from '../../../lib/icons.js'
 import type { LucideIcon } from '../../../lib/icons.js'
 import './slash-menu.css'
 import { linkSlashItem } from '../../links/dana-link-picker.js'
@@ -62,6 +62,8 @@ export interface SlashContext {
   readonly onCreateSubtask?: () => void
   /** False where no file can be stored (a Task outside a Folder). */
   readonly media?: boolean
+  /** The Results tab alone offers Result (#213). */
+  readonly results?: boolean
 }
 
 type Item = DefaultReactSuggestionItem & {
@@ -190,7 +192,7 @@ function turnItems(editor: AnyEditor): Item[] {
 /* ------------------------------------------------------------ insert */
 
 export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item[] {
-  const { surface, onCreateTask, onCreateSubtask, media = true } = context
+  const { surface, onCreateTask, onCreateSubtask, media = true, results = false } = context
   const defaults = getDefaultReactSlashMenuItems(editor)
   const byKey = (key: string): DefaultReactSuggestionItem | undefined => defaults.find((item) => 'key' in item && item.key === key)
   const items: Item[] = []
@@ -282,6 +284,9 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     if (file !== undefined) add('Media', 'File', ['file', 'attachment', 'upload', 'document'], () => { file.onItemClick() }, glyph(FileText))
   }
 
+  /* #213: a native Result, made only on purpose — ordinary writing on Results
+     stays writing. */
+  if (results && has(editor, 'result')) add('Dana', 'Result', ['result', 'outcome', 'finding', 'deliverable'], insert('result'), glyph(Flag))
   if (has(editor, 'diagram')) add('Dana', 'Diagram', ['diagram', 'flowchart', 'mermaid', 'chart'], insert('diagram'), glyph(Network))
   const link = linkSlashItem(editor)
   add('Dana', 'Link to page', ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, glyph(Link2))

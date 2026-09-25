@@ -66,6 +66,7 @@ export function CanvasSurface({
   placeholder,
   peopleFolderId,
   onNotice,
+  results = false,
 }: {
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
@@ -91,6 +92,8 @@ export function CanvasSurface({
   /** Where a refused gesture's sentence goes: the page's one save line
    * (`SaveFailure`), so a canvas never draws a second status line. */
   readonly onNotice: (message: string) => void
+  /** The Results tab: the slash menu offers Result (#213). */
+  readonly results?: boolean
 }): React.JSX.Element {
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light'>(pageTheme)
@@ -102,7 +105,8 @@ export function CanvasSurface({
   const slashContext = useMemo(() => ({
     surface: headingMode === 'document' ? 'document' as const : headingMode === 'none' ? 'plain' as const : flatGroups ? 'shelf' as const : 'work' as const,
     onCreateTask: onCreateTask === undefined ? undefined : () => { onCreateTask() },
-  }), [headingMode, flatGroups, onCreateTask])
+    results,
+  }), [headingMode, flatGroups, onCreateTask, results])
   useEffect(() => installCanvasGuard(editor, onNotice), [editor, onNotice])
   useEffect(() => onCreateTask ? bindTaskCommand(editor, requestTask) : undefined, [editor, onCreateTask, requestTask])
   useEffect(() => {

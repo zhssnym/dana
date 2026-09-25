@@ -8,6 +8,7 @@ writes, no table:
     GET /api/v1/facets/:id/backlinks
     GET /api/v1/discussions/:id/backlinks     (#320)
     GET /api/v1/outcomes/:id/backlinks        (#320)
+    GET /api/v1/results/:id/backlinks         (#213)
 
 **Why a path id per kind rather than `?target=<link>`.** The ac-397 sweep sees
 path parameters only; a target on the query string would be the one id no
@@ -47,6 +48,8 @@ const SEGMENTS: readonly (readonly [string, ReferenceKind])[] = [
      statement are plain text, which holds no `href`, so neither is a source. */
   ['discussions', 'discussion'],
   ['outcomes', 'outcome'],
+  /* #213: a native Result. Its statement is a source too, as any facet block. */
+  ['results', 'result'],
 ]
 
 export function createBacklinksRouter(
