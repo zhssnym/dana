@@ -109,7 +109,8 @@ export function dueDisplay(
 
 /**
  * The start of a Schedule as the row says it, in the due label's own words
- * ("Today", "Mon", "24 Sep"), or undefined where there is no start or it is
+ * ("Today", "Mon", "24 Sep") before a due date, or as a phrase of its own
+ * without one ("Started yesterday", "Starts Mon"), or undefined where there is no start or it is
  * the due day itself, which the due label already says (#215). Never
  * overdue: a start passing is not late (9.5).
  */
@@ -119,7 +120,11 @@ export function startsLabel(
 ): string | undefined {
   const { start_date: start, due_date: due } = task
   if (start === null || start === due) return undefined
-  return formatDay(start, today)
+  if (due !== null) return formatDay(start, today)
+  /* Alone, the start is the whole phrase, in the tense the day has reached:
+     "Started yesterday" under In progress, "Starts Mon" ahead of it. */
+  const day = formatDayInline(start, today)
+  return start <= today ? `Started ${day}` : `Starts ${day}`
 }
 
 /**

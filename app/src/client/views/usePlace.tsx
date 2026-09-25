@@ -148,13 +148,16 @@ export function PlaceControls({
   readonly bare?: boolean
 }): React.JSX.Element | null {
   if (bare && place.filter.label === null) return null
+  /* The calendar draws its own grid and honours none of grouping, sort, Label
+     or Show completed, so there its View menu is Layout alone. */
+  const calendar = place.mode === 'calendar'
   return (
     <>
-      <LabelFilterClear
+      {calendar ? null : <LabelFilterClear
         filter={place.filter}
         labels={place.labels}
         onChange={place.setFilter}
-      />
+      />}
       {bare ? null : (
     <ViewMenu
       layouts={place.spine.views}
@@ -165,6 +168,8 @@ export function PlaceControls({
       filter={place.filter}
       labels={place.labels}
       onChange={place.setFilter}
+      {...(place.spine.ownOrder === undefined ? {} : { ownOrder: place.spine.ownOrder })}
+      layoutOnly={calendar}
     />
       )}
     </>

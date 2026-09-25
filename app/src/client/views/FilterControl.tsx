@@ -77,6 +77,8 @@ export function ViewMenu({
   filter,
   labels = [],
   onChange,
+  ownOrder,
+  layoutOnly = false,
 }: {
   /** The page's layouts; a page with one has no Layout item. */
   readonly layouts?: readonly ViewMode[]
@@ -89,7 +91,15 @@ export function ViewMenu({
   /** The Labels the page's rows wear; none, no Label item. */
   readonly labels?: readonly LabelOption[]
   readonly onChange: (next: PageFilter) => void
+  /** What "Manual" is called where rows have no hand order to keep. */
+  readonly ownOrder?: string
+  /** A layout that honours nothing else (the calendar): Layout alone. */
+  readonly layoutOnly?: boolean
 }): React.JSX.Element {
+  const sorts =
+    ownOrder === undefined
+      ? SORTS
+      : SORTS.map((sort) => (sort.value === 'manual' ? { ...sort, label: ownOrder } : sort))
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -106,6 +116,8 @@ export function ViewMenu({
             onChange={onLayout}
           />
         ) : null}
+        {layoutOnly ? null : (
+          <>
         {groups.length > 1 ? (
           <Choice
             label="Group by"
@@ -119,7 +131,7 @@ export function ViewMenu({
         <Choice
           label="Sort"
           value={filter.sort}
-          choices={SORTS}
+          choices={sorts}
           onChange={(sort) => {
             onChange({ ...filter, sort })
           }}
@@ -136,6 +148,8 @@ export function ViewMenu({
             Show completed
           </DropdownMenuCheckboxItem>
         ) : null}
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

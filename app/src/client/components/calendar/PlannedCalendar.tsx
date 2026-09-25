@@ -481,20 +481,30 @@ export function PlannedCalendar({
   const folders = useFolders()
   const update = useUpdateTask()
   /*
-  The grid scrolls today's row into view once, on arrival, and the person takes
-  it from there; otherwise a month opened on its last day would show today three
-  weeks below the fold.
+  The grid opens on today's week, once, on arrival, and the person takes it from
+  there; otherwise a month opened on its last day would show today three weeks
+  below the fold. When today's row is not wholly on screen the grid scrolls it
+  up to sit just under the month bar, which is sticky inside the scroller, so
+  the controls stay while the title may go: today's tasks and the weeks after
+  them are what the calendar is opened for. A today already in view moves
+  nothing.
   */
   const grid = useRef<HTMLDivElement>(null)
+  const bar = useRef<HTMLDivElement>(null)
   const scrolled = useRef(false)
   useEffect(() => {
     if (scrolled.current || view.data === undefined) return
     const cell = grid.current?.querySelector('[data-today="true"]')
     if (cell === null || cell === undefined) return
     scrolled.current = true
-    /* Only as far as needed (m2): centring it pushed the month's name and its
-       controls off the top, so a person landed not knowing where they were. */
-    cell.scrollIntoView({ block: 'nearest' })
+    const scroller = cell.closest('[data-shell-scroll]')
+    if (scroller === null) return
+    const frame = scroller.getBoundingClientRect()
+    const box = cell.getBoundingClientRect()
+    if (box.bottom <= frame.bottom) return
+    const head = bar.current?.getBoundingClientRect().height ?? 0
+    const by = box.top - frame.top - head
+    if (by > 0) scroller.scrollBy({ top: by })
   }, [view.data])
 
   const cells = useMemo(
@@ -559,9 +569,13 @@ export function PlannedCalendar({
       The toolbar (m2): the period's name, then the system's own controls at
       the one control height: a plain Today, ghost Previous/Next, and the zoom
       as Segmented. It sits on the page rather than in a tinted bar, so the
-      grid's hairline is the only frame.
+      grid's hairline is the only frame. It sticks to the top of the scroller,
+      so the controls stay while today's week is scrolled up beneath it.
       */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div
+        ref={bar}
+        className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 bg-background py-1"
+      >
         <div className="flex min-w-0 items-center gap-1">
           <h2 className="mr-2 min-w-0 truncate text-sm font-section text-foreground">
             {periodTitle(zoom, anchor, today)}
