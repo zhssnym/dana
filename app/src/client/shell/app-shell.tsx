@@ -129,21 +129,11 @@ hidden, then the window bar (arrows, trail, page controls). Below 768px the
 same window bar sits between Menu and Search, so a phone has one bar.
 */
 function TopBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): React.JSX.Element {
-  const { isMobile, state, setOpenMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
   if (!isMobile) {
     return (
-      <div className="flex shrink-0 items-center">
-        {state === 'expanded' ? null : (
-          <Tooltip>
-            <TooltipTrigger
-              render={<SidebarTrigger size="icon" className="ml-2 shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground" />}
-            />
-            <TooltipContent side="bottom">Expand sidebar</TooltipContent>
-          </Tooltip>
-        )}
-        <div className="min-w-0 flex-1">
-          <WindowBar />
-        </div>
+      <div className="shrink-0">
+        <WindowBar />
       </div>
     )
   }
@@ -212,8 +202,19 @@ function TopTrail(): React.JSX.Element {
   }
   /* A top-level place (Today, Settings, Trash, a collection) has no crumb:
      its title already says where you are, and saying it twice is noise. */
+  /* With the sidebar hidden on a laptop, the one control that brings it back
+     leads the bar, spaced and drawn like the arrows beside it. */
+  const { isMobile, state } = useSidebar()
   return (
     <WindowBarLead>
+      {isMobile || state === 'expanded' ? null : (
+        <Tooltip>
+          <TooltipTrigger
+            render={<SidebarTrigger size="icon" className="shrink-0 text-muted-foreground hover:text-foreground" />}
+          />
+          <TooltipContent side="bottom">Expand sidebar</TooltipContent>
+        </Tooltip>
+      )}
       <HistoryArrows />
       {trail}
     </WindowBarLead>
