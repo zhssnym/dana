@@ -89,6 +89,9 @@
   display: flex;
   align-items: flex-start;
   gap: calc(var(--spacing) * 2);
+  /* Held to the line's width, so a long "Referenced from" truncates. */
+  flex: 1 1 auto;
+  min-width: 0;
   font-weight: var(--font-weight-section);
   /* Room for the arrival tint (below) so it never hugs the text. */
   margin-inline: calc(var(--spacing) * -1.5);
@@ -296,6 +299,11 @@
 .dana-writing-canvas .bn-editor.ProseMirror-focused [data-is-empty-and-focused] > .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child),
 .dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) {
   --dana-hint: "Press '/' for commands";
+}
+/* The empty page keeps its own words once clicked into, so Purpose and
+   Results say one thing focused or not; later empty lines say the above. */
+.dana-writing-canvas .bn-editor.ProseMirror-focused > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child) {
+  --dana-hint: var(--dana-canvas-placeholder, "Press '/' for commands");
 }
 .dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type='heading'][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) { --dana-hint: "Heading"; }
 /* A Result is a node view: BlockNote marks its wrapper, not its content. */

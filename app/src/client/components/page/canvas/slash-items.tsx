@@ -43,7 +43,7 @@ import { linkSlashItem } from '../../links/dana-link-picker.js'
 import { folderMark } from '../../../parts/presenters.js'
 import { openOnCreate, pendingPages } from './adapters.js'
 import { placeSection, sectionPlace } from './commands.js'
-import { TOGGLE_HEADING_SURFACES, TOGGLE_SURFACES, bindCanvasSurface, surfaceOf } from './markdown.js'
+import { TOGGLE_HEADING_SURFACES, TOGGLE_SURFACES, bindCanvasSurface, bindResultCanvas, offersResults, surfaceOf } from './markdown.js'
 import { shelfOutlineFailure, validateCanvasOutline } from './outline.js'
 import { TEXT_TYPES, TURN_TARGETS, isCurrent, simulate } from './turn-into.js'
 import { turnBlocksInto } from './BlockSideMenu.js'
@@ -100,12 +100,13 @@ const TURN_ALIASES: Record<TurnKey, readonly string[]> = {
   quote: ['quote', 'blockquote', '"'],
   callout: ['callout', 'note', 'tip'],
   code: ['code', '```', 'snippet'],
+  result: ['result', 'outcome', 'finding', 'deliverable'],
 }
 /** One icon family (Lucide), one size, for every block kind the menus name. */
 const HEADING_ICONS: Record<1 | 2 | 3, LucideIcon> = { 1: Heading1, 2: Heading2, 3: Heading3 }
 const KIND_ICONS: Record<string, LucideIcon> = {
   paragraph: Type, bulletListItem: List, numberedListItem: ListOrdered, toggleListItem: ListCollapse,
-  quote: Quote, callout: Lightbulb, codeBlock: Code, divider: Minus,
+  quote: Quote, callout: Lightbulb, codeBlock: Code, divider: Minus, result: Flag,
 }
 const glyph = (Icon: LucideIcon): JSX.Element => <Icon aria-hidden="true" />
 function kindIcon(type: string, level?: 1 | 2 | 3): JSX.Element | undefined {
@@ -144,6 +145,7 @@ export function turnTargetsFor(editor: AnyEditor, block: TreeBlock): TurnTarget[
   return TURN_TARGETS.filter((target) => {
     const toggles = headingTogglesFor(editor, block, target)
     if (!has(editor, target.type) || isCurrent(block, target)) return false
+    if (target.type === 'result' && !offersResults(editor)) return false
     if (target.type === 'heading' && (surface === 'plain' || (surface === 'shelf' && target.level !== 1))) return false
     if (target.type === 'toggleListItem' && !TOGGLE_SURFACES.has(surface)) return false
     if (target.toggle === true && !TOGGLE_HEADING_SURFACES.has(surface)) return false
@@ -204,6 +206,9 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     editor.focus()
   }
 
+  /* #213: a native Result, made only on purpose — ordinary writing on Results
+     stays writing. First on the tab that exists for it. */
+  if (results && has(editor, 'result')) add('Basic blocks', 'Result', ['result', 'outcome', 'finding', 'deliverable'], insert('result'), glyph(Flag))
   add('Basic blocks', 'Text', ['text', 'paragraph', 'plain', 'p'], insert('paragraph'), kindIcon('paragraph'))
 
   // Headings, by what the surface stores.
@@ -284,9 +289,6 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     if (file !== undefined) add('Media', 'File', ['file', 'attachment', 'upload', 'document'], () => { file.onItemClick() }, glyph(FileText))
   }
 
-  /* #213: a native Result, made only on purpose — ordinary writing on Results
-     stays writing. */
-  if (results && has(editor, 'result')) add('Dana', 'Result', ['result', 'outcome', 'finding', 'deliverable'], insert('result'), glyph(Flag))
   if (has(editor, 'diagram')) add('Dana', 'Diagram', ['diagram', 'flowchart', 'mermaid', 'chart'], insert('diagram'), glyph(Network))
   const link = linkSlashItem(editor)
   add('Dana', link.title, ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, glyph(Link2))
@@ -417,8 +419,9 @@ function CanvasSuggestionList(props: SuggestionMenuProps<DefaultReactSuggestionI
 
 /** The slash menu and the Cmd/Ctrl+/ Turn into menu, for one canvas. */
 export function CanvasSlashMenu({ editor, context }: { readonly editor: AnyEditor; readonly context: SlashContext }): JSX.Element {
-  const { surface } = context
+  const { surface, results = false } = context
   useEffect(() => bindCanvasSurface(editor, surface), [editor, surface])
+  useEffect(() => results ? bindResultCanvas(editor) : undefined, [editor, results])
   useEffect(() => {
     const open = (event: KeyboardEvent): void => {
       // Enter on "No results" closes the menu and keeps what was typed.

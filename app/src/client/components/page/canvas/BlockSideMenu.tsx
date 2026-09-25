@@ -88,7 +88,7 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
           <span className="flex flex-1 items-center gap-2"><MenuIcon icon={Copy} /><span className="flex-1">Duplicate</span><span className="text-xs text-muted-foreground">{MOD}D</span></span>
         </Item>
       ) : null}
-      <Item className="bn-menu-item" onClick={() => { void navigator.clipboard?.writeText(blockLink(block.id)) }}>
+      <Item className="bn-menu-item" onClick={() => { void navigator.clipboard?.writeText(block.type === 'result' ? `${window.location.origin}/app/results/${block.id}` : blockLink(block.id)) }}>
         <span className="flex flex-1 items-center gap-2"><MenuIcon icon={Link2} />Copy link to block</span>
       </Item>
       {removal === null ? null : 'note' in removal

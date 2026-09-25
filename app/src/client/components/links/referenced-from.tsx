@@ -33,7 +33,7 @@ export function ReferencedFrom({ kind, id, className = '' }: {
   // One place is shown where it stands; only a list needs opening.
   if (rows.length === 1 && query.data?.truncated !== true) {
     return (
-      <div className={`flex min-w-0 items-center gap-1 text-sm text-muted-foreground ${className}`} data-referenced-from>
+      <div className={`flex min-w-0 max-w-full items-center overflow-hidden gap-1 text-sm text-muted-foreground ${className}`} data-referenced-from>
         <span className="shrink-0 px-1">Referenced from</span>
         <BacklinkRow row={rows[0]!} />
       </div>

@@ -12,6 +12,7 @@ scrolls itself into view once and is tinted for a moment, so the eye lands on
 the one it was sent to. The arrival is then taken out of the address, so a
 later tab switch or reload does not play it again.
 */
+import { createExtension } from '@blocknote/core'
 import { createReactBlockSpec } from '@blocknote/react'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
@@ -38,9 +39,14 @@ function ResultBody({ id, contentRef }: { readonly id: string; readonly contentR
       next.delete('result')
       return next
     }, { replace: true })
+  }, [id, setSearch])
+  // Its own effect: dropping `result` from the address changes setSearch,
+  // which re-runs the effect above and would cancel a timer kept there.
+  useEffect(() => {
+    if (!arrived) return
     const done = window.setTimeout(() => { setArrived(false) }, 1600)
     return () => { window.clearTimeout(done) }
-  }, [id, setSearch])
+  }, [arrived])
   return (
     <div ref={host} className="dana-result" data-result-id={id} data-arrived={arrived ? '' : undefined}>
       <span contentEditable={false} className="dana-result-mark">
@@ -49,7 +55,7 @@ function ResultBody({ id, contentRef }: { readonly id: string; readonly contentR
       </span>
       <div className="min-w-0 flex-1">
         <div ref={contentRef} className="min-w-0" />
-        <div contentEditable={false}>
+        <div contentEditable={false} className="min-w-0">
           {saved === null || saved.has(id) ? <ReferencedFrom kind="result" id={id} className="mt-1" /> : null}
         </div>
       </div>
@@ -71,4 +77,26 @@ export const createCanvasResult = createReactBlockSpec(
       </p>
     ),
   },
+  /* Results continue as a list does: Enter at the end of one starts the next
+     Result, and Enter on an empty one turns it back into Text. */
+  [createExtension({
+    key: 'canvas-result-enter',
+    keyboardShortcuts: {
+      Enter: ({ editor }) => {
+        const { selection } = editor.prosemirrorState
+        const block = editor.getTextCursorPosition().block
+        if (block.type !== 'result' || !selection.empty) return false
+        if (!Array.isArray(block.content) || block.content.length === 0) {
+          editor.updateBlock(block, { type: 'paragraph' })
+          return true
+        }
+        if (selection.$from.parentOffset !== selection.$from.parent.content.size) return false
+        editor.transact(() => {
+          const [next] = editor.insertBlocks([{ type: 'result' }], block, 'after')
+          if (next !== undefined) editor.setTextCursorPosition(next)
+        })
+        return true
+      },
+    },
+  })],
 )
