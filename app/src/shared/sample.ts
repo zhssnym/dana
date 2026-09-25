@@ -23,3 +23,6 @@ export type SampleStatus = z.infer<typeof sampleStatus>
  * standing because someone else is a member (7.20's shared-folder rule).
  * Carried in a header rather than a body so the 204 stays a 204. */
 export const SAMPLE_KEPT_HEADER = 'x-dana-sample-kept'
+
+/** The sample pages it moved to Trash, with what the person wrote in them. */
+export const SAMPLE_TRASHED_HEADER = 'x-dana-sample-trashed'

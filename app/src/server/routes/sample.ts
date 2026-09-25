@@ -9,7 +9,7 @@ not take and the strip should be able to say so.
 import type { Request, Response, Router } from 'express'
 
 import type { DbClient } from '../../../db/client.js'
-import { SAMPLE_KEPT_HEADER } from '../../shared/sample.js'
+import { SAMPLE_KEPT_HEADER, SAMPLE_TRASHED_HEADER } from '../../shared/sample.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
 import { removeObjects } from '../domain/trash.js'
 import type { ObjectStore } from '../files/store.js'
@@ -52,6 +52,12 @@ export function createSampleRouter(options: SampleRouterOptions = {}): Router {
       await removeObjects(options.fileStore, removal.fileIds)
       if (removal.keptFolders.length > 0) {
         res.setHeader(SAMPLE_KEPT_HEADER, encodeURIComponent(removal.keptFolders.join('\n')))
+      }
+      if (removal.trashedFolders.length > 0) {
+        res.setHeader(
+          SAMPLE_TRASHED_HEADER,
+          encodeURIComponent(removal.trashedFolders.join('\n')),
+        )
       }
       res.status(204).end()
     },

@@ -43,7 +43,7 @@ import type {
   TransferOwnershipResponse,
 } from '../../shared/folders.js'
 import { getSettingsResponse } from '../../shared/bundle.js'
-import { SAMPLE_KEPT_HEADER, sampleStatus } from '../../shared/sample.js'
+import { SAMPLE_KEPT_HEADER, SAMPLE_TRASHED_HEADER, sampleStatus } from '../../shared/sample.js'
 import type { SampleStatus } from '../../shared/sample.js'
 import type {
   GetSettingsResponse,
@@ -1119,22 +1119,30 @@ export function useImportWorkflowFile(): UseMutationResult<
 
 /**
  * DELETE /sample. Answers the names of the sample folders removal left
- * standing because someone else is a member, read off the one header the
- * 204 carries, so the strip can say so.
+ * standing because someone else is a member, and of those it moved to Trash
+ * because the person wrote in them, read off the 204's headers, so the strip
+ * can say so.
  */
-export function useRemoveSample(): UseMutationResult<string[], Error, void> {
+export function useRemoveSample(): UseMutationResult<
+  { kept: string[]; trashed: string[] },
+  Error,
+  void
+> {
   return useMutation({
     mutationFn: async () => {
+      const names = (raw: string | null): string[] =>
+        raw === null || raw === '' ? [] : decodeURIComponent(raw).split('\n')
       let kept: string[] = []
+      let trashed: string[] = []
       await mutateApi(null, {
         method: 'DELETE',
         path: '/sample',
         onHeaders: (headers) => {
-          const raw = headers.get(SAMPLE_KEPT_HEADER)
-          kept = raw === null || raw === '' ? [] : decodeURIComponent(raw).split('\n')
+          kept = names(headers.get(SAMPLE_KEPT_HEADER))
+          trashed = names(headers.get(SAMPLE_TRASHED_HEADER))
         },
       })
-      return kept
+      return { kept, trashed }
     },
   })
 }
