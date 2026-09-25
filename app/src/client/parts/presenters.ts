@@ -552,6 +552,7 @@ export type TaskRowDisplay = Pick<
   | 'pulled'
   | 'invitePending'
   | 'blockedBy'
+  | 'labels'
   | 'steps'
   | 'recurrence'
 >
@@ -606,6 +607,14 @@ function qualifiesAutomatically(
     activation !== null &&
     activation <= today
   )
+}
+
+/** A card's Labels as a row draws them: Personal then the page's, active only. */
+function rowLabels(task: TaskCard): NonNullable<TaskRowDisplay['labels']> {
+  /* Guarded: a hand-built stub card may carry no labels at all. */
+  return [...(task.labels?.personal ?? []), ...(task.labels?.folder ?? [])]
+    .filter((label) => !label.archived)
+    .map((label) => ({ id: label.id, name: label.name, color: label.color, scope: label.scope }))
 }
 
 /**
@@ -667,6 +676,8 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
     invitePending: task.pending_invite_email ?? undefined,
     // #225: 7.25's unfinished-blocker count; the row draws nothing at 0.
     blockedBy: task.blocked_by_count ?? 0,
+    // #208: the viewer's own Labels and the page's, archived ones left out.
+    labels: rowLabels(task),
     /*
     9.5's from half, drawn where the page asks for it.
 

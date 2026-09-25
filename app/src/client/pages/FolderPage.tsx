@@ -162,6 +162,7 @@ import { PlaceFilterChips, usePlace } from '../views/usePlace.js'
 import { folderViewOf, modeFromSearch, useFolderView, writeFolderView } from '../views/view-mode.js'
 import type { FolderView } from '../views/view-mode.js'
 import { VIEW_LABELS } from '../views/ViewSwitch.js'
+import { LabelChoice, LabelFilterClear } from '../views/FilterControl.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel } from './FolderSharingPanel.js'
@@ -928,15 +929,26 @@ export function FolderPage({
 
   /* Work and a section's tab are lists; "Show completed" belongs to them. */
   const listFacet = activeFacet?.kind === 'main' || activeFacet?.kind === 'work'
+  /* #208: Board and Linear narrow to one Label; Freeform is a document and
+     never hides a block. */
+  const labelFilter = activeFacet?.kind === 'main' && folderView !== 'freeform'
   const viewMenu = listFacet ? (
-    <FolderViewMenu
-      showCompleted={showCompleted}
-      onShowCompleted={changeShowCompleted}
-    />
+    <>
+      <FolderViewMenu
+        showCompleted={showCompleted}
+        onShowCompleted={changeShowCompleted}
+      />
+      {labelFilter ? (
+        <LabelChoice filter={place.filter} labels={place.labels} onChange={place.setFilter} />
+      ) : null}
+    </>
   ) : undefined
 
   const headerActions = (
     <>
+      {labelFilter ? (
+        <LabelFilterClear filter={place.filter} labels={place.labels} onChange={place.setFilter} />
+      ) : null}
       {/* 9.6's Share control, a word rather than a glyph. Withheld on a
           default folder, which INV-2 makes single-member and 5.3 refuses an
           add on. AC-162 and AC-183 reach the sharing panel through it. */}

@@ -71,6 +71,10 @@ export const queryKeys = {
    * *reusable* taxonomy into the file and therefore needs the definitions
    * nothing is currently wearing (#227 area 4). */
   folderLabels: (id: string) => ['folders', id, 'labels'] as const,
+  /** The label picker's read: the viewer's Personal Labels plus, with a page,
+   * that page's (#208). */
+  labels: (folderId: string | null, state: 'active' | 'all') =>
+    ['labels', folderId ?? 'personal', state] as const,
 
   /** One Discussion (7.27's GET /discussions/:id). */
   discussion: (id: string) => ['discussions', id] as const,

@@ -34,6 +34,7 @@ import {
   Play,
   Plus,
   Repeat2,
+  Tag,
   UserRound,
   Video,
   Workflow,
@@ -72,6 +73,7 @@ import {
   UNASSIGNED,
 } from "./task-card-copy.js"
 import { TaskAssigneeInvite } from "./task-assignee-invite.js"
+import { TaskLabelsRow } from "./task-labels.js"
 import { INVITE_BY_EMAIL, STEP_CAP_NOTICE } from "./task-copy.js"
 /* 10.3's cap for the field. Restated rather than imported because
    `shared/tasks.ts` spends it inline in a zod `max`. */
@@ -653,7 +655,7 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
 
 /* ------------------------------------------------------------- properties */
 
-type AddableProperty = "date" | "reminder" | "repeat" | "assignee" | "steps"
+type AddableProperty = "date" | "reminder" | "repeat" | "assignee" | "labels" | "steps"
 
 /* The Schedule in one line (#215): "Starts Mon", "Mon – 30 Sep", or the due
    date alone, which a same-day pair also is. */
@@ -912,6 +914,9 @@ export function TaskCard({
     ...(assignable && !task.assignee
       ? [{ key: "assignee", label: CHIP_ASSIGNEE, icon: UserRound, onSelect: () => setAdding("assignee") }]
       : []),
+    ...(task.folder?.id !== undefined && labels.length === 0
+      ? [{ key: "labels", label: "Labels", icon: Tag, onSelect: () => setAdding("labels") }]
+      : []),
     ...(steps.length === 0 && adding !== "steps"
       ? [{ key: "steps", label: "Subtasks", icon: ListPlus, onSelect: () => setAdding("steps") }]
       : []),
@@ -1003,17 +1008,9 @@ export function TaskCard({
           </MenuRow>
         ) : null}
 
-        {labels.length > 0 ? (
-          <div className={cn(PROPERTY_ROW, "hover:bg-transparent")}>
-            <span className={PROPERTY_LABEL}>Labels</span>
-            <span className="flex min-w-0 flex-wrap gap-1.5">
-              {labels.map((label) => (
-                <span key={label.id} className="rounded-sm bg-muted px-1.5 text-xs leading-5 text-foreground">
-                  {label.name}
-                </span>
-              ))}
-            </span>
-          </div>
+        {/* #208: the task's Labels, and the picker that changes them. */}
+        {task.folder?.id !== undefined && (labels.length > 0 || adding === "labels") ? (
+          <TaskLabelsRow task={task} defaultOpen={adding === "labels"} onOpenChange={settle("labels")} />
         ) : null}
 
         {addable.length > 0 ? (
