@@ -501,7 +501,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     const link = document.createElement('a'); link.href = url; link.download = `dana-recovered-${folderId}.json`; link.click(); URL.revokeObjectURL(url)
   }
   return <>
-    {!arrangeable ? <p className="mb-3 text-sm text-muted-foreground">Writing is paused while this list is filtered or sorted.</p> : null}
+    {/* Purpose and Results pass the reader's edit right as `arrangeable`: a
+       reader who cannot write there has nothing filtered or sorted to hear about. */}
+    {!arrangeable && presentationHeadings !== true ? <p className="mb-3 text-sm text-muted-foreground">Writing is paused while this list is filtered or sorted.</p> : null}
     {recovery ? <RecoveryNotice
       onDownload={downloadDraft}
       onRestore={!draftHasRequest ? undefined : () => {
@@ -530,7 +532,8 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       >
       <CanvasSurface
         peopleFolderId={folderId}
-        placeholder={results === true ? 'Write what came of this, or type / for a Result' : presentationHeadings === true ? 'Write why this page exists' : placeholder}
+        // Only a reader who can write is asked to.
+        placeholder={!arrangeable ? undefined : results === true ? 'Write what came of this, or type / for a Result' : presentationHeadings === true ? 'Write why this page exists' : placeholder}
         editor={editor}
         onChange={changed}
         onCreateTask={facetId === undefined ? askTask : undefined}

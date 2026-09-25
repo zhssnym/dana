@@ -9,10 +9,12 @@ without a relationship editor. Absent while nothing links here.
 
 Opened by its link (`?result=<id>` on the Folder, `ResultLinkPage`), the block
 scrolls itself into view once and is tinted for a moment, so the eye lands on
-the one it was sent to.
+the one it was sent to. The arrival is then taken out of the address, so a
+later tab switch or reload does not play it again.
 */
 import { createReactBlockSpec } from '@blocknote/react'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router'
 
 import { Flag } from '../../../lib/icons.js'
 import { ReferencedFrom } from '../../links/referenced-from.js'
@@ -26,13 +28,19 @@ function ResultBody({ id, contentRef }: { readonly id: string; readonly contentR
   const host = useRef<HTMLDivElement>(null)
   const saved = useContext(SavedResults)
   const [arrived, setArrived] = useState(false)
+  const [, setSearch] = useSearchParams()
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('result') !== id) return
     host.current?.scrollIntoView({ block: 'center' })
     setArrived(true)
+    setSearch((current) => {
+      const next = new URLSearchParams(current)
+      next.delete('result')
+      return next
+    }, { replace: true })
     const done = window.setTimeout(() => { setArrived(false) }, 1600)
     return () => { window.clearTimeout(done) }
-  }, [id])
+  }, [id, setSearch])
   return (
     <div ref={host} className="dana-result" data-result-id={id} data-arrived={arrived ? '' : undefined}>
       <span contentEditable={false} className="dana-result-mark">

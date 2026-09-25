@@ -341,7 +341,7 @@ export async function searchReferences(
   /* Results (#213) matched on their statement, the composing Folder's first. */
   const resultRows = await rowsOf(
     executor,
-    sql`SELECT pb.id, pb.text
+    sql`SELECT pb.id, pb.text, ff.folder_id
         FROM page_blocks pb ${resultGate(viewerId)}
         WHERE pb.kind = 'result' AND pb.text ILIKE ${pattern}
         ORDER BY ${folderId === undefined ? sql`` : sql`(ff.folder_id = ${folderId}) DESC, `}pb.updated_at DESC, pb.id DESC
@@ -357,6 +357,13 @@ export async function searchReferences(
         LIMIT ${REFERENCE_SEARCH_LIMIT}`,
   )
 
+  /* The composing Folder's Results sit with its Tasks and tabs, ahead of
+     every other Page's rows; the rest keep their place near the end. */
+  const isContextResult = (row: Record<string, unknown>): boolean =>
+    folderId !== undefined && String(row.folder_id) === folderId
+  const resultSummary = (row: Record<string, unknown>): ReferenceSummary =>
+    summary('result', String(row.id), resultLabel(row.text as string | null))
+
   const results: ReferenceSummary[] = [
     ...contextRows.map((row) =>
       summary('task', String(row.id), String(row.title)),
@@ -364,6 +371,7 @@ export async function searchReferences(
     ...contextPurposeRows.map((row) =>
       summary('facet', String(row.id), String(row.label)),
     ),
+    ...resultRows.filter(isContextResult).map(resultSummary),
     ...otherRows.map((row) =>
       summary('task', String(row.id), String(row.title)),
     ),
@@ -379,9 +387,7 @@ export async function searchReferences(
     ...outcomeRows.map((row) =>
       summary('outcome', String(row.id), outcomeLabel(String(row.statement))),
     ),
-    ...resultRows.map((row) =>
-      summary('result', String(row.id), resultLabel(row.text as string | null)),
-    ),
+    ...resultRows.filter((row) => !isContextResult(row)).map(resultSummary),
     ...shelfRows.map((row) =>
       summary('shelf', String(row.id), String(row.name)),
     ),

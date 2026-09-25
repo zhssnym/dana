@@ -443,6 +443,7 @@ export function FolderPage({
       else next.set('facet', facet.id)
       next.delete('discussion')
       next.delete('outcome')
+      next.delete('result')
       return next
     }, { replace: true })
   }, [setSearch])

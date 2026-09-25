@@ -77,8 +77,8 @@ const looseSearch = z.object({ results: z.array(z.unknown()) }).transform(({ res
     return parsed.success ? [parsed.data] : []
   }))
 
-export function searchReferences(q: string): Promise<LooseSummary[]> {
-  return getPlain(looseSearch, '/references/search', { q })
+export function searchReferences(q: string, folder?: string): Promise<LooseSummary[]> {
+  return getPlain(looseSearch, '/references/search', folder === undefined ? { q } : { q, folder })
 }
 
 export function resolveReference(kind: string, id: string): Promise<LooseSummary> {

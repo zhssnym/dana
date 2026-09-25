@@ -289,7 +289,7 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
   if (results && has(editor, 'result')) add('Dana', 'Result', ['result', 'outcome', 'finding', 'deliverable'], insert('result'), glyph(Flag))
   if (has(editor, 'diagram')) add('Dana', 'Diagram', ['diagram', 'flowchart', 'mermaid', 'chart'], insert('diagram'), glyph(Network))
   const link = linkSlashItem(editor)
-  add('Dana', 'Link to page', ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, glyph(Link2))
+  add('Dana', link.title, ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, glyph(Link2))
   return items
 }
 

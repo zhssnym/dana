@@ -298,6 +298,10 @@
   --dana-hint: "Press '/' for commands";
 }
 .dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type='heading'][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) { --dana-hint: "Heading"; }
+/* A Result is a node view: BlockNote marks its wrapper, not its content. */
+.dana-writing-canvas .bn-editor.ProseMirror-focused [data-is-empty-and-focused] > .bn-block-content[data-content-type='result']:has(.ProseMirror-trailingBreak:only-child) { --dana-hint: "What came of it"; }
+/* The hint is not the statement, so it is not in the statement's weight. */
+.dana-writing-canvas .dana-result .bn-inline-content::before { font-weight: var(--font-weight-regular); }
 .dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content:is([data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='checkListItem'], [data-content-type='toggleListItem'])[data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) { --dana-hint: "List"; }
 /* r8-caret: every hint above is drawn here, inside the inline content the
    caret lives in, as ProseMirror's own placeholder is: a zero-height float
