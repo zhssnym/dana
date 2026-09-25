@@ -7,6 +7,7 @@ Library order and the shortcuts sheet under Help.
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { useNavigate } from "react-router"
 
+import { Button } from "./ui/button.js"
 import { Input } from "./ui/input.js"
 import { pageGlyph } from "../lib/nav-model.js"
 import {
@@ -83,6 +84,9 @@ function groupOf(item: SearchResultItem): SearchGroup {
   return "page"
 }
 
+/* Short enough to feel immediate, long enough not to ask on every letter. */
+const SEARCH_DEBOUNCE_MS = 150
+
 /* With nothing typed: this many of the viewer's pages, in Library order. */
 const RECENT_LIMIT = 8
 
@@ -139,9 +143,16 @@ function useLibraryPages(open: boolean): SearchResultItem[] {
   const order = useBundle().data?.sidebar_order
   return useMemo(() => {
     if (folders === undefined) return []
-    const roots = buildTree(folders).roots
-    return arrangeColumn(roots, order ?? [], shelves ?? [])
-      .flatMap((entry) => (entry.kind === "folder" ? [entry.folder] : entry.folders))
+    const tree = buildTree(folders)
+    /* The Desk heads the Library, so it heads this list too. */
+    const desk = folders.filter((folder) => folder.is_default)
+    const roots = tree.roots.filter((folder) => !folder.is_default)
+    return [
+      ...desk,
+      ...arrangeColumn(roots, order ?? [], shelves ?? []).flatMap((entry) =>
+        entry.kind === "folder" ? [entry.folder] : entry.folders,
+      ),
+    ]
       .slice(0, RECENT_LIMIT)
       .map((folder): SearchResultItem => ({
         kind: "folder",
@@ -186,7 +197,7 @@ function SearchDialog({
       setDebouncedQuery(trimmed)
       setSearching(false)
       setActiveIndex(0)
-    }, 300)
+    }, SEARCH_DEBOUNCE_MS)
 
     return () => window.clearTimeout(timeout)
   }, [query, debouncedQuery])
@@ -194,8 +205,14 @@ function SearchDialog({
   /* A title match ranks above a body match; `useSearchAnswer` does that. */
   const answer = useSearchAnswer(debouncedQuery, open)
   const libraryPages = useLibraryPages(open)
-  const results =
+  const fresh =
     debouncedQuery === "" ? [...libraryPages, SHORTCUTS_ITEM] : answer.results
+  /* While the next answer is on its way the last one stays on screen, so
+     typing narrows the list rather than blanking it on every letter. */
+  const waiting = searching || answer.pending
+  const shown = useRef<SearchResultItem[]>([])
+  if (!waiting) shown.current = fresh
+  const results = waiting ? shown.current : fresh
 
   const groupedResults = groupOrder.map((group) => ({
     kind: group,
@@ -264,18 +281,28 @@ function SearchDialog({
             aria-controls="dana-search-results"
             aria-activedescendant={
               orderedResults.length > 0
-                ? `dana-search-result-${orderedResults[activeIndex]?.id}`
+                ? `dana-search-result-${String(activeIndex)}`
                 : undefined
             }
             className="h-[var(--row-height)] min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
+          {/* Full screen on a phone, where there is no Esc and no outside to
+              tap: the one way out. */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 text-muted-foreground md:hidden"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
         </div>
 
         <div
           id="dana-search-results"
           className="overflow-y-auto p-2 max-md:flex-1 md:max-h-[60vh]"
         >
-          {searching || answer.pending ? (
+          {waiting && results.length === 0 ? (
             <SearchSkeleton />
           ) : answer.failed ? (
             <p className="px-2 py-1 text-sm text-muted-foreground">
@@ -302,15 +329,17 @@ function SearchDialog({
                         const Glyph = resultGlyph(item)
                         return (
                           <button
-                            key={item.id}
-                            id={`dana-search-result-${item.id}`}
+                            /* Several block hits share their page's path as
+                               an id, so the position is what tells rows apart. */
+                            key={`${item.kind}:${item.id}:${String(itemIndex)}`}
+                            id={`dana-search-result-${String(itemIndex)}`}
                             type="button"
                             data-focus="self"
                             onMouseEnter={() => setActiveIndex(itemIndex)}
                             onClick={() => openResult(item)}
                             className={cn(
                               "flex h-[var(--row-height)] w-full items-center gap-[var(--space-inline)] rounded-md px-2 text-left text-sm font-normal text-foreground outline-none",
-                              active && "bg-selected font-medium",
+                              active && "bg-selected",
                             )}
                           >
                             <Glyph
@@ -321,12 +350,13 @@ function SearchDialog({
                             />
                             <span className="min-w-0 truncate">{item.title}</span>
                             {item.hint ? (
-                              <span className="min-w-0 flex-1 truncate text-xs font-normal text-muted-foreground">
+                              /* The hint keeps a share of a long row: a block
+                                 hit is useless without the page it is on. */
+                              <span className="max-w-[40%] shrink-0 truncate text-xs font-normal text-muted-foreground">
                                 {item.hint}
                               </span>
-                            ) : (
-                              <span className="flex-1" />
-                            )}
+                            ) : null}
+                            <span className="flex-1" />
                             {item.dueDate ? (
                               <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground">
                                 <CalendarDays className="size-3.5" strokeWidth={1.75} aria-hidden="true" />

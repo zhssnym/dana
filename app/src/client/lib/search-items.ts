@@ -158,10 +158,7 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
         kind: 'page',
         id: home?.path ?? paths.today,
         title: hit.text,
-        hint: (() => {
-          const trail = trailHint(hit.breadcrumbs) ?? home?.name
-          return trail === undefined ? 'Page' : `On ${trail}`
-        })(),
+        hint: trailHint(hit.breadcrumbs) ?? home?.name ?? 'Page',
       }
     })
     /* The places are findable by typing too, not only offered before anything
