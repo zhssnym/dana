@@ -57,18 +57,7 @@ export interface BoardColumn {
   every column's answer but that one.
   */
   takes?: boolean
-  /* A status column's colour, Notion's: Not started grey, In progress blue,
-     Done green. Only the page's status board sets it; a column of people or
-     folders has no colour to wear, so its name stays plain text. */
-  tone?: BoardTone
 }
-
-export type BoardTone = "grey" | "blue" | "green"
-
-/* Round 4: the status pills stay but go muted. One neutral pill for every
-   tone; the column's position and name say which status it is, so colour is
-   saved for the rare thing that matters (a late date). */
-const PILL = "rounded-full bg-muted px-2 py-0.5 text-muted-foreground"
 
 /* -------------------------------------------------------------- capture, */
 
@@ -190,12 +179,13 @@ function BoardCard({
      of plain tasks stays compact; such a card is starred from the task. */
   const finished = done || task.status === "abandoned"
   const hasMeta =
-    (task.due !== undefined && !given?.due && !done) ||
+    ((task.due !== undefined || task.starts !== undefined) && !given?.due && !done) ||
     (task.folder !== undefined && !given?.folder) ||
     ((task.blockedBy ?? 0) > 0 && !finished) ||
     (task.assignee !== undefined && task.assignee !== null && !given?.assignee) ||
     (task.steps !== undefined && task.steps.total > 0) ||
     task.recurrence !== undefined ||
+    (task.labels !== undefined && task.labels.length > 0) ||
     Boolean(task.important)
   const drag = wiring.dragState
   const carried = Boolean(drag?.isActive) && !drag?.isSettling
@@ -246,7 +236,7 @@ function BoardCard({
         zIndex: carried ? 30 : undefined,
       }}
       className={cn(
-        "group/row relative cursor-pointer rounded-md border border-border bg-background px-2.5 py-2 transition-colors hover:bg-hover",
+        "group/row @container/card relative cursor-pointer rounded-md border border-border bg-background px-2.5 py-2 transition-colors hover:bg-hover",
         T_FAST,
         carried && "cursor-grabbing shadow-[var(--elevation-2)]",
       )}
@@ -261,7 +251,7 @@ function BoardCard({
             event.stopPropagation()
             onCheck()
           }}
-          className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-sm"
+          className="relative mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-sm pointer-coarse:before:absolute pointer-coarse:before:-inset-2"
         >
           <CheckMark checked={done} />
         </button>
@@ -285,10 +275,12 @@ function BoardCard({
           className={"-mb-1 mt-0.5 w-full justify-between pl-7"}
           source={{
             ...(task.due === undefined ? {} : { due: task.due }),
+            ...(task.starts === undefined ? {} : { starts: task.starts }),
             ...(task.folder === undefined ? {} : { folder: task.folder }),
             ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
             ...(task.steps === undefined ? {} : { steps: { done: task.steps.complete, total: task.steps.total } }),
             ...(task.recurrence === undefined ? {} : { recurrence: task.recurrence }),
+            ...(task.labels === undefined ? {} : { labels: task.labels }),
             blockedBy: task.blockedBy ?? 0,
             finished,
             important: Boolean(task.important),
@@ -409,16 +401,18 @@ export function TaskBoard({
           <div className="group/col mb-1 flex h-7 items-center gap-1.5 px-1">
             {columnLead?.(column)}
             {column.mark}
+            {/* The heading a list group wears (m2): plain text, no pill; a
+                group nobody made (and Done) in the quieter ink. */}
             <span
               className={cn(
-                "min-w-0 truncate text-xs font-medium",
-                column.tone ? PILL : "text-muted-foreground",
+                "min-w-0 truncate text-sm font-section",
+                column.quiet ? "text-muted-foreground" : "text-foreground",
               )}
             >
               {column.label}
             </span>
             {/* The count sits at the far end, apart from the name. */}
-            <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+            <span className="ml-auto text-xs text-quiet-foreground tabular-nums">
               {column.tasks.length}
             </span>
           </div>

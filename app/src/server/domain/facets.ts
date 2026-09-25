@@ -1536,6 +1536,10 @@ export async function applyFacetDocument(
             'operations',
           )
         }
+        /* #213: a native Result belongs to the Results facet alone. */
+        if (op.block_kind === 'result' && gated.value.kind !== 'results') {
+          throw new FacetDocumentRefusal('invalid', 'A Result lives on the Results tab.', 'operations')
+        }
         writes.set(op.id, op)
         blocks.add(op.id)
         named.add(op.id)

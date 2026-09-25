@@ -124,7 +124,7 @@ export function MentionSuggestions({
               onItemClick: () => { insertDanaLink(editor, { kind: 'folder', id: page.id, label: page.name, path: `/app/folders/${page.id}` }) },
             }))
         } else {
-          pageRows = (await pageSuggestionItems(editor, query, personRows.length > 0)).map((row, index) => ({ ...row, key: `page:${index}:${row.title}`, subtext: undefined }))
+          pageRows = (await pageSuggestionItems(editor, query, personRows.length > 0, folderId ?? undefined)).map((row, index) => ({ ...row, key: `page:${index}:${row.title}`, subtext: undefined }))
         }
         const rows = [...personRows, ...pageRows]
         // Never []: BlockNote closes the menu on an empty answer.

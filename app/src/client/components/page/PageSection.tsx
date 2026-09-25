@@ -145,7 +145,7 @@ export function PageSection({
           {count === undefined ? null : (
             <span
               aria-hidden="true"
-              className="shrink-0 text-xs leading-4 font-normal text-quiet-foreground tabular-nums"
+              className="shrink-0 text-xs leading-4 font-normal text-muted-foreground tabular-nums"
             >
               {count}
             </span>

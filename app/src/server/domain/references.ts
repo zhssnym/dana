@@ -51,6 +51,7 @@ import type { SQL } from 'drizzle-orm'
 import { REFERENCE_SEARCH_LIMIT, referencePath } from '../../shared/references.js'
 import { DEFAULT_FACET_NAMES } from '../../shared/facets.js'
 import type {
+  GetResultLocationResponse,
   ReferenceKind,
   ReferenceSummary,
   ReferenceTarget,
@@ -73,11 +74,14 @@ function summary(
 /* The facets a `facet` reference may name: the document-bearing natives,
    Purpose (#211) and Results (#213). Both are shared by construction
    (`folder_facets_owner_kind_check`), so folder membership is the whole access
-   join. The label is the stored override or that kind's default name. */
+   join. The label is the Page's name and the tab's (its stored override or
+   that kind's default name), "Half marathon · Purpose": every Page has a
+   Purpose, so the tab's name alone would be one of many identical rows in the
+   picker and an ambiguous chip. Every query using it joins `folders fo`. */
 const documentNativeFacet = sql`ff.kind IN ('purpose', 'results')`
-const facetLabel = sql`COALESCE(ff.display_name,
+const facetLabel = sql`(fo.name || ' · ' || COALESCE(ff.display_name,
   CASE ff.kind WHEN 'results' THEN ${DEFAULT_FACET_NAMES.results}
-               ELSE ${DEFAULT_FACET_NAMES.purpose} END)`
+               ELSE ${DEFAULT_FACET_NAMES.purpose} END))`
 
 /* A Discussion or an Outcome the viewer may open (#320): the Discussion not
    trashed, its Folder live, the viewer a member of it. `d` is the Discussion. */
@@ -98,6 +102,23 @@ export function outcomeLabel(statement: string): string {
   return chars.length <= OUTCOME_LABEL_MAX
     ? flat
     : `${chars.slice(0, OUTCOME_LABEL_MAX - 1).join('').trimEnd()}…`
+}
+
+/* A native Result (#213) the viewer may open: a `result` block of a live
+   Results facet of a live Folder the viewer is a member of. Results are
+   shared by construction, so membership is the whole gate, as for the facet
+   itself. `pb` is the block. */
+const resultGate = (viewerId: string): SQL => sql`
+  JOIN folder_facets ff
+    ON ff.id = pb.facet_id AND ff.kind = 'results' AND ff.deleted_at IS NULL
+  JOIN folders fo ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
+  JOIN folder_members m ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}`
+
+/** A Result's label: its statement on one line, cut as an Outcome's is; an
+ * empty statement reads "Untitled result". */
+export function resultLabel(text: string | null): string {
+  const label = outcomeLabel(text ?? '')
+  return label === '' ? 'Untitled result' : label
 }
 
 /**
@@ -172,6 +193,18 @@ export async function resolveReference(
       return row === undefined
         ? null
         : summary('outcome', String(row.id), outcomeLabel(String(row.statement)))
+    }
+    case 'result': {
+      const found = await rowsOf(
+        executor,
+        sql`SELECT pb.id, pb.text
+              FROM page_blocks pb ${resultGate(viewerId)}
+             WHERE pb.id = ${target.id}::uuid AND pb.kind = 'result'`,
+      )
+      const row = found[0]
+      return row === undefined
+        ? null
+        : summary('result', String(row.id), resultLabel(row.text as string | null))
     }
   }
 }
@@ -305,6 +338,16 @@ export async function searchReferences(
         LIMIT ${REFERENCE_SEARCH_LIMIT}`,
   )
 
+  /* Results (#213) matched on their statement, the composing Folder's first. */
+  const resultRows = await rowsOf(
+    executor,
+    sql`SELECT pb.id, pb.text, ff.folder_id
+        FROM page_blocks pb ${resultGate(viewerId)}
+        WHERE pb.kind = 'result' AND pb.text ILIKE ${pattern}
+        ORDER BY ${folderId === undefined ? sql`` : sql`(ff.folder_id = ${folderId}) DESC, `}pb.updated_at DESC, pb.id DESC
+        LIMIT ${REFERENCE_SEARCH_LIMIT}`,
+  )
+
   const shelfRows = await rowsOf(
     executor,
     sql`SELECT s.id, s.name
@@ -314,6 +357,13 @@ export async function searchReferences(
         LIMIT ${REFERENCE_SEARCH_LIMIT}`,
   )
 
+  /* The composing Folder's Results sit with its Tasks and tabs, ahead of
+     every other Page's rows; the rest keep their place near the end. */
+  const isContextResult = (row: Record<string, unknown>): boolean =>
+    folderId !== undefined && String(row.folder_id) === folderId
+  const resultSummary = (row: Record<string, unknown>): ReferenceSummary =>
+    summary('result', String(row.id), resultLabel(row.text as string | null))
+
   const results: ReferenceSummary[] = [
     ...contextRows.map((row) =>
       summary('task', String(row.id), String(row.title)),
@@ -321,6 +371,7 @@ export async function searchReferences(
     ...contextPurposeRows.map((row) =>
       summary('facet', String(row.id), String(row.label)),
     ),
+    ...resultRows.filter(isContextResult).map(resultSummary),
     ...otherRows.map((row) =>
       summary('task', String(row.id), String(row.title)),
     ),
@@ -336,9 +387,33 @@ export async function searchReferences(
     ...outcomeRows.map((row) =>
       summary('outcome', String(row.id), outcomeLabel(String(row.statement))),
     ),
+    ...resultRows.filter((row) => !isContextResult(row)).map(resultSummary),
     ...shelfRows.map((row) =>
       summary('shelf', String(row.id), String(row.name)),
     ),
   ]
   return results.slice(0, REFERENCE_SEARCH_LIMIT)
+}
+
+/** Where a native Result lives (#213), through the resolver's own gate. */
+export async function resultLocation(
+  executor: Executor,
+  viewerId: string,
+  resultId: string,
+): Promise<GetResultLocationResponse | null> {
+  const found = await rowsOf(
+    executor,
+    sql`SELECT pb.id, pb.text, ff.id AS facet_id, ff.folder_id
+          FROM page_blocks pb ${resultGate(viewerId)}
+         WHERE pb.id = ${resultId}::uuid AND pb.kind = 'result'`,
+  )
+  const row = found[0]
+  return row === undefined
+    ? null
+    : {
+        id: String(row.id),
+        folder_id: String(row.folder_id),
+        facet_id: String(row.facet_id),
+        label: resultLabel(row.text as string | null),
+      }
 }

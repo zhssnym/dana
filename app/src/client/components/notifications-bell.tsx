@@ -34,6 +34,7 @@ import {
   PopoverTrigger,
 } from './ui/popover.js'
 import { Bell } from '../lib/icons.js'
+import { Button } from './ui/button.js'
 import { formatAgo } from '../parts/format-dates.js'
 import { initialsOf } from '../parts/presenters.js'
 import { PersonFace } from './person-face.js'
@@ -94,7 +95,7 @@ function subjectPath(row: NotificationLine): string {
 /** "in "X"", from either stored form of a post's or a mention's detail. */
 function placeLine(row: NotificationLine): string | null {
   const detail = row.event.detail ?? ''
-  const mentioned = /^mentioned you ins+(.+)$/.exec(detail.trim())?.[1]
+  const mentioned = /^mentioned you in\s+(.+)$/.exec(detail.trim())?.[1]
   const place = mentioned ?? placeOf(row.event.detail)
   return place === null ? null : `in ${place}`
 }
@@ -231,22 +232,25 @@ export function NotificationsBell({
         side={side}
         className="w-[min(360px,calc(100vw-16px))] p-1"
       >
-        {unread > 0 ? (
-          <div className="flex h-8 items-center justify-end px-2">
-            <button
-              type="button"
+        {/* The list's one heading, with its one verb at the right. */}
+        <div className="flex h-(--row-height) items-center gap-(--space-inline) pr-1 pl-2">
+          <h2 className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">Notifications</h2>
+          {unread > 0 ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
               onClick={() => {
                 markAllRead.mutate()
               }}
-              className="rounded-sm px-1.5 py-0.5 text-xs text-muted-foreground outline-none hover:bg-accent hover:text-foreground"
             >
               Mark all read
-            </button>
-          </div>
-        ) : null}
+            </Button>
+          ) : null}
+        </div>
         {rows.length === 0 ? (
           /* 9.12's empty state, word for word. */
-          <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+          <p className="px-2 pt-1 pb-3 text-sm text-muted-foreground">
             Nothing new. When someone assigns you a task or answers you, it
             lands here.
           </p>

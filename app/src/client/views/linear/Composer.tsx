@@ -19,7 +19,7 @@ import { cn } from '../../components/ui/utils.js'
 export type ComposerKind = 'step' | 'text' | 'subtask' | 'link' | 'image' | 'milestone'
 
 const KINDS: Record<ComposerKind, { label: string; icon: LucideIcon; placeholder: string }> = {
-  step: { label: 'Step', icon: ListTodo, placeholder: 'Step title' },
+  step: { label: 'Task', icon: ListTodo, placeholder: 'Task title' },
   text: { label: 'Text', icon: Type, placeholder: 'Write a note' },
   subtask: { label: 'Subtask', icon: ListChecks, placeholder: 'Subtask' },
   link: { label: 'Link', icon: Link2, placeholder: 'Paste a link' },

@@ -13,7 +13,8 @@ it is; what a surface offers is what its server stores:
 - `plain` (a facet with no headings).
 - `shelf`: one heading level, stored flat; no toggle list.
 - `task`: the Task composer's own schema (callout and divider; no toggle
-  list), with toggle headings as on a document.
+  list), with toggle headings as on a document. Subtask is offered: the line
+  joins the Task's subtasks, as Task turns a Work line into a Task.
 - `post`: a discussion post; a document without toggle headings (the post
   contract has none).
 
@@ -35,14 +36,14 @@ import { SuggestionMenuController, getDefaultReactSlashMenuItems, useComponentsC
 import type { DefaultReactSuggestionItem, SuggestionMenuProps } from '@blocknote/react'
 import { SuggestionMenu, insertOrUpdateBlockForSlashMenu } from '@blocknote/core/extensions'
 
-import { CheckCircle2, Code, FileText, Heading1, Heading2, Heading3, IconMotion, Image as ImageIcon, Lightbulb, Link2, List, ListCollapse, ListOrdered, Minus, Network, Quote, Type } from '../../../lib/icons.js'
+import { CheckCircle2, Code, FileText, Flag, Heading1, Heading2, Heading3, IconMotion, Image as ImageIcon, Lightbulb, Link2, List, ListCollapse, ListOrdered, Minus, Network, Quote, Type } from '../../../lib/icons.js'
 import type { LucideIcon } from '../../../lib/icons.js'
 import './slash-menu.css'
 import { linkSlashItem } from '../../links/dana-link-picker.js'
 import { folderMark } from '../../../parts/presenters.js'
 import { openOnCreate, pendingPages } from './adapters.js'
 import { placeSection, sectionPlace } from './commands.js'
-import { TOGGLE_HEADING_SURFACES, TOGGLE_SURFACES, bindCanvasSurface, surfaceOf } from './markdown.js'
+import { TOGGLE_HEADING_SURFACES, TOGGLE_SURFACES, bindCanvasSurface, bindResultCanvas, offersResults, surfaceOf } from './markdown.js'
 import { shelfOutlineFailure, validateCanvasOutline } from './outline.js'
 import { TEXT_TYPES, TURN_TARGETS, isCurrent, simulate } from './turn-into.js'
 import { turnBlocksInto } from './BlockSideMenu.js'
@@ -57,12 +58,16 @@ export interface SlashContext {
   readonly surface: CanvasSurfaceKind
   /** Folder Work only: the canvas's own Task creation. */
   readonly onCreateTask?: () => void
+  /** Task only: the line becomes a subtask (#221: a Task's to-do is a Step). */
+  readonly onCreateSubtask?: () => void
   /** False where no file can be stored (a Task outside a Folder). */
   readonly media?: boolean
+  /** The Results tab alone offers Result (#213). */
+  readonly results?: boolean
 }
 
 type Item = DefaultReactSuggestionItem & {
-  readonly group: 'Basic blocks' | 'Media' | 'Dana' | 'Turn into'
+  readonly group: 'Basic blocks' | 'Media' | 'Advanced' | 'Turn into'
   /** The markdown shortcut that makes the same block here, shown muted. */
   readonly hint?: string
   /** Listed only once something is typed (Notion's toggle headings). */
@@ -95,16 +100,21 @@ const TURN_ALIASES: Record<TurnKey, readonly string[]> = {
   quote: ['quote', 'blockquote', '"'],
   callout: ['callout', 'note', 'tip'],
   code: ['code', '```', 'snippet'],
+  result: ['result', 'outcome', 'finding', 'deliverable'],
 }
 /** One icon family (Lucide), one size, for every block kind the menus name. */
 const HEADING_ICONS: Record<1 | 2 | 3, LucideIcon> = { 1: Heading1, 2: Heading2, 3: Heading3 }
 const KIND_ICONS: Record<string, LucideIcon> = {
   paragraph: Type, bulletListItem: List, numberedListItem: ListOrdered, toggleListItem: ListCollapse,
-  quote: Quote, callout: Lightbulb, codeBlock: Code, divider: Minus,
+  quote: Quote, callout: Lightbulb, codeBlock: Code, divider: Minus, result: Flag,
 }
 const glyph = (Icon: LucideIcon): JSX.Element => <Icon aria-hidden="true" />
+/** The icon a block kind wears in every menu that names it (`/`, Turn into). */
+export function kindIconOf(type: string, level?: 1 | 2 | 3): LucideIcon | undefined {
+  return type === 'heading' ? HEADING_ICONS[level ?? 1] : KIND_ICONS[type]
+}
 function kindIcon(type: string, level?: 1 | 2 | 3): JSX.Element | undefined {
-  const Icon = type === 'heading' ? HEADING_ICONS[level ?? 1] : KIND_ICONS[type]
+  const Icon = kindIconOf(type, level)
   return Icon === undefined ? undefined : glyph(Icon)
 }
 
@@ -139,6 +149,7 @@ export function turnTargetsFor(editor: AnyEditor, block: TreeBlock): TurnTarget[
   return TURN_TARGETS.filter((target) => {
     const toggles = headingTogglesFor(editor, block, target)
     if (!has(editor, target.type) || isCurrent(block, target)) return false
+    if (target.type === 'result' && !offersResults(editor)) return false
     if (target.type === 'heading' && (surface === 'plain' || (surface === 'shelf' && target.level !== 1))) return false
     if (target.type === 'toggleListItem' && !TOGGLE_SURFACES.has(surface)) return false
     if (target.toggle === true && !TOGGLE_HEADING_SURFACES.has(surface)) return false
@@ -187,7 +198,7 @@ function turnItems(editor: AnyEditor): Item[] {
 /* ------------------------------------------------------------ insert */
 
 export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item[] {
-  const { surface, onCreateTask, media = true } = context
+  const { surface, onCreateTask, onCreateSubtask, media = true, results = false } = context
   const defaults = getDefaultReactSlashMenuItems(editor)
   const byKey = (key: string): DefaultReactSuggestionItem | undefined => defaults.find((item) => 'key' in item && item.key === key)
   const items: Item[] = []
@@ -199,6 +210,9 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     editor.focus()
   }
 
+  /* #213: a native Result, made only on purpose — ordinary writing on Results
+     stays writing. First on the tab that exists for it. */
+  if (results && has(editor, 'result')) add('Basic blocks', 'Result', ['result', 'outcome', 'finding', 'deliverable'], insert('result'), glyph(Flag))
   add('Basic blocks', 'Text', ['text', 'paragraph', 'plain', 'p'], insert('paragraph'), kindIcon('paragraph'))
 
   // Headings, by what the surface stores.
@@ -234,6 +248,8 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
   sits right under Text and the headings, as a to-do does in Notion.
   */
   if (surface === 'work' && onCreateTask !== undefined) add('Basic blocks', 'Task', ['task', 'todo', 'to-do', 'checkbox', 'action', '[]'], () => { onCreateTask() }, glyph(CheckCircle2), { hint: '[]' })
+  // Inside a Task the to-do is a subtask, one list above the writing (#221).
+  if (surface === 'task' && onCreateSubtask !== undefined) add('Basic blocks', 'Subtask', ['subtask', 'step', 'todo', 'to-do', 'checkbox', '[]'], () => { onCreateSubtask() }, glyph(CheckCircle2), { hint: '[]' })
   /* A sub-page: its folder is created by the next save (`create_page`), with
      the title the sidebar gives a new page, and then opens with that title
      selected to be typed over (`FolderCanvas`), as Notion opens a new page. */
@@ -271,13 +287,15 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     const image = byKey('image')
     const file = byKey('file')
     // Upstream's items open the file panel on the new block (`CanvasFilePanel`).
-    if (image !== undefined) add('Media', 'Image', ['img', 'image', 'picture', 'photo'], () => { image.onItemClick() }, glyph(ImageIcon))
+    // Media is one command (#220): an empty image block whose chosen file
+    // decides image, audio or video. File is the generic attachment.
+    if (image !== undefined) add('Media', 'Media', ['media', 'img', 'image', 'picture', 'photo', 'audio', 'sound', 'music', 'video', 'movie'], () => { image.onItemClick() }, glyph(ImageIcon))
     if (file !== undefined) add('Media', 'File', ['file', 'attachment', 'upload', 'document'], () => { file.onItemClick() }, glyph(FileText))
   }
 
-  if (has(editor, 'diagram')) add('Dana', 'Diagram', ['diagram', 'flowchart', 'mermaid', 'chart'], insert('diagram'), glyph(Network))
+  if (has(editor, 'diagram')) add('Advanced', 'Diagram', ['diagram', 'flowchart', 'mermaid', 'chart'], insert('diagram'), glyph(Network))
   const link = linkSlashItem(editor)
-  add('Dana', 'Link to page', ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, glyph(Link2))
+  add('Advanced', link.title, ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, glyph(Link2))
   return items
 }
 
@@ -405,8 +423,9 @@ function CanvasSuggestionList(props: SuggestionMenuProps<DefaultReactSuggestionI
 
 /** The slash menu and the Cmd/Ctrl+/ Turn into menu, for one canvas. */
 export function CanvasSlashMenu({ editor, context }: { readonly editor: AnyEditor; readonly context: SlashContext }): JSX.Element {
-  const { surface } = context
+  const { surface, results = false } = context
   useEffect(() => bindCanvasSurface(editor, surface), [editor, surface])
+  useEffect(() => results ? bindResultCanvas(editor) : undefined, [editor, results])
   useEffect(() => {
     const open = (event: KeyboardEvent): void => {
       // Enter on "No results" closes the menu and keeps what was typed.

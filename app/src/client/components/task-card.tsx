@@ -19,11 +19,11 @@ composer in this panel offers no file or link of its own.
 
 import { Face } from "./person-face.js"
 import { InlineInput } from "./ui/inline-field.js"
-import { Input } from "./ui/input.js"
 import {
   ArrowUpRight,
   Bell,
   CalendarDays,
+  Check,
   FileText,
   GripVertical,
   Image as ImageIcon,
@@ -34,6 +34,7 @@ import {
   Play,
   Plus,
   Repeat2,
+  Tag,
   UserRound,
   Video,
   Workflow,
@@ -72,11 +73,14 @@ import {
   UNASSIGNED,
 } from "./task-card-copy.js"
 import { TaskAssigneeInvite } from "./task-assignee-invite.js"
+import { TaskLabelsRow } from "./task-labels.js"
 import { INVITE_BY_EMAIL, STEP_CAP_NOTICE } from "./task-copy.js"
 /* 10.3's cap for the field. Restated rather than imported because
    `shared/tasks.ts` spends it inline in a zod `max`. */
 const STEP_CAP = 50
 import {
+  isoDay,
+  parseDueLabel,
   reminderChipValue,
   repeatSummary,
   stepCount,
@@ -84,6 +88,7 @@ import {
   type ConceptTask,
 } from "../tasks/task-model.js"
 import { useTimeFormat } from "../lib/time-format.js"
+import { formatDate, formatDay, formatDayInline } from "../lib/dates.js"
 import { useSortableList } from "../lib/use-sortable-list.js"
 import { cn } from "./ui/utils.js"
 import { Checkbox } from "./ui/checkbox.js"
@@ -154,7 +159,7 @@ function Section({
 }) {
   return (
     <section aria-label={title} className="flex flex-col gap-1">
-      <h3 className="flex items-baseline gap-2 text-sm font-semibold text-foreground">
+      <h3 className="flex items-baseline gap-2 text-sm font-section text-foreground">
         {title}
         {badge ? (
           <span className="text-xs font-normal text-muted-foreground tabular-nums">{badge}</span>
@@ -264,6 +269,11 @@ function StepList({
   renameStep: (id: string, index: number, title: string) => void
 }) {
   const [adding, setAddingState] = useState(startAdding)
+  /* A list already drawn opens its field when asked again (the writing's
+     "/subtask" on an empty line). */
+  useEffect(() => {
+    if (startAdding) setAddingState(true)
+  }, [startAdding])
   const setAdding = (next: boolean) => {
     setAddingState(next)
     if (!next) onIdle?.()
@@ -352,7 +362,6 @@ function StepList({
                       <ListPlus className="size-4" strokeWidth={1.75} aria-hidden="true" />
                       Make this a task
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
                   </>
                 ) : null}
                 <DropdownMenuItem label="Remove" onClick={() => removeSteps(task.id, [i])}>
@@ -456,8 +465,6 @@ function AttachmentPicker({
   pickOnMount?: boolean
 }) {
   const input = useRef<HTMLInputElement>(null)
-  const [url, setUrl] = useState("")
-  const [showUrl, setShowUrl] = useState(false)
   const picked = useRef(false)
 
   function takeFiles(list: FileList | null) {
@@ -470,6 +477,9 @@ function AttachmentPicker({
           meta: `${file.type.split("/")[1]?.toUpperCase() ?? "FILE"} · ${readableSize(file.size)}`,
           kind,
           preview: kind === "image" ? URL.createObjectURL(file) : undefined,
+          /* The bytes themselves: the writer uploads what carries a file and
+             skips what does not, so without this a chosen file went nowhere. */
+          file,
         }
       }),
     )
@@ -501,59 +511,9 @@ function AttachmentPicker({
           event.target.value = ""
         }}
       />
-      <div className="flex items-center gap-1">
-        <EmptyAction label="Add a file" fill={false} onSelect={() => input.current?.click()} />
-        <EmptyAction
-          label="From a link"
-          icon={Link2}
-          fill={false}
-          expanded={showUrl}
-          onSelect={() => setShowUrl((open) => !open)}
-        />
-      </div>
-
-      {showUrl ? (
-        <form
-          className="mt-1 flex items-center gap-1"
-          onSubmit={(event) => {
-            event.preventDefault()
-            const trimmed = url.trim()
-            if (!trimmed) return
-            /* A URL with no scheme is still a link a person meant. */
-            const href = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-            let host = trimmed
-            let path = ""
-            try {
-              const parsed = new URL(href)
-              host = parsed.hostname.replace(/^www\./, "")
-              path = parsed.pathname.split("/").filter(Boolean).pop() ?? ""
-            } catch {
-              /* Not parseable: show what they typed rather than guessing. */
-            }
-            const image = /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(trimmed)
-            onAdd([
-              {
-                name: decodeURIComponent(path) || host,
-                meta: host,
-                kind: "link",
-                url: href,
-                preview: image ? href : undefined,
-              },
-            ])
-            setUrl("")
-            setShowUrl(false)
-          }}
-        >
-          <Input
-            value={url}
-            autoFocus
-            onChange={(event) => setUrl(event.target.value)}
-            placeholder="Paste a link"
-            aria-label="Attachment link"
-            className="h-[var(--control-height)] min-w-0 flex-1 text-sm"
-          />
-        </form>
-      ) : null}
+      {/* A file only: the task's attachments are its conversation's files
+          (4.16), and a link has nowhere to be stored; it belongs in Work. */}
+      <EmptyAction label="Add a file" onSelect={() => input.current?.click()} />
     </div>
   )
 }
@@ -645,12 +605,31 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
 
 /* ------------------------------------------------------------- properties */
 
-type AddableProperty = "date" | "reminder" | "repeat" | "assignee" | "steps"
+type AddableProperty = "date" | "reminder" | "repeat" | "assignee" | "labels" | "steps"
 
+/* The Schedule in one line (#215): "Starts Mon", "21 Sep – 30 Sep", or the
+   due date alone, which a same-day pair also is. A range names both ends as
+   dates: "21 Sep – Wed" left the reader working out which Wednesday. */
 function dateWords(task: ConceptTask): string {
-  if (!task.due) return "Empty"
-  const label = task.due.label
-  return label.charAt(0).toUpperCase() + label.slice(1)
+  const today = presenterToday()
+  const dueDay = task.due ? parseDueLabel(task.due.label) : null
+  const dueIso = dueDay === null ? null : isoDay(dueDay)
+  const ranged = task.start !== undefined && dueIso !== null && dueIso !== task.start
+  const due = task.due?.label
+  let words: string
+  if (ranged && dueIso !== null && due !== undefined && task.start !== undefined) {
+    /* The due label may carry a time after its day ("Sun 7:00 PM"). */
+    const dayPart = formatDay(dueIso, today)
+    const time = due.startsWith(dayPart) ? due.slice(dayPart.length) : ""
+    words = `${formatDate(task.start, today)} – ${formatDate(dueIso, today)}${time}`
+  } else if (due !== undefined) {
+    words = due
+  } else if (task.start !== undefined) {
+    words = `Starts ${formatDayInline(task.start, today)}`
+  } else {
+    words = "Empty"
+  }
+  return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 /* A menu-shaped property row (folder, assignee): same anatomy as the
@@ -810,7 +789,12 @@ function StatusRow({
         <DropdownMenuItem key={key} onClick={() => choose(key)}>
           <StatusMark status={key} />
           <span className="flex-1">{STATUS_LABEL[key]}</span>
-          {key === current ? <span className="text-xs text-muted-foreground">Current</span> : null}
+          {/* The current state takes the tick every picker uses. */}
+          <Check
+            className={cn("size-3.5 shrink-0", key === current ? "opacity-100" : "opacity-0")}
+            strokeWidth={2.5}
+            aria-hidden="true"
+          />
         </DropdownMenuItem>
       ))}
     </MenuRow>
@@ -869,12 +853,14 @@ export function TaskCard({
     new URLSearchParams(globalThis.location?.search ?? "").get("tab") === "discussion" ? "discussion" : "notes",
   )
 
-  const showDate = Boolean(task.due) || adding === "date"
+  const showDate = Boolean(task.due) || task.start !== undefined || adding === "date"
   const showReminder = Boolean(task.reminder) || adding === "reminder"
   const showRepeat = Boolean(task.recurrence) || adding === "repeat"
   const showAssignee = assignable && (Boolean(task.assignee) || adding === "assignee")
 
   /* A revealed row that closes without an answer goes away again. */
+  const addProperty = useRef<HTMLButtonElement>(null)
+
   function settle(which: AddableProperty) {
     return (open: boolean) => {
       if (!open) setAdding((current) => (current === which ? null : current))
@@ -882,7 +868,7 @@ export function TaskCard({
   }
 
   const addable: { key: string; label: string; icon: LucideIcon; onSelect: () => void }[] = [
-    ...(!task.due
+    ...(!task.due && task.start === undefined
       ? [{ key: "date", label: DATE_LABEL, icon: CalendarDays, onSelect: () => setAdding("date") }]
       : []),
     ...(task.due && !task.reminder
@@ -893,6 +879,9 @@ export function TaskCard({
       : []),
     ...(assignable && !task.assignee
       ? [{ key: "assignee", label: CHIP_ASSIGNEE, icon: UserRound, onSelect: () => setAdding("assignee") }]
+      : []),
+    ...(task.folder?.id !== undefined && labels.length === 0
+      ? [{ key: "labels", label: "Labels", icon: Tag, onSelect: () => setAdding("labels") }]
       : []),
     ...(steps.length === 0 && adding !== "steps"
       ? [{ key: "steps", label: "Subtasks", icon: ListPlus, onSelect: () => setAdding("steps") }]
@@ -914,7 +903,7 @@ export function TaskCard({
           <PropertyPicker
             label={DATE_LABEL}
             value={dateWords(task)}
-            empty={!task.due}
+            empty={!task.due && task.start === undefined}
             {...(task.due?.overdue ? { tone: "danger" as const } : {})}
             defaultOpen={adding === "date"}
             onOpenChange={settle("date")}
@@ -926,7 +915,7 @@ export function TaskCard({
         {showReminder ? (
           <PropertyPicker
             label={CHIP_REMINDER}
-            value={task.reminder ? reminderChipValue(task, timeFormat) : "Empty"}
+            value={reminderChipValue(task, timeFormat)}
             empty={!task.reminder}
             defaultOpen={adding === "reminder"}
             onOpenChange={settle("reminder")}
@@ -985,17 +974,28 @@ export function TaskCard({
           </MenuRow>
         ) : null}
 
-        {labels.length > 0 ? (
-          <div className={cn(PROPERTY_ROW, "hover:bg-transparent")}>
-            <span className={PROPERTY_LABEL}>Labels</span>
-            <span className="flex min-w-0 flex-wrap gap-1.5">
-              {labels.map((label) => (
-                <span key={label.id} className="rounded-sm bg-muted px-1.5 text-xs leading-5 text-foreground">
-                  {label.name}
-                </span>
-              ))}
-            </span>
-          </div>
+        {/* #208: the task's Labels, and the picker that changes them. */}
+        {task.folder?.id !== undefined && (labels.length > 0 || adding === "labels") ? (
+          <TaskLabelsRow
+            task={task}
+            defaultOpen={adding === "labels"}
+            /* Held open while the picker is: taking off the last label must not
+               pull the row, and the picker with it, out from under the pointer. */
+            onOpenChange={(open) => {
+              if (open) {
+                setAdding("labels")
+                return
+              }
+              settle("labels")(false)
+              /* With no label left the row goes, and the focus with it: hand
+                 it to "Add property", where Labels is offered again. */
+              if (labels.length === 0)
+                requestAnimationFrame(() => {
+                  if (document.activeElement === null || document.activeElement === document.body)
+                    addProperty.current?.focus()
+                })
+            }}
+          />
         ) : null}
 
         {addable.length > 0 ? (
@@ -1003,6 +1003,7 @@ export function TaskCard({
             <DropdownMenuTrigger
               render={
                 <button
+                  ref={addProperty}
                   type="button"
                   className={cn(
                     "flex h-[var(--control-height)] w-full items-center gap-2 rounded-sm px-2 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground data-popup-open:bg-accent",
@@ -1116,7 +1117,20 @@ export function TaskCard({
                 task.notes ? <p className="whitespace-pre-wrap px-1 text-sm text-foreground">{task.notes}</p> : null
               }
             >
-              <TaskComposer taskId={task.id} folderId={task.folder?.id ?? null} notes={task.notes ?? null} />
+              <TaskComposer
+                taskId={task.id}
+                folderId={task.folder?.id ?? null}
+                notes={task.notes ?? null}
+                addSubtasks={(added) => {
+                  if (added.length === 0) {
+                    setAdding("steps")
+                    return true
+                  }
+                  if (steps.length + added.length > STEP_CAP) return false
+                  patch(task.id, { steps: [...steps, ...added] })
+                  return true
+                }}
+              />
             </Suspense>
           </div>
         ) : (

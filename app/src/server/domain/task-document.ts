@@ -413,6 +413,9 @@ export async function applyTaskDocumentLocked(
       if (op.block_kind === 'folder_ref') {
         throw new TaskDocumentRefusal('invalid', 'a folder reference belongs on the Folder page', 'operations')
       }
+      if (op.block_kind === 'result') {
+        throw new TaskDocumentRefusal('invalid', 'A Result lives on the Results tab.', 'operations')
+      }
       writes.set(op.id, op)
       blocks.add(op.id)
       named.add(op.id)

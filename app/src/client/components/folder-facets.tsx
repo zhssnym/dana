@@ -243,11 +243,17 @@ export function FolderTabs({
 
   useEffect(() => clearTimer, [])
 
-  /* The current tab is never left scrolled out of a narrow row. */
+  /* The current tab is never left scrolled out of a narrow row. The row is
+     scrolled by hand: Chrome's scrollIntoView moves the Tab starting point to
+     the tab, so a page's first Tab skipped the skip link and the sidebar. */
   useEffect(() => {
-    globalThis.document
-      .getElementById(`facet-tab-${activeId}`)
-      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    const row = rowRef.current
+    const tab = globalThis.document.getElementById(`facet-tab-${activeId}`)
+    if (row === null || tab === null) return
+    const box = row.getBoundingClientRect()
+    const at = tab.getBoundingClientRect()
+    if (at.left < box.left) row.scrollLeft -= box.left - at.left
+    else if (at.right > box.right) row.scrollLeft += at.right - box.right
   }, [activeId])
 
   const canAdd = onAdd !== undefined && capabilities?.(null).createShared === true
@@ -320,7 +326,8 @@ export function FolderTabs({
 
   return (
     /* The hairline is the row's, under the tabs and the "+" alike. */
-    <div className="flex min-w-0 items-end gap-2 border-b border-border">
+    /* A phone lifts the trailing controls to their own line above, so the tabs keep the width. */
+    <div className="flex min-w-0 items-end gap-2 border-b border-border max-md:grid max-md:grid-cols-[minmax(0,max-content)_auto_1fr] max-md:gap-y-0">
       <TabList
         ref={rowRef}
         label="Page tabs"
@@ -535,7 +542,7 @@ export function FolderTabs({
       ) : null}
       {/* Always drawn, at the control height, so the row is the same height on
           every tab whether or not the tab has anything here. */}
-      <div className="ms-auto mb-1 flex h-7 shrink-0 items-center self-center">{trailing ?? null}</div>
+      <div className="ms-auto mb-1 flex h-7 shrink-0 items-center self-center max-md:col-span-3 max-md:row-start-1 max-md:justify-end">{trailing ?? null}</div>
       <DropdownMenu
         open={menu !== null}
         onOpenChange={(open) => {

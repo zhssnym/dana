@@ -168,6 +168,13 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
         content: contentOf(block.text, block.rich_content),
         children: [],
       }
+    } else if (block.kind === 'result') {
+      node = {
+        id: block.id,
+        type: 'result',
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
     } else if (block.kind === 'code') {
       node = {
         id: block.id,
@@ -418,6 +425,7 @@ export function dehydrateCanvas(
         else if (block.type === 'toggleListItem') blockKind = 'toggle'
         else if (block.type === 'quote') blockKind = 'quote'
         else if (block.type === 'callout') blockKind = 'callout'
+        else if (block.type === 'result') blockKind = 'result'
         else if (block.type === 'codeBlock') blockKind = 'code'
         else if (block.type === 'image') blockKind = 'image'
         else if (block.type === 'file') blockKind = 'file'

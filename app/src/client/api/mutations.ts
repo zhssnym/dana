@@ -43,7 +43,7 @@ import type {
   TransferOwnershipResponse,
 } from '../../shared/folders.js'
 import { getSettingsResponse } from '../../shared/bundle.js'
-import { SAMPLE_KEPT_HEADER, sampleStatus } from '../../shared/sample.js'
+import { SAMPLE_KEPT_HEADER, SAMPLE_TRASHED_HEADER, sampleStatus } from '../../shared/sample.js'
 import type { SampleStatus } from '../../shared/sample.js'
 import type {
   GetSettingsResponse,
@@ -120,6 +120,12 @@ import type {
   ImportWorkflowResponse,
 } from '../../shared/workflows.js'
 
+import type { FolderAccessPreset } from '../../shared/folder-access.js'
+import { putResponsibilityResponse } from '../../shared/responsibility.js'
+import type {
+  PutResponsibilityResponse,
+  ResponsibilityDocument,
+} from '../../shared/responsibility.js'
 import { defaultFolderDescription } from '../lib/folder-description.js'
 import { mutateApi, requestTimezone } from './http.js'
 import { INLINE_VALIDATION_META, INVALIDATES_META, VALIDATION_ERROR_TOAST_META } from './queryClient.js'
@@ -404,6 +410,75 @@ export function useRemoveFolderMember(): UseMutationResult<
       mutateApi(null, {
         method: 'DELETE',
         path: `/folders/${folderId}/members/${userId}`,
+      }),
+  })
+}
+
+/**
+ * PATCH /folders/:id/members/:userId: set one member's Access (#209). The
+ * Access the panel showed goes as `expected_access`, so a change somebody else
+ * made meanwhile is refused (409) rather than silently replaced.
+ */
+export interface ChangeMemberAccessVariables {
+  readonly folderId: string
+  readonly userId: string
+  readonly access: FolderAccessPreset
+  readonly expected: FolderAccessPreset
+}
+
+export function useChangeMemberAccess(): UseMutationResult<
+  void,
+  Error,
+  ChangeMemberAccessVariables
+> {
+  return useMutation({
+    mutationFn: ({ folderId, userId, access, expected }: ChangeMemberAccessVariables) =>
+      mutateApi(null, {
+        method: 'PATCH',
+        path: `/folders/${folderId}/members/${userId}`,
+        body: { access, expected_access: expected },
+      }),
+  })
+}
+
+/** PUT /folders/:id/members/:userId/self-edit-grant (#209, #230). */
+export function useSetSelfEditGrant(): UseMutationResult<
+  void,
+  Error,
+  { readonly folderId: string; readonly userId: string; readonly enabled: boolean }
+> {
+  return useMutation({
+    mutationFn: ({ folderId, userId, enabled }) =>
+      mutateApi(null, {
+        method: 'PUT',
+        path: `/folders/${folderId}/members/${userId}/self-edit-grant`,
+        body: { enabled },
+      }),
+  })
+}
+
+/**
+ * PUT /folders/:id/members/:userId/responsibility (#209, #230). A 409 (someone
+ * saved first) and a 422 (a link the server refuses) are drawn in the editor,
+ * which keeps the draft, so neither toasts.
+ */
+export function useSaveResponsibility(): UseMutationResult<
+  PutResponsibilityResponse,
+  Error,
+  {
+    readonly folderId: string
+    readonly userId: string
+    readonly content: ResponsibilityDocument
+    readonly baseRevision: string
+  }
+> {
+  return useMutation({
+    meta: { [INLINE_VALIDATION_META]: true },
+    mutationFn: ({ folderId, userId, content, baseRevision }) =>
+      mutateApi(putResponsibilityResponse, {
+        method: 'PUT',
+        path: `/folders/${folderId}/members/${userId}/responsibility`,
+        body: { content, base_revision: baseRevision },
       }),
   })
 }
@@ -1044,22 +1119,30 @@ export function useImportWorkflowFile(): UseMutationResult<
 
 /**
  * DELETE /sample. Answers the names of the sample folders removal left
- * standing because someone else is a member, read off the one header the
- * 204 carries, so the strip can say so.
+ * standing because someone else is a member, and of those it moved to Trash
+ * because the person wrote in them, read off the 204's headers, so the strip
+ * can say so.
  */
-export function useRemoveSample(): UseMutationResult<string[], Error, void> {
+export function useRemoveSample(): UseMutationResult<
+  { kept: string[]; trashed: string[] },
+  Error,
+  void
+> {
   return useMutation({
     mutationFn: async () => {
+      const names = (raw: string | null): string[] =>
+        raw === null || raw === '' ? [] : decodeURIComponent(raw).split('\n')
       let kept: string[] = []
+      let trashed: string[] = []
       await mutateApi(null, {
         method: 'DELETE',
         path: '/sample',
         onHeaders: (headers) => {
-          const raw = headers.get(SAMPLE_KEPT_HEADER)
-          kept = raw === null || raw === '' ? [] : decodeURIComponent(raw).split('\n')
+          kept = names(headers.get(SAMPLE_KEPT_HEADER))
+          trashed = names(headers.get(SAMPLE_TRASHED_HEADER))
         },
       })
-      return kept
+      return { kept, trashed }
     },
   })
 }

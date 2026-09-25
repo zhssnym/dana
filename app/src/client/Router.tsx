@@ -18,6 +18,7 @@ import { useFolders } from './api/queries.js'
 import { AssignmentsPage } from './pages/AssignmentsPage.js'
 import { DiscussionLinkPage, OutcomeLinkPage } from './pages/ConsultationLinkPage.js'
 import { FacetEntryPage } from './pages/FacetEntryPage.js'
+import { ResultLinkPage } from './pages/ResultLinkPage.js'
 import { FolderPage } from './pages/FolderPage.js'
 import { LandingPage } from './pages/LandingPage.js'
 import { LegalPage } from './pages/LegalPage.js'
@@ -72,6 +73,8 @@ export function Router(): React.JSX.Element {
               replaces itself with the Consultation facet's URL state. */}
           <Route path="discussions/:id" element={<DiscussionLinkPage />} />
           <Route path="outcomes/:id" element={<OutcomeLinkPage />} />
+          {/* #213: a native Result opens its Folder's Results tab at the block. */}
+          <Route path="results/:id" element={<ResultLinkPage />} />
           <Route path="settings" element={<SettingsPage />} />
           {/* People lives in Settings now; the old address still lands there. */}
           <Route path="people" element={<Navigate to={`${paths.settings}#people`} replace />} />

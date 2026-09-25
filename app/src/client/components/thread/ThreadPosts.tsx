@@ -153,7 +153,9 @@ export function ThreadPosts({
   const shortTimeOf = (instant: string): string => timeOf(instant).replace(/\s?[AP]M$/, '')
 
   const goTo = (id: string): void => {
-    document.getElementById(`post-${id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    /* A script's `smooth` ignores the stylesheet's reduced-motion rule. */
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    document.getElementById(`post-${id}`)?.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' })
     setFlash(id)
     window.clearTimeout(flashTimer.current)
     flashTimer.current = window.setTimeout(() => { setFlash(null) }, 1600)
@@ -506,7 +508,8 @@ export function ThreadPosts({
 
       {deleting !== null ? (
         <ConfirmDialog
-          message="Delete this post? This cannot be undone."
+          message="Delete this post?"
+          description="This cannot be undone."
           confirmLabel="Delete"
           onCancel={() => { setDeleting(null) }}
           onContinue={() => {

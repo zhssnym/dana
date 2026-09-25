@@ -110,7 +110,7 @@ export function Calendar({
         {WEEKDAYS.map((day) => (
           <span
             key={day}
-            className="flex h-7 items-center justify-center text-xs font-medium text-quiet-foreground"
+            className="flex h-7 items-center justify-center text-xs font-medium text-muted-foreground"
           >
             {day}
           </span>

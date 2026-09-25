@@ -145,7 +145,7 @@ describe('AC-875 the Results document and link refuse a stranger', () => {
     const link = `/references/facet/${facetId}`
     const resolved = await owner.browser.json(link, 'GET')
     expectStatus(resolved, 200, 'a member resolves the Results link (7.24)')
-    expect((resolved.json() as { label?: unknown }).label).toBe('Results')
+    expect((resolved.json() as { label?: unknown }).label).toBe('ac875 outcomes · Results')
     const refused = await stranger.browser.json(link, 'GET')
     expectStatus(refused, 404, 'a Dana Link grants nothing (7.24, 10.2)')
     expect(refused.body).not.toContain('Results')

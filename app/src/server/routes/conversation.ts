@@ -44,6 +44,7 @@ import {
   discussionScope,
   editComment,
   likeComment,
+  taskCommentCounts,
   threadView,
   unlikeComment,
 } from '../domain/comments.js'
@@ -206,6 +207,24 @@ export function createConversationRouter(
             folderThread(query.data.task),
           ),
         )
+    },
+  )
+
+  /* m2 ghissues: each task thread's comment count, for the issue list. A
+     folder outside the viewer's membership is 404, as the thread read is. */
+  router.get(
+    '/folders/:id/comment-counts',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const folderId = parsedId(res, req.params.id)
+      if (folderId === null) return
+      if ((await accessOf(db, viewer(req), folderId)) === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      res.status(200).json({ counts: await taskCommentCounts(db, folderId) })
     },
   )
 

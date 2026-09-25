@@ -12,9 +12,14 @@ the window's foot. "Resolve" puts one optional line, "What was decided?",
 where the composer was (empty resolves without a decision, Wave 2 decision
 3). A resolved or trashed thread takes no writes (the server answers 409
 `discussion_frozen`), so its composer becomes one quiet line: "Resolved
-<date> by <name>.", the decision if any, and Reopen. Move to Trash asks
+<date> by <name>." and the decision if any; Reopen stays in the head. Move to Trash asks
 nothing: the thread goes back to the list at once and the undo bar brings it
 back. Server state names are unchanged (`resolved`).
+
+On a desktop the cursor lands in the composer, as Slack's does; a phone's
+keyboard is not opened uninvited. Escape, from anywhere but a field holding
+writing or an open menu, goes back to the list, which puts its focus back on
+this thread's row.
 
 Near-live: the posts re-read every few seconds and the thread's own row every
 fifteen (`api/consultation.ts`). Opening the thread, and every new post seen
@@ -105,9 +110,22 @@ function ThreadBody(props: {
   const [closing, setClosing] = useState(false)
   const [box, height] = useFillHeight()
   const [renaming, setRenaming] = useState(false)
+  const [pointer] = useState(() => globalThis.matchMedia?.('(pointer: fine)').matches ?? false)
   /* Where the reading starts: the last read as it stood when the thread
      opened, before this visit marks it. */
   const [openAt] = useState<string | null>(() => d.read_at ?? null)
+
+  /* On the document, so an Escape with nothing focused (after a click on the
+     page) leaves too; one aimed elsewhere (the sidebar, a dialog) does not. */
+  useEffect(() => {
+    const leave = (event: KeyboardEvent): void => {
+      const target = event.target as HTMLElement
+      if (target !== document.body && !box.current?.contains(target)) return
+      if (leavesThread(event)) onBack()
+    }
+    document.addEventListener('keydown', leave)
+    return () => { document.removeEventListener('keydown', leave) }
+  }, [box, onBack])
 
   const comments = thread.data?.comments
   const newest = comments?.reduce<string>((latest, c) => (c.created_at > latest ? c.created_at : latest), '') ?? null
@@ -162,7 +180,7 @@ function ThreadBody(props: {
   }
 
   const today = localDay(new Date().toISOString())
-  /* Resolved: one quiet line where the composer was, with the one Reopen. */
+  /* Resolved: one quiet line where the composer was; Reopen is the head's. */
   const closedNote = (
     <p className="py-2 text-sm text-muted-foreground">
       {trashed
@@ -171,26 +189,17 @@ function ThreadBody(props: {
       {!trashed && outcome !== null && outcome.statement !== '' ? (
         <>{': '}<span className="text-foreground">{outcome.statement}</span></>
       ) : null}
-      {powers.reopen && !trashed ? (
-        <>
-          {' · '}
-          <button
-            type="button"
-            className="rounded-sm text-sm text-foreground underline-offset-2 outline-none hover:underline"
-            disabled={reopen.isPending}
-            onClick={() => { reopen.mutate(d.id) }}
-          >
-            Reopen
-          </button>
-        </>
-      ) : null}
     </p>
   )
 
   const resolved = d.state === 'resolved'
   const hasMenu = (powers.edit && !frozen) || trashable
   return (
-    <div ref={box} className="flex min-w-0 flex-col" style={height === null ? undefined : { height }}>
+    <div
+      ref={box}
+      className="flex min-w-0 flex-col"
+      style={height === null ? undefined : { height }}
+    >
       {/* The page head's geometry: the status where a page's mark sits, the
           28px title beside it, the acts on the right. */}
       <header className="flex min-w-0 shrink-0 items-center gap-1 pt-4 max-md:pt-2">
@@ -200,7 +209,7 @@ function ThreadBody(props: {
         {renaming ? (
           <Rename discussion={d} onDone={() => { setRenaming(false) }} />
         ) : (
-          <h1 className="min-w-0 flex-1 truncate text-[length:var(--text-title-size)] leading-8 font-semibold text-foreground max-md:line-clamp-2 max-md:whitespace-normal">{d.title}</h1>
+          <h1 data-page-title="" className="min-w-0 flex-1 truncate text-[length:var(--text-title-size)] leading-8 font-title text-foreground max-md:line-clamp-2 max-md:whitespace-normal">{d.title}</h1>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-1">
           {resolvable && !closing ? (
@@ -250,6 +259,7 @@ function ThreadBody(props: {
         personOf={personOf}
         may={may}
         autoFocus={justStarted}
+        focusOnLand={pointer}
         openAt={justStarted ? undefined : openAt}
         onRefused={refused}
         post={(body) => postComment.mutateAsync({ discussionId: d.id, body })}
@@ -261,6 +271,23 @@ function ThreadBody(props: {
       />
     </div>
   )
+}
+
+/** Escape goes back to the list unless something nearer wants it: a field's
+ * own Escape (rename, resolve, an edit), an open menu or dialog, or a
+ * composer that holds writing. */
+function leavesThread(event: KeyboardEvent): boolean {
+  if (event.key !== 'Escape') return false
+  if (document.querySelector('[role="menu"], [role="dialog"], [role="alertdialog"], .bn-suggestion-menu, .bn-formatting-toolbar') !== null) return false
+  const target = event.target as HTMLElement
+  if (target.closest('input, textarea, select') !== null) return false
+  const editor = target.closest<HTMLElement>('[data-post-editor]')
+  /* The editor spends every Escape itself (it prevents the default), so
+     only a new post that holds nothing gives it up. */
+  if (editor === null) return !event.defaultPrevented
+  if (editor.dataset.postEditor !== 'new') return false
+  const text = editor.textContent?.trim() ?? ''
+  return text === '' && editor.querySelector('img, video, audio, [data-content-type="file"]') === null
 }
 
 /** An open thread: an outline speech bubble. */
@@ -324,7 +351,7 @@ function Rename({ discussion: d, onDone }: { readonly discussion: Discussion; re
       value={draft}
       maxLength={DISCUSSION_TITLE_MAX}
       disabled={update.isPending}
-      className="min-w-0 flex-1 bg-transparent text-[length:var(--text-title-size)] leading-8 font-semibold text-foreground outline-none"
+      className="min-w-0 flex-1 bg-transparent text-[length:var(--text-title-size)] leading-8 font-title text-foreground outline-none"
       onFocus={(event) => { event.currentTarget.select() }}
       onChange={(event) => { setDraft(event.target.value) }}
       onBlur={save}

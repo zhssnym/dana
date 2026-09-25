@@ -9,16 +9,21 @@ nothing), and otherwise asks Q8 through `useSearch`, which refuses a query under
 two characters, and shapes the four kinds 7.18 returns into the one item shape.
 
 **A title match ranks above a body match**: somebody typing *venue* means the
-thing called venue before the thing that mentions it. Section 6's rule that
-clients never re-sort is about the query orders; what the overlay keeps of Q8's
-is the status order inside Tasks, which the rank sort is stable over, so a
-pending row is still above an abandoned one and the ranked order is inside each
-status.
+thing called venue before the thing that mentions it. Each result carries a
+`rank`: 0 when its name is what was typed, 1 when its name starts with it, 2
+when a later word in its name does, 3 when its name only contains it, 4 when it
+matched on something else. A passage is always 4: its "title" is the text that
+matched, so reading a rank off it would call every passage a name match. One
+typed character ranks the same way, so the list does not reorder when the
+second character hands the query to Q8. The overlay orders
+by it (`components/search-overlay.tsx`); Q8's status order survives only among
+tasks of one rank.
 
 **A page result's id is a route**, because opening one means going there: a nav
 page's is its path, and a 7.18 page hit's is the path of the folder or shelf
-whose page carries the block, with the block's own text as the title and the
-page's name as the hint. `kind: "page"` covers both: a page is anything you go
+whose page carries the block, plus `#block-<id>` so the page scrolls to the passage
+(`useBlockAnchor`), with the block's own text as the title and "in" the page's
+trail as the hint, which keeps it from reading like a child page's parent trail. `kind: "page"` covers both: a page is anything you go
 to rather than open.
 
 **The folder chip on a task result is the sidebar's folder list**, looked up by
@@ -31,6 +36,7 @@ import { useMemo } from 'react'
 import { useFolders, useSearch, useShelves } from '../api/queries.js'
 import { folderMark, shelfMark } from '../parts/presenters.js'
 import { markIcon } from '../components/page/icon-manifest.js'
+import { AlignLeft } from './icons.js'
 import type { Folder } from '../../shared/folders.js'
 import { navPages, paths } from '../routes.js'
 import type { SearchResultItem } from '../components/search-overlay.js'
@@ -41,6 +47,50 @@ import { crumbTrail } from '../components/page-head.js'
 function trailHint(crumbs: readonly { readonly name: string }[] | undefined): string | null {
   if (crumbs === undefined || crumbs.length === 0) return null
   return crumbTrail(crumbs).map((crumb) => crumb?.name ?? '…').join(' / ')
+}
+
+/* How well a name answers the query; see the header. */
+export function nameRank(name: string, normalized: string): number {
+  const title = name.toLocaleLowerCase()
+  if (title === normalized) return 0
+  if (title.startsWith(normalized)) return 1
+  if (title.split(/[^\p{L}\p{N}]+/u).some((word) => word.startsWith(normalized))) return 2
+  if (title.includes(normalized)) return 3
+  return 4
+}
+
+/* A passage matched on its text, never its name. */
+const PASSAGE_RANK = 4
+
+/* Passages come after every name match and are capped, so a word used all
+   over the pages cannot bury the task named it. */
+const PASSAGE_LIMIT = 5
+
+/* A passage's text from a little before the match, so the row shows why it
+   matched rather than the paragraph's opening words. */
+function around(text: string, normalized: string): string {
+  const at = text.toLocaleLowerCase().indexOf(normalized)
+  if (at <= 24) return text
+  /* Back to the start of a word about three words before the match. */
+  const space = text.lastIndexOf(' ', at - 16)
+  const start = space > at - 32 ? space + 1 : at - 16
+  return `…${text.slice(start)}`
+}
+
+/* A page's ancestors in the viewer's own tree, root first, as the server's
+   breadcrumbs name them; used below Q8's floor, where there is no server trail. */
+function ancestorsOf(byId: ReadonlyMap<string, Folder>, folder: Folder): Folder[] {
+  const trail: Folder[] = []
+  const seen = new Set([folder.id])
+  let up = folder.parent_folder_id ?? null
+  while (up !== null && !seen.has(up)) {
+    const parent = byId.get(up)
+    if (parent === undefined) break
+    trail.unshift(parent)
+    seen.add(up)
+    up = parent.parent_folder_id ?? null
+  }
+  return trail
 }
 
 /** Q8's floor, which the endpoint refuses below. */
@@ -102,21 +152,25 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
   const results = useMemo((): SearchResultItem[] => {
     if (normalized.length === 0) return placeItems()
     if (normalized.length < MIN_QUERY) {
+      const inHand = new Map((folderList ?? []).map((folder) => [folder.id, folder]))
       return [
         ...(folderList ?? [])
           .filter((folder) => startsAWord(folder.name, normalized))
-          .map((folder) => pageResult(folder, folder.id, folder.name, '')),
+          .map((folder) =>
+            pageResult(folder, folder.id, folder.name, trailHint(ancestorsOf(inHand, folder)) ?? ''),
+          ),
         ...(shelfList ?? [])
           .filter((shelf) => startsAWord(shelf.name, normalized))
           .map((shelf): SearchResultItem => ({
             kind: 'shelf',
             id: shelf.id,
             title: shelf.name,
-            hint: 'Collection',
             color: shelfMark(shelf).color,
           })),
         ...placeItems().filter((place) => startsAWord(place.title, normalized)),
       ]
+        .map((item): SearchResultItem => ({ ...item, rank: nameRank(item.title, normalized) }))
+        .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
     }
     if (data === undefined) return []
     const byId = new Map((folderList ?? []).map((folder) => [folder.id, folder]))
@@ -135,7 +189,7 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
       }
     })
     const found: SearchResultItem[] = (data.folders ?? []).map((hit) =>
-      pageResult(byId.get(hit.id), hit.id, hit.name, trailHint(hit.breadcrumbs) ?? 'Page'),
+      pageResult(byId.get(hit.id), hit.id, hit.name, trailHint(hit.breadcrumbs) ?? ''),
     )
     const foundShelves: SearchResultItem[] = (data.shelves ?? []).map((hit) => {
       const shelf = shelfById.get(hit.id)
@@ -143,25 +197,26 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
         kind: 'shelf',
         id: hit.id,
         title: hit.name,
-        hint: 'Collection',
         ...(shelf === undefined ? {} : { color: shelfMark(shelf).color }),
       }
     })
-    const pages: SearchResultItem[] = (data.pages ?? []).map((hit) => {
+    const pages: SearchResultItem[] = (data.pages ?? []).slice(0, PASSAGE_LIMIT).map((hit) => {
       const home =
         hit.folder_id !== null
           ? { path: paths.folder(hit.folder_id), name: byId.get(hit.folder_id)?.name }
           : hit.shelf_id !== null
             ? { path: paths.shelf(hit.shelf_id), name: shelfById.get(hit.shelf_id)?.name }
             : null
+      const where = trailHint(hit.breadcrumbs) ?? home?.name
       return {
         kind: 'page',
-        id: home?.path ?? paths.today,
-        title: hit.text,
-        hint: (() => {
-          const trail = trailHint(hit.breadcrumbs) ?? home?.name
-          return trail === undefined ? 'Page' : `On ${trail}`
-        })(),
+        id: home === null ? paths.today : `${home.path}#block-${hit.block_id}`,
+        title: around(hit.text, normalized),
+        hint: where === undefined ? '' : `in ${where}`,
+        /* A passage, not a page called that: it wears the text glyph. */
+        icon: AlignLeft,
+        passage: true,
+        rank: PASSAGE_RANK,
       }
     })
     /* The places are findable by typing too, not only offered before anything
@@ -172,16 +227,11 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
         place.title.toLocaleLowerCase().includes(normalized) ||
         (place.hint ?? '').toLocaleLowerCase().includes(normalized),
     )
-    const all = [...tasks, ...found, ...foundShelves, ...places, ...pages]
-    /* A title match beats a body match. Stable, so Q8's status order inside
-       Tasks survives it. */
-    return all
-      .map((item) => ({
-        item,
-        rank: item.title.toLocaleLowerCase().includes(normalized) ? 0 : 1,
-      }))
-      .sort((a, b) => a.rank - b.rank)
-      .map((entry) => entry.item)
+    const named = [...tasks, ...found, ...foundShelves, ...places].map(
+      (item): SearchResultItem => ({ ...item, rank: nameRank(item.title, normalized) }),
+    )
+    /* Stable, so Q8's status order survives among tasks of one rank. */
+    return [...named, ...pages].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
   }, [normalized, data, folderList, shelfList])
 
   return {

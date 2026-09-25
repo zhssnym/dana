@@ -74,7 +74,14 @@ export interface CellEvent {
    * the sentence. A ghost is a projection with no date of its own, so it is
    * null here as well as undraggable for the reason `PlannedCalendar` gives.
    */
-  readonly moves: 'start_date' | 'due_date' | null
+  readonly moves: 'start_date' | 'due_date' | 'range' | null
+  /**
+   * Drawn here only because the task's own day is off this grid: a span
+   * whose deadline is past the grid, drawn on its start or on the grid's
+   * first day. `PlannedCalendar` lists these above the grid rather than in a
+   * cell, so a day cell holds the same tasks at every zoom.
+   */
+  readonly running: boolean
 }
 
 /**
@@ -137,35 +144,18 @@ export interface GridRange {
 }
 
 /**
- * Which cell one real row draws in.
+ * Which cell one real row draws in, Q3C's rule in its own order: the Due Date
+ * where the grid holds that day, else the Start Date, else the grid's first
+ * day when the span encloses the whole range. A row the query returned is
+ * drawn somewhere (issue #216), and only the last case draws on a day the task
+ * does not carry.
  *
- * **The deadline first, which is where a chip has always drawn**: a due-only
- * task, a same-day pair and a pair whose deadline is on this grid all draw on
- * the due date, so nothing that was drawn before moves.
- *
- * **Then the other end, and that is the fix issue #216 was named for.** Q3C
- * now returns every task whose Schedule *overlaps* the range, so a row can
- * arrive carrying a due date that is not on this grid at all: the issue's own
- * example, a task starting 28 September and due 3 October, reaches a day or
- * week grid around 28 September that has no 3 October cell. Placing it there
- * put it in no cell, and a row in no cell is not drawn - the server had
- * finally returned the row and the screen dropped it, which is worse than the
- * absence the change set out to remove. So the chip goes on whichever end of
- * the span the grid is actually showing.
- *
- * **And where neither end is on the grid, the first day of it.** A span that
- * encloses the whole range - AC-452's single-day range inside a long span -
- * has no end to draw on and is still a row the server returned, so it takes
- * the first cell rather than none. That is the only case that invents a day
- * the task does not carry, and it is guarded by the span genuinely covering
- * the grid: a row whose Schedule misses the range entirely, which Q3C does
- * not return, keeps its own date and lands in no cell exactly as before,
- * because inventing a cell for it would draw a chip nobody's data asked for.
+ * The rule never moves a task toward a grid edge while one of its own dates
+ * is on the grid, so a week and a month put a task on the same day whenever
+ * both hold that day.
  *
  * **This is a chip and not a bar.** 9.5's continuous bar from Start through
- * Due, split into weekly segments, is still unbuilt; what this guarantees is
- * only that a row the server returned is drawn somewhere on the grid it was
- * returned for.
+ * Due is still unbuilt.
  */
 function cellDateOf(task: TaskCard, range: GridRange): string {
   const inRange = (date: string): boolean =>
@@ -187,20 +177,22 @@ function realEvent(
   folders: readonly Folder[],
   range: GridRange,
 ): CellEvent {
+  const date = cellDateOf(task, range)
   return {
     key: `real:${task.id}`,
     kind: 'real',
     taskId: task.id,
     title: task.title,
-    date: cellDateOf(task, range),
+    date,
+    running: date !== (task.due_date ?? task.start_date),
     dueTime: task.due_time,
     statusRank: STATUS_RANK[task.status] ?? 0,
     status: task.status,
     folderColor: folderDisplay(task.folder, folders).color,
     /* Which end of the Schedule a drop writes, decided from the row rather
        than assumed to be the deadline (Q3C, issue #216). Null on a ghost,
-       which has no date of its own to move, and null on a Start+Due pair,
-       whose whole-range drag is unbuilt. */
+       which has no date of its own to move; `range` on a Start+Due pair,
+       which moves whole. */
     moves: movableEnd(task),
   }
 }
@@ -220,6 +212,7 @@ function ghostEvent(instance: VirtualInstance): CellEvent {
     status: null,
     folderColor: null,
     moves: null,
+    running: false,
   }
 }
 

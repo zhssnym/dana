@@ -16,6 +16,7 @@ import { FOLDER_ACTION_PARAM } from '../../../shell/app-sidebar.js'
 import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider } from './CanvasTask.js'
+import { SavedResults } from './CanvasResult.js'
 import { CanvasSurface } from './CanvasSurface.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { canvasSchema } from './schema.js'
@@ -38,6 +39,8 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   readonly facetId?: string
   /** Purpose headings change document typography only; they never create Work Sections. */
   readonly presentationHeadings?: boolean
+  /** The Results tab: `/result` makes a native Result (#213). */
+  readonly results?: boolean
   readonly workRootId?: string
   /** The folder's completed task cards the page already loaded; a placement
    * found here draws as its real row, checked and muted. */
@@ -61,7 +64,27 @@ export default function FolderCanvas(props: Props): React.JSX.Element {
 /* A Task made with Enter keeps the person writing Tasks: the save remounts
    the editor (a checkpoint), so the next line is opened by the new editor,
    right under the Task, with the page scrolled where it was. Keyed by draft key. */
-const resumeAfter = new Map<string, { taskId: string; scroller: Element | null; top: number; line?: string }>()
+const resumeAfter = new Map<string, { taskId: string; scroller: Element | null; top: number; line?: string; typed: string }>()
+/* What is typed while the Task is being made (the editor is read-only for
+   that round trip, then remounts) is kept and lands on the next line, so
+   "Buy milk ⏎ Call mom" typed at speed loses no letters. Only plain letters
+   and Backspace, and only while nothing else has focus; it lets go when the
+   line opens or the resume is dropped. */
+function keepTyping(key: string, resume: { typed: string }): void {
+  const onKey = (event: KeyboardEvent): void => {
+    if (resumeAfter.get(key) !== resume) { window.removeEventListener('keydown', onKey, true); return }
+    const active = document.activeElement
+    if (active !== null && active !== document.body && active.closest('.dana-writing-canvas') === null) return
+    if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return
+    if (event.key.length === 1) resume.typed += event.key
+    else if (event.key === 'Backspace') resume.typed = resume.typed.slice(0, -1)
+    else return
+    event.preventDefault()
+    event.stopPropagation()
+  }
+  window.addEventListener('keydown', onKey, true)
+  window.setTimeout(() => { window.removeEventListener('keydown', onKey, true) }, 15_000)
+}
 function scrollerOf(element: Element | null): Element | null {
   for (let at = element?.parentElement ?? null; at !== null; at = at.parentElement) {
     const overflow = getComputedStyle(at).overflowY
@@ -72,7 +95,7 @@ function scrollerOf(element: Element | null): Element | null {
 
 const CHANGED_ELSEWHERE = 'This page changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
-function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint, opening }: Props & {
+function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint, opening }: Props & {
   readonly opening: string
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
@@ -94,12 +117,12 @@ function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHea
       else setReloadNote('The page still has no version. Try again in a moment.')
     }) }}>Load the page again</Button>{reloadNote}
   </div>
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint, opening }} width={width} onSaved={(next) => {
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint, opening }} width={width} onSaved={(next) => {
     queryClient.setQueryData(facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId), next)
   }} />}</div>
 }
 
-function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted = true, context, actions, onAsk, arrangeable, onCheckpoint, opening, width, onSaved }: Props & {
+function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, showCompleted = true, context, actions, onAsk, arrangeable, onCheckpoint, opening, width, onSaved }: Props & {
   readonly opening: string
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
@@ -412,6 +435,8 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       if (inserted === undefined) return
       at = inserted.id
     }
+    // Known at once, not after the next render: an Enter typed right after `[] ` is the draft's.
+    draftRef.current = at
     setDraftTask(at)
     setDraftEmpty(true)
     editor.setTextCursorPosition(at, 'end')
@@ -428,7 +453,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     if (text.trim()) {
       if (resume) {
         const scroller = scrollerOf(document.querySelector(`.dana-writing-canvas .bn-block[data-id="${blockId}"]`))
-        resumeAfter.set(draftKey, { taskId: '', scroller, top: scroller?.scrollTop ?? 0 })
+        const resume = { taskId: '', scroller, top: scroller?.scrollTop ?? 0, typed: '' }
+        resumeAfter.set(draftKey, resume)
+        keepTyping(draftKey, resume)
       }
       void createTask(blockId, text)
       return
@@ -463,13 +490,34 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       if (resume.scroller !== null) resume.scroller.scrollTop = resume.top
       document.querySelector(`.dana-writing-canvas .bn-block[data-id="${line}"]`)?.scrollIntoView({ block: 'nearest' })
     }
+    // What was typed during the round trip (`keepTyping`) is the new line's text.
+    const typedAhead = (): void => {
+      if (resume.typed === '' || editor.getBlock(line) === undefined) return
+      editor.setTextCursorPosition(line, 'end')
+      editor.insertInlineContent(resume.typed)
+      resume.typed = ''
+    }
     settle()
+    typedAhead()
     const frame = requestAnimationFrame(settle)
-    const done = window.setTimeout(() => { if (resumeAfter.get(draftKey) === resume) resumeAfter.delete(draftKey) }, 0)
+    const done = window.setTimeout(() => {
+      if (resumeAfter.get(draftKey) !== resume) return
+      typedAhead()
+      resumeAfter.delete(draftKey)
+    }, 0)
     return () => { cancelAnimationFrame(frame); window.clearTimeout(done) }
   }, [editor, draftKey])
   const draftKeys = (event: React.KeyboardEvent<HTMLDivElement>): void => {
     if (draftRef.current === null) return
+    const drafting = editor.getBlock(draftRef.current)
+    const blank = drafting === undefined || richRuns(drafting).every((run) => run.text === '')
+    /* Enter or Backspace on the line while it is empty ends the list, as on an
+       empty to-do in Notion: the line stays, plain text, the caret on it. */
+    if (blank && ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Backspace')) {
+      event.preventDefault(); event.stopPropagation()
+      draftRef.current = null; setDraftTask(null)
+      return
+    }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault(); event.stopPropagation(); settleDraftTask(true)
     } else if (event.key === 'Escape') {
@@ -482,6 +530,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
   }
   const draftBox = `.dana-writing-canvas .bn-block[data-id="${draftTask}"] > .react-renderer > .bn-block-content`
   const draftStyle = draftTask === null ? '' : `${draftBox}{display:flex;flex-direction:row;align-items:center} ${draftBox}::before{content:"";flex-shrink:0;width:var(--checkbox-size);height:var(--checkbox-size);border:1px solid color-mix(in srgb, var(--muted-foreground) 50%, transparent);border-radius:var(--radius-sm);margin-inline:calc((var(--control-height) - var(--checkbox-size)) / 2)} ${draftBox}::after{content:none !important} ${draftBox} > *{flex:1;min-width:0}${draftEmpty ? ` ${draftBox} .bn-inline-content::before{content:"Task title" !important;color:var(--muted-foreground);position:absolute;pointer-events:none}` : ''}`
+  /* The Results a save has stored: only those can be linked to yet, so only
+     they ask for "Referenced from" (a new one would be a 404 in the console). */
+  const savedResults = useMemo(() => new Set(page.blocks.filter((block) => block.kind === 'result').map((block) => block.id)), [page])
   const pendingTask = writer.pending?.request.operations.some((operation) => operation.op === 'create_task') === true
   const draftHasRequest = ((): boolean => {
     try {
@@ -495,7 +546,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     const link = document.createElement('a'); link.href = url; link.download = `dana-recovered-${folderId}.json`; link.click(); URL.revokeObjectURL(url)
   }
   return <>
-    {!arrangeable ? <p className="mb-3 text-sm text-muted-foreground">Writing is paused while this list is filtered or sorted.</p> : null}
+    {/* Purpose and Results pass the reader's edit right as `arrangeable`: a
+       reader who cannot write there has nothing filtered or sorted to hear about. */}
+    {!arrangeable && presentationHeadings !== true ? <p className="mb-3 text-sm text-muted-foreground">Writing is paused while this list is filtered or sorted.</p> : null}
     {recovery ? <RecoveryNotice
       onDownload={downloadDraft}
       onRestore={!draftHasRequest ? undefined : () => {
@@ -514,6 +567,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       }}
       onDiscard={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}
     /> : null}
+    <SavedResults.Provider value={savedResults}>
     <CanvasTaskProvider tasks={tasks} completed={completed} context={context} actions={actions} onAsk={onAsk}>
       {draftStyle === '' ? null : <style>{draftStyle}</style>}
       <div
@@ -523,10 +577,12 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       >
       <CanvasSurface
         peopleFolderId={folderId}
-        placeholder={placeholder}
+        // Only a reader who can write is asked to.
+        placeholder={!arrangeable ? undefined : results === true ? 'Write what came of this, or type / for a Result' : presentationHeadings === true ? 'Write why this page exists' : placeholder}
         editor={editor}
         onChange={changed}
         onCreateTask={facetId === undefined ? askTask : undefined}
+        results={results === true}
         folderRefs={folderRefs}
         onUploadFile={uploadCanvasFile}
         headingMode={
@@ -541,6 +597,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       />
       </div>
     </CanvasTaskProvider>
+    </SavedResults.Provider>
     <SaveFailure
       message={error || (writer.state === 'failed' ? NOT_SAVED : null) || notice || null}
       onRetry={!error && writer.state === 'failed' && writer.pending ? () => { void writer.retry() } : undefined}

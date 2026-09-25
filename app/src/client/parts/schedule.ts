@@ -27,6 +27,7 @@ due today and future relations to the **deadline** alone, so they read
 buckets by it; both are commented where they make that choice.
 */
 import type { TaskCard } from '../../shared/tasks.js'
+import { addDays, daysBetween } from '../lib/dates.js'
 
 /** The two dates every function here reads, and nothing else of a card. */
 export type Schedule = Pick<TaskCard, 'start_date' | 'due_date'>
@@ -66,29 +67,38 @@ export function isScheduled(task: Schedule): boolean {
 }
 
 /**
- * Which end of the Schedule a drag onto a day writes, or null where the row
- * must not be dragged at all.
+ * Which end of the Schedule a drag onto a day writes: `range` for a Start+Due
+ * pair, which moves whole, or null where the row has no date to move.
  *
- * Q3C, in its own words since issue #216: "Dragging moves a Due-only task's
- * Due Date, a Start-only task's Start Date, and a Start+Due range whole,
- * preserving its day span; there is no edge resizing."
- *
- * **The third is unbuilt, and unbuilt here means the row does not move.** A
- * drag that wrote one end of a pair would shrink or grow a span the person
- * was carrying, with nothing on screen saying so, and the calendar and the
- * board both offered exactly that until this function existed: every drop
- * issued `{ due_date }`, so dropping a Start-only row after its start date
- * quietly converted it into a Start+Due task. Refusing the pair is the
- * non-destructive half of the sentence above; moving it whole is the other
- * half and is still owed.
- *
- * Null for a task carrying neither date too, which no calendar row is: Q3C
- * admits only rows whose Schedule overlaps the range, and a task with no
- * Schedule has no span to overlap.
+ * Q3C, since issue #216: "Dragging moves a Due-only task's Due Date, a
+ * Start-only task's Start Date, and a Start+Due range whole, preserving its
+ * day span; there is no edge resizing." `shiftedSchedule` below is the whole
+ * move.
  */
-export function movableEnd(task: Schedule): 'start_date' | 'due_date' | null {
-  if (task.start_date !== null && task.due_date !== null) return null
+export function movableEnd(task: Schedule): 'start_date' | 'due_date' | 'range' | null {
+  if (task.start_date !== null && task.due_date !== null) return 'range'
   if (task.due_date !== null) return 'due_date'
   if (task.start_date !== null) return 'start_date'
   return null
+}
+
+/**
+ * What a drop writes when the row drawn on `from` lands on `to`: the one end a
+ * single-date row carries, or both ends of a pair moved by the same number of
+ * days. Null when there is nothing to move or nothing moves.
+ */
+export function shiftedSchedule(
+  task: Schedule,
+  from: string,
+  to: string,
+): { start_date?: string; due_date?: string } | null {
+  const end = movableEnd(task)
+  if (end === null || from === to) return null
+  if (end === 'due_date') return { due_date: to }
+  if (end === 'start_date') return { start_date: to }
+  const by = daysBetween(from, to)
+  return {
+    start_date: addDays(task.start_date ?? to, by),
+    due_date: addDays(task.due_date ?? to, by),
+  }
 }

@@ -5,9 +5,9 @@ finite work, and no description line -- Purpose holds that), a row of plain
 text tabs in intro-to-conclusion order (Purpose · Work · Results · Discussion,
 then custom tabs), and the tab's body. The page opens on Work (`main`), whose
 body is the canvas, where a finished Task stays in place, checked and muted.
-The "…" menu's "View ›" draws the page's tasks as List (the canvas), Linear
-(the same order as a thread of steps) or Board (Not started · In progress ·
-Done), and shows or hides completed Tasks.
+The view icons at the end of Work's tab row draw the page's tasks as Freeform
+(the canvas), Linear (the same document as a timeline of steps) or Board (Not
+started · In progress · Done); the "…" menu shows or hides completed Tasks.
 
 What is deliberate rather than transcription:
 
@@ -139,6 +139,7 @@ import { folderLink } from '../lib/nav-links.js'
 import {
   eligibleSuccessors,
   folderGates,
+  mayDraw,
   otherMembers,
   viewerFacts,
 } from '../lib/folder-authority.js'
@@ -155,6 +156,8 @@ import { usePageImport } from '../shell/workflow-import.js'
 import { FolderTabs } from '../components/folder-facets.js'
 import type { CreateFacetInput, FacetCapabilities } from '../components/folder-facets.js'
 import { PageSection } from '../components/page/PageSection.js'
+import { labelsWorn } from '../views/filter.js'
+import { useWearFilterLabel } from '../api/labels.js'
 import { PLACES } from '../views/place-pages.js'
 import { BoardView } from '../views/BoardView.js'
 import { LinearView } from '../views/LinearView.js'
@@ -162,9 +165,12 @@ import { PlaceFilterChips, usePlace } from '../views/usePlace.js'
 import { folderViewOf, modeFromSearch, useFolderView, writeFolderView } from '../views/view-mode.js'
 import type { FolderView } from '../views/view-mode.js'
 import { VIEW_LABELS } from '../views/ViewSwitch.js'
+import { LabelChoice, LabelFilterClear } from '../views/FilterControl.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel } from './FolderSharingPanel.js'
+import { PersonFace } from '../components/person-face.js'
+import { cn } from '../components/ui/utils.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 import { getLabelsResponse } from '../../shared/labels.js'
 import type { LabelDefinition } from '../../shared/labels.js'
@@ -188,11 +194,7 @@ for the duplicate finds it named as one.
 const SHARING_PANEL_WIDTH = 440
 
 /* A page's three views, in the tab row's toggle order. */
-/* Linear is hidden for now (its code stays); a stored 'linear' opens as Freeform. */
-function shownFolderView(view: FolderView): FolderView {
-  return view === 'linear' ? 'freeform' : view
-}
-const FOLDER_VIEWS: readonly FolderView[] = ['freeform', 'board']
+const FOLDER_VIEWS: readonly FolderView[] = ['freeform', 'linear', 'board']
 const VIEW_ICONS = { freeform: ListIcon, linear: GitCommitVertical, board: SquareKanban } as const
 
 /**
@@ -249,8 +251,7 @@ export function FolderPage({
   const [search, setSearch] = useSearchParams()
   /* Linear, Board or Freeform: this device's choice for every page, kept apart
      from the place pages' layout. `?mode=` seeds it, as it seeds theirs. */
-  const [storedView, setFolderView] = useFolderView()
-  const folderView = shownFolderView(storedView)
+  const [folderView, setFolderView] = useFolderView()
   const seededView = modeFromSearch(search.toString())
   useEffect(() => {
     if (seededView !== null) writeFolderView(folderViewOf(seededView))
@@ -277,6 +278,7 @@ export function FolderPage({
   const actions = useRowActions()
   const confirm = useConfirm()
   const create = useCreateTask()
+  const wearFilterLabel = useWearFilterLabel(id)
   const remove = useDeleteFolder()
   const restore = useRestoreFolder()
   const patch = useRenameFolder()
@@ -293,8 +295,9 @@ export function FolderPage({
   const [sharing, setSharing] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
+  /* The member picked in the transfer dialog; nothing moves until its button. */
+  const [transferTo, setTransferTo] = useState<string | null>(null)
   /* An owner deleting a shared folder is asked one question first. */
-  const [deleteAsk, setDeleteAsk] = useState(false)
   // 9.6's inline rename: the title is a heading until this is true.
   const [renaming, setRenaming] = useState(false)
   const [coverOpen, setCoverOpen] = useState(false)
@@ -367,6 +370,12 @@ export function FolderPage({
         folder_id: id,
         ...(column?.due_date === undefined ? {} : { due_date: column.due_date }),
         ...(column?.assignee_id === undefined ? {} : { assignee_id: column.assignee_id }),
+      }, {
+        /* Under a Label filter a new task wears that label, or it would
+           vanish the moment it was made. */
+        onSuccess: (made) => {
+          wearFilterLabel(made.id, place.filter.label)
+        },
       })
     },
   })
@@ -382,6 +391,20 @@ export function FolderPage({
   const completedDays = mergeCompletedDays(completed.data?.pages)
   /* The finished Tasks the canvas draws in place, checked and muted. */
   const completedRows = useMemo(() => completedDays.flatMap((day) => day.rows), [completedDays])
+  /* Board and Linear narrow their finished work to the Label filter
+     themselves; the canvas keeps every block, as the Label item says. */
+  const labelFilterId = place.filter.label
+  /* With finished work shown, a Label only it wears is offered as well; and
+     the chosen Label keeps its name when hiding finished work leaves no open
+     row wearing it. */
+  const wornLabels = useMemo(
+    () =>
+      labelsWorn([...openRows, ...completedRows]).filter(
+        (label) =>
+          showCompleted || label.id === labelFilterId || place.labels.some((open) => open.id === label.id),
+      ),
+    [showCompleted, openRows, completedRows, place.labels, labelFilterId],
+  )
 
   const context: RowContext = {
     ...basis,
@@ -398,7 +421,6 @@ export function FolderPage({
   /* Off once trashed: the cover read is a folder read too. */
   const hasCover = usePageHasCover(leaving ? '' : coverKey)
 
-  const isOwner = detail?.is_owner ?? false
   const isDefault = detail?.is_default ?? false
   const members = detail?.members ?? []
   /*
@@ -449,6 +471,7 @@ export function FolderPage({
       else next.set('facet', facet.id)
       next.delete('discussion')
       next.delete('outcome')
+      next.delete('result')
       return next
     }, { replace: true })
   }, [setSearch])
@@ -496,6 +519,15 @@ export function FolderPage({
      there is no default successor; offering anyone else would be offering a
      choice the server answers 422. */
   const successors = eligibleSuccessors(members, basis.viewerId)
+  /* Who the transfer goes to: the pick while they still qualify, or the only
+     candidate when nothing has been picked yet. A pick that lost Full control
+     on a refetch leaves nothing selected; it never falls onto someone else. */
+  const heir =
+    transferTo === null
+      ? successors.length === 1
+        ? successors[0]
+        : undefined
+      : successors.find((member) => member.user.id === transferTo)
   /* Everybody else in the folder, which is a different question and the one
      the owner's delete dialog asks: somebody to hand it to is not the same as
      somebody who is in it. */
@@ -530,7 +562,9 @@ export function FolderPage({
 
   function doDelete(): void {
     /* 9.6: to Trash for every member at once, the undo bar, no
-       confirmation. The inverse is 7.13's restore. */
+       confirmation, an owner with other members included (Hassan: delete
+       never asks; M2 retired AC-283's question). Handing the page on first
+       stays in the "…" as Transfer ownership. The inverse is 7.13's restore. */
     const name = detail?.name ?? ''
     setLeftId(id)
     /* Leave first: the delete's invalidation would otherwise refetch every
@@ -646,35 +680,6 @@ export function FolderPage({
     confirm.ask(leaveFolderConfirm(detail?.name ?? ''), () => {
       leave.mutate(id, { onSuccess: () => navigate(paths.today) })
     })
-  }
-
-  /*
-  The one question asked of an owner whose folder has other members: hand it on,
-  or delete it for them too.
-
-  The first option is a transfer, because the server answers an owner's leave
-  409 "Transfer ownership before leaving": the folder stays alive for the people
-  in it and leaves this person's sidebar. AC-283.
-
-  The second option is `doDelete` above, 7.13's soft delete for every member
-  with the undo bar. An owner alone in the folder is asked nothing, 9.6's
-  confirm-free delete standing, because there is nobody to hand it to.
-
-  **A Full-control member who is not the owner is not asked either** (AC-015):
-  the question is about custody, and custody is not theirs to pass on. They get
-  9.6's plain delete and the undo bar, exactly as a sole owner does.
-  */
-  function askDelete(): void {
-    if (isOwner && others.length > 0) setDeleteAsk(true)
-    else doDelete()
-  }
-
-  /** The way out of the delete question that is not deletion: name a
-   * successor. Closes one dialog and opens the other rather than acting, so
-   * the person still chooses who. */
-  function handOn(): void {
-    setDeleteAsk(false)
-    setTransferOpen(true)
   }
 
   /*
@@ -916,7 +921,7 @@ export function FolderPage({
        two strings here would be the second copy this whole change removes. */
     else if (action === 'leave') askLeave()
     else if (action === 'delete') {
-      if (gates?.trash === true) askDelete()
+      if (gates?.trash === true) doDelete()
       else refuse('folder.trash')
     }
   })
@@ -933,15 +938,26 @@ export function FolderPage({
 
   /* Work and a section's tab are lists; "Show completed" belongs to them. */
   const listFacet = activeFacet?.kind === 'main' || activeFacet?.kind === 'work'
+  /* #208: Board and Linear narrow to one Label; Freeform is a document and
+     never hides a block. */
+  const labelFilter = activeFacet?.kind === 'main' && folderView !== 'freeform'
   const viewMenu = listFacet ? (
-    <FolderViewMenu
-      showCompleted={showCompleted}
-      onShowCompleted={changeShowCompleted}
-    />
+    <>
+      <FolderViewMenu
+        showCompleted={showCompleted}
+        onShowCompleted={changeShowCompleted}
+      />
+      {labelFilter ? (
+        <LabelChoice filter={place.filter} labels={wornLabels} onChange={place.setFilter} />
+      ) : null}
+    </>
   ) : undefined
 
   const headerActions = (
     <>
+      {labelFilter ? (
+        <LabelFilterClear filter={place.filter} labels={wornLabels} onChange={place.setFilter} />
+      ) : null}
       {/* 9.6's Share control, a word rather than a glyph. Withheld on a
           default folder, which INV-2 makes single-member and 5.3 refuses an
           add on. AC-162 and AC-183 reach the sharing panel through it. */}
@@ -954,7 +970,11 @@ export function FolderPage({
             setSharing(!sharing)
           }}
         >
-          Share
+          {/* The word matches the panel's title: a member who can add
+              nobody opens a list of members, not a share. */}
+          {facts !== null && !mayDraw(facts, 'member.add') && !mayDraw(facts, 'invite.create')
+            ? 'Members'
+            : 'Share'}
         </Button>
       )}
       {/*
@@ -1005,7 +1025,7 @@ export function FolderPage({
              last Full-control member; `folderGates` reads both off the roster. */
           leave: gates?.leave === true ? askLeave : undefined,
           /* Full control's, which custody does not confer (AC-015). */
-          delete: gates?.trash === true ? askDelete : undefined,
+          delete: gates?.trash === true ? doDelete : undefined,
         }}
       />
     </>
@@ -1104,6 +1124,7 @@ export function FolderPage({
                     page={page.data}
                     tasks={visible}
                     completed={completedRows}
+                    label={labelFilterId}
                     showCompleted={showCompleted}
                     today={place.today}
                     context={context}
@@ -1116,6 +1137,7 @@ export function FolderPage({
                       page={page.data}
                       tasks={visible}
                       completed={completedRows}
+                      label={labelFilterId}
                       showCompleted={showCompleted}
                       today={place.today}
                       context={context}
@@ -1175,6 +1197,7 @@ export function FolderPage({
           folder={detail}
           connections={connections.data}
           viewer={facts}
+          viewerId={basis.viewerId}
           onClose={() => {
             setSharing(false)
           }}
@@ -1208,7 +1231,8 @@ export function FolderPage({
 
       **There is no default and nothing is sorted**, because no rule would order
       them: the roster's own order is used, which is the order the Share panel
-      this person just came from shows.
+      this person just came from shows. A single candidate is picked
+      already, since there is nothing to choose between.
 
       **An empty list is a sentence and not an empty box.** A folder can be full
       of people and have nobody eligible, and that person's next step — give
@@ -1216,14 +1240,20 @@ export function FolderPage({
       picker communicates. The wording follows the server's own refusal copy,
       "This folder would be left with nobody in Full control".
        */}
-      <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+      <Dialog
+        open={transferOpen}
+        onOpenChange={(next) => {
+          setTransferOpen(next)
+          if (!next) setTransferTo(null)
+        }}
+      >
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Transfer ownership</DialogTitle>
             <DialogDescription>
               {successors.length === 0
                 ? `Nobody else in ${detail?.name ?? 'this page'} has Full control, so there is nobody to hand it to yet. Give a member Full control in Share, then transfer it to them.`
-                : `Choose who owns ${detail?.name ?? 'this page'} next. Only members who have Full control can take it on, and you stay a member.`}
+                : `Choose who owns ${detail?.name ?? 'this page'} next. Only members who have Full control can take it on, and you stay a member. Only the new owner can hand it back.`}
             </DialogDescription>
           </DialogHeader>
           {successors.length === 0 ? (
@@ -1240,59 +1270,59 @@ export function FolderPage({
               </Button>
             </DialogFooter>
           ) : (
-            <div className="space-y-1 px-1 pb-2">
-              {successors.map((member) => (
+            <>
+              {/* Picking a name only selects it: handing the page over is
+                  the footer's one button, which says so. */}
+              <div role="group" aria-label="New owner" className="flex flex-col gap-[var(--space-row)]">
+                {successors.map((member) => {
+                  const name = member.user.display_name ?? 'Someone'
+                  const picked = heir?.user.id === member.user.id
+                  return (
+                    <button
+                      key={member.user.id}
+                      type="button"
+                      aria-pressed={picked}
+                      data-focus={picked ? 'self' : undefined}
+                      className={cn(
+                        'flex min-h-[var(--row-height)] w-full items-center gap-[var(--space-inline)] rounded-md px-2 text-left text-sm text-foreground',
+                        picked ? 'bg-selected' : 'hover:bg-accent',
+                      )}
+                      onClick={() => {
+                        setTransferTo(member.user.id)
+                      }}
+                    >
+                      <PersonFace id={member.user.id} name={name} image={member.user.avatar_url} />
+                      <span className="min-w-0 flex-1 truncate">{name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <DialogFooter>
+                <DialogClose render={<Button variant="ghost">Cancel</Button>} />
                 <Button
-                  key={member.user.id}
-                  variant="ghost"
-                  className="h-[var(--control-height)] w-full justify-start px-3 text-sm"
+                  variant="commit"
+                  disabled={heir === undefined || transfer.isPending}
                   onClick={() => {
+                    if (heir === undefined) return
                     transfer.mutate(
-                      { id, to: member.user.id },
+                      { id, to: heir.user.id },
                       {
                         onSuccess: () => {
                           setTransferOpen(false)
+                          setTransferTo(null)
+                          showToast(
+                            `${heir.user.display_name ?? 'Someone'} now owns ${detail?.name ?? 'this page'}`,
+                          )
                         },
                       },
                     )
                   }}
                 >
-                  {member.user.display_name ?? 'Someone'}
+                  Transfer ownership
                 </Button>
-              ))}
-            </div>
+              </DialogFooter>
+            </>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* The owner's question: see `askDelete`. */}
-      <Dialog open={deleteAsk} onOpenChange={setDeleteAsk}>
-        <DialogContent className="max-w-[440px]">
-          <DialogHeader>
-            <DialogTitle>Delete {detail?.name}?</DialogTitle>
-            <DialogDescription>
-              Delete for everyone? It stays in Trash for 30 days.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose render={<Button variant="ghost">Cancel</Button>} />
-            {/* Handing it on opens the picker rather than acting, because
-                somebody has to be named. Offered only when somebody can take it. */}
-            {successors.length > 0 ? (
-              <Button variant="outline" onClick={handOn}>
-                Hand it to a member…
-              </Button>
-            ) : null}
-            <Button
-              variant="destructive"
-              onClick={() => {
-                setDeleteAsk(false)
-                doDelete()
-              }}
-            >
-              Delete for everyone
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1343,7 +1373,7 @@ function FacetContent({
         {document.data ? (
           <>
             <Suspense fallback={<p role="status" className="sr-only">Loading writing…</p>}>
-              <FolderCanvas key={`${folderId}:${facet.id}`} page={document.data} tasks={[]} folderId={folderId} facetId={facet.id} presentationHeadings context={context} actions={actions} onAsk={onAsk} arrangeable={sharedPageEditable} />
+              <FolderCanvas key={`${folderId}:${facet.id}`} page={document.data} tasks={[]} folderId={folderId} facetId={facet.id} presentationHeadings results={!purpose} context={context} actions={actions} onAsk={onAsk} arrangeable={sharedPageEditable} />
             </Suspense>
           </>
         ) : <p role={document.isError ? 'alert' : 'status'} className={document.isError ? undefined : 'sr-only'}>{document.isError ? `Could not load ${purpose ? 'Purpose' : 'Results'}. Reload to try again.` : 'Loading writing…'}</p>}
