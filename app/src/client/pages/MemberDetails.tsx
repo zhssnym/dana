@@ -31,33 +31,50 @@ import { Checkbox } from '../components/ui/checkbox.js'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
+import { cn } from '../components/ui/utils.js'
+import { ChevronDown, ChevronLeft } from '../lib/icons.js'
 import { documentToText, textToDocument } from '../lib/responsibility-text.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
+import type { ConfirmLabels } from './task-rows.js'
 
-const HEADING = 'px-2 pb-1 text-sm font-medium text-foreground'
+/** The panel's one confirm (`useConfirm().ask`), shared so a confirm opened
+ * here is the panel's and the panel knows not to close under it. */
+export type AskConfirm = (message: string, run: () => void, labels?: ConfirmLabels) => void
+
+const HEADING = 'pb-1 text-sm font-medium text-foreground'
 
 export function MemberDetails({
   folderId,
   userId,
+  viewerId,
+  ask,
+  onRemove,
   onBack,
 }: {
   readonly folderId: string
   readonly userId: string
+  /** Who is looking, so their own row confirms before lowering itself. */
+  readonly viewerId: string | null
+  readonly ask: AskConfirm
+  /** Remove this member, the list row's own act; absent where not offered. */
+  readonly onRemove?: ((name: string) => void) | undefined
   readonly onBack: () => void
 }): React.JSX.Element {
   const details = useFolderMember(folderId, userId)
   const [showHistory, setShowHistory] = useState(false)
   const history = useFolderMemberHistory(folderId, userId, showHistory)
-  const changeAccess = useChangeMemberAccess()
   const grant = useSetSelfEditGrant()
 
   const back = (
-    <Button variant="ghost" className="mb-[var(--space-inline)] text-muted-foreground" onClick={onBack}>
+    <Button variant="ghost" className="mb-[var(--space-inline)] gap-1 pl-1 text-muted-foreground" onClick={onBack}>
+      <ChevronLeft strokeWidth={1.75} aria-hidden="true" />
       All members
     </Button>
   )
@@ -66,7 +83,8 @@ export function MemberDetails({
     return (
       <div>
         {back}
-        {details.isError ? (
+        {/* Only a 404 means they left; any other failure is the toast's. */}
+        {details.error instanceof ApiError && details.error.status === 404 ? (
           <p className="px-2 text-sm text-muted-foreground">This member is no longer on the page.</p>
         ) : null}
       </div>
@@ -85,46 +103,29 @@ export function MemberDetails({
             initials={initialsOf(name)}
             image={member.user.avatar_url}
           />
-          <h3 className="min-w-0 flex-1 truncate text-sm font-section text-foreground">{name}</h3>
-          {member.is_owner ? <span className="text-xs text-muted-foreground">Owner</span> : null}
+          <h3 className="min-w-0 flex-1 truncate text-sm font-title text-foreground">{name}</h3>
+          {member.is_owner ? <span className="text-sm text-muted-foreground">Owner</span> : null}
         </div>
       </div>
 
       <section aria-label="Access">
         <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)] px-2">
-          <span className="flex-1 text-sm text-foreground">Access</span>
-          {member.viewer_may_change_access ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={<Button variant="ghost" aria-label={`Access: ${FOLDER_ACCESS_LABELS[member.access]}`} />}
-              >
-                {FOLDER_ACCESS_LABELS[member.access]}
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuRadioGroup
-                  value={member.access}
-                  onValueChange={(next: unknown) => {
-                    const picked = FOLDER_ACCESS_PRESETS.find((preset) => preset === next)
-                    if (picked === undefined || picked === member.access) return
-                    changeAccess.mutate({
-                      folderId,
-                      userId,
-                      access: picked,
-                      expected: member.access,
-                    })
-                  }}
-                >
-                  {FOLDER_ACCESS_PRESETS.map((preset: FolderAccessPreset) => (
-                    <DropdownMenuRadioItem key={preset} value={preset} className="text-sm" closeOnClick>
-                      {FOLDER_ACCESS_LABELS[preset]}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <span className="text-sm text-muted-foreground">{FOLDER_ACCESS_LABELS[member.access]}</span>
-          )}
+          <h3 className="flex-1 text-sm font-section text-foreground">Access</h3>
+          <AccessMenu
+            folderId={folderId}
+            userId={userId}
+            access={member.access}
+            mayChange={member.viewer_may_change_access}
+            self={userId === viewerId}
+            ask={ask}
+            onRemove={
+              onRemove === undefined || member.is_owner
+                ? undefined
+                : () => {
+                    onRemove(name)
+                  }
+            }
+          />
         </div>
         {member.viewer_may_change_self_edit_grant ? (
           <label className="flex min-h-[var(--row-height)] cursor-pointer items-center gap-[var(--space-inline)] px-2 text-sm text-foreground">
@@ -156,20 +157,23 @@ export function MemberDetails({
       />
 
       <section aria-label="History">
-        <Button
-          variant="ghost"
-          className="text-muted-foreground"
-          aria-expanded={showHistory}
-          onClick={() => {
-            setShowHistory((open) => !open)
-          }}
-        >
-          {showHistory ? 'Hide history' : 'Show history'}
-        </Button>
+        <div className="flex items-center gap-[var(--space-inline)] px-2">
+          <h3 className={`${HEADING} flex-1`}>History</h3>
+          <Button
+            variant="ghost"
+            className="text-muted-foreground"
+            aria-expanded={showHistory}
+            onClick={() => {
+              setShowHistory((open) => !open)
+            }}
+          >
+            {showHistory ? 'Hide' : 'Show'}
+          </Button>
+        </div>
         {showHistory && history.data !== undefined ? (
-          <ul role="list" className="mt-1 flex flex-col gap-[var(--space-row)] px-2">
+          <ul role="list" className="mt-1 flex flex-col px-2">
             {history.data.map((item) => (
-              <li key={`${item.kind}-${item.entry.id}`} className="flex gap-[var(--space-inline)] text-sm">
+              <li key={`${item.kind}-${item.entry.id}`} className="flex items-baseline gap-[var(--space-inline)] py-1 text-sm">
                 <span className="min-w-0 flex-1 text-foreground">{historySentence(item)}</span>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {formatRelativeDay(item.entry.effective_at, presenterToday())}
@@ -180,6 +184,143 @@ export function MemberDetails({
         ) : null}
       </section>
     </div>
+  )
+}
+
+/*
+A member's Access as a picker: the one control both the member list and the
+details use, so changing someone's Access is two clicks from the list. Remove,
+when offered, sits under the presets rather than as a button on every row.
+Without the right to change it, it is the label and nothing to press. On the
+viewer's own row any change lowers them below Full control, after which they
+cannot change it back, so it asks first.
+*/
+export function AccessMenu({
+  folderId,
+  userId,
+  access,
+  mayChange,
+  self = false,
+  ask,
+  onRemove,
+  size = 'default',
+}: {
+  readonly folderId: string
+  readonly userId: string
+  readonly access: FolderAccessPreset
+  readonly mayChange: boolean
+  readonly self?: boolean
+  readonly ask?: AskConfirm | undefined
+  readonly onRemove?: (() => void) | undefined
+  readonly size?: 'default' | 'sm'
+}): React.JSX.Element {
+  const changeAccess = useChangeMemberAccess()
+  const label = FOLDER_ACCESS_LABELS[access]
+  if (!mayChange && onRemove === undefined) {
+    return (
+      <span className={cn('shrink-0 text-muted-foreground', size === 'sm' ? 'px-1.5 text-xs' : 'text-sm')}>
+        {label}
+      </span>
+    )
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size={size}
+            className={cn('shrink-0 text-muted-foreground', size === 'sm' ? 'font-normal' : 'pr-1.5')}
+            aria-label={`Access: ${label}`}
+          />
+        }
+      >
+        {label}
+        <ChevronDown strokeWidth={1.75} aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        {mayChange ? (
+          <DropdownMenuRadioGroup
+            value={access}
+            onValueChange={(next: unknown) => {
+              const picked = FOLDER_ACCESS_PRESETS.find((preset) => preset === next)
+              if (picked === undefined || picked === access) return
+              const run = (): void => {
+                changeAccess.mutate({ folderId, userId, access: picked, expected: access })
+              }
+              if (!self) {
+                run()
+                return
+              }
+              const to = FOLDER_ACCESS_LABELS[picked]
+              if (ask === undefined) return
+              ask(`Lower your own Access to ${to}? You can't raise it back yourself.`, run, {
+                confirmLabel: `Change to ${to}`,
+                cancelLabel: 'Cancel',
+              })
+            }}
+          >
+            {FOLDER_ACCESS_PRESETS.map((preset: FolderAccessPreset) => (
+              <DropdownMenuRadioItem key={preset} value={preset} className="text-sm" closeOnClick>
+                {FOLDER_ACCESS_LABELS[preset]}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        ) : null}
+        {mayChange && onRemove !== undefined ? <DropdownMenuSeparator /> : null}
+        {onRemove === undefined ? null : (
+          <DropdownMenuItem variant="destructive" onClick={onRemove}>
+            Remove from page
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/* The Access an invite grants, picked beside the Invite button. Presets only,
+   and nothing is sent until Invite. */
+export function InviteAccessPicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  readonly value: FolderAccessPreset
+  readonly onChange: (next: FolderAccessPreset) => void
+  readonly disabled?: boolean
+}): React.JSX.Element {
+  const label = FOLDER_ACCESS_LABELS[value]
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            disabled={disabled}
+            className="shrink-0 pr-1.5 text-muted-foreground"
+            aria-label={`Invite with Access: ${label}`}
+          />
+        }
+      >
+        {label}
+        <ChevronDown strokeWidth={1.75} aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuRadioGroup
+          value={value}
+          onValueChange={(next: unknown) => {
+            const picked = FOLDER_ACCESS_PRESETS.find((preset) => preset === next)
+            if (picked !== undefined) onChange(picked)
+          }}
+        >
+          {FOLDER_ACCESS_PRESETS.map((preset: FolderAccessPreset) => (
+            <DropdownMenuRadioItem key={preset} value={preset} className="text-sm" closeOnClick>
+              {FOLDER_ACCESS_LABELS[preset]}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -224,7 +365,7 @@ function Responsibilities({
 
   return (
     <section aria-label="Responsibilities">
-      <div className="flex items-center gap-[var(--space-inline)]">
+      <div className="flex items-center gap-[var(--space-inline)] px-2">
         <h3 className={`${HEADING} flex-1`}>Responsibilities</h3>
         {mayEdit && draft === null ? (
           <Button
