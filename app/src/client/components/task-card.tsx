@@ -915,7 +915,7 @@ export function TaskCard({
         {showReminder ? (
           <PropertyPicker
             label={CHIP_REMINDER}
-            value={task.reminder ? reminderChipValue(task, timeFormat) : "Empty"}
+            value={reminderChipValue(task, timeFormat)}
             empty={!task.reminder}
             defaultOpen={adding === "reminder"}
             onOpenChange={settle("reminder")}

@@ -72,7 +72,6 @@ import {
   monthOf,
   periodTitle,
   shiftAnchor,
-  weekdayIndex,
 } from './grid.js'
 import type { Zoom } from './grid.js'
 import { cellsByDate } from './order.js'
@@ -116,7 +115,7 @@ const MONTH_CELL_LINES = 6
 const CELL_MIN_HEIGHT: Record<Zoom, string> = {
   // Padding and the day-number line, then MONTH_CELL_LINES rows of 20 with a
   // 2-pixel gap between them: 12 + 30 + 120 + 10.
-  month: 'min-h-[172px]',
+  month: 'min-h-[172px] max-sm:min-h-16',
   week: 'min-h-[420px]',
   day: 'min-h-[480px]',
 }
@@ -190,7 +189,7 @@ function CalendarEvent({
           : undefined
       }
       className={cn(
-        'flex w-full gap-1.5 overflow-hidden rounded-sm border border-transparent bg-muted px-1.5 text-left text-foreground transition-[background-color,border-color] hover:border-border hover:bg-background focus-visible:outline-none',
+        '@container flex w-full gap-1.5 overflow-hidden rounded-sm border border-transparent bg-muted px-1.5 text-left text-foreground transition-[background-color,border-color] hover:border-border hover:bg-background focus-visible:outline-none',
         movable && 'cursor-grab active:cursor-grabbing',
         /* A week or a day has the height to spare, so a title takes two lines
            there rather than three letters (m2). */
@@ -205,17 +204,32 @@ function CalendarEvent({
         onOpen()
       }}
       aria-label={`${ghost ? 'Upcoming repeating occurrence: ' : ''}${event.title}`}
+      title={event.dueTime === null ? event.title : `${event.title}, ${formatClockTime(event.dueTime, clock)}`}
     >
       <span className="flex h-4 shrink-0 items-center">{glyph}</span>
-      {/* The time before the title; above it where there is height to spare. */}
-      <span className={cn('flex min-w-0', compact ? 'items-center gap-1.5' : 'flex-col')}>
-        {event.dueTime === null ? null : (
-          <span className="shrink-0 text-muted-foreground">
-            {formatClockTime(event.dueTime, clock)}
-          </span>
-        )}
-        <span className={compact ? 'truncate' : 'line-clamp-2 break-words'}>{event.title}</span>
-      </span>
+      {compact ? (
+        <>
+          {/* A month cell is narrow: the title first, since it says which task
+              this is, and the time after it only where the chip has room for
+              both; the chip's tooltip always says it. */}
+          <span className="min-w-0 truncate">{event.title}</span>
+          {event.dueTime === null ? null : (
+            <span className="ml-auto hidden shrink-0 text-muted-foreground tabular-nums @[9rem]:inline">
+              {formatClockTime(event.dueTime, clock)}
+            </span>
+          )}
+        </>
+      ) : (
+        /* A week or a day has height to spare: the time above the title. */
+        <span className="flex min-w-0 flex-col">
+          {event.dueTime === null ? null : (
+            <span className="shrink-0 text-muted-foreground tabular-nums">
+              {formatClockTime(event.dueTime, clock)}
+            </span>
+          )}
+          <span className="line-clamp-2 break-words">{event.title}</span>
+        </span>
+      )}
     </button>
   )
 }
@@ -226,6 +240,7 @@ function DayCell({
   zoom,
   today,
   anchorMonth,
+  column,
   lastColumn,
   lastRow,
   events,
@@ -240,6 +255,7 @@ function DayCell({
   readonly dense: boolean
   readonly today: string
   readonly anchorMonth: string
+  readonly column: number
   readonly lastColumn: boolean
   readonly lastRow: boolean
   readonly events: readonly CellEvent[]
@@ -261,6 +277,9 @@ function DayCell({
   const overflows = !dense && zoom === 'month' && events.length > MONTH_CELL_LINES
   const visible = overflows ? events.slice(0, MONTH_CELL_LINES - 1) : events
   const hidden = events.length - visible.length
+  /* A phone draws the week as an agenda, one day per line, so titles stay
+     whole. */
+  const agenda = zoom === 'week'
   const outsideMonth = zoom === 'month' && monthOf(date) !== anchorMonth
 
   return (
@@ -275,6 +294,8 @@ function DayCell({
         dense ? 'min-h-16 overflow-hidden' : CELL_MIN_HEIGHT[zoom],
         lastColumn && 'border-r-0',
         lastRow && 'border-b-0',
+        agenda && 'max-sm:min-h-14 max-sm:border-r-0',
+        agenda && !lastColumn && 'max-sm:border-b',
         over && 'bg-muted',
       )}
       onDragOver={(drag) => {
@@ -319,7 +340,18 @@ function DayCell({
         />
       )}
 
-      <div className="pointer-events-none relative z-10 mb-1.5 flex h-6 items-center justify-between">
+      <div
+        className={cn(
+          'pointer-events-none relative z-10 mb-1.5 flex h-6 items-center justify-between',
+          /* The day zoom's title already names its one day. */
+          zoom === 'day' && 'hidden',
+          /* The agenda has no column heads, so each line names its weekday.
+             A pseudo-element, so the cell's text still starts with the day. */
+          agenda &&
+            'max-sm:justify-start max-sm:gap-1 max-sm:before:text-xs max-sm:before:font-medium max-sm:before:text-muted-foreground max-sm:before:content-[attr(data-weekday)]',
+        )}
+        data-weekday={agenda ? WEEKDAY_LABELS[column] : undefined}
+      >
         <span
           className={cn(
             'flex size-6 items-center justify-center rounded-md text-xs font-medium text-muted-foreground',
@@ -507,14 +539,28 @@ export function PlannedCalendar({
     if (by > 0) scroller.scrollBy({ top: by })
   }, [view.data])
 
-  const cells = useMemo(
-    () =>
-      cellsByDate(view.data?.real ?? [], view.data?.virtual ?? [], folders.data ?? [], {
-        start,
-        end,
-      }),
-    [view.data, folders.data, start, end],
-  )
+  /*
+  A day cell holds only rows on their own day: a task on its Due Date, or on
+  its Start Date when it has no Due Date. So a day holds the same tasks at
+  every zoom, and a phone's count is what the day it opens lists. A span whose
+  own day is off this grid is "running" (order.ts) and is listed once above
+  the grid instead of on a day that would read as its deadline, until 9.5's
+  span bar exists.
+  */
+  const { cells, running } = useMemo(() => {
+    const placed = cellsByDate(view.data?.real ?? [], view.data?.virtual ?? [], folders.data ?? [], {
+      start,
+      end,
+    })
+    const through: CellEvent[] = []
+    const own = new Map<string, CellEvent[]>()
+    for (const [day, events] of placed) {
+      own.set(day, events.filter((event) => !event.running))
+      through.push(...events.filter((event) => event.running))
+    }
+    through.sort((a, b) => (a.title < b.title ? -1 : a.title > b.title ? 1 : 0))
+    return { cells: own, running: through }
+  }, [view.data, folders.data, start, end])
 
   /*
   7.6's PATCH of the Schedule, from a drop (Q3C, issue #216): a Due-only row
@@ -537,10 +583,6 @@ export function PlannedCalendar({
 
   const columns = zoom === 'day' ? 1 : 7
   const template = `repeat(${String(columns)}, minmax(0, 1fr))`
-  const headers =
-    zoom === 'day'
-      ? [WEEKDAY_LABELS[weekdayIndex(anchor)] ?? WEEKDAY_LABELS[0]]
-      : [...WEEKDAY_LABELS]
   const weeks = useMemo(() => {
     const rows: string[][] = []
     for (let at = 0; at < dates.length; at += columns) {
@@ -550,7 +592,14 @@ export function PlannedCalendar({
   }, [dates, columns])
 
   return (
-    <div className="mt-5 mb-20 space-y-3">
+    /* The calendar takes the page's whole width, not the reading column: a
+       month of seven columns in 690px cut every title to a few letters.
+       `100cqw` is the scroll region's width (`tokens.css`), and the gutter
+       matches the shell's own padding. */
+    <div
+      className="mt-5 mb-20 space-y-3 [--calendar-gutter:1rem] md:[--calendar-gutter:2.5rem]"
+      style={{ marginInline: 'min(0px, calc(50% - 50cqw + var(--calendar-gutter)))' }}
+    >
       {/*
       9.1's inline failed-read line, beside the thing that failed. The grid
       still draws underneath it: Q3C's empty state is the bare grid and a
@@ -619,13 +668,33 @@ export function PlannedCalendar({
       </div>
 
       <div className="overflow-hidden rounded-md border border-border bg-background">
+        {running.length > 0 ? (
+          <div className="border-b border-border px-2 py-2">
+            <p className="px-1.5 pb-1 text-xs text-muted-foreground">Also running</p>
+            <div className={cn('grid gap-0.5', zoom === 'day' ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4')}>
+              {running.map((event) => (
+                <CalendarEvent
+                  key={event.key}
+                  event={{ ...event, moves: null }}
+                  compact={false}
+                  dense={false}
+                  onOpen={() => {
+                    openTask(event.taskId, { upcoming: false })
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div role="grid" aria-label="Upcoming calendar" className="bg-background" ref={grid}>
+          {zoom === 'day' ? null : (
           <div
             role="row"
-            className="grid border-b border-border bg-background"
+            className={cn('grid border-b border-border bg-background', zoom === 'week' && 'max-sm:hidden')}
             style={{ gridTemplateColumns: template }}
           >
-            {headers.map((label) => (
+            {WEEKDAY_LABELS.map((label) => (
               <div
                 key={label}
                 role="columnheader"
@@ -641,12 +710,13 @@ export function PlannedCalendar({
               </div>
             ))}
           </div>
+          )}
 
           {weeks.map((week, row) => (
             <div
               key={week[0] ?? ''}
               role="row"
-              className="grid"
+              className={cn('grid', zoom === 'week' && 'max-sm:grid-cols-1!')}
               style={{ gridTemplateColumns: template }}
             >
               {week.map((date, column) => (
@@ -656,6 +726,7 @@ export function PlannedCalendar({
                   zoom={zoom}
                   today={today}
                   anchorMonth={monthOf(anchor)}
+                  column={column}
                   lastColumn={column === week.length - 1}
                   lastRow={row === weeks.length - 1}
                   events={cells.get(date) ?? []}

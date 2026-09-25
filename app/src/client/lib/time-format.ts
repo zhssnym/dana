@@ -158,3 +158,28 @@ export function formatTime(value: string | null | undefined, format: TimeFormat)
   if (format === "24") return toValue(clock)
   return `${to12Hour(clock.hour)}:${String(clock.minute).padStart(2, "0")} ${periodOf(clock.hour)}`
 }
+
+/*
+A time as a person types it, in either notation whatever the setting is:
+"14:30", "2:30 pm", "2pm", "930", "9.30". The stored "HH:MM", or null where the
+text is not a time. The setting decides how a time is written back, never which
+spellings are understood.
+*/
+export function parseTypedTime(text: string): string | null {
+  const found = text
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/\./g, ":")
+    .match(/^(\d{1,2}):?(\d{2})?(am|pm|a|p)?$/)
+  if (!found) return null
+  let hour = Number(found[1])
+  const minute = found[2] === undefined ? 0 : Number(found[2])
+  const period = found[3]
+  if (minute > 59) return null
+  if (period !== undefined) {
+    if (hour < 1 || hour > 12) return null
+    hour = (hour % 12) + (period.startsWith("p") ? 12 : 0)
+  } else if (hour > 23) return null
+  return toValue({ hour, minute })
+}

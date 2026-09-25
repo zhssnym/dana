@@ -27,14 +27,11 @@ questions would drift, which is why this file composes rather than computes.
 - `comments`. 9.6's conversation is served at `GET /folders/:id/thread`, and is
   mounted by the surfaces that show it rather than mapped here.
 
-**And four are prose rather than fields.** `reminder`, `repeatEvery`,
-`repeatDays` and `repeatEnds` are the words a chip says, not values a wire
-carries: 4.11 stores an RRULE and 7.0 answers `is_recurring`. Writing those
-words here would be copy no numbered section carries, which
-`parts/presenters.ts` already refuses to do for the row's repeat glyph and gives
-its reasons for at length. `repeatUnit` is the exception and crosses, because a
-frequency is structure rather than wording. The rest belong with the pickers
-that say them.
+**The repeat is read from the detail's rule.** `repeatUnit`, `repeatEvery`,
+`repeatDays` and `repeatEnds` are the parts of 4.11's RRULE, taken apart so the
+repeat picker opens on what is stored; `ruleFor` in `tasks/task-model.ts` puts
+them back together for the write. `reminder` is the words its chip says and
+is mapped from the detail below.
 */
 
 import type { Folder } from '../../shared/folders.js'
@@ -42,7 +39,7 @@ import { parseRecurrenceRule } from '../../shared/recurrence.js'
 import type { RecurrenceFrequency } from '../../shared/recurrence.js'
 import type { PatchTaskBody, TaskCard, TaskDetail } from '../../shared/tasks.js'
 import { dueDisplay, folderDisplay, personDisplay } from '../parts/presenters.js'
-import type { ConceptTask } from './task-model.js'
+import { minutesOfClock, parseIsoDate, reminderWords, type ConceptTask } from './task-model.js'
 import type { TimeFormat } from '../lib/time-format.js'
 
 /**
@@ -75,6 +72,21 @@ function weekdayOf(date: string | null): string | null {
   const [year, month, day] = date.split('-').map(Number)
   if (year === undefined || month === undefined || day === undefined) return null
   return ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][new Date(Date.UTC(year, month - 1, day)).getUTCDay()] ?? null
+}
+
+/**
+ * When a stored reminder fires, in minutes from the due day's midnight: 4.8's
+ * time_of_day as it is, or a timed task's due_time less its offset (the mode
+ * 7.9 requires once a task has one). Negative where an offset reaches back
+ * before the due day, which is still a reminder and is shown as one. Null
+ * where there is none.
+ */
+export function reminderMinutes(detail: TaskDetail): number | null {
+  const reminder = detail.reminder
+  if (reminder === null) return null
+  if (reminder.time_of_day !== null) return minutesOfClock(reminder.time_of_day.slice(0, 5))
+  if (reminder.offset_minutes === null || detail.due_time === null) return null
+  return minutesOfClock(detail.due_time.slice(0, 5)) - reminder.offset_minutes
 }
 
 function isDetail(task: TaskCard | TaskDetail): task is TaskDetail {
@@ -125,6 +137,7 @@ export function toConceptTask(
     abandoned: task.status === 'abandoned',
     folder: { name: folder.name, color: folder.color, id: task.folder.id },
     due: dueDisplay(task, today, clock),
+    ...(task.due_date === null || task.due_time === null ? {} : { dueTime: task.due_time.slice(0, 5) }),
     ...(task.start_date === null ? {} : { start: task.start_date }),
     assignee,
     important: task.important,
@@ -135,6 +148,8 @@ export function toConceptTask(
     labels: [...(task.labels?.personal ?? []), ...(task.labels?.folder ?? [])]
       .filter((label) => !label.archived)
       .map((label) => ({ id: label.id, name: label.name, color: label.color, scope: label.scope })),
+    /* The whole rule, so the picker opens on what is stored: its interval,
+       its days ("MO" read as the picker's "Mo") and its end date. */
     ...(parsed !== null && parsed.ok
       ? {
           repeatUnit: REPEAT_UNITS[parsed.rule.freq],
@@ -142,12 +157,14 @@ export function toConceptTask(
              that is stored rather than on "every 1 week". A single weekday
              is left implicit (the due date's), which is how the presets
              write it and what "Weekly on Sunday" names. */
-          ...(parsed.rule.interval === 1 ? {} : { repeatEvery: String(parsed.rule.interval) }),
+          repeatEvery: String(parsed.rule.interval),
           ...(parsed.rule.byDay === null ||
           parsed.rule.byDay.length === 0 ||
           (parsed.rule.byDay.length === 1 && parsed.rule.byDay[0] === weekdayOf(task.due_date))
             ? {}
             : { repeatDays: parsed.rule.byDay.map((day) => `${day.charAt(0)}${day.charAt(1).toLowerCase()}`) }),
+          ...(parsed.rule.until === null ? {} : { repeatEnds: parsed.rule.until }),
+          ...(parsed.rule.byMonthDay === null ? {} : { repeatMonthDay: parsed.rule.byMonthDay }),
         }
       : {}),
     ...(detail === null
@@ -166,18 +183,19 @@ export function toConceptTask(
 
           The words are the picker's own, "27 Aug at 09:00", and the clock
           inside them is re-read for the viewer by `reminderChipValue`, so the
-          format the person set is not the format they are shown. The offset
-          mode is not worded here: 9.3's row is "one picker, a time on that
-          day", so nothing in this client can write one, and an older row that
-          still carries one shows its day and no time, which is true.
+          format the person set is the format they are shown. A task with a
+          due_time stores its reminder as an offset (7.9 refuses a time_of_day
+          there), and `reminderMinutes` reads that back, on the day before where
+          the offset reaches past midnight.
           */
-          ...(detail.reminder === null || detail.reminder.time_of_day === null
+          ...(reminderMinutes(detail) === null
             ? {}
             : {
-                reminder:
-                  detail.due_date === null
-                    ? `at ${detail.reminder.time_of_day.slice(0, 5)}`
-                    : `${dueDisplay(detail, today, clock)?.label ?? ""} at ${detail.reminder.time_of_day.slice(0, 5)}`,
+                reminderAt: reminderMinutes(detail) ?? 0,
+                reminder: reminderWords(
+                  detail.due_date === null ? null : parseIsoDate(detail.due_date),
+                  reminderMinutes(detail) ?? 0,
+                ),
               }),
         }),
   }
@@ -261,6 +279,9 @@ export const writtenElsewhere: readonly (keyof ConceptTask)[] = [
   'repeatUnit',
   'recurrence',
   'due',
+  'dueTime',
+  'reminderAt',
+  'repeatMonthDay',
   'start',
   'comments',
   'attachments',

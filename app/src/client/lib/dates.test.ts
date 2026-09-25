@@ -114,6 +114,6 @@ describe('callers', () => {
     expect(periodTitle('month', '2026-09-01', TODAY)).toBe('September')
     expect(periodTitle('week', TODAY, TODAY)).toBe('21 to 27 Sep')
     expect(periodTitle('week', '2026-09-30', TODAY)).toBe('28 Sep to 4 Oct')
-    expect(periodTitle('day', TODAY, TODAY)).toBe('Today')
+    expect(periodTitle('day', TODAY, TODAY)).toBe('Thu 24 Sep')
   })
 })
