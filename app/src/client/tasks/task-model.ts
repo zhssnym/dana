@@ -496,7 +496,7 @@ export function reminderChipValue(task: ConceptTask, format: TimeFormat): string
   const found = task.reminder.match(/^(?:(.*) )?at (\d{1,2}:\d{2})$/)
   if (found === null) return task.reminder
   const time = formatTime(found[2], format) ?? found[2] ?? ''
-  /* A reminder before the due day names its own day: "27 Sep 11:30 PM". */
+  /* A reminder before the due day names its own day, as the Date row does: "Sat 6:00 PM". */
   return task.reminderAt !== undefined && task.reminderAt < 0 ? `${found[1] ?? ''} ${time}` : time
 }
 
@@ -516,12 +516,13 @@ export function clockOfMinutes(minutes: number): string {
 
 /**
  * The words a reminder is kept as on the card: the day it fires, "at", and
- * its clock ("24 Sep at 09:00"). `at` is minutes from the due day's
+ * its clock ("Sat at 09:00"), the day in the Date row's own words. `at` is minutes from the due day's
  * midnight, so a negative one fires on an earlier day and says which.
  */
 export function reminderWords(due: Date | null, at: number): string {
   const time = clockOfMinutes(at)
   if (due === null) return `at ${time}`
   const day = addDays(due, Math.floor(at / 1440))
-  return `${formatDate(isoDay(day), todayInBrowserZone())} at ${time}`
+  /* Worded as the Date row words its day ("Sat"), so the two rows read alike. */
+  return `${formatDay(isoDay(day), todayInBrowserZone())} at ${time}`
 }

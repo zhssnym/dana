@@ -80,7 +80,7 @@ import {
 } from "../tasks/task-model.js"
 import { cn } from "./ui/utils.js"
 import { Segmented } from "./ui/segmented.js"
-import { formatDate } from "../lib/dates.js"
+import { formatDate, formatDay } from "../lib/dates.js"
 import { todayInBrowserZone } from "../api/tz.js"
 
 /* The day beside a preset, from the one formatter: "Sat" for "This weekend"
@@ -525,14 +525,13 @@ export function DuePanel({ task, patch }: PanelProps) {
 
   **The reminder is carried across, not lost.** 8.4 deletes a time_of_day
   reminder when a date-only task gains a time, and an offset reminder when a
-  timed task loses one. So after the time is written the reminder is written
-  again in the mode the task now takes, at the clock time it had: 9:00 on a
+  timed task loses one. So the reminder is written again
+  in the same PATCH, in the mode the task now takes, at the clock time it had: 9:00 on a
   task now due at 17:00 is 480 minutes before. A reminder that would fall
   after the new time moves to the time itself, and one before the due day
   cannot be a time on a day with no time and is removed. Either says so here.
   */
   const format = useTimeFormat()
-  const put = usePutReminder()
   const at = task.dueTime ?? null
   const [moved, setMoved] = useState<string | null>(null)
   const labelWithTime = (day: Date, time: string | null) => {
@@ -560,14 +559,13 @@ export function DuePanel({ task, patch }: PanelProps) {
       reminder: reminder === null ? undefined : reminderWords(day, reminder.at),
       reminderAt: reminder?.at,
     })
-    update.mutate(
-      { id: task.id, body: { due_time: time } },
-      {
-        onSuccess: () => {
-          if (reminder !== null) put.mutate({ taskId: task.id, body: reminder.body })
-        },
-      },
-    )
+    /* One PATCH: 7.6 upserts a reminder in the body after 8.4's cascade, in
+       the same transaction, so the reminder cannot be lost between two
+       requests or with a panel that closed first. */
+    update.mutate({
+      id: task.id,
+      body: reminder === null ? { due_time: time } : { due_time: time, reminder: reminder.body },
+    })
   }
   /* Choosing a day answers the field, from the grid exactly as from a preset,
      so both close. See `PickerClose`. */
@@ -758,8 +756,8 @@ how long before it the reminder fires.
 
 So the quick answers follow the task. A date-only task is offered the three
 times a reminder is usually set to. A timed task is offered what an offset
-means, "At due time", "1 hour before" and "Day before", each with the clock
-time it lands on beside it. The exact answer is a time on the due day, on the
+means, "At due time", "1 hour before" and "Day before" (the same clock time on
+the previous day), each with when it lands beside it. The exact answer is a time on the due day, on the
 viewer's clock, and one after the due time is refused in place.
 
 The empty state has one name, "No reminder", in the row and here.
@@ -806,7 +804,13 @@ export function ReminderPanel({ task, patch }: PanelProps) {
       : [
           { label: "At due time", minutes: dueAt, hint: clock(dueAt) },
           { label: "1 hour before", minutes: dueAt - 60, hint: clock(dueAt - 60) },
-          { label: "Day before", minutes: 18 * 60 - 1440, hint: clock(18 * 60) },
+          /* The same clock time a day earlier, and the hint names that day,
+             so it never reads like "At due time". */
+          {
+            label: "Day before",
+            minutes: dueAt - 1440,
+            hint: `${due === null ? "" : `${formatDay(isoDay(addDays(due, -1)), todayInBrowserZone())} `}${clock(dueAt)}`,
+          },
         ]
 
   return (
@@ -1034,20 +1038,25 @@ export function RepeatPanel({ task, patch }: PanelProps) {
               onCommit={(next) => customCommit({ repeatEvery: String(next) })}
             />
           </div>
-          <PickerSegments
-            label=""
-            name="Unit"
-            active={unit}
-            options={[
-              { key: "day", label: every === 1 ? "day" : "days" },
-              { key: "week", label: every === 1 ? "week" : "weeks" },
-              { key: "month", label: every === 1 ? "month" : "months" },
-              { key: "year", label: every === 1 ? "year" : "years" },
-            ]}
-            onPick={(key) =>
-              customCommit({ repeatUnit: key as ConceptTask["repeatUnit"] })
-            }
-          />
+          {/* The unit on its own full-width row, four equal segments, so four
+              plural labels fit the 268px panel and the control keeps its
+              width as the interval turns a label singular or plural. */}
+          <div className="px-2 py-1">
+            <Segmented
+              label="Unit"
+              className="w-full [&>button]:min-w-0 [&>button]:flex-1"
+              value={unit}
+              options={[
+                { value: "day", label: every === 1 ? "day" : "days" },
+                { value: "week", label: every === 1 ? "week" : "weeks" },
+                { value: "month", label: every === 1 ? "month" : "months" },
+                { value: "year", label: every === 1 ? "year" : "years" },
+              ]}
+              onValueChange={(key) =>
+                customCommit({ repeatUnit: key as ConceptTask["repeatUnit"] })
+              }
+            />
+          </div>
           {unit === "week" ? (
             <div className="px-2 py-1">
               {/* The weekday row gets its own line and a seven-column grid.

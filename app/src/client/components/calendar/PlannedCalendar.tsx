@@ -252,6 +252,9 @@ function DayCell({
   const overflows = zoom === 'month' && events.length > MONTH_CELL_LINES
   const visible = overflows ? events.slice(0, MONTH_CELL_LINES - 1) : events
   const hidden = events.length - visible.length
+  /* A phone draws the week as an agenda, one day per line, so titles stay
+     whole. */
+  const agenda = zoom === 'week' 
   const outsideMonth = zoom === 'month' && monthOf(date) !== anchorMonth
   const weekend = zoom !== 'day' && column > 4
 
@@ -267,6 +270,8 @@ function DayCell({
         weekend && !outsideMonth && 'bg-muted/40',
         lastColumn && 'border-r-0',
         lastRow && 'border-b-0',
+        agenda && 'max-sm:min-h-14 max-sm:border-r-0',
+        agenda && !lastColumn && 'max-sm:border-b',
         over && 'bg-muted',
       )}
       onDragOver={(drag) => {
@@ -309,7 +314,12 @@ function DayCell({
           'pointer-events-none relative z-10 mb-1.5 flex h-6 items-center justify-between',
           /* The day zoom's title already names its one day. */
           zoom === 'day' && 'hidden',
+          /* The agenda has no column heads, so each line names its weekday.
+             A pseudo-element, so the cell's text still starts with the day. */
+          agenda &&
+            'max-sm:justify-start max-sm:gap-1 max-sm:before:text-xs max-sm:before:font-medium max-sm:before:text-muted-foreground max-sm:before:content-[attr(data-weekday)]',
         )}
+        data-weekday={agenda ? WEEKDAY_LABELS[column] : undefined}
       >
         <span
           className={cn(
@@ -493,20 +503,34 @@ export function PlannedCalendar({
     const cell = grid.current?.querySelector('[data-today="true"]')
     if (cell === null || cell === undefined) return
     scrolled.current = true
-    /* Only when today is wholly below the fold: scrolling a partly visible
-       day into view pushed the page title and its View menu off screen. */
-    if (cell.getBoundingClientRect().top < window.innerHeight) return
+    /* Only when today's cell is not wholly on screen: a row showing just its
+       day numbers at the bottom edge hides the tasks it is opened for. */
+    if (cell.getBoundingClientRect().bottom <= window.innerHeight) return
     cell.scrollIntoView({ block: 'nearest' })
   }, [view.data])
 
-  const cells = useMemo(
-    () =>
-      cellsByDate(view.data?.real ?? [], view.data?.virtual ?? [], folders.data ?? [], {
-        start,
-        end,
-      }),
-    [view.data, folders.data, start, end],
-  )
+  /*
+  A day cell holds only rows on their own day: a task on its Due Date, or on
+  its Start Date when it has no Due Date. So a day holds the same tasks at
+  every zoom, and a phone's count is what the day it opens lists. A span whose
+  own day is off this grid is "running" (order.ts) and is listed once above
+  the grid instead of on a day that would read as its deadline, until 9.5's
+  span bar exists.
+  */
+  const { cells, running } = useMemo(() => {
+    const placed = cellsByDate(view.data?.real ?? [], view.data?.virtual ?? [], folders.data ?? [], {
+      start,
+      end,
+    })
+    const through: CellEvent[] = []
+    const own = new Map<string, CellEvent[]>()
+    for (const [day, events] of placed) {
+      own.set(day, events.filter((event) => !event.running))
+      through.push(...events.filter((event) => event.running))
+    }
+    through.sort((a, b) => (a.title < b.title ? -1 : a.title > b.title ? 1 : 0))
+    return { cells: own, running: through }
+  }, [view.data, folders.data, start, end])
 
   /*
   7.6's PATCH of the Schedule, from a drop (Q3C, issue #216): a Due-only row
@@ -614,11 +638,29 @@ export function PlannedCalendar({
           </div>
         </div>
 
+        {running.length > 0 ? (
+          <div className="border-b border-border px-2 py-2">
+            <p className="px-1.5 pb-1 text-xs text-muted-foreground">Also running</p>
+            <div className={cn('grid gap-0.5', zoom === 'day' ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4')}>
+              {running.map((event) => (
+                <CalendarEvent
+                  key={event.key}
+                  event={{ ...event, moves: null }}
+                  compact={false}
+                  onOpen={() => {
+                    openTask(event.taskId, { upcoming: false })
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div role="grid" aria-label="Upcoming calendar" className="bg-background" ref={grid}>
           {zoom === 'day' ? null : (
           <div
             role="row"
-            className="grid border-b border-border bg-background"
+            className={cn('grid border-b border-border bg-background', zoom === 'week' && 'max-sm:hidden')}
             style={{ gridTemplateColumns: template }}
           >
             {WEEKDAY_LABELS.map((label) => (
@@ -643,7 +685,7 @@ export function PlannedCalendar({
             <div
               key={week[0] ?? ''}
               role="row"
-              className="grid"
+              className={cn('grid', zoom === 'week' && 'max-sm:grid-cols-1!')}
               style={{ gridTemplateColumns: template }}
             >
               {week.map((date, column) => (

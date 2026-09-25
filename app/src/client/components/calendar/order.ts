@@ -75,6 +75,13 @@ export interface CellEvent {
    * null here as well as undraggable for the reason `PlannedCalendar` gives.
    */
   readonly moves: 'start_date' | 'due_date' | 'range' | null
+  /**
+   * Drawn here only because the task's own day is off this grid: a span
+   * whose deadline is past the grid, drawn on its start or on the grid's
+   * first day. `PlannedCalendar` lists these above the grid rather than in a
+   * cell, so a day cell holds the same tasks at every zoom.
+   */
+  readonly running: boolean
 }
 
 /**
@@ -137,38 +144,28 @@ export interface GridRange {
 }
 
 /**
- * Which cell one real row draws in.
+ * Which cell one real row draws in, Q3C's rule in its own order: the Due Date
+ * where the grid holds that day, else the Start Date, else the grid's first
+ * day when the span encloses the whole range. A row the query returned is
+ * drawn somewhere (issue #216), and only the last case draws on a day the task
+ * does not carry.
  *
- * **The deadline first, which is where a chip has always drawn**: a due-only
- * task, a same-day pair and a pair whose deadline is on this grid all draw on
- * the due date, so nothing that was drawn before moves.
- *
- * **Otherwise the grid's day nearest the deadline, which is issue #216's fix.**
- * Q3C returns every task whose Schedule *overlaps* the range, so a row can
- * arrive carrying a due date that is not on this grid at all, and a row in no
- * cell is not drawn. A span running past the grid's last day draws on that
- * last day, the nearest it can get to the deadline, at every zoom; a
- * start-only task draws on its start. So a week, a month and a day never put
- * one task on opposite ends of its span.
+ * The rule never moves a task toward a grid edge while one of its own dates
+ * is on the grid, so a week and a month put a task on the same day whenever
+ * both hold that day.
  *
  * **This is a chip and not a bar.** 9.5's continuous bar from Start through
- * Due, split into weekly segments, is still unbuilt; what this guarantees is
- * only that a row the server returned is drawn somewhere on the grid it was
- * returned for.
+ * Due is still unbuilt.
  */
 function cellDateOf(task: TaskCard, range: GridRange): string {
   const inRange = (date: string): boolean =>
     date >= range.start && date <= range.end
   const { start_date: start, due_date: due } = task
   if (due !== null && inRange(due)) return due
-  /* One rule at every zoom: the due day, or the day of this grid nearest it
-     that the span covers. A week that ends before the deadline draws the
-     chip on its last day, not on the start, so the week and the month put
-     it on the same side of the span. */
-  if (start !== null && due !== null && due > range.end && start <= range.end) {
-    return range.end
-  }
   if (start !== null && inRange(start)) return start
+  if (start !== null && due !== null && start <= range.start && due >= range.end) {
+    return range.start
+  }
   /* Q3C admits no row without a date, so the last fallback keeps the shape
      total rather than asserting it; such a row lands in no cell. */
   return due ?? start ?? ''
@@ -180,12 +177,14 @@ function realEvent(
   folders: readonly Folder[],
   range: GridRange,
 ): CellEvent {
+  const date = cellDateOf(task, range)
   return {
     key: `real:${task.id}`,
     kind: 'real',
     taskId: task.id,
     title: task.title,
-    date: cellDateOf(task, range),
+    date,
+    running: date !== (task.due_date ?? task.start_date),
     dueTime: task.due_time,
     statusRank: STATUS_RANK[task.status] ?? 0,
     status: task.status,
@@ -213,6 +212,7 @@ function ghostEvent(instance: VirtualInstance): CellEvent {
     status: null,
     folderColor: null,
     moves: null,
+    running: false,
   }
 }
 
