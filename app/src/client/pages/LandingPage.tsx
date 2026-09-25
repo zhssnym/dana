@@ -21,8 +21,9 @@ The copyright year is computed rather than typed, so the line is never wrong.
 
 A signed-in visitor goes to `/app` (AC-956, issue #326). The server answers a
 signed-in `/` with a 302 before this page is sent (`server/index.ts`); this
-check is the fallback for Vite's dev server. It is the `/me` read `main.tsx`
-already prefetches, and only a 200 moves anyone. A query string keeps the page,
+check is the fallback for Vite's dev server and runs only there, because in a
+built app a signed-out visitor's `/me` is a 401 that nobody reads and that
+prints a red line in their console. Only a 200 moves anyone. A query string keeps the page,
 so `?signin=failed` still says its sentence and `/?about` shows a signed-in
 person the page.
 */
@@ -45,13 +46,18 @@ function GoogleGlyph(): React.JSX.Element {
   )
 }
 
-export function LandingPage(): React.JSX.Element {
+/* The dev server's stand-in for the server's signed-in 302. */
+function SignedInRedirect(): null {
   const signedIn = useMe().isSuccess
   useEffect(() => {
     if (signedIn && window.location.search === '') {
       window.location.replace(paths.today)
     }
   }, [signedIn])
+  return null
+}
+
+export function LandingPage(): React.JSX.Element {
   const signInHref = `/api/v1/auth/google?tz=${encodeURIComponent(browserTimezone())}`
   /*
   The callback's failure marker (auth/pages.ts): every refusal that is not the
@@ -64,6 +70,7 @@ export function LandingPage(): React.JSX.Element {
 
   return (
     <main className="flex min-h-svh items-center bg-background px-4 py-16 text-foreground">
+      {import.meta.env.DEV ? <SignedInRedirect /> : null}
       <div className="mx-auto w-full max-w-[520px]">
         <h1 className="text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-balance">
           All your projects, in one quiet place.

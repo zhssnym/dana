@@ -85,7 +85,7 @@ export function MemberDetails({
             initials={initialsOf(name)}
             image={member.user.avatar_url}
           />
-          <h3 className="min-w-0 flex-1 truncate text-base font-medium text-foreground">{name}</h3>
+          <h3 className="min-w-0 flex-1 truncate text-sm font-section text-foreground">{name}</h3>
           {member.is_owner ? <span className="text-xs text-muted-foreground">Owner</span> : null}
         </div>
       </div>

@@ -141,7 +141,7 @@ export function LegalPage({ page }: { readonly page: LegalPageName }): React.JSX
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex max-w-[720px] flex-col px-4 py-5 sm:px-8">
         <main className="mt-12">
-          <h1 className="text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-bold text-foreground">
+          <h1 className="text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-foreground">
             {copy.title}
           </h1>
           <p className="mt-1 text-xs text-muted-foreground">{copy.updated}</p>
@@ -149,7 +149,7 @@ export function LegalPage({ page }: { readonly page: LegalPageName }): React.JSX
           <div className="mt-10 flex flex-col gap-8">
             {copy.sections.map((section) => (
               <section key={section.heading}>
-                <h2 className="text-sm font-semibold text-foreground">
+                <h2 className="text-sm font-section text-foreground">
                   {section.heading}
                 </h2>
                 <div className="mt-2 flex flex-col gap-2.5">

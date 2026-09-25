@@ -153,7 +153,7 @@ export function FolderHeader({
             }}
             className={cn(
               FIELD,
-              'flex-1 resize-none overflow-hidden [field-sizing:content] break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-semibold text-foreground',
+              'flex-1 resize-none overflow-hidden [field-sizing:content] break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-foreground',
             )}
           />
         ) : (
@@ -168,7 +168,7 @@ export function FolderHeader({
                 : undefined
             }
             className={cn(
-              'min-w-0 flex-1 break-words [overflow-wrap:anywhere] text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-semibold text-foreground',
+              'min-w-0 flex-1 break-words [overflow-wrap:anywhere] text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-foreground',
               editable ? 'cursor-text' : '',
             )}
           >
