@@ -31,6 +31,7 @@ import { useMemo } from 'react'
 import { useFolders, useSearch, useShelves } from '../api/queries.js'
 import { folderMark, shelfMark } from '../parts/presenters.js'
 import { markIcon } from '../components/page/icon-manifest.js'
+import { AlignLeft } from './icons.js'
 import type { Folder } from '../../shared/folders.js'
 import { navPages, paths } from '../routes.js'
 import type { SearchResultItem } from '../components/search-overlay.js'
@@ -159,6 +160,8 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
         id: home?.path ?? paths.today,
         title: hit.text,
         hint: trailHint(hit.breadcrumbs) ?? home?.name ?? 'Page',
+        /* A passage, not a page called that: it wears the text glyph. */
+        icon: AlignLeft,
       }
     })
     /* The places are findable by typing too, not only offered before anything

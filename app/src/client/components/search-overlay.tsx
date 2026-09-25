@@ -58,7 +58,8 @@ export type SearchResultItem = {
   dueDate?: string
   /* A folder's own colour, for its mark. */
   color?: string
-  /* The glyph a folder's owner chose; absent means the plain page glyph. */
+  /* The glyph a folder's owner chose, or a passage's text glyph; absent
+     means the plain page glyph. */
   icon?: LucideIcon
 }
 
@@ -100,7 +101,7 @@ function resultGlyph(item: SearchResultItem): LucideIcon {
   if (item.kind === "task") return CheckCircle2
   if (item.kind === "shelf") return Folders
   if (item.id === SHORTCUTS_RESULT) return Keyboard
-  if (item.kind === "page") return pageGlyph(item.title) ?? FileText
+  if (item.kind === "page") return item.icon ?? pageGlyph(item.title) ?? FileText
   return item.icon ?? FileText
 }
 
@@ -227,7 +228,27 @@ function SearchDialog({
             )
         : results.filter((result) => groupOf(result) === group),
   }))
+  /* A kind whose best row is a title match comes first, so Enter opens the
+     thing called what you typed rather than a task that mentions it. The
+     results arrive ranked, so a kind's first position is its best rank;
+     Help stays last. */
+  const firstAt = (group: SearchGroup): number => {
+    if (group === "help") return Number.POSITIVE_INFINITY
+    const at = results.findIndex((result) => groupOf(result) === group)
+    return at === -1 ? Number.MAX_SAFE_INTEGER : at
+  }
+  groupedResults.sort((a, b) => firstAt(a.kind) - firstAt(b.kind))
   const orderedResults = groupedResults.flatMap((group) => group.rows)
+
+  /* The cursor stays in sight: arrowing past the panel's edge scrolls it.
+     Only the keys scroll; a hover already has its row under the pointer. */
+  const listRef = useRef<HTMLDivElement>(null)
+  function moveTo(index: number) {
+    setActiveIndex(index)
+    listRef.current
+      ?.querySelector(`#dana-search-result-${String(index)}`)
+      ?.scrollIntoView({ block: "nearest" })
+  }
 
   function openResult(item: SearchResultItem) {
     onOpenChange(false)
@@ -239,12 +260,10 @@ function SearchDialog({
 
     if (event.key === "ArrowDown") {
       event.preventDefault()
-      setActiveIndex((current) => (current + 1) % orderedResults.length)
+      moveTo((activeIndex + 1) % orderedResults.length)
     } else if (event.key === "ArrowUp") {
       event.preventDefault()
-      setActiveIndex(
-        (current) => (current - 1 + orderedResults.length) % orderedResults.length,
-      )
+      moveTo((activeIndex - 1 + orderedResults.length) % orderedResults.length)
     } else if (event.key === "Enter") {
       event.preventDefault()
       const chosen = orderedResults[activeIndex] ?? orderedResults[0]
@@ -300,6 +319,7 @@ function SearchDialog({
 
         <div
           id="dana-search-results"
+          ref={listRef}
           className="overflow-y-auto p-2 max-md:flex-1 md:max-h-[60vh]"
         >
           {waiting && results.length === 0 ? (
@@ -336,6 +356,9 @@ function SearchDialog({
                             type="button"
                             data-focus="self"
                             onMouseEnter={() => setActiveIndex(itemIndex)}
+                            /* Tab reaches the rows too; the tint follows it,
+                               since the tint is the only focus they show. */
+                            onFocus={() => setActiveIndex(itemIndex)}
                             onClick={() => openResult(item)}
                             className={cn(
                               "flex h-[var(--row-height)] w-full items-center gap-[var(--space-inline)] rounded-md px-2 text-left text-sm font-normal text-foreground outline-none",

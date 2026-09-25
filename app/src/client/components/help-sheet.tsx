@@ -20,6 +20,13 @@ today, and every line can be pressed. Each line names the module that binds it:
   `components/search-overlay.tsx`.
 - The arrows move through the sidebar's pages and fold them, and F2 renames
   the focused one, `shell/app-sidebar.tsx`.
+- Ctrl+B shows or hides the sidebar when you are not typing,
+  `components/ui/sidebar.tsx`.
+- Ctrl+Shift+J and K step to the next and previous task while one is open,
+  `components/task-surface.tsx`.
+
+The lines are grouped by where they work, so one key (the arrows) can mean
+one thing in a list and another in the sidebar without a line saying both.
 
 A shortcut this client does not bind must not be listed here.
 */
@@ -46,18 +53,44 @@ function modKey(): string {
 
 export const KEYBOARD_SHORTCUTS = 'Keyboard shortcuts'
 
-const SHORTCUTS: readonly { readonly keys: readonly string[]; readonly what: string }[] = [
-  { keys: ['MOD', 'K'], what: 'Search' },
-  { keys: ['/'], what: 'Search, when you are not typing' },
-  { keys: ['N'], what: 'New task in this list' },
-  { keys: ['MOD', 'Z'], what: 'Undo the last thing you did' },
-  { keys: ['↑', '↓'], what: 'Move through tasks or search results' },
-  { keys: ['Enter'], what: 'Open the selected task, or add what you typed' },
-  { keys: ['Space'], what: 'Complete the selected task' },
-  { keys: ['Esc'], what: 'Close what is open' },
-  { keys: ['↑', '↓', '←', '→'], what: "Move through the sidebar's pages, and fold them" },
-  { keys: ['F2'], what: 'Rename the focused page in the sidebar' },
-  { keys: ['?'], what: 'This list' },
+type Shortcut = { readonly keys: readonly string[]; readonly what: string }
+
+const GROUPS: readonly { readonly title: string; readonly rows: readonly Shortcut[] }[] = [
+  {
+    title: 'Anywhere',
+    rows: [
+      { keys: ['MOD', 'K'], what: 'Search' },
+      { keys: ['/'], what: 'Search, when you are not typing' },
+      { keys: ['MOD', 'Z'], what: 'Undo the last thing you did' },
+      { keys: ['MOD', 'B'], what: 'Show or hide the sidebar' },
+      { keys: ['Esc'], what: 'Close what is open' },
+      { keys: ['?'], what: 'This list' },
+    ],
+  },
+  {
+    title: 'In a list of tasks',
+    rows: [
+      { keys: ['N'], what: 'New task' },
+      { keys: ['↑', '↓'], what: 'Move between tasks' },
+      { keys: ['Enter'], what: 'Open the task' },
+      { keys: ['Space'], what: 'Complete the task' },
+    ],
+  },
+  {
+    title: 'In an open task',
+    rows: [
+      { keys: ['MOD', 'Shift', 'J'], what: 'Next task' },
+      { keys: ['MOD', 'Shift', 'K'], what: 'Previous task' },
+    ],
+  },
+  {
+    title: 'In the sidebar',
+    rows: [
+      { keys: ['↑', '↓'], what: 'Move between pages' },
+      { keys: ['←', '→'], what: 'Fold or unfold a page' },
+      { keys: ['F2'], what: 'Rename the page' },
+    ],
+  },
 ]
 
 export function HelpSheet({
@@ -70,28 +103,43 @@ export function HelpSheet({
   const mod = modKey()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[min(420px,calc(100vw-32px))]">
+      {/* Nothing in the sheet takes focus, so the panel holds it; it draws
+          no ring for that. */}
+      <DialogContent
+        data-focus="self"
+        className="flex max-h-[calc(100dvh-32px)] w-[min(420px,calc(100vw-32px))] flex-col"
+      >
         <DialogHeader>
           <DialogTitle>{KEYBOARD_SHORTCUTS}</DialogTitle>
           <DialogDescription className="sr-only">
             The keys Dana answers to.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col">
-          {SHORTCUTS.map((shortcut) => (
-            <div key={shortcut.what} className="flex items-center justify-between gap-4 py-1">
-              <span className="min-w-0 text-sm text-foreground">{shortcut.what}</span>
-              <span className="flex shrink-0 items-center gap-1">
-                {shortcut.keys.map((key) => (
-                  <kbd
-                    key={key}
-                    className="min-w-5 rounded-sm bg-muted px-1.5 py-0.5 text-center text-xs font-medium text-muted-foreground"
-                  >
-                    {key === 'MOD' ? mod : key}
-                  </kbd>
-                ))}
-              </span>
-            </div>
+        <div className="-mx-5 mt-2 flex flex-col gap-[var(--space-group)] overflow-y-auto px-5">
+          {GROUPS.map((group) => (
+            <section key={group.title} aria-label={group.title}>
+              <h3 className="flex h-[var(--control-height)] items-center text-xs font-medium text-muted-foreground">
+                {group.title}
+              </h3>
+              {group.rows.map((shortcut) => (
+                <div
+                  key={shortcut.what}
+                  className="flex min-h-[var(--row-height)] items-center justify-between gap-4"
+                >
+                  <span className="min-w-0 text-sm text-foreground">{shortcut.what}</span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    {shortcut.keys.map((key) => (
+                      <kbd
+                        key={key}
+                        className="min-w-5 rounded-sm bg-muted px-1.5 py-0.5 text-center font-sans text-xs font-medium text-muted-foreground"
+                      >
+                        {key === 'MOD' ? mod : key}
+                      </kbd>
+                    ))}
+                  </span>
+                </div>
+              ))}
+            </section>
           ))}
         </div>
       </DialogContent>
