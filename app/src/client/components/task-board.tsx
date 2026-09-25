@@ -261,7 +261,7 @@ function BoardCard({
             event.stopPropagation()
             onCheck()
           }}
-          className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-sm"
+          className="relative mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-sm pointer-coarse:before:absolute pointer-coarse:before:-inset-2"
         >
           <CheckMark checked={done} />
         </button>

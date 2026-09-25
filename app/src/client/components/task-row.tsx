@@ -1094,7 +1094,7 @@ export function TaskRow(props: TaskRowProps) {
           : undefined
       }
       className={cn(
-        "group/row grid h-[var(--row-height)] w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center rounded-sm pr-1 text-sm transition-colors",
+        "group/row grid min-h-[var(--row-height)] w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center rounded-sm pr-1 text-sm transition-colors max-md:py-1 md:h-[var(--row-height)]",
         T_FAST,
         !props.isSelected && "hover:bg-muted",
         props.onOpen && "cursor-pointer",
@@ -1104,7 +1104,8 @@ export function TaskRow(props: TaskRowProps) {
       <span
         title={task.title}
         className={cn(
-          "min-w-0 truncate",
+          /* A phone wraps the title to a second line rather than cutting it beside the meta. */
+          "min-w-0 truncate max-md:line-clamp-2 max-md:whitespace-normal",
           finished ? "text-muted-foreground" : "text-foreground",
           struck && "line-through",
         )}

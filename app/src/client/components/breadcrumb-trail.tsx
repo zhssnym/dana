@@ -177,7 +177,8 @@ export function BreadcrumbTrail({
                 'flex min-w-0 items-center gap-0.5',
                 /* The current crumb wins the space: ancestors give way first,
                    and the fold button never shrinks. */
-                crumb === 'fold' ? 'shrink-0' : position === last ? 'shrink' : 'shrink-[8]',
+                /* On a phone the two crumbs share the squeeze, so the parent keeps a readable stub. */
+                crumb === 'fold' ? 'shrink-0' : position === last ? 'shrink' : 'shrink-[8] max-md:shrink',
                 phoneHidden && 'max-md:hidden',
               )}
             >

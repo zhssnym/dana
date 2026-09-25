@@ -18,8 +18,10 @@ import {
   Search,
   type LucideIcon,
 } from "../lib/icons.js"
+import { Button } from "./ui/button.js"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -269,6 +271,8 @@ function SearchDialog({
             }
             className="h-[var(--row-height)] min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
+          {/* Full screen on a phone has no Escape key and no backdrop to tap. */}
+          <DialogClose render={<Button variant="ghost" size="sm" className="md:hidden">Cancel</Button>} />
         </div>
 
         <div

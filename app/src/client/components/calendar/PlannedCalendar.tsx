@@ -116,7 +116,7 @@ const MONTH_CELL_LINES = 6
 const CELL_MIN_HEIGHT: Record<Zoom, string> = {
   // Padding and the day-number line, then MONTH_CELL_LINES rows of 20 with a
   // 2-pixel gap between them: 12 + 30 + 120 + 10.
-  month: 'min-h-[172px]',
+  month: 'min-h-[172px] max-md:min-h-24',
   week: 'min-h-[420px]',
   day: 'min-h-[480px]',
 }
@@ -165,6 +165,8 @@ function CalendarEvent({
       }
       className={cn(
         'flex w-full items-center gap-1.5 overflow-hidden rounded-sm border border-transparent bg-muted px-1.5 text-left text-foreground transition-[background-color,border-color] hover:border-border hover:bg-background focus-visible:outline-none',
+        /* A phone's day column is ~50px: the title gets all of it, not the glyph and time. */
+        'max-md:px-1 max-md:[&>svg]:hidden max-md:[&>span:not(:last-child)]:hidden',
         movable && 'cursor-grab active:cursor-grabbing',
         compact ? 'min-h-5 text-xs' : 'min-h-7 text-xs leading-4',
         completed && 'bg-background text-muted-foreground',
@@ -253,7 +255,7 @@ function DayCell({
       data-today={date === today ? 'true' : undefined}
       data-date={date}
       className={cn(
-        'group/calendar-cell relative border-r border-b border-border p-1.5',
+        'group/calendar-cell relative border-r border-b border-border p-1.5 max-md:p-0.5',
         CELL_MIN_HEIGHT[zoom],
         outsideMonth && 'bg-muted',
         weekend && !outsideMonth && 'bg-muted/40',

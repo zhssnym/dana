@@ -517,3 +517,13 @@ button:not(:disabled),
 [data-theme="dark"] {
   --sidebar-row-hover: rgb(255 255 255 / 4%);
 }
+
+/* ---- m2-imp-mobile: iOS Safari zooms the whole page into any field whose
+   text is under 16px the moment it is focused, and does not zoom back. On a
+   touch screen the 14px/12px chrome fields (New task, search, names) are 16px
+   instead; the page title and the writing canvas are already larger. */
+@media (pointer: coarse) {
+  :is(input:not([type="checkbox"], [type="radio"], [type="range"]), textarea, select):where(.text-sm, .text-xs) {
+    font-size: 16px;
+  }
+}
