@@ -37,6 +37,7 @@ import {
   repeatShort,
   stepCount,
   type ConceptComment,
+  type ConceptLabel,
   type ConceptStep,
   type ConceptTask,
 } from "../tasks/task-model.js"
@@ -807,6 +808,8 @@ export interface TaskRowProps {
   /* #225: unfinished blockers, 7.25's `blocked_by_count`. Absent or 0 draws
      nothing, so an ordinary row carries no dependency chrome at all. */
   blockedBy?: number
+  /* #208: the Labels this viewer sees on the task, archived ones left out. */
+  labels?: ConceptLabel[]
   /* 9.5's from half. The person who made this task, drawn only where the page
      asks. See the chip at the foot of `rowChips`. */
   createdBy?: string
@@ -891,6 +894,7 @@ function toConceptTask(props: TaskRowProps): ConceptTask {
        says "2 of 5" has no titles to give. Anything the shell owns arrives
        through `detail` below and wins, so a real task keeps its real steps. */
     steps,
+    ...(props.labels === undefined ? {} : { labels: props.labels }),
     comments: props.comments,
     recurrence: Boolean(props.recurrence),
     ...(REPEAT_UNIT_OF[props.recurrence ?? ""] === undefined
@@ -1117,6 +1121,7 @@ export function TaskRow(props: TaskRowProps) {
           ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
           ...(counts === null ? {} : { steps: counts }),
           ...(task.recurrence ? { recurrence: repeatShort(task) } : {}),
+          ...(props.labels === undefined ? {} : { labels: props.labels }),
           blockedBy: props.blockedBy ?? 0,
           finished,
           important: Boolean(task.important),

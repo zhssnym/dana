@@ -1,7 +1,8 @@
 /*
-A list's View settings: how it is grouped, how it is sorted, and whether
-completed tasks show. It never narrows rows away and never asks the server for
-anything; the rows a page fetched are the rows it shows.
+A list's View settings: how it is grouped, how it is sorted, whether completed
+tasks show, and at most one Label to show only (#208). The Label is the one
+narrowing, and the page says so beside its View menu with a way to clear it.
+Nothing here asks the server for anything.
 */
 import type { TaskCard } from '../../shared/tasks.js'
 
@@ -17,12 +18,16 @@ export interface PageFilter {
   readonly groupBy: GroupBy
   readonly sort: SortBy
   readonly showCompleted: boolean
+  /** A Label's id: only tasks wearing it show. Kept by id, never by name, so
+      two Labels called the same thing stay two. */
+  readonly label: string | null
 }
 
 export const NO_FILTER: PageFilter = {
   groupBy: 'none',
   sort: 'manual',
   showCompleted: false,
+  label: null,
 }
 
 const GROUPS: readonly GroupBy[] = ['none', 'folder', 'person', 'date', 'section']
@@ -39,11 +44,36 @@ export function settleFilter(stored: unknown): PageFilter {
   const groupBy = record['groupBy']
   const sort = record['sort']
   const showCompleted = record['showCompleted']
+  const label = record['label']
   return {
     groupBy: GROUPS.includes(groupBy as GroupBy) ? (groupBy as GroupBy) : 'none',
     sort: SORTS.includes(sort as SortBy) ? (sort as SortBy) : 'manual',
     showCompleted: typeof showCompleted === 'boolean' ? showCompleted : false,
+    label: typeof label === 'string' && label !== '' ? label : null,
   }
+}
+
+/** Whether a task wears the Label a filter names; every task when none. */
+export function wearsLabel(task: TaskCard, label: string | null): boolean {
+  if (label === null) return true
+  return [...(task.labels?.personal ?? []), ...(task.labels?.folder ?? [])].some(
+    (worn) => worn.id === label,
+  )
+}
+
+/** The distinct active Labels a page's rows wear, by name, for the View menu. */
+export function labelsWorn(
+  rows: readonly TaskCard[],
+): readonly { readonly id: string; readonly name: string; readonly color: string }[] {
+  const seen = new Map<string, { id: string; name: string; color: string }>()
+  for (const task of rows) {
+    for (const worn of [...(task.labels?.personal ?? []), ...(task.labels?.folder ?? [])]) {
+      if (!worn.archived && !seen.has(worn.id)) {
+        seen.set(worn.id, { id: worn.id, name: worn.name, color: worn.color })
+      }
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
 }
 
 /** Rows in their page's order unless a sort was asked for. Never mutates. */

@@ -196,6 +196,7 @@ function BoardCard({
     (task.assignee !== undefined && task.assignee !== null && !given?.assignee) ||
     (task.steps !== undefined && task.steps.total > 0) ||
     task.recurrence !== undefined ||
+    (task.labels !== undefined && task.labels.length > 0) ||
     Boolean(task.important)
   const drag = wiring.dragState
   const carried = Boolean(drag?.isActive) && !drag?.isSettling
@@ -289,6 +290,7 @@ function BoardCard({
             ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
             ...(task.steps === undefined ? {} : { steps: { done: task.steps.complete, total: task.steps.total } }),
             ...(task.recurrence === undefined ? {} : { recurrence: task.recurrence }),
+            ...(task.labels === undefined ? {} : { labels: task.labels }),
             blockedBy: task.blockedBy ?? 0,
             finished,
             important: Boolean(task.important),

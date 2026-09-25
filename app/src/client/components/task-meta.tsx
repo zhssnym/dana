@@ -15,6 +15,7 @@ import type { ReactNode } from "react"
 import { Repeat2, Star } from "../lib/icons.js"
 
 import { Face } from "./person-face.js"
+import { RowLabels, type LabelLook } from "./label-chip.js"
 import { cn } from "./ui/utils.js"
 
 export interface TaskMetaProps {
@@ -78,6 +79,8 @@ export interface RowMetaSource {
   readonly finished?: boolean
   readonly important?: boolean
   readonly importantTooltip?: string
+  /** The task's Labels (#208), drawn before the folder. */
+  readonly labels?: readonly LabelLook[]
 }
 
 /** What the list or column around the task has already said. */
@@ -105,6 +108,9 @@ export function RowMeta({
 }) {
   const folderName = given.folder ? undefined : source.folder?.name.trim()
   const extras: ReactNode[] = []
+  if (source.labels !== undefined && source.labels.length > 0) {
+    extras.push(<RowLabels key="labels" labels={source.labels} />)
+  }
   if (folderName) {
     extras.push(
       <span key="folder" className="min-w-0 max-w-[10rem] truncate max-md:hidden">

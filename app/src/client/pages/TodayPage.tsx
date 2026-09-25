@@ -17,6 +17,7 @@ import { SampleStrip } from '../onboarding/SampleStrip.js'
 import { StarterOffer, useMayBeFresh } from '../onboarding/StarterOffer.js'
 import { stageOf } from '../views/linear/stage.js'
 import { groupRows } from '../views/grouping.js'
+import { wearsLabel } from '../views/filter.js'
 import { PLACES } from '../views/place-pages.js'
 import { PlaceGroup, PlaceHead, usePlace } from '../views/usePlace.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -58,12 +59,15 @@ export function TodayPage(): React.JSX.Element {
   )
 
   const total = open.length + recap.length
+  /* #208: a Label narrowing empties a heading's rows; the heading goes too. */
+  const carriedShown = carried.filter((task) => wearsLabel(task, place.filter.label))
 
   /* Why each of today's rows is here. Only a row dated later needs a reason. */
   const dueToday: TaskCard[] = []
   const started: TaskCard[] = []
   const added: TaskCard[] = []
   for (const task of today) {
+    if (!wearsLabel(task, place.filter.label)) continue
     if (stageOf(task, place.today) === 'present') started.push(task)
     else if (task.due_date === null || task.due_date <= place.today) dueToday.push(task)
     else added.push(task)
@@ -90,7 +94,7 @@ export function TodayPage(): React.JSX.Element {
           <>
             {/* AC-097 reads "Carried over". With nothing carried, the day is
                 one list and needs no heading. */}
-            {carried.length === 0 ? null : (
+            {carriedShown.length === 0 ? null : (
               <PlaceGroup name="Carried over" heading="Carried over">
                 {rows(carried)}
               </PlaceGroup>
@@ -98,7 +102,7 @@ export function TodayPage(): React.JSX.Element {
             {dueToday.length === 0 ? null : (
               <PlaceGroup
                 name="Today"
-                {...(carried.length === 0 && reasons === 0 ? {} : { heading: 'Today' })}
+                {...(carriedShown.length === 0 && reasons === 0 ? {} : { heading: 'Today' })}
               >
                 {rows(dueToday, true)}
               </PlaceGroup>

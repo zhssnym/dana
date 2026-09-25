@@ -260,6 +260,14 @@ export interface ConceptComment {
   replies?: ConceptComment[]
 }
 
+/** A Label as a row or the panel draws it (#208). */
+export interface ConceptLabel {
+  id: string
+  name: string
+  color: string
+  scope: 'personal' | 'folder'
+}
+
 export interface ConceptTask {
   id: string
   title: string
@@ -302,8 +310,8 @@ export interface ConceptTask {
   steps?: ConceptStep[]
   attachments?: Attachment[]
   /* The Labels the viewer can see on this task (#226), personal then folder,
-     archived ones left out. Read-only here: the panel shows them when set. */
-  labels?: { id: string; name: string }[]
+     archived ones left out. */
+  labels?: ConceptLabel[]
   /* Which unit a recurrence counts in. */
   repeatUnit?: 'day' | 'week' | 'month' | 'year'
   recurrence?: boolean

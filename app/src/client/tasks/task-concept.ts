@@ -125,7 +125,7 @@ export function toConceptTask(
        carry no labels at all. */
     labels: [...(task.labels?.personal ?? []), ...(task.labels?.folder ?? [])]
       .filter((label) => !label.archived)
-      .map((label) => ({ id: label.id, name: label.name })),
+      .map((label) => ({ id: label.id, name: label.name, color: label.color, scope: label.scope })),
     ...(parsed !== null && parsed.ok
       ? { repeatUnit: REPEAT_UNITS[parsed.rule.freq] }
       : {}),
