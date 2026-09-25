@@ -390,7 +390,7 @@ export function repeatSummary(task: ConceptTask): string {
         : `Every ${every} months`
   } else if (unit === 'year') {
     head = `Yearly on ${anchor.getDate()} ${MONTH_SHORT[anchor.getMonth()] ?? ''}`
-  } else if (days.length === 5 && WORKING_WEEK.every((d) => days.includes(d))) {
+  } else if (every === 1 && days.length === 5 && WORKING_WEEK.every((d) => days.includes(d))) {
     head = 'Every weekday'
   } else if (days.length) {
     head = `${every === 1 ? 'Weekly' : `Every ${every} weeks`} on ${days.join(', ')}`
@@ -421,7 +421,7 @@ export function repeatShort(task: ConceptTask): string {
   if (unit === 'day') return every === 1 ? 'Daily' : `Every ${every} days`
   if (unit === 'month') return every === 1 ? 'Monthly' : `Every ${every} months`
   if (unit === 'year') return 'Yearly'
-  if (days.length === 5 && WORKING_WEEK.every((d) => days.includes(d))) {
+  if (every === 1 && days.length === 5 && WORKING_WEEK.every((d) => days.includes(d))) {
     return 'Weekdays'
   }
   return every === 1 ? 'Weekly' : `Every ${every} weeks`

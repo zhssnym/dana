@@ -78,6 +78,12 @@ import {
 import { cn } from "./ui/utils.js"
 import { formatDate, formatDay } from "../lib/dates.js"
 import { todayInBrowserZone } from "../api/tz.js"
+import { useTask } from "../api/queries.js"
+import {
+  RECURRENCE_WEEKDAYS,
+  parseRecurrenceRule,
+  type RecurrenceFrequency,
+} from "../../shared/recurrence.js"
 
 /* The day beside a preset, from the one formatter: "Sat" for "This weekend"
    so it says which day it means, and "24 Sep" where the day word would only
@@ -341,7 +347,9 @@ export function PickerSegments({
           {label}
         </span>
       )}
-      <div className="flex flex-wrap gap-1">
+      {/* Drawn as the app's Segmented (`ui/segmented.tsx`): a muted track, the
+          chosen value on a background pill. */}
+      <div className="flex flex-wrap gap-0.5 rounded-md bg-muted p-0.5">
         {options.map((option) => (
           <button
             key={option.key}
@@ -349,11 +357,11 @@ export function PickerSegments({
             aria-pressed={active === option.key}
             onClick={() => onPick(option.key)}
             className={cn(
-              "h-7 rounded-md px-2.5 text-xs transition-colors",
+              "h-6 rounded-sm px-2.5 text-xs font-medium transition-colors",
               T_FAST,
               active === option.key
-                ? "bg-foreground font-medium text-background"
-                : "bg-muted text-foreground hover:bg-accent",
+                ? "bg-background text-foreground"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             {option.label}
@@ -743,10 +751,57 @@ export function ReminderPanel({ task, patch }: PanelProps) {
   )
 }
 
+/* The card's repeat words as 4.11's rule string. `repeatDays` holds the
+   card's two-letter keys ("Mo"), which are RFC 5545's names in another case. */
+const FREQ_OF: Record<NonNullable<ConceptTask["repeatUnit"]>, RecurrenceFrequency> = {
+  day: "DAILY",
+  week: "WEEKLY",
+  month: "MONTHLY",
+  year: "YEARLY",
+}
+
+export function ruleString(
+  fields: Pick<ConceptTask, "repeatUnit" | "repeatEvery" | "repeatDays">,
+  until: string | null = null,
+): string {
+  const unit = fields.repeatUnit ?? "week"
+  const every = Math.min(99, Math.max(1, Number(fields.repeatEvery ?? "1") || 1))
+  const parts = [`FREQ=${FREQ_OF[unit]}`]
+  if (every !== 1) parts.push(`INTERVAL=${every}`)
+  if (unit === "week") {
+    const days = RECURRENCE_WEEKDAYS.filter((day) =>
+      (fields.repeatDays ?? []).some((key) => key.toUpperCase() === day),
+    )
+    if (days.length > 0) parts.push(`BYDAY=${days.join(",")}`)
+  }
+  if (until !== null) parts.push(`UNTIL=${until.replaceAll("-", "")}`)
+  return parts.join(";")
+}
+
 export function RepeatPanel({ task, patch }: PanelProps) {
   const anchor = repeatAnchor(task)
   const [custom, setCustom] = useState(false)
   const summary = repeatSummary(task)
+  /*
+  **A choice here is written, not only drawn.** The card's repeat fields are
+  words (see `tasks/task-writer.tsx`), so the writer sends none of them; this
+  panel carries the value to 7.6's PATCH as `recurrence_rule` itself, as the
+  due panel carries `due_date`. Before this, a repeat chosen here showed on
+  the row and was gone on the next read.
+
+  An end the stored rule already has (UNTIL, set through the API) is kept.
+  */
+  const update = useUpdateTask()
+  const stored = useTask(task.id === "new" ? null : task.id).data?.recurrence_rule ?? null
+  const storedRule = stored === null ? null : parseRecurrenceRule(stored)
+  const until = storedRule !== null && storedRule.ok ? storedRule.rule.until : null
+  const commit = (fields: Partial<ConceptTask>) => {
+    patch(task.id, fields)
+    if (task.id === "new") return
+    const recurrence_rule =
+      fields.recurrence === false ? null : ruleString({ ...task, ...fields }, until)
+    update.mutate({ id: task.id, body: { recurrence_rule } })
+  }
 
   /* Five answers cover essentially every repeating task anybody writes down,
      and each is spelled out against this task's own date rather than left as
@@ -800,9 +855,10 @@ export function RepeatPanel({ task, patch }: PanelProps) {
           label="Does not repeat"
           active={!task.recurrence}
           onSelect={() =>
-            patch(task.id, {
+            commit({
               recurrence: false,
               repeatDays: [],
+              repeatEvery: "1",
               repeatEnds: undefined,
             })
           }
@@ -813,7 +869,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
             key={preset.label}
             label={preset.label}
             active={task.recurrence === true && summary === preset.label}
-            onSelect={() => patch(task.id, preset.fields)}
+            onSelect={() => commit(preset.fields)}
           />
         ))}
       </div>
@@ -824,10 +880,11 @@ export function RepeatPanel({ task, patch }: PanelProps) {
           menu
         icon={Repeat2}
         label="Custom repeat…"
-        active={custom}
+        /* Ticked only for a rule no preset above names: one tick per panel. */
+        active={task.recurrence === true && !presets.some((preset) => preset.label === summary)}
         onSelect={() => {
           setCustom((open) => !open)
-          if (!task.recurrence) patch(task.id, { recurrence: true, repeatUnit: "week" })
+          if (!task.recurrence) commit({ recurrence: true, repeatUnit: "week" })
         }}
       />
 
@@ -842,7 +899,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
               { key: "3", label: "3" },
               { key: "4", label: "4" },
             ]}
-            onPick={(key) => patch(task.id, { repeatEvery: key })}
+            onPick={(key) => commit({ recurrence: true, repeatEvery: key })}
           />
           <PickerSegments
             label=""
@@ -853,7 +910,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
               { key: "month", label: "months" },
             ]}
             onPick={(key) =>
-              patch(task.id, { repeatUnit: key as ConceptTask["repeatUnit"] })
+              commit({ recurrence: true, repeatUnit: key as ConceptTask["repeatUnit"] })
             }
           />
           {(task.repeatUnit ?? "week") === "week" ? (
@@ -871,7 +928,11 @@ export function RepeatPanel({ task, patch }: PanelProps) {
               </span>
               <div className="grid grid-cols-7 gap-1">
                 {WEEKDAY_KEYS.map((day) => {
-                  const on = task.repeatDays?.includes(day) ?? false
+                  /* No days named means the due date's weekday, which the
+                     grid shows chosen rather than leaving the row empty. */
+                  const named = task.repeatDays ?? []
+                  const chosen = named.length > 0 ? named : [WEEKDAY_KEYS[(anchor.getDay() + 6) % 7] ?? ""]
+                  const on = chosen.includes(day)
                   return (
                     <button
                       key={day}
@@ -879,18 +940,21 @@ export function RepeatPanel({ task, patch }: PanelProps) {
                       aria-pressed={on}
                       aria-label={day}
                       onClick={() =>
-                        patch(task.id, {
+                        commit({
+                          recurrence: true,
                           repeatDays: on
-                            ? (task.repeatDays ?? []).filter((d) => d !== day)
-                            : [...(task.repeatDays ?? []), day],
+                            ? chosen.filter((d) => d !== day)
+                            : [...chosen, day],
                         })
                       }
                       className={cn(
                         "flex h-7 w-full items-center justify-center rounded-full text-xs transition-colors",
                         T_FAST,
+                        /* A set, not one value: each chosen day takes the
+                           selected tint, as a chosen option does. */
                         on
-                          ? "bg-foreground font-medium text-background"
-                          : "bg-muted text-foreground hover:bg-accent",
+                          ? "bg-selected font-medium text-foreground"
+                          : "bg-muted text-muted-foreground hover:text-foreground",
                       )}
                     >
                       {day.slice(0, 1)}
@@ -900,16 +964,6 @@ export function RepeatPanel({ task, patch }: PanelProps) {
               </div>
             </div>
           ) : null}
-          <PickerSegments
-            label="Until"
-            active={task.repeatEnds ?? ""}
-            options={[
-              { key: "", label: "No end" },
-              { key: "12 Sep", label: "12 Sep" },
-              { key: "31 Dec", label: "31 Dec" },
-            ]}
-            onPick={(key) => patch(task.id, { repeatEnds: key || undefined })}
-          />
         </div>
       ) : null}
     </div>

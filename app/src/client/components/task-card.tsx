@@ -19,11 +19,11 @@ composer in this panel offers no file or link of its own.
 
 import { Face } from "./person-face.js"
 import { InlineInput } from "./ui/inline-field.js"
-import { Input } from "./ui/input.js"
 import {
   ArrowUpRight,
   Bell,
   CalendarDays,
+  Check,
   FileText,
   GripVertical,
   Image as ImageIcon,
@@ -88,7 +88,7 @@ import {
   type ConceptTask,
 } from "../tasks/task-model.js"
 import { useTimeFormat } from "../lib/time-format.js"
-import { formatDay } from "../lib/dates.js"
+import { formatDate, formatDay, formatDayInline } from "../lib/dates.js"
 import { useSortableList } from "../lib/use-sortable-list.js"
 import { cn } from "./ui/utils.js"
 import { Checkbox } from "./ui/checkbox.js"
@@ -159,7 +159,7 @@ function Section({
 }) {
   return (
     <section aria-label={title} className="flex flex-col gap-1">
-      <h3 className="flex items-baseline gap-2 text-sm font-semibold text-foreground">
+      <h3 className="flex items-baseline gap-2 text-sm font-section text-foreground">
         {title}
         {badge ? (
           <span className="text-xs font-normal text-muted-foreground tabular-nums">{badge}</span>
@@ -362,7 +362,6 @@ function StepList({
                       <ListPlus className="size-4" strokeWidth={1.75} aria-hidden="true" />
                       Make this a task
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
                   </>
                 ) : null}
                 <DropdownMenuItem label="Remove" onClick={() => removeSteps(task.id, [i])}>
@@ -466,8 +465,6 @@ function AttachmentPicker({
   pickOnMount?: boolean
 }) {
   const input = useRef<HTMLInputElement>(null)
-  const [url, setUrl] = useState("")
-  const [showUrl, setShowUrl] = useState(false)
   const picked = useRef(false)
 
   function takeFiles(list: FileList | null) {
@@ -480,6 +477,9 @@ function AttachmentPicker({
           meta: `${file.type.split("/")[1]?.toUpperCase() ?? "FILE"} · ${readableSize(file.size)}`,
           kind,
           preview: kind === "image" ? URL.createObjectURL(file) : undefined,
+          /* The bytes themselves: the writer uploads what carries a file and
+             skips what does not, so without this a chosen file went nowhere. */
+          file,
         }
       }),
     )
@@ -511,59 +511,9 @@ function AttachmentPicker({
           event.target.value = ""
         }}
       />
-      <div className="flex items-center gap-1">
-        <EmptyAction label="Add a file" fill={false} onSelect={() => input.current?.click()} />
-        <EmptyAction
-          label="From a link"
-          icon={Link2}
-          fill={false}
-          expanded={showUrl}
-          onSelect={() => setShowUrl((open) => !open)}
-        />
-      </div>
-
-      {showUrl ? (
-        <form
-          className="mt-1 flex items-center gap-1"
-          onSubmit={(event) => {
-            event.preventDefault()
-            const trimmed = url.trim()
-            if (!trimmed) return
-            /* A URL with no scheme is still a link a person meant. */
-            const href = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-            let host = trimmed
-            let path = ""
-            try {
-              const parsed = new URL(href)
-              host = parsed.hostname.replace(/^www\./, "")
-              path = parsed.pathname.split("/").filter(Boolean).pop() ?? ""
-            } catch {
-              /* Not parseable: show what they typed rather than guessing. */
-            }
-            const image = /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(trimmed)
-            onAdd([
-              {
-                name: decodeURIComponent(path) || host,
-                meta: host,
-                kind: "link",
-                url: href,
-                preview: image ? href : undefined,
-              },
-            ])
-            setUrl("")
-            setShowUrl(false)
-          }}
-        >
-          <Input
-            value={url}
-            autoFocus
-            onChange={(event) => setUrl(event.target.value)}
-            placeholder="Paste a link"
-            aria-label="Attachment link"
-            className="h-[var(--control-height)] min-w-0 flex-1 text-sm"
-          />
-        </form>
-      ) : null}
+      {/* A file only: the task's attachments are its conversation's files
+          (4.16), and a link has nowhere to be stored; it belongs in Work. */}
+      <EmptyAction label="Add a file" onSelect={() => input.current?.click()} />
     </div>
   )
 }
@@ -657,19 +607,28 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
 
 type AddableProperty = "date" | "reminder" | "repeat" | "assignee" | "labels" | "steps"
 
-/* The Schedule in one line (#215): "Starts Mon", "Mon – 30 Sep", or the due
-   date alone, which a same-day pair also is. */
+/* The Schedule in one line (#215): "Starts Mon", "21 Sep – 30 Sep", or the
+   due date alone, which a same-day pair also is. A range names both ends as
+   dates: "21 Sep – Wed" left the reader working out which Wednesday. */
 function dateWords(task: ConceptTask): string {
+  const today = presenterToday()
   const dueDay = task.due ? parseDueLabel(task.due.label) : null
-  const start =
-    task.start === undefined || (dueDay !== null && isoDay(dueDay) === task.start)
-      ? undefined
-      : formatDay(task.start, presenterToday())
+  const dueIso = dueDay === null ? null : isoDay(dueDay)
+  const ranged = task.start !== undefined && dueIso !== null && dueIso !== task.start
   const due = task.due?.label
-  const words =
-    due === undefined
-      ? start === undefined ? "Empty" : `Starts ${start}`
-      : start === undefined ? due : `${start} – ${due}`
+  let words: string
+  if (ranged && dueIso !== null && due !== undefined && task.start !== undefined) {
+    /* The due label may carry a time after its day ("Sun 7:00 PM"). */
+    const dayPart = formatDay(dueIso, today)
+    const time = due.startsWith(dayPart) ? due.slice(dayPart.length) : ""
+    words = `${formatDate(task.start, today)} – ${formatDate(dueIso, today)}${time}`
+  } else if (due !== undefined) {
+    words = due
+  } else if (task.start !== undefined) {
+    words = `Starts ${formatDayInline(task.start, today)}`
+  } else {
+    words = "Empty"
+  }
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
@@ -830,7 +789,12 @@ function StatusRow({
         <DropdownMenuItem key={key} onClick={() => choose(key)}>
           <StatusMark status={key} />
           <span className="flex-1">{STATUS_LABEL[key]}</span>
-          {key === current ? <span className="text-xs text-muted-foreground">Current</span> : null}
+          {/* The current state takes the tick every picker uses. */}
+          <Check
+            className={cn("size-3.5 shrink-0", key === current ? "opacity-100" : "opacity-0")}
+            strokeWidth={2.5}
+            aria-hidden="true"
+          />
         </DropdownMenuItem>
       ))}
     </MenuRow>

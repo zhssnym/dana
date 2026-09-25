@@ -21,7 +21,7 @@ import { useFolderOpenTasks, useReferenceSearch, useTaskDependencies } from "../
 import { useAddTaskDependency, useRemoveTaskDependency } from "../api/mutations.js"
 import { ApiError } from "../api/http.js"
 import type { TaskDependencyEdge } from "../../shared/task-dependencies.js"
-import { CheckCircle2, Workflow, X } from "../lib/icons.js"
+import { CheckCircle2, Plus, X } from "../lib/icons.js"
 import { openTask } from "./task-open.js"
 import { cn } from "./ui/utils.js"
 
@@ -35,7 +35,7 @@ export const BLOCKED_BY_HEADING = "Blocked by"
 export const BLOCKS_HEADING = "Blocks"
 
 const QUIET_BUTTON =
-  "inline-flex h-6 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+  "inline-flex h-[var(--control-height)] items-center gap-2 rounded-sm px-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 
 /** Why an add was refused, in words for the person rather than the field. */
 function refusalOf(error: unknown, mode: Mode): string {
@@ -122,7 +122,7 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
         aria-expanded={mode === "depends_on"}
         onClick={() => open("depends_on")}
       >
-        <Workflow className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+        <Plus className="size-3.5" strokeWidth={2} aria-hidden="true" />
         {DEPENDS_ON_ACTION}
       </button>
       <button
@@ -131,6 +131,7 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
         aria-expanded={mode === "blocks"}
         onClick={() => open("blocks")}
       >
+        <Plus className="size-3.5" strokeWidth={2} aria-hidden="true" />
         {BLOCKS_ACTION}
       </button>
     </div>
@@ -258,7 +259,7 @@ function EdgeRow({
   const word = stateWord(edge, direction)
   const title = edge.task?.title ?? "Private task"
   return (
-    <li className="group/dep -mx-1 flex h-7 items-center gap-2 rounded-md px-1 text-xs hover:bg-accent">
+    <li className="group/dep -mx-1 flex min-h-[var(--row-height)] items-center gap-2 rounded-md px-1 text-sm hover:bg-accent">
       {done ? (
         <CheckCircle2
           className="size-3.5 shrink-0 text-muted-foreground"
@@ -394,7 +395,7 @@ function DependencyPicker({
             onCancel()
           }
         }}
-        className="h-7 w-full rounded bg-transparent px-1.5 text-xs text-foreground outline-none placeholder:text-muted-foreground"
+        className="h-[var(--control-height)] w-full rounded bg-transparent px-1.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
       />
       {refusal ? (
         <p role="alert" className="px-1.5 text-xs leading-4 text-destructive">
@@ -412,7 +413,7 @@ function DependencyPicker({
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => onPick(candidate.id)}
             className={cn(
-              "flex h-7 cursor-pointer items-center truncate rounded px-1.5 text-xs text-foreground",
+              "flex h-[var(--control-height)] cursor-pointer items-center truncate rounded px-1.5 text-sm text-foreground",
               index === clamped && "bg-muted",
             )}
           >
