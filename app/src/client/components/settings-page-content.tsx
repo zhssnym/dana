@@ -24,9 +24,8 @@ What is worth knowing:
 - **People** (9.8) is a section here, and /app/people lands on `#people`.
   Settings is reached from the sidebar's foot, beside Trash. Sign out has one
   home, the identity row here; the sidebar has no account menu.
-- **A choice of two or three is a `Segmented`** (Theme, Open tasks in, Clock):
-  one press, every option in view. The timezone list is long, so it is the one
-  `Combobox` here and filters as you type.
+- **Pickers are the one `Combobox`**; the timezone list is long, so it filters
+  as you type.
 - **Delete account** requires typing DELETE, and says shared folders must be
   handed on first, which is what `DELETE /me`'s 409 enforces (issue #228).
 */
@@ -51,7 +50,6 @@ import { InlineError } from './state-patterns.js'
 import { isOwnPicture, PersonFace } from './person-face.js'
 import { Button } from './ui/button.js'
 import { Combobox } from './ui/combobox.js'
-import { Segmented } from './ui/segmented.js'
 import { useIsMobile } from './ui/use-mobile.js'
 import { Skeleton } from './ui/skeleton.js'
 
@@ -170,7 +168,7 @@ export function SettingsPageContent({
                     { value: 'dark', label: 'Dark' },
                   ]}
                   onValueChange={(next) => {
-                    setTheme(next)
+                    setTheme(next as typeof theme)
                   }}
                 />
               }
@@ -188,7 +186,7 @@ export function SettingsPageContent({
                       { value: 'tab', label: 'Full page' },
                     ]}
                     onValueChange={(next) => {
-                      setTaskOpen(next)
+                      setTaskOpen(next as typeof taskOpen)
                     }}
                   />
                 }
@@ -200,13 +198,13 @@ export function SettingsPageContent({
               control={
                 <Choice
                   label="Clock"
-                  value={clock === '24' ? ('24h' as const) : ('12h' as const)}
+                  value={clock === '24' ? '24h' : '12h'}
                   options={[
                     { value: '12h', label: '12-hour' },
                     { value: '24h', label: '24-hour' },
                   ]}
                   onValueChange={(next) => {
-                    setClock(next)
+                    setClock(next as '12h' | '24h')
                   }}
                 />
               }
@@ -273,19 +271,28 @@ export function SettingsPageContent({
   )
 }
 
-/* A choice of two or three, all in view: one press rather than open-then-pick. */
-function Choice<T extends string>({
+/* A simple choice: the one picker, at the one width, so the right column
+   reads as one calm edge and the chosen value is always shown in words. */
+function Choice({
   label,
   value,
   options,
   onValueChange,
 }: {
   label: string
-  value: T
-  options: { value: T; label: string }[]
-  onValueChange: (next: T) => void
+  value: string
+  options: { value: string; label: string }[]
+  onValueChange: (next: string) => void
 }) {
-  return <Segmented label={label} value={value} options={options} onValueChange={onValueChange} />
+  return (
+    <Combobox
+      aria-label={label}
+      value={value}
+      onValueChange={onValueChange}
+      options={options}
+      className={PICKER}
+    />
+  )
 }
 
 const PICKER = 'w-(--settings-picker-width) max-sm:w-36 justify-between border border-input bg-muted'
