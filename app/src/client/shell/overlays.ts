@@ -13,7 +13,8 @@ module rather than a context, so a control anywhere in the chrome can raise
 one without the two being in the same tree.
 */
 
-type SearchListener = () => void
+/* `toggle`: Ctrl+K, which closes search when it is already open. */
+type SearchListener = (toggle: boolean) => void
 
 const searchListeners = new Set<SearchListener>()
 
@@ -52,19 +53,20 @@ person is still waiting for once the surface is finally there.
 */
 let searchPending = false
 
-export function openSearch(): void {
+export function openSearch(toggle = false): void {
   if (searchListeners.size === 0) {
     searchPending = true
     return
   }
-  for (const listener of searchListeners) listener()
+  /* Strict: a click handler passes its event here. */
+  for (const listener of searchListeners) listener(toggle === true)
 }
 
 export function onOpenSearch(listener: SearchListener): () => void {
   searchListeners.add(listener)
   if (searchPending) {
     searchPending = false
-    listener()
+    listener(false)
   }
   return () => {
     searchListeners.delete(listener)
@@ -108,7 +110,7 @@ export function installSearchShortcut(target: Document): () => void {
     }
     if (!ctrlK && !slash) return
     event.preventDefault()
-    openSearch()
+    openSearch(ctrlK)
   }
   target.addEventListener('keydown', onKeyDown)
   return () => {

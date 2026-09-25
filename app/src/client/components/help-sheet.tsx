@@ -53,17 +53,25 @@ function modKey(): string {
 
 export const KEYBOARD_SHORTCUTS = 'Keyboard shortcuts'
 
-type Shortcut = { readonly keys: readonly string[]; readonly what: string }
+/* `also`: a second chord for the same act, drawn on the same line. */
+type Shortcut = { readonly keys: readonly string[]; readonly also?: readonly string[]; readonly what: string }
 
 const GROUPS: readonly { readonly title: string; readonly rows: readonly Shortcut[] }[] = [
   {
     title: 'Anywhere',
     rows: [
-      { keys: ['MOD', 'K'], what: 'Search' },
-      { keys: ['/'], what: 'Search, when you are not typing' },
+      /* "/" types a slash in a text field, which says so by itself. */
+      { keys: ['MOD', 'K'], also: ['/'], what: 'Search' },
+      { keys: ['Esc'], what: 'Close what is open' },
+    ],
+  },
+  {
+    /* In a text field these keys are the field's: Ctrl+Z undoes typing and
+       Ctrl+B is bold. */
+    title: 'Outside a text field',
+    rows: [
       { keys: ['MOD', 'Z'], what: 'Undo the last thing you did' },
       { keys: ['MOD', 'B'], what: 'Show or hide the sidebar' },
-      { keys: ['Esc'], what: 'Close what is open' },
       { keys: ['?'], what: 'This list' },
     ],
   },
@@ -128,13 +136,17 @@ export function HelpSheet({
                 >
                   <span className="min-w-0 text-sm text-foreground">{shortcut.what}</span>
                   <span className="flex shrink-0 items-center gap-1">
-                    {shortcut.keys.map((key) => (
-                      <kbd
-                        key={key}
-                        className="min-w-5 rounded-sm bg-muted px-1.5 py-0.5 text-center font-sans text-xs font-medium text-muted-foreground"
-                      >
-                        {key === 'MOD' ? mod : key}
-                      </kbd>
+                    {[shortcut.keys, ...(shortcut.also ? [shortcut.also] : [])].map((chord, index) => (
+                      <span key={chord.join('+')} className={index > 0 ? 'ml-2 flex items-center gap-1' : 'flex items-center gap-1'}>
+                        {chord.map((key) => (
+                          <kbd
+                            key={key}
+                            className="min-w-5 rounded-sm bg-muted px-1.5 py-0.5 text-center font-sans text-xs font-medium text-muted-foreground"
+                          >
+                            {key === 'MOD' ? mod : key}
+                          </kbd>
+                        ))}
+                      </span>
                     ))}
                   </span>
                 </div>

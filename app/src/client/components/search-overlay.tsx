@@ -61,6 +61,9 @@ export type SearchResultItem = {
   /* The glyph a folder's owner chose, or a passage's text glyph; absent
      means the plain page glyph. */
   icon?: LucideIcon
+  /* How well it matched, best first (`lib/search-items.ts`'s `nameRank`);
+     absent means unranked, which sorts as a name match. */
+  rank?: number
 }
 
 const statusOrder: SearchResultStatus[] = ["pending", "abandoned", "completed"]
@@ -70,6 +73,10 @@ const statusOrder: SearchResultStatus[] = ["pending", "abandoned", "completed"]
 type SearchGroup = "task" | "page" | "shelf" | "help"
 
 const groupOrder: SearchGroup[] = ["task", "page", "shelf", "help"]
+
+/* Who wins when two kinds' best rows rank alike: a page or collection named
+   the query before a task that is. */
+const groupTieOrder: Record<SearchGroup, number> = { page: 0, shelf: 1, task: 2, help: 3 }
 
 const groupLabels: Record<SearchGroup, string> = {
   task: "Tasks",
@@ -197,7 +204,6 @@ function SearchDialog({
     const timeout = window.setTimeout(() => {
       setDebouncedQuery(trimmed)
       setSearching(false)
-      setActiveIndex(0)
     }, SEARCH_DEBOUNCE_MS)
 
     return () => window.clearTimeout(timeout)
@@ -215,60 +221,95 @@ function SearchDialog({
   if (!waiting) shown.current = fresh
   const results = waiting ? shown.current : fresh
 
+  /* Inside a kind the better match leads; among tasks of one rank, Q8's
+     status order. The sort is stable, so equal rows keep the answer's order. */
   const groupedResults = groupOrder.map((group) => ({
     kind: group,
-    rows:
-      group === "task"
-        ? results
-            .filter((result) => result.kind === "task")
-            .sort(
-              (a, b) =>
-                statusOrder.indexOf(a.status ?? "pending") -
-                statusOrder.indexOf(b.status ?? "pending"),
-            )
-        : results.filter((result) => groupOf(result) === group),
+    rows: results
+      .filter((result) => groupOf(result) === group)
+      .sort(
+        (a, b) =>
+          (a.rank ?? 0) - (b.rank ?? 0) ||
+          (group === "task"
+            ? statusOrder.indexOf(a.status ?? "pending") - statusOrder.indexOf(b.status ?? "pending")
+            : 0),
+      ),
   }))
-  /* A kind whose best row is a title match comes first, so Enter opens the
-     thing called what you typed rather than a task that mentions it. The
-     results arrive ranked, so a kind's first position is its best rank;
-     Help stays last. */
-  const firstAt = (group: SearchGroup): number => {
-    if (group === "help") return Number.POSITIVE_INFINITY
-    const at = results.findIndex((result) => groupOf(result) === group)
-    return at === -1 ? Number.MAX_SAFE_INTEGER : at
-  }
-  groupedResults.sort((a, b) => firstAt(a.kind) - firstAt(b.kind))
+  /* The kind whose first row matches best comes first, so the cursor, and
+     Enter, sit on the thing called what you typed rather than a task that
+     mentions it. The first row is the one each group shows first, so the
+     order and the cursor agree. Help stays last. Before anything is typed
+     nothing is ranked, and the kinds keep their fixed order. */
+  const bestOf = (group: (typeof groupedResults)[number]): number =>
+    group.kind === "help" ? Number.POSITIVE_INFINITY : (group.rows[0]?.rank ?? Number.MAX_SAFE_INTEGER)
+  groupedResults.sort(
+    (a, b) => bestOf(a) - bestOf(b) || groupTieOrder[a.kind] - groupTieOrder[b.kind],
+  )
   const orderedResults = groupedResults.flatMap((group) => group.rows)
 
   /* The cursor stays in sight: arrowing past the panel's edge scrolls it.
      Only the keys scroll; a hover already has its row under the pointer. */
   const listRef = useRef<HTMLDivElement>(null)
-  function moveTo(index: number) {
+  function moveTo(index: number, focus = false) {
     setActiveIndex(index)
-    listRef.current
-      ?.querySelector(`#dana-search-result-${String(index)}`)
-      ?.scrollIntoView({ block: "nearest" })
+    const row = listRef.current?.querySelector<HTMLElement>(`#dana-search-result-${String(index)}`)
+    /* The first row's heading comes back into sight with it. */
+    if (index === 0 && listRef.current) listRef.current.scrollTop = 0
+    else row?.scrollIntoView({ block: "nearest" })
+    if (focus) row?.focus()
   }
+
+  /* A new answer puts the cursor on its first row, and the list back at its
+     top, so the row Enter opens is the one in sight. */
+  useEffect(() => {
+    if (waiting) return
+    setActiveIndex(0)
+    if (listRef.current) listRef.current.scrollTop = 0
+  }, [debouncedQuery, waiting])
 
   function openResult(item: SearchResultItem) {
     onOpenChange(false)
     onOpenResult(item.id, item.kind)
   }
 
-  function handleInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (orderedResults.length === 0) return
+  /* Enter pressed before the answer for what was typed arrives waits for it,
+     rather than opening a row from the list the query has already left. */
+  const pendingEnter = useRef(false)
+  useEffect(() => {
+    if (waiting || !pendingEnter.current) return
+    pendingEnter.current = false
+    const first = orderedResults[0]
+    if (first) openResult(first)
+  })
 
+  function arrows(event: KeyboardEvent<HTMLElement>, focus: boolean): boolean {
+    if (orderedResults.length === 0) return false
     if (event.key === "ArrowDown") {
       event.preventDefault()
-      moveTo((activeIndex + 1) % orderedResults.length)
-    } else if (event.key === "ArrowUp") {
-      event.preventDefault()
-      moveTo((activeIndex - 1 + orderedResults.length) % orderedResults.length)
-    } else if (event.key === "Enter") {
-      event.preventDefault()
-      const chosen = orderedResults[activeIndex] ?? orderedResults[0]
-      if (chosen) openResult(chosen)
+      moveTo((activeIndex + 1) % orderedResults.length, focus)
+      return true
     }
+    if (event.key === "ArrowUp") {
+      event.preventDefault()
+      moveTo((activeIndex - 1 + orderedResults.length) % orderedResults.length, focus)
+      return true
+    }
+    return false
+  }
+
+  function handleInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (arrows(event, false)) return
+    if (event.key !== "Enter") return
+    event.preventDefault()
+    if (waiting) {
+      pendingEnter.current = true
+      /* Skip the rest of the debounce: the person has finished typing. */
+      const trimmed = query.trim()
+      if (trimmed !== debouncedQuery) setDebouncedQuery(trimmed)
+      return
+    }
+    const chosen = orderedResults[activeIndex] ?? orderedResults[0]
+    if (chosen) openResult(chosen)
   }
 
   let resultIndex = -1
@@ -293,7 +334,10 @@ function SearchDialog({
           <Input bare
             ref={inputRef}
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              pendingEnter.current = false
+              setQuery(event.target.value)
+            }}
             onKeyDown={handleInputKeyDown}
             placeholder="Search Dana"
             aria-label="Search Dana"
@@ -320,6 +364,11 @@ function SearchDialog({
         <div
           id="dana-search-results"
           ref={listRef}
+          /* A row Tab reached still answers the arrows, moving focus with
+             the tint so the two never split. */
+          onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) arrows(event, true)
+          }}
           className="overflow-y-auto p-2 max-md:flex-1 md:max-h-[60vh]"
         >
           {waiting && results.length === 0 ? (
@@ -407,27 +456,39 @@ function SearchDialog({
 export function SearchOverlay(): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
+  const openRef = useRef(open)
+  openRef.current = open
 
-  useEffect(() => onOpenSearch(() => setOpen(true)), [])
+  function change(next: boolean) {
+    if (!next) {
+      const active = document.activeElement
+      if (active instanceof HTMLElement) active.blur()
+    }
+    setOpen(next)
+  }
+
+  /* Ctrl+K a second time backs out, as the same chord does elsewhere. */
+  useEffect(() => onOpenSearch((toggle) => change(!(toggle && openRef.current))), [])
 
   return (
     <SearchDialog
       /* Remounted per opening, so the query and the cursor start empty. */
       key={open ? "open" : "closed"}
       open={open}
-      onOpenChange={(next) => {
-        if (!next) {
-          const active = document.activeElement
-          if (active instanceof HTMLElement) active.blur()
-        }
-        setOpen(next)
-      }}
+      onOpenChange={change}
       onOpenResult={(id, kind) => {
         if (id === SHORTCUTS_RESULT) openShortcuts()
         else if (kind === "task") openTask(id)
         else if (kind === "folder") void navigate(paths.folder(id))
         else if (kind === "shelf") void navigate(paths.shelf(id))
-        else void navigate(id)
+        else {
+          void navigate(id)
+          /* A passage on the page already open: a pushed hash fires no
+             hashchange, and `useBlockAnchor` listens for one. */
+          if (id.includes("#block-")) {
+            window.setTimeout(() => window.dispatchEvent(new HashChangeEvent("hashchange")), 0)
+          }
+        }
       }}
     />
   )
