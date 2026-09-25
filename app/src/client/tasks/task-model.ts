@@ -10,9 +10,9 @@ copy of one fact would say "Weekly" about a task that repeats on weekdays.
 the join and is the only place the two vocabularies meet.
 */
 import { todayInBrowserZone } from '../api/tz.js'
-import { formatDay } from '../lib/dates.js'
+import { formatDate, formatDay } from '../lib/dates.js'
 
-import type { TimeFormat } from '../lib/time-format.js'
+import { formatTime, type TimeFormat } from '../lib/time-format.js'
 
 /* ------------------------------------------------------------------ *
  * Days, and the one clock this file is allowed
@@ -284,6 +284,8 @@ export interface ConceptTask {
   /* A due date is a day, not a moment, so there is no time field here. A task
      that needs a time of day has a reminder, which carries one. */
   due?: { label: string; overdue?: boolean }
+  /* The due date's own time ("08:00"), 4.11's due_time; absent for a day. */
+  dueTime?: string
   /* The Schedule's start, as 4.11 writes a date ("2026-09-24"); absent when none (#215). */
   start?: string
   reminder?: string
@@ -393,14 +395,43 @@ export function repeatSummary(task: ConceptTask): string {
   } else if (days.length === 5 && WORKING_WEEK.every((d) => days.includes(d))) {
     head = 'Every weekday'
   } else if (days.length) {
-    head = `${every === 1 ? 'Weekly' : `Every ${every} weeks`} on ${days.join(', ')}`
+    /* In week order, and in words: "Weekly on Friday", "Weekly on Mon, Thu". */
+    const names = WEEKDAY_KEYS.filter((d) => days.includes(d)).map((d) => {
+      const index = (WEEKDAY_KEYS.indexOf(d) + 1) % 7
+      return (days.length === 1 ? DAY_LONG[index] : DAY_SHORT[index]) ?? d
+    })
+    head = `${every === 1 ? 'Weekly' : `Every ${every} weeks`} on ${names.join(', ')}`
   } else {
     head =
       every === 1
         ? `Weekly on ${DAY_LONG[anchor.getDay()] ?? ''}`
         : `Every ${every} weeks`
   }
-  return task.repeatEnds ? `${head}, until ${task.repeatEnds}` : head
+  return task.repeatEnds
+    ? `${head}, until ${formatDate(task.repeatEnds, todayInBrowserZone())}`
+    : head
+}
+
+const RULE_FREQ = { day: 'DAILY', week: 'WEEKLY', month: 'MONTHLY', year: 'YEARLY' } as const
+
+/* The card's repeat as 4.11's rule string, which is what 7.6 stores; null
+   where the task does not repeat. `repeatEnds` is a date ("2026-12-31"). */
+export function ruleFor(
+  task: Pick<ConceptTask, 'recurrence' | 'repeatUnit' | 'repeatEvery' | 'repeatDays' | 'repeatEnds'>,
+): string | null {
+  if (!task.recurrence) return null
+  const unit = task.repeatUnit ?? 'week'
+  const parts = [`FREQ=${RULE_FREQ[unit]}`]
+  const every = Math.min(99, Math.max(1, Number(task.repeatEvery ?? '1') || 1))
+  if (every > 1) parts.push(`INTERVAL=${String(every)}`)
+  const days = WEEKDAY_KEYS.filter((d) => task.repeatDays?.includes(d))
+  if (unit === 'week' && days.length > 0) {
+    parts.push(`BYDAY=${days.map((d) => d.toUpperCase()).join(',')}`)
+  }
+  if (task.repeatEnds !== undefined && /^\d{4}-\d{2}-\d{2}$/.test(task.repeatEnds)) {
+    parts.push(`UNTIL=${task.repeatEnds.replaceAll('-', '')}`)
+  }
+  return parts.join(';')
 }
 
 /* The same rule in one word, for the row, where "Every 2 weeks on Mo, We, Fr"
@@ -437,18 +468,13 @@ export function repeatShort(task: ConceptTask): string {
 which the chip beside this one already says. So what is left to render is the
 time.
 
-**And it is rendered as stored rather than re-clocked**, which is the one place
-this file departs from `lib/time-format.ts`'s reach. AC-170 reads the chip back
-after a reload and holds it to the value the picker was given: a reload shows
-what was stored rather than what was typed. 4.8 stores a clock time, 7.9 takes
-one, the picker is a control that takes one, and a chip that answered in a
-different notation from all three would be the only place in the round trip
-speaking another language. The viewer's clock still governs every time this
-client *words* rather than echoes, which is the due label and the history line.
-
-`format` stays in the signature and is unused, because callers pass it.
+**And it is worded on the viewer's clock**, as the due label beside it is: a
+row reading "Today 8:00 AM" over a reminder reading "07:30" would be one
+screen speaking two notations. AC-170's round trip still holds, the stored
+clock time being what is shown, only spelled the way every other time is.
 */
-export function reminderChipValue(task: ConceptTask, _format: TimeFormat): string {
+export function reminderChipValue(task: ConceptTask, format: TimeFormat): string {
   if (!task.reminder) return 'No reminder'
-  return task.reminder.match(/(\d{1,2}:\d{2})/)?.[1] ?? task.reminder
+  const time = task.reminder.match(/(\d{1,2}:\d{2})$/)?.[1]
+  return time === undefined ? task.reminder : (formatTime(time, format) ?? time)
 }

@@ -49,8 +49,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Clock3,
-  Folder as FolderIcon,
   Plus,
   Repeat2,
 } from '../../lib/icons.js'
@@ -61,6 +59,7 @@ import { formatDueDate, presenterToday } from '../../parts/presenters.js'
 import { shiftedSchedule } from '../../parts/schedule.js'
 import { InlineError } from '../state-patterns.js'
 import { Button } from '../ui/button.js'
+import { Segmented } from '../ui/segmented.js'
 import { cn } from '../ui/utils.js'
 import { formatClockTime } from '../../lib/dates.js'
 import { useTimeFormat } from '../../lib/time-format.js'
@@ -164,7 +163,7 @@ function CalendarEvent({
           : undefined
       }
       className={cn(
-        'flex w-full items-center gap-1.5 overflow-hidden rounded-sm border border-transparent bg-muted px-1.5 text-left text-foreground transition-[background-color,border-color] hover:border-border hover:bg-background focus-visible:outline-none',
+        '@container flex w-full items-center gap-1.5 overflow-hidden rounded-sm border border-transparent bg-muted px-1.5 text-left text-foreground transition-[background-color,border-color] hover:border-border hover:bg-background focus-visible:outline-none',
         movable && 'cursor-grab active:cursor-grabbing',
         compact ? 'min-h-5 text-xs' : 'min-h-7 text-xs leading-4',
         completed && 'bg-background text-muted-foreground',
@@ -177,6 +176,7 @@ function CalendarEvent({
         onOpen()
       }}
       aria-label={`${ghost ? 'Upcoming repeating occurrence: ' : ''}${event.title}`}
+      title={event.dueTime === null ? event.title : `${event.title}, ${formatClockTime(event.dueTime, clock)}`}
     >
       {ghost ? (
         <Repeat2 className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
@@ -184,22 +184,31 @@ function CalendarEvent({
         <Check className="size-3 shrink-0" strokeWidth={2} aria-hidden="true" />
       ) : abandoned ? (
         <Ban className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-      ) : event.dueTime !== null ? (
-        <Clock3 className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
       ) : (
-        <FolderIcon
-          className="size-3.5 shrink-0"
-          style={event.folderColor === null ? undefined : { color: event.folderColor }}
-          strokeWidth={1.75}
+        /* The folder dot: a narrow month cell spends its width on the title,
+           and a timed row's time already says it is timed. */
+        <span
+          className="size-1.5 shrink-0 rounded-full bg-muted-foreground"
+          style={event.folderColor === null ? undefined : { backgroundColor: event.folderColor }}
           aria-hidden="true"
         />
       )}
+      {/* The title first: in a narrow month cell it is what says which task
+          this is, and the time after it is the part that may be cut. */}
+      <span className="min-w-0 truncate">{event.title}</span>
       {event.dueTime === null ? null : (
-        <span className="shrink-0 text-muted-foreground">
+        <span
+          className={cn(
+            'ml-auto shrink-0 text-muted-foreground tabular-nums',
+            /* A month cell is a few words wide, so the time shows only where the
+               chip has room beside the title; the week and day zooms, and the
+               chip's tooltip, always say it. */
+            compact && 'hidden @[9rem]:inline',
+          )}
+        >
           {formatClockTime(event.dueTime, clock)}
         </span>
       )}
-      <span className="truncate">{event.title}</span>
     </button>
   )
 }
@@ -353,7 +362,7 @@ function DayCell({
         {hidden > 0 ? (
           <button
             type="button"
-            className="flex h-5 items-center rounded-sm px-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none"
+            className="flex h-5 items-center rounded-sm px-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none"
             onClick={onReveal}
           >
             +{hidden} more
@@ -456,7 +465,8 @@ export function PlannedCalendar({
   /*
   The grid scrolls today's row into view once, on arrival, and the person takes
   it from there; otherwise a month opened on its last day would show today three
-  weeks below the fold.
+  weeks below the fold. Only as far as needed ("nearest"), so a today already
+  on screen leaves the month's title and controls where they are.
   */
   const grid = useRef<HTMLDivElement>(null)
   const scrolled = useRef(false)
@@ -465,7 +475,7 @@ export function PlannedCalendar({
     const cell = grid.current?.querySelector('[data-today="true"]')
     if (cell === null || cell === undefined) return
     scrolled.current = true
-    cell.scrollIntoView({ block: 'center' })
+    cell.scrollIntoView({ block: 'nearest' })
   }, [view.data])
 
   const cells = useMemo(
@@ -527,9 +537,9 @@ export function PlannedCalendar({
       ) : null}
 
       <div className="overflow-hidden rounded-md border border-border bg-background">
-        <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border bg-muted px-2 py-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-2 py-2">
           <div className="flex min-w-0 items-center gap-2">
-            <h2 className="min-w-36 truncate px-2 text-sm leading-6 font-semibold text-foreground">
+            <h2 className="min-w-36 truncate px-2 text-sm leading-6 font-section text-foreground">
               {periodTitle(zoom, anchor, today)}
             </h2>
             <Button
@@ -569,31 +579,14 @@ export function PlannedCalendar({
               </Button>
             </div>
 
-            {/* `aria-pressed` is what carries the current zoom; the raised
-                tone is a second cue and never the only one. */}
-            <div
-              className="flex h-11 items-center rounded-md border border-border bg-background p-0.5"
-              role="group"
-              aria-label="Calendar zoom"
-            >
-              {CALENDAR_ZOOMS.map((level) => (
-                <Button
-                  key={level}
-                  variant="ghost"
-                  className={cn(
-                    'h-[var(--control-height)] rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-muted',
-                    zoom === level &&
-                      'bg-muted text-foreground hover:bg-muted',
-                  )}
-                  aria-pressed={zoom === level}
-                  onClick={() => {
-                    setCalendarZoom(level)
-                  }}
-                >
-                  {ZOOM_LABEL[level]}
-                </Button>
-              ))}
-            </div>
+            <Segmented
+              label="Calendar zoom"
+              value={zoom}
+              options={CALENDAR_ZOOMS.map((level) => ({ value: level, label: ZOOM_LABEL[level] }))}
+              onValueChange={(level) => {
+                setCalendarZoom(level)
+              }}
+            />
           </div>
         </div>
 

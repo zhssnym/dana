@@ -62,6 +62,7 @@ which is the one place this client evaluates a date.
 */
 import {
   DAY_LONG,
+  DAY_SHORT,
   MONTH_SHORT,
   WEEKDAY_KEYS,
   WORKING_WEEK,
@@ -72,22 +73,20 @@ import {
   parseDueLabel,
   repeatAnchor,
   repeatSummary,
+  ruleFor,
   today,
   type ConceptTask,
 } from "../tasks/task-model.js"
 import { cn } from "./ui/utils.js"
-import { formatDate, formatDay } from "../lib/dates.js"
+import { Segmented } from "./ui/segmented.js"
+import { formatDate } from "../lib/dates.js"
 import { todayInBrowserZone } from "../api/tz.js"
 
 /* The day beside a preset, from the one formatter: "Sat" for "This weekend"
    so it says which day it means, and "24 Sep" where the day word would only
    repeat the preset's own label ("Today", "Tomorrow"). */
 function presetHint(date: Date): string {
-  const now = todayInBrowserZone()
-  const day = formatDay(isoDay(date), now)
-  return day === "Today" || day === "Tomorrow" || day === "Yesterday"
-    ? formatDate(isoDay(date), now)
-    : day
+  return `${DAY_SHORT[date.getDay()] ?? ""} ${formatDate(isoDay(date), todayInBrowserZone())}`
 }
 
 /* The day a reminder's words carry: "24 Sep", never a relative word, since the
@@ -324,12 +323,16 @@ export function PickerDivider() {
    not a menu you read down. */
 export function PickerSegments({
   label,
+  name,
   options,
   active,
   onPick,
 }: {
-  /* Absent where the row the picker opened from already names the field. */
+  /* Absent where the row the picker opened from already names the field;
+     an empty string keeps the column so rows below a labelled one align. */
   label?: string
+  /* The group's accessible name where `label` is absent or empty. */
+  name?: string
   options: { key: string; label: string }[]
   active: string
   onPick: (key: string) => void
@@ -341,25 +344,12 @@ export function PickerSegments({
           {label}
         </span>
       )}
-      <div className="flex flex-wrap gap-1">
-        {options.map((option) => (
-          <button
-            key={option.key}
-            type="button"
-            aria-pressed={active === option.key}
-            onClick={() => onPick(option.key)}
-            className={cn(
-              "h-7 rounded-md px-2.5 text-xs transition-colors",
-              T_FAST,
-              active === option.key
-                ? "bg-foreground font-medium text-background"
-                : "bg-muted text-foreground hover:bg-accent",
-            )}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        label={name ?? (label || "Choice")}
+        value={active}
+        options={options.map((option) => ({ value: option.key, label: option.label }))}
+        onValueChange={onPick}
+      />
     </div>
   )
 }
@@ -448,22 +438,20 @@ export function DuePanel({ task, patch }: PanelProps) {
   const close = usePickerClose()
   /*
   A time under the day, so "next Tuesday at 9" is one picker rather than two
-  chips. A due date stays a day (4.11): the time is 4.8's reminder on that day,
-  the same value the Reminder chip writes, said here where the person is already
-  choosing when.
+  chips. It is the due date's own time (4.11's due_time), the one the Date row,
+  the lists and the calendar all show; the reminder keeps its own row. Setting
+  or clearing it moves the reminder's mode on the server (8.4's cascade).
   */
   const format = useTimeFormat()
-  const put = usePutReminder()
-  const drop = useDeleteReminder()
-  const at = task.reminder?.match(/(\d{1,2}:\d{2})/)?.[1] ?? null
-  const setAt = (time: string) => {
-    const due = task.due ? parseDueLabel(task.due.label) : null
-    patch(task.id, { reminder: due ? `${reminderDay(due)} at ${time}` : `at ${time}` })
-    put.mutate({ taskId: task.id, body: { offset_minutes: null, time_of_day: time } })
-  }
-  const clearAt = () => {
-    patch(task.id, { reminder: undefined })
-    drop.mutate(task.id)
+  const at = task.dueTime ?? null
+  const setAt = (time: string | null) => {
+    const day = dueDate ?? today()
+    const label = dueLabelFor(day)
+    patch(task.id, {
+      dueTime: time ?? undefined,
+      due: { ...label, label: time === null ? label.label : `${label.label} ${formatTime(time, format) ?? time}` },
+    })
+    update.mutate({ id: task.id, body: { due_time: time } })
   }
   /* Choosing a day answers the field, from the grid exactly as from a preset,
      so both close. See `PickerClose`. */
@@ -507,10 +495,17 @@ export function DuePanel({ task, patch }: PanelProps) {
     if (task.id !== "new") update.mutate({ id: task.id, body: { due_date: null } })
   }
 
+  /* "This weekend" is the coming Saturday, and only while that is a day the
+     other presets do not already name: on a Friday it is "Tomorrow", and at
+     the weekend itself "this weekend" is now, so it is left out rather than
+     offered twice or as next week's Saturday. */
+  const saturday = nextWeekday(today(), 6)
   const presets = [
     { label: "Today", date: today() },
     { label: "Tomorrow", date: addDays(today(), 1) },
-    { label: "This weekend", date: nextWeekday(today(), 6) },
+    ...(today().getDay() >= 1 && today().getDay() <= 4
+      ? [{ label: "This weekend", date: saturday }]
+      : []),
     /* Next Monday, and never the same day as "Tomorrow": on a Sunday the two
        presets both read Monday, so the Monday after is what "next week" means
        there. */
@@ -538,6 +533,7 @@ export function DuePanel({ task, patch }: PanelProps) {
        */}
       {task.id === "new" ? null : (
         <PickerSegments
+          name="Which date"
           options={[
             { key: "due", label: "Due" },
             { key: "start", label: "Starts" },
@@ -616,7 +612,7 @@ export function DuePanel({ task, patch }: PanelProps) {
         />
       </div>
 
-      {task.due && !editingStart ? (
+      {task.due && !editingStart && task.id !== "new" ? (
         <>
           <PickerDivider />
           <label className="flex items-center gap-2 px-2 pt-1.5 text-xs text-muted-foreground">
@@ -627,8 +623,7 @@ export function DuePanel({ task, patch }: PanelProps) {
               value={at ?? ""}
               onChange={(event) => {
                 const time = event.target.value
-                if (time === "") clearAt()
-                else setAt(time)
+                setAt(time === "" ? null : time)
               }}
               className="h-[var(--control-height)] min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none"
             />
@@ -667,7 +662,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
   const put = usePutReminder()
   const drop = useDeleteReminder()
   const due = task.due ? parseDueLabel(task.due.label) : null
-  const at = task.reminder?.match(/(\d{1,2}:\d{2})/)?.[1] ?? null
+  const at = task.reminder?.match(/(\d{1,2}:\d{2})$/)?.[1] ?? null
 
   /* The words a reminder is stored as, which `tasks/task-model.ts`'s
      `reminderChipValue` reads back and re-clocks for the viewer. The day is
@@ -675,12 +670,29 @@ export function ReminderPanel({ task, patch }: PanelProps) {
   const wordsFor = (time: string) =>
     due ? `${reminderDay(due)} at ${time}` : `at ${time}`
 
-  /* 4.8's two modes are exclusive and 9.3 takes the second: "one picker, a
-     time on that day, writing 4.8's time_of_day mode". So the body carries a
-     clock and never an offset, which is the arm the section retired. */
+  /* 9.3: "one picker, a time on that day". 4.8's two modes are exclusive
+     and the task decides which one 7.9 takes: a date-only task stores the
+     clock time itself, and a task with a due time stores how long before it
+     the time is, so a reminder after the due time is refused here as there. */
+  const [refused, setRefused] = useState(false)
+  const minutesOf = (time: string) => {
+    const [hour, minute] = time.split(":").map(Number)
+    return (hour ?? 0) * 60 + (minute ?? 0)
+  }
+  const clockOf = (minutes: number) =>
+    `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`
   const setAt = (time: string) => {
+    const offset = task.dueTime === undefined ? null : minutesOf(task.dueTime) - minutesOf(time)
+    if (offset !== null && offset < 0) {
+      setRefused(true)
+      return
+    }
+    setRefused(false)
     patch(task.id, { reminder: wordsFor(time) })
-    put.mutate({ taskId: task.id, body: { offset_minutes: null, time_of_day: time } })
+    put.mutate({
+      taskId: task.id,
+      body: offset === null ? { offset_minutes: null, time_of_day: time } : { offset_minutes: offset, time_of_day: null },
+    })
   }
   const clearAt = () => {
     patch(task.id, { reminder: undefined })
@@ -688,7 +700,11 @@ export function ReminderPanel({ task, patch }: PanelProps) {
     drop.mutate(task.id)
   }
 
-  const quick = ["09:00", "12:00", "17:00"]
+  /* With a due time, the answers are that time and an hour before it. */
+  const quick =
+    task.dueTime === undefined
+      ? ["09:00", "12:00", "17:00"]
+      : [minutesOf(task.dueTime) - 60, minutesOf(task.dueTime)].filter((m) => m >= 0).map(clockOf)
 
   return (
     <div className="w-[268px]">
@@ -730,6 +746,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
         <input
           type="time"
           aria-label="Reminder time"
+          {...(task.dueTime === undefined ? {} : { max: task.dueTime })}
           value={at ?? ""}
           onChange={(event) => {
             const time = event.target.value
@@ -738,6 +755,11 @@ export function ReminderPanel({ task, patch }: PanelProps) {
           }}
           className="h-[var(--control-height)] w-full rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none"
         />
+        {refused && task.dueTime !== undefined ? (
+          <p role="status" className="pt-1.5 text-xs text-destructive">
+            {`The reminder must be at or before ${formatTime(task.dueTime, format) ?? task.dueTime}.`}
+          </p>
+        ) : null}
       </div>
     </div>
   )
@@ -745,8 +767,16 @@ export function ReminderPanel({ task, patch }: PanelProps) {
 
 export function RepeatPanel({ task, patch }: PanelProps) {
   const anchor = repeatAnchor(task)
-  const [custom, setCustom] = useState(false)
   const summary = repeatSummary(task)
+  /* Every choice here is written as the whole rule (4.11's RRULE on 7.6),
+     from the task as it is plus what changed. A draft ("new") has no address
+     yet and keeps the choice on the card alone. */
+  const update = useUpdateTask()
+  const commit = (fields: Partial<ConceptTask>) => {
+    patch(task.id, fields)
+    if (task.id === "new") return
+    update.mutate({ id: task.id, body: { recurrence_rule: ruleFor({ ...task, ...fields }) } })
+  }
 
   /* Five answers cover essentially every repeating task anybody writes down,
      and each is spelled out against this task's own date rather than left as
@@ -789,6 +819,22 @@ export function RepeatPanel({ task, patch }: PanelProps) {
       fields: { recurrence: true, repeatUnit: "year", repeatEvery: "1", repeatDays: [] },
     },
   ]
+  /* A rule none of the presets names opens on the exact controls. */
+  const [custom, setCustom] = useState(
+    () => task.recurrence === true && !presets.some((preset) => preset.label === summary),
+  )
+  /* Until: no end, a month on, or the end of the year, all counted from the
+     task's own date so no option is already past; a stored end the two do
+     not name is offered as itself so the choice shows. */
+  const monthOn = isoDay(new Date(anchor.getFullYear(), anchor.getMonth() + 1, anchor.getDate()))
+  const yearEnd = `${String(anchor.getFullYear() + (anchor.getMonth() === 11 ? 1 : 0))}-12-31`
+  const ends = [monthOn, yearEnd]
+  if (task.repeatEnds !== undefined && !ends.includes(task.repeatEnds)) ends.push(task.repeatEnds)
+  const now = todayInBrowserZone()
+  /* A weekly rule naming no days repeats on its own date's weekday, so that
+     day shows as chosen and a second day is added beside it, not instead. */
+  const anchorKey = WEEKDAY_KEYS[(anchor.getDay() + 6) % 7] ?? "Mo"
+  const weekDays = task.repeatDays?.length ? task.repeatDays : [anchorKey]
 
   return (
     <div className="w-[268px]">
@@ -799,13 +845,14 @@ export function RepeatPanel({ task, patch }: PanelProps) {
           icon={Ban}
           label="Does not repeat"
           active={!task.recurrence}
-          onSelect={() =>
-            patch(task.id, {
+          onSelect={() => {
+            setCustom(false)
+            commit({
               recurrence: false,
               repeatDays: [],
               repeatEnds: undefined,
             })
-          }
+          }}
         />
         {presets.map((preset) => (
           <PickerOption
@@ -813,7 +860,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
             key={preset.label}
             label={preset.label}
             active={task.recurrence === true && summary === preset.label}
-            onSelect={() => patch(task.id, preset.fields)}
+            onSelect={() => commit({ ...preset.fields, repeatEnds: undefined })}
           />
         ))}
       </div>
@@ -824,10 +871,10 @@ export function RepeatPanel({ task, patch }: PanelProps) {
           menu
         icon={Repeat2}
         label="Custom repeat…"
-        active={custom}
+        active={false}
         onSelect={() => {
           setCustom((open) => !open)
-          if (!task.recurrence) patch(task.id, { recurrence: true, repeatUnit: "week" })
+          if (!task.recurrence) commit({ recurrence: true, repeatUnit: "week", repeatEvery: "1" })
         }}
       />
 
@@ -842,10 +889,11 @@ export function RepeatPanel({ task, patch }: PanelProps) {
               { key: "3", label: "3" },
               { key: "4", label: "4" },
             ]}
-            onPick={(key) => patch(task.id, { repeatEvery: key })}
+            onPick={(key) => commit({ repeatEvery: key })}
           />
           <PickerSegments
             label=""
+            name="Unit"
             active={task.repeatUnit ?? "week"}
             options={[
               { key: "day", label: "days" },
@@ -853,7 +901,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
               { key: "month", label: "months" },
             ]}
             onPick={(key) =>
-              patch(task.id, { repeatUnit: key as ConceptTask["repeatUnit"] })
+              commit({ repeatUnit: key as ConceptTask["repeatUnit"] })
             }
           />
           {(task.repeatUnit ?? "week") === "week" ? (
@@ -871,26 +919,26 @@ export function RepeatPanel({ task, patch }: PanelProps) {
               </span>
               <div className="grid grid-cols-7 gap-1">
                 {WEEKDAY_KEYS.map((day) => {
-                  const on = task.repeatDays?.includes(day) ?? false
+                  const on = weekDays.includes(day)
                   return (
                     <button
                       key={day}
                       type="button"
                       aria-pressed={on}
-                      aria-label={day}
+                      aria-label={DAY_LONG[(WEEKDAY_KEYS.indexOf(day) + 1) % 7] ?? day}
                       onClick={() =>
-                        patch(task.id, {
+                        commit({
                           repeatDays: on
-                            ? (task.repeatDays ?? []).filter((d) => d !== day)
-                            : [...(task.repeatDays ?? []), day],
+                            ? weekDays.filter((d) => d !== day)
+                            : [...weekDays, day],
                         })
                       }
                       className={cn(
-                        "flex h-7 w-full items-center justify-center rounded-full text-xs transition-colors",
+                        "flex h-[var(--control-height)] w-full items-center justify-center rounded-md text-xs transition-colors",
                         T_FAST,
                         on
-                          ? "bg-foreground font-medium text-background"
-                          : "bg-muted text-foreground hover:bg-accent",
+                          ? "bg-selected font-medium text-foreground"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
                       )}
                     >
                       {day.slice(0, 1)}
@@ -905,10 +953,9 @@ export function RepeatPanel({ task, patch }: PanelProps) {
             active={task.repeatEnds ?? ""}
             options={[
               { key: "", label: "No end" },
-              { key: "12 Sep", label: "12 Sep" },
-              { key: "31 Dec", label: "31 Dec" },
+              ...ends.map((end) => ({ key: end, label: formatDate(end, now) })),
             ]}
-            onPick={(key) => patch(task.id, { repeatEnds: key || undefined })}
+            onPick={(key) => commit({ repeatEnds: key || undefined })}
           />
         </div>
       ) : null}

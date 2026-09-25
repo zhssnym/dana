@@ -27,14 +27,11 @@ questions would drift, which is why this file composes rather than computes.
 - `comments`. 9.6's conversation is served at `GET /folders/:id/thread`, and is
   mounted by the surfaces that show it rather than mapped here.
 
-**And four are prose rather than fields.** `reminder`, `repeatEvery`,
-`repeatDays` and `repeatEnds` are the words a chip says, not values a wire
-carries: 4.11 stores an RRULE and 7.0 answers `is_recurring`. Writing those
-words here would be copy no numbered section carries, which
-`parts/presenters.ts` already refuses to do for the row's repeat glyph and gives
-its reasons for at length. `repeatUnit` is the exception and crosses, because a
-frequency is structure rather than wording. The rest belong with the pickers
-that say them.
+**The repeat is read from the detail's rule.** `repeatUnit`, `repeatEvery`,
+`repeatDays` and `repeatEnds` are the parts of 4.11's RRULE, taken apart so the
+repeat picker opens on what is stored; `ruleFor` in `tasks/task-model.ts` puts
+them back together for the write. `reminder` is the words its chip says and
+is mapped from the detail below.
 */
 
 import type { Folder } from '../../shared/folders.js'
@@ -67,6 +64,23 @@ const REPEAT_UNITS: Record<RecurrenceFrequency, NonNullable<ConceptTask['repeatU
   WEEKLY: 'week',
   MONTHLY: 'month',
   YEARLY: 'year',
+}
+
+/**
+ * A stored reminder as the clock time it fires at on the due day: 4.8's
+ * time_of_day as it is, or an offset before a timed task's due_time (the
+ * mode 7.9 requires once a task has one). Null where there is none, or where
+ * an offset reaches back past the due day, which a time cannot say.
+ */
+export function reminderClock(detail: TaskDetail): string | null {
+  const reminder = detail.reminder
+  if (reminder === null) return null
+  if (reminder.time_of_day !== null) return reminder.time_of_day.slice(0, 5)
+  if (reminder.offset_minutes === null || detail.due_time === null) return null
+  const [hour, minute] = detail.due_time.split(':').map(Number)
+  const at = (hour ?? 0) * 60 + (minute ?? 0) - reminder.offset_minutes
+  if (at < 0) return null
+  return `${String(Math.floor(at / 60)).padStart(2, '0')}:${String(at % 60).padStart(2, '0')}`
 }
 
 function isDetail(task: TaskCard | TaskDetail): task is TaskDetail {
@@ -117,6 +131,7 @@ export function toConceptTask(
     abandoned: task.status === 'abandoned',
     folder: { name: folder.name, color: folder.color, id: task.folder.id },
     due: dueDisplay(task, today, clock),
+    ...(task.due_date === null || task.due_time === null ? {} : { dueTime: task.due_time.slice(0, 5) }),
     ...(task.start_date === null ? {} : { start: task.start_date }),
     assignee,
     important: task.important,
@@ -127,8 +142,15 @@ export function toConceptTask(
     labels: [...(task.labels?.personal ?? []), ...(task.labels?.folder ?? [])]
       .filter((label) => !label.archived)
       .map((label) => ({ id: label.id, name: label.name, color: label.color, scope: label.scope })),
+    /* The whole rule, so the picker opens on what is stored: its interval,
+       its days ("MO" read as the picker's "Mo") and its end date. */
     ...(parsed !== null && parsed.ok
-      ? { repeatUnit: REPEAT_UNITS[parsed.rule.freq] }
+      ? {
+          repeatUnit: REPEAT_UNITS[parsed.rule.freq],
+          repeatEvery: String(parsed.rule.interval),
+          repeatDays: (parsed.rule.byDay ?? []).map((day) => day.slice(0, 1) + day.slice(1).toLowerCase()),
+          ...(parsed.rule.until === null ? {} : { repeatEnds: parsed.rule.until }),
+        }
       : {}),
     ...(detail === null
       ? {}
@@ -146,18 +168,17 @@ export function toConceptTask(
 
           The words are the picker's own, "27 Aug at 09:00", and the clock
           inside them is re-read for the viewer by `reminderChipValue`, so the
-          format the person set is not the format they are shown. The offset
-          mode is not worded here: 9.3's row is "one picker, a time on that
-          day", so nothing in this client can write one, and an older row that
-          still carries one shows its day and no time, which is true.
+          format the person set is the format they are shown. A task with a
+          due_time stores its reminder as an offset (7.9 refuses a time_of_day
+          there), and `reminderClock` reads that back as the clock time too.
           */
-          ...(detail.reminder === null || detail.reminder.time_of_day === null
+          ...(reminderClock(detail) === null
             ? {}
             : {
                 reminder:
                   detail.due_date === null
-                    ? `at ${detail.reminder.time_of_day.slice(0, 5)}`
-                    : `${dueDisplay(detail, today, clock)?.label ?? ""} at ${detail.reminder.time_of_day.slice(0, 5)}`,
+                    ? `at ${reminderClock(detail) ?? ''}`
+                    : `${dueDisplay(detail, today, clock)?.label ?? ""} at ${reminderClock(detail) ?? ''}`,
               }),
         }),
   }
@@ -241,6 +262,7 @@ export const writtenElsewhere: readonly (keyof ConceptTask)[] = [
   'repeatUnit',
   'recurrence',
   'due',
+  'dueTime',
   'start',
   'comments',
   'attachments',
