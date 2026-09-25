@@ -23,6 +23,16 @@ export function surfaceOf(editor: object): CanvasSurfaceKind {
   return surfaces.get(editor) ?? 'work'
 }
 
+/** The Results tab's editor: the one canvas where a block may become a Result (#213). */
+const resultCanvases = new WeakSet<object>()
+export function bindResultCanvas(editor: object): () => void {
+  resultCanvases.add(editor)
+  return () => { resultCanvases.delete(editor) }
+}
+export function offersResults(editor: object): boolean {
+  return resultCanvases.has(editor)
+}
+
 /** Where a toggle list is offered. Every surface nests since 0038; a Shelf
  * does not offer the toggle list (its `>` stays a quote) and the Task
  * composer's schema has none. */

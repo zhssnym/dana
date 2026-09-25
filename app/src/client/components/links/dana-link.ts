@@ -77,8 +77,8 @@ const looseSearch = z.object({ results: z.array(z.unknown()) }).transform(({ res
     return parsed.success ? [parsed.data] : []
   }))
 
-export function searchReferences(q: string): Promise<LooseSummary[]> {
-  return getPlain(looseSearch, '/references/search', { q })
+export function searchReferences(q: string, folder?: string): Promise<LooseSummary[]> {
+  return getPlain(looseSearch, '/references/search', folder === undefined ? { q } : { q, folder })
 }
 
 export function resolveReference(kind: string, id: string): Promise<LooseSummary> {
@@ -132,7 +132,7 @@ export function backlinkPath(row: LooseBacklink): string | null {
 }
 
 const KIND_NOUN: Readonly<Record<string, string>> = {
-  task: 'Task', folder: 'Page', shelf: 'Collection', facet: 'Facet', discussion: 'Discussion', outcome: 'Outcome', result: 'Result',
+  task: 'Task', folder: 'Page', shelf: 'Collection', facet: 'Tab', discussion: 'Discussion', outcome: 'Outcome', result: 'Result',
 }
 export function kindNoun(kind: string): string {
   return KIND_NOUN[kind] ?? 'Link'

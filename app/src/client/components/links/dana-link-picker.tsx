@@ -50,16 +50,17 @@ let latest = 0
  * pages the viewer can open. `quiet` drops the hint rows, for a caller that
  * already has rows of its own to show.
  */
-export async function pageSuggestionItems(editor: CanvasEditor, query: string, quiet = false): Promise<DefaultReactSuggestionItem[]> {
+export async function pageSuggestionItems(editor: CanvasEditor, query: string, quiet = false, folderId?: string): Promise<DefaultReactSuggestionItem[]> {
   const q = query.trim()
-  if (q.length < 2) return quiet ? [] : [hint('Type to link a Task, Page, Collection, Purpose, Results or Discussion')]
+  if (q.length < 2) return quiet ? [] : [hint('Type to link a Task, Page, Collection, Purpose, Results, Result or Discussion')]
   const mine = ++latest
   await new Promise((resolve) => setTimeout(resolve, 150))
   // Never [] here: BlockNote closes the menu on an empty answer.
   if (mine !== latest) return quiet ? [] : [hint('Searching…')]
   let results: LooseSummary[]
   try {
-    results = await searchReferences(q.slice(0, 100))
+    // The composing Page's own Tasks, Purpose, Results and Results come first.
+    results = await searchReferences(q.slice(0, 100), folderId)
   } catch {
     return quiet ? [] : [hint('Search is unavailable right now')]
   }
@@ -89,7 +90,6 @@ export async function pageSuggestionItems(editor: CanvasEditor, query: string, q
 export function linkSlashItem(editor: CanvasEditor): DefaultReactSuggestionItem {
   return {
     title: 'Link to…',
-    subtext: 'A Task, Page, Collection or Discussion',
     icon: <Link2 size={16} />,
     aliases: ['link', 'mention', 'reference', '@'],
     group: 'Basic blocks',
