@@ -4,6 +4,7 @@ import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files
 import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 
 import { createCanvasCallout } from './CanvasCallout.js'
+import { createCanvasResult } from './CanvasResult.js'
 import { formatDate } from '../../../lib/dates.js'
 import { todayInBrowserZone } from '../../../api/tz.js'
 import { isoDay } from '../../../tasks/task-model.js'
@@ -262,6 +263,8 @@ export const canvasSchema = BlockNoteSchema.create({
     toggleListItem: toggleList,
     divider: { ...defaultBlockSpecs.divider, extensions: withoutInputRules(defaultBlockSpecs.divider.extensions, () => true) },
     callout: createCanvasCallout(),
+    // A native Result (#213); only the Results tab's `/result` inserts one.
+    result: createCanvasResult(),
     codeBlock: defaultBlockSpecs.codeBlock,
     image,
     file,

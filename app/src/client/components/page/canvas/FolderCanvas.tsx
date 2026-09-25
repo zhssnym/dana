@@ -38,6 +38,8 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   readonly facetId?: string
   /** Purpose headings change document typography only; they never create Work Sections. */
   readonly presentationHeadings?: boolean
+  /** The Results tab: `/result` makes a native Result (#213). */
+  readonly results?: boolean
   readonly workRootId?: string
   /** The folder's completed task cards the page already loaded; a placement
    * found here draws as its real row, checked and muted. */
@@ -72,7 +74,7 @@ function scrollerOf(element: Element | null): Element | null {
 
 const CHANGED_ELSEWHERE = 'This page changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
-function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint, opening }: Props & {
+function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint, opening }: Props & {
   readonly opening: string
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
@@ -94,12 +96,12 @@ function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHea
       else setReloadNote('The page still has no version. Try again in a moment.')
     }) }}>Load the page again</Button>{reloadNote}
   </div>
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint, opening }} width={width} onSaved={(next) => {
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint, opening }} width={width} onSaved={(next) => {
     queryClient.setQueryData(facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId), next)
   }} />}</div>
 }
 
-function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted = true, context, actions, onAsk, arrangeable, onCheckpoint, opening, width, onSaved }: Props & {
+function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, showCompleted = true, context, actions, onAsk, arrangeable, onCheckpoint, opening, width, onSaved }: Props & {
   readonly opening: string
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
@@ -527,6 +529,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
         editor={editor}
         onChange={changed}
         onCreateTask={facetId === undefined ? askTask : undefined}
+        results={results === true}
         folderRefs={folderRefs}
         onUploadFile={uploadCanvasFile}
         headingMode={

@@ -154,6 +154,9 @@ export async function applyShelfDocument(
     ) {
       throw new ShelfDocumentRefusal('invalid', "A page block lives only on a folder's page.")
     }
+    if (op.op === 'put_block' && op.block_kind === 'result') {
+      throw new ShelfDocumentRefusal('invalid', 'A Result lives on the Results tab.')
+    }
     if (op.op === 'put_block') {
       writes.set(op.id, {
         ...op,

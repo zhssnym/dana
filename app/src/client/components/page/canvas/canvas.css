@@ -83,6 +83,29 @@
   background: var(--muted);
   padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
 }
+/* #213: a native Result. The flag says what it is; the statement carries
+   the weight a Section title does, and nothing else is drawn. */
+.dana-writing-canvas .dana-result {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(var(--spacing) * 2);
+  font-weight: var(--font-weight-section);
+}
+.dana-writing-canvas .dana-result-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding-top: 0.2em;
+  color: var(--muted-foreground);
+  user-select: none;
+}
+.dana-writing-canvas .dana-result [data-referenced-from] {
+  font-weight: var(--font-weight-regular);
+}
+/* The editor styles its own links; a "Referenced from" row is not one. */
+.dana-writing-canvas .dana-result [data-referenced-from] a {
+  color: var(--foreground);
+  text-decoration: none;
+}
 .dana-writing-canvas [data-content-type='codeBlock'] {
   font-size: var(--text-sm);
 }
