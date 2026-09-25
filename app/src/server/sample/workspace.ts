@@ -22,7 +22,9 @@ themselves has been adopted, and it stays, its register row dropped. The
 same for a folder the person has shared: a sample folder with another
 member is left where it is, reported back so the strip can say so, and its
 register row dropped, because the moment it had a second member it stopped
-being a sample and became a thing two people hold.
+being a sample and became a thing two people hold. And the same for a sample
+folder holding a task the sample did not write: the person tried the product
+by writing into it, and removal is not a delete that reaches their own work.
 
 Removal goes through `domain/trash.ts`'s `destroyFolders` and `destroyTasks`,
 the one collection the purge and the permanent delete already share, so a
@@ -714,17 +716,23 @@ export async function removeSampleWorkspace(
       sql`SELECT f.id, f.name,
                  (SELECT count(*)::int FROM folder_members m
                    WHERE m.folder_id = f.id AND m.user_id <> ${userId}::uuid
-                     AND m.user_id NOT IN (${idList(SAMPLE_PERSON_IDS)})) AS others
+                     AND m.user_id NOT IN (${idList(SAMPLE_PERSON_IDS)})) AS others,
+                 EXISTS (SELECT 1 FROM tasks t
+                          WHERE t.folder_id = f.id
+                            AND t.id NOT IN (SELECT o.id FROM sample_objects o
+                                              WHERE o.user_id = ${userId}::uuid
+                                                AND o.kind = 'task')) AS own_work
           FROM sample_objects s
           JOIN folders f ON f.id = s.id AND f.owner_id = ${userId}::uuid
           WHERE s.user_id = ${userId}::uuid AND s.kind = 'folder'`,
     )
-    const doomedFolders = folders
-      .filter((row) => Number(row.others) === 0)
-      .map((row) => String(row.id))
-    const keptFolders = folders
-      .filter((row) => Number(row.others) > 0)
-      .map((row) => String(row.name))
+    // A sample page stays when someone else holds it, or when it holds a
+    // task the sample did not write: the person's own work, which removal
+    // would otherwise destroy past Trash and past the undo.
+    const kept = (row: Record<string, unknown>): boolean =>
+      Number(row.others) > 0 || row.own_work === true
+    const doomedFolders = folders.filter((row) => !kept(row)).map((row) => String(row.id))
+    const keptFolders = folders.filter(kept).map((row) => String(row.name))
 
     // The tasks still where the sample put them: in a doomed sample folder
     // or on Desk. A task in any other folder has been adopted.

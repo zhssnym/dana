@@ -10,8 +10,10 @@ nothing on the server. The Settings row is the way back to the act from a
 device that dismissed it.
 
 **Removal is one press, and the undo bar is its safety net**: no confirm
-before it, because the act is reversible. The undo is POST /sample, which is
-idempotent, so a bar pressed twice lands on one workspace. Removing the sample
+before it, because it takes only what the sample wrote. The server leaves any
+sample page that holds a task of the person's own (or that someone else
+holds) and names it back, so what the undo (POST /sample, idempotent: a bar
+pressed twice lands on one workspace) writes afresh is only the sample. Removing the sample
 also answers the starter offer: a person who just said no to example content
 is not offered more of it (`StarterOffer.tsx`).
 */
@@ -26,13 +28,11 @@ import { dismissStarters } from './StarterOffer.js'
 export const SAMPLE_COPY = {
   strip: 'Sample workspace',
   stripRemove: 'Remove',
-  remove: 'Remove sample data',
   keep: 'Keep it',
   undone: 'Sample workspace removed',
-  restore: 'Restore sample data',
-  keptOne: (name: string) => `${name} was left in place because it is shared.`,
+  keptOne: (name: string) => `${name} was kept because it is shared or holds your own tasks.`,
   keptMany: (names: readonly string[]) =>
-    `${names.join(', ')} were left in place because they are shared.`,
+    `${names.join(', ')} were kept because they are shared or hold your own tasks.`,
 } as const
 
 const KEPT_KEY = 'dana.sample.kept'

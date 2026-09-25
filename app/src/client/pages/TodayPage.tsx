@@ -153,7 +153,7 @@ export function TodayPage(): React.JSX.Element {
         {/* A fresh account's own first act comes before the offer of an
             example; otherwise "New task" closes the list. */}
         {mayBeFresh ? (
-          <StarterOffer lead={quickAdd} fallback={list} />
+          <StarterOffer body={pageBody} quickAdd={quickAdd} />
         ) : (
           list
         )}
