@@ -289,7 +289,13 @@ export interface ConceptTask {
   /* The Schedule's start, as 4.11 writes a date ("2026-09-24"); absent when none (#215). */
   start?: string
   reminder?: string
+  /* When the reminder fires, in minutes from the due day's midnight: 540 is
+     9:00 that day, -360 is 18:00 the day before (an offset reaching back past
+     midnight). Absent without a reminder. */
+  reminderAt?: number
   repeatEvery?: string
+  /* 4.11's BYMONTHDAY, where a monthly rule names its own day. */
+  repeatMonthDay?: number
   repeatDays?: string[]
   repeatEnds?: string
   /*
@@ -386,12 +392,18 @@ export function repeatSummary(task: ConceptTask): string {
   if (unit === 'day') {
     head = every === 1 ? 'Daily' : `Every ${every} days`
   } else if (unit === 'month') {
+    const day = task.repeatMonthDay ?? anchor.getDate()
     head =
       every === 1
-        ? `Monthly on the ${ordinal(anchor.getDate())}`
-        : `Every ${every} months`
+        ? `Monthly on the ${ordinal(day)}`
+        : task.repeatMonthDay === undefined
+          ? `Every ${every} months`
+          : `Every ${every} months on the ${ordinal(day)}`
   } else if (unit === 'year') {
-    head = `Yearly on ${anchor.getDate()} ${MONTH_SHORT[anchor.getMonth()] ?? ''}`
+    head =
+      every === 1
+        ? `Yearly on ${anchor.getDate()} ${MONTH_SHORT[anchor.getMonth()] ?? ''}`
+        : `Every ${every} years`
   } else if (days.length === 5 && WORKING_WEEK.every((d) => days.includes(d))) {
     head = 'Every weekday'
   } else if (days.length) {
@@ -417,7 +429,10 @@ const RULE_FREQ = { day: 'DAILY', week: 'WEEKLY', month: 'MONTHLY', year: 'YEARL
 /* The card's repeat as 4.11's rule string, which is what 7.6 stores; null
    where the task does not repeat. `repeatEnds` is a date ("2026-12-31"). */
 export function ruleFor(
-  task: Pick<ConceptTask, 'recurrence' | 'repeatUnit' | 'repeatEvery' | 'repeatDays' | 'repeatEnds'>,
+  task: Pick<
+    ConceptTask,
+    'recurrence' | 'repeatUnit' | 'repeatEvery' | 'repeatDays' | 'repeatEnds' | 'repeatMonthDay'
+  >,
 ): string | null {
   if (!task.recurrence) return null
   const unit = task.repeatUnit ?? 'week'
@@ -427,6 +442,9 @@ export function ruleFor(
   const days = WEEKDAY_KEYS.filter((d) => task.repeatDays?.includes(d))
   if (unit === 'week' && days.length > 0) {
     parts.push(`BYDAY=${days.map((d) => d.toUpperCase()).join(',')}`)
+  }
+  if (unit === 'month' && task.repeatMonthDay !== undefined) {
+    parts.push(`BYMONTHDAY=${String(task.repeatMonthDay)}`)
   }
   if (task.repeatEnds !== undefined && /^\d{4}-\d{2}-\d{2}$/.test(task.repeatEnds)) {
     parts.push(`UNTIL=${task.repeatEnds.replaceAll('-', '')}`)
@@ -451,7 +469,7 @@ export function repeatShort(task: ConceptTask): string {
   const days = task.repeatDays ?? []
   if (unit === 'day') return every === 1 ? 'Daily' : `Every ${every} days`
   if (unit === 'month') return every === 1 ? 'Monthly' : `Every ${every} months`
-  if (unit === 'year') return 'Yearly'
+  if (unit === 'year') return every === 1 ? 'Yearly' : `Every ${every} years`
   if (days.length === 5 && WORKING_WEEK.every((d) => days.includes(d))) {
     return 'Weekdays'
   }
@@ -475,6 +493,35 @@ clock time being what is shown, only spelled the way every other time is.
 */
 export function reminderChipValue(task: ConceptTask, format: TimeFormat): string {
   if (!task.reminder) return 'No reminder'
-  const time = task.reminder.match(/(\d{1,2}:\d{2})$/)?.[1]
-  return time === undefined ? task.reminder : (formatTime(time, format) ?? time)
+  const found = task.reminder.match(/^(?:(.*) )?at (\d{1,2}:\d{2})$/)
+  if (found === null) return task.reminder
+  const time = formatTime(found[2], format) ?? found[2] ?? ''
+  /* A reminder before the due day names its own day: "27 Sep 11:30 PM". */
+  return task.reminderAt !== undefined && task.reminderAt < 0 ? `${found[1] ?? ''} ${time}` : time
+}
+
+/* ------------------------------------------------------------ minutes -- */
+
+/** "14:30" as minutes from midnight. */
+export function minutesOfClock(time: string): number {
+  const [hour, minute] = time.split(':').map(Number)
+  return (hour ?? 0) * 60 + (minute ?? 0)
+}
+
+/** Minutes as "HH:MM" on the day they fall on (-30 is "23:30"). */
+export function clockOfMinutes(minutes: number): string {
+  const wrapped = ((minutes % 1440) + 1440) % 1440
+  return `${String(Math.floor(wrapped / 60)).padStart(2, '0')}:${String(wrapped % 60).padStart(2, '0')}`
+}
+
+/**
+ * The words a reminder is kept as on the card: the day it fires, "at", and
+ * its clock ("24 Sep at 09:00"). `at` is minutes from the due day's
+ * midnight, so a negative one fires on an earlier day and says which.
+ */
+export function reminderWords(due: Date | null, at: number): string {
+  const time = clockOfMinutes(at)
+  if (due === null) return `at ${time}`
+  const day = addDays(due, Math.floor(at / 1440))
+  return `${formatDate(isoDay(day), todayInBrowserZone())} at ${time}`
 }

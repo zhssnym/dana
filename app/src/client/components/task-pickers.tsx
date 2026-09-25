@@ -9,13 +9,13 @@ itself.
 
 They share one shape: the answers somebody probably wants, a hairline, then one
 option that opens everything exact. There is no Save and no Done; choosing
-commits. The Due panel has no clock in it.
+commits.
 */
 
 import { Ban, Repeat2, type LucideIcon } from "../lib/icons.js"
 import { ConfirmDialog } from "./ui/ConfirmDialog.js"
 import { CLEAR_DATE_WARNING, DATE_CLEAR } from "./task-copy.js"
-import { createContext, useContext, useState, type ReactNode } from "react"
+import { createContext, useContext, useRef, useState, type ReactNode } from "react"
 import { Check as CheckIcon } from "../lib/icons.js"
 
 /* 9.3's reminder row is "one picker, a time on that day", so what the panel
@@ -44,15 +44,13 @@ date-dependent chips; the endpoint is what makes it true. 8.3's refetch is what
 reconciles them, which is this client's whole invalidation strategy and is why
 neither call is optimistic.
 
-**The repeat rule is deliberately not wired here.** 4.11's subset needs a rule
-built from the preset's operands and there is no builder for that, and shipping
-a half-built rule is worse than shipping none, so the repeat stays a value the
-card holds.
+**The repeat rule is written whole.** `ruleFor` in `tasks/task-model.ts` builds
+4.11's rule from the card's parts and the repeat panel PATCHes it.
 */
 import { useDeleteReminder, usePutReminder, useUpdateTask } from "../api/mutations.js"
 import { isoDay, parseIsoDate } from "../tasks/task-model.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
-import { formatTime, useTimeFormat } from "../lib/time-format.js"
+import { formatTime, parseTypedTime, useTimeFormat } from "../lib/time-format.js"
 /*
 **`today()`, a function rather than a constant.** `tasks/task-model.ts` carries
 it: a constant is evaluated at module load, so a browser left open across
@@ -67,11 +65,14 @@ import {
   WEEKDAY_KEYS,
   WORKING_WEEK,
   addDays,
+  clockOfMinutes,
   dueLabelFor,
+  minutesOfClock,
   nextWeekday,
   ordinal,
   parseDueLabel,
   repeatAnchor,
+  reminderWords,
   repeatSummary,
   ruleFor,
   today,
@@ -89,10 +90,91 @@ function presetHint(date: Date): string {
   return `${DAY_SHORT[date.getDay()] ?? ""} ${formatDate(isoDay(date), todayInBrowserZone())}`
 }
 
-/* The day a reminder's words carry: "24 Sep", never a relative word, since the
-   words are kept and "Tomorrow" would be wrong by the next morning. */
-function reminderDay(date: Date): string {
-  return formatDate(isoDay(date), todayInBrowserZone())
+/*
+**A time field on the viewer's clock.**
+
+The platform's time input draws its own notation (24-hour here whatever the
+person chose), so a picker used it beside "2:30 PM" and showed one value
+twice. This is a plain field that reads either notation and writes the time
+back on the viewer's clock.
+
+**It commits once, on Enter or on leaving it**, never per keystroke: a time
+field is empty or half-typed for a moment in every edit, and each of those
+moments was a write, "clear the due time" among them. Emptying it and leaving
+is how a time is cleared; text that is not a time is put back as it was.
+*/
+export function TimeField({
+  label,
+  value,
+  onCommit,
+}: {
+  label: string
+  /* "HH:MM", or null for no time. */
+  value: string | null
+  onCommit: (time: string | null) => void
+}) {
+  const format = useTimeFormat()
+  const shown = value === null ? "" : (formatTime(value, format) ?? value)
+  const [draft, setDraft] = useState<string | null>(null)
+  const [unreadable, setUnreadable] = useState(false)
+  /* Escape closes the popover and must not commit on the blur that follows. */
+  const skip = useRef(false)
+  const commit = (text: string | null) => {
+    setDraft(null)
+    if (text === null) return
+    const typed = text.trim()
+    if (typed === "") {
+      setUnreadable(false)
+      if (value !== null) onCommit(null)
+      return
+    }
+    const time = parseTypedTime(typed)
+    if (time === null) {
+      setUnreadable(true)
+      return
+    }
+    setUnreadable(false)
+    if (time !== value) onCommit(time)
+  }
+  return (
+    <>
+      <input
+        type="text"
+        inputMode="text"
+        autoComplete="off"
+        aria-label={label}
+        aria-invalid={unreadable || undefined}
+        placeholder={format === "12" ? "9:00 AM" : "09:00"}
+        value={draft ?? shown}
+        onChange={(event) => {
+          setDraft(event.target.value)
+          setUnreadable(false)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault()
+            commit(draft)
+          } else if (event.key === "Escape") {
+            skip.current = true
+            setDraft(null)
+          }
+        }}
+        onBlur={() => {
+          if (skip.current) {
+            skip.current = false
+            return
+          }
+          commit(draft)
+        }}
+        className="h-[var(--control-height)] w-full min-w-0 rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+      />
+      {unreadable ? (
+        <p role="status" className="pt-1.5 text-xs text-destructive">
+          {`Type a time, like ${format === "12" ? "2:30 PM" : "14:30"}.`}
+        </p>
+      ) : null}
+    </>
+  )
 }
 
 /*
@@ -439,19 +521,53 @@ export function DuePanel({ task, patch }: PanelProps) {
   /*
   A time under the day, so "next Tuesday at 9" is one picker rather than two
   chips. It is the due date's own time (4.11's due_time), the one the Date row,
-  the lists and the calendar all show; the reminder keeps its own row. Setting
-  or clearing it moves the reminder's mode on the server (8.4's cascade).
+  the lists and the calendar all show; the reminder keeps its own row.
+
+  **The reminder is carried across, not lost.** 8.4 deletes a time_of_day
+  reminder when a date-only task gains a time, and an offset reminder when a
+  timed task loses one. So after the time is written the reminder is written
+  again in the mode the task now takes, at the clock time it had: 9:00 on a
+  task now due at 17:00 is 480 minutes before. A reminder that would fall
+  after the new time moves to the time itself, and one before the due day
+  cannot be a time on a day with no time and is removed. Either says so here.
   */
   const format = useTimeFormat()
+  const put = usePutReminder()
   const at = task.dueTime ?? null
+  const [moved, setMoved] = useState<string | null>(null)
+  const labelWithTime = (day: Date, time: string | null) => {
+    const label = dueLabelFor(day)
+    return time === null ? label : { ...label, label: `${label.label} ${formatTime(time, format) ?? time}` }
+  }
   const setAt = (time: string | null) => {
     const day = dueDate ?? today()
-    const label = dueLabelFor(day)
+    const was = task.reminderAt
+    let reminder: { at: number; body: { offset_minutes: number | null; time_of_day: string | null } } | null = null
+    let note: string | null = null
+    if (was !== undefined && time !== null) {
+      const due = minutesOfClock(time)
+      const kept = Math.min(was, due)
+      if (kept !== was) note = `The reminder moved to ${formatTime(time, format) ?? time}.`
+      reminder = { at: kept, body: { offset_minutes: due - kept, time_of_day: null } }
+    } else if (was !== undefined) {
+      if (was >= 0) reminder = { at: was, body: { offset_minutes: null, time_of_day: clockOfMinutes(was) } }
+      else note = "The reminder was on the day before, which needs a due time, so it was removed."
+    }
+    setMoved(note)
     patch(task.id, {
       dueTime: time ?? undefined,
-      due: { ...label, label: time === null ? label.label : `${label.label} ${formatTime(time, format) ?? time}` },
+      due: labelWithTime(day, time),
+      reminder: reminder === null ? undefined : reminderWords(day, reminder.at),
+      reminderAt: reminder?.at,
     })
-    update.mutate({ id: task.id, body: { due_time: time } })
+    update.mutate(
+      { id: task.id, body: { due_time: time } },
+      {
+        onSuccess: () => {
+          if (reminder !== null) put.mutate({ taskId: task.id, body: reminder.body })
+        },
+      },
+    )
   }
   /* Choosing a day answers the field, from the grid exactly as from a preset,
      so both close. See `PickerClose`. */
@@ -473,7 +589,8 @@ export function DuePanel({ task, patch }: PanelProps) {
       close()
       return
     }
-    patch(task.id, { due: dueLabelFor(date) })
+    /* The day moves and the time stays, as the server keeps it. */
+    patch(task.id, { due: labelWithTime(date, at) })
     /* A task not made yet has no address; its draft carries the day into the
        create instead. */
     if (task.id !== "new") update.mutate({ id: task.id, body: { due_date: isoDay(date) } })
@@ -488,6 +605,8 @@ export function DuePanel({ task, patch }: PanelProps) {
          render; 8.4 is the server's and runs whatever this sends. */
       recurrence: false,
       reminder: undefined,
+      reminderAt: undefined,
+      dueTime: undefined,
     })
     /* One request, because 8.4's cascade is the server's: clearing the date
        ends the repeat and removes the reminder inside 7.6's own transaction,
@@ -512,9 +631,6 @@ export function DuePanel({ task, patch }: PanelProps) {
     { label: "Next week", date: nextWeekAfter(today()) },
   ]
 
-  /* A due date is a day and not a moment, so there is no clock in this panel at
-     all: "due at 17:45" is a reminder wearing a due date's clothes, and Dana
-     already has somewhere to say that. */
   return (
     <div className="w-[268px]">
       {/*
@@ -615,24 +731,17 @@ export function DuePanel({ task, patch }: PanelProps) {
       {task.due && !editingStart && task.id !== "new" ? (
         <>
           <PickerDivider />
-          <label className="flex items-center gap-2 px-2 pt-1.5 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 px-2 pt-1.5 text-xs text-muted-foreground">
             <span className="w-10 shrink-0">Time</span>
-            <input
-              type="time"
-              aria-label="Due time"
-              value={at ?? ""}
-              onChange={(event) => {
-                const time = event.target.value
-                setAt(time === "" ? null : time)
-              }}
-              className="h-[var(--control-height)] min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none"
-            />
-            {at === null ? null : (
-              <span className="shrink-0 text-muted-foreground">
-                {formatTime(at, format) ?? at}
-              </span>
-            )}
-          </label>
+            <div className="min-w-0 flex-1">
+              <TimeField label="Due time" value={at} onCommit={setAt} />
+            </div>
+          </div>
+          {moved === null ? null : (
+            <p role="status" className="px-2 pt-1.5 text-xs text-muted-foreground">
+              {moved}
+            </p>
+          )}
         </>
       ) : null}
     </div>
@@ -640,19 +749,20 @@ export function DuePanel({ task, patch }: PanelProps) {
 }
 
 /*
-**A reminder is a time on the due day, never an offset.**
+**A reminder is a time, said the way the task is dated.**
 
-9.3's reminder row: "requires a due date; **one picker, a time on that day**,
-writing 4.8's time_of_day mode". A picker offering an offset ("1 day before")
-would be the v1 control surviving its own row (AC-169).
+9.3's reminder row: "requires a due date; one picker, a time on that day".
+4.8's two modes are exclusive and the task decides which one 7.9 takes: a
+date-only task stores the clock time itself, and a task with a due time stores
+how long before it the reminder fires.
 
-So the panel is a clock, with the shared shape, width, hairline and Clear, and
-choosing commits.
+So the quick answers follow the task. A date-only task is offered the three
+times a reminder is usually set to. A timed task is offered what an offset
+means, "At due time", "1 hour before" and "Day before", each with the clock
+time it lands on beside it. The exact answer is a time on the due day, on the
+viewer's clock, and one after the due time is refused in place.
 
-**The three quick answers are times rather than offsets**, which keeps the
-shared arrangement, the answers somebody probably wants, a hairline, then one
-option that opens everything exact. They are the three a reminder is usually set
-to and they are the design's rather than the section's, which writes none.
+The empty state has one name, "No reminder", in the row and here.
 
 A reminder "requires a due date", and the chip is disabled without one, so this
 panel is never opened undated and draws no sentence for that case.
@@ -662,75 +772,70 @@ export function ReminderPanel({ task, patch }: PanelProps) {
   const put = usePutReminder()
   const drop = useDeleteReminder()
   const due = task.due ? parseDueLabel(task.due.label) : null
-  const at = task.reminder?.match(/(\d{1,2}:\d{2})$/)?.[1] ?? null
+  const dueAt = task.dueTime === undefined ? null : minutesOfClock(task.dueTime)
+  const at = task.reminder ? (task.reminderAt ?? null) : null
 
-  /* The words a reminder is stored as, which `tasks/task-model.ts`'s
-     `reminderChipValue` reads back and re-clocks for the viewer. The day is
-     the task's own, 4.8's time_of_day mode being a time on the due date. */
-  const wordsFor = (time: string) =>
-    due ? `${reminderDay(due)} at ${time}` : `at ${time}`
-
-  /* 9.3: "one picker, a time on that day". 4.8's two modes are exclusive
-     and the task decides which one 7.9 takes: a date-only task stores the
-     clock time itself, and a task with a due time stores how long before it
-     the time is, so a reminder after the due time is refused here as there. */
   const [refused, setRefused] = useState(false)
-  const minutesOf = (time: string) => {
-    const [hour, minute] = time.split(":").map(Number)
-    return (hour ?? 0) * 60 + (minute ?? 0)
-  }
-  const clockOf = (minutes: number) =>
-    `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`
-  const setAt = (time: string) => {
-    const offset = task.dueTime === undefined ? null : minutesOf(task.dueTime) - minutesOf(time)
-    if (offset !== null && offset < 0) {
+  /* `minutes` is from the due day's midnight; negative is the day before. */
+  const setAt = (minutes: number) => {
+    if (dueAt !== null && minutes > dueAt) {
       setRefused(true)
       return
     }
     setRefused(false)
-    patch(task.id, { reminder: wordsFor(time) })
+    patch(task.id, { reminder: reminderWords(due, minutes), reminderAt: minutes })
     put.mutate({
       taskId: task.id,
-      body: offset === null ? { offset_minutes: null, time_of_day: time } : { offset_minutes: offset, time_of_day: null },
+      body:
+        dueAt === null
+          ? { offset_minutes: null, time_of_day: clockOfMinutes(minutes) }
+          : { offset_minutes: dueAt - minutes, time_of_day: null },
     })
   }
   const clearAt = () => {
-    patch(task.id, { reminder: undefined })
+    setRefused(false)
+    patch(task.id, { reminder: undefined, reminderAt: undefined })
     /* Frozen 7.9's own removal, "no task body expressing a removal". */
     drop.mutate(task.id)
   }
 
-  /* With a due time, the answers are that time and an hour before it. */
-  const quick =
-    task.dueTime === undefined
-      ? ["09:00", "12:00", "17:00"]
-      : [minutesOf(task.dueTime) - 60, minutesOf(task.dueTime)].filter((m) => m >= 0).map(clockOf)
+  const clock = (minutes: number) => formatTime(clockOfMinutes(minutes), format) ?? clockOfMinutes(minutes)
+  const quick: { label: string; minutes: number; hint?: string }[] =
+    dueAt === null
+      ? [9 * 60, 12 * 60, 17 * 60].map((minutes) => ({ label: clock(minutes), minutes }))
+      : [
+          { label: "At due time", minutes: dueAt, hint: clock(dueAt) },
+          { label: "1 hour before", minutes: dueAt - 60, hint: clock(dueAt - 60) },
+          { label: "Day before", minutes: 18 * 60 - 1440, hint: clock(18 * 60) },
+        ]
 
   return (
     <div className="w-[268px]">
       {/* One role per picker. See the due panel above. */}
       <div role="group" aria-label="Reminder" className="flex flex-col">
-        {quick.map((time) => (
+        {quick.map((option) => (
           <PickerOption
             finishes
-            key={time}
-            label={formatTime(time, format) ?? time}
-            active={at === time}
-            onSelect={() => setAt(time)}
+            key={option.label}
+            label={option.label}
+            {...(option.hint === undefined ? {} : { hint: option.hint })}
+            active={at === option.minutes}
+            onSelect={() => setAt(option.minutes)}
           />
         ))}
         {/*
-        **The way back out**, offered only while a reminder is set, the same
-        rule as the due picker's. Frozen 7.9 makes the write behind it
-        `DELETE /tasks/:id/reminder`, "no task body expressing a removal", and
-        nothing cascades from it, so unlike the due date's it asks nothing.
+        Frozen 7.9 makes the write behind it `DELETE /tasks/:id/reminder`, "no
+        task body expressing a removal", and nothing cascades from it, so
+        unlike the due date's it asks nothing.
         */}
         <PickerOption
           finishes
           icon={Ban}
-          label={task.reminder ? DATE_CLEAR : "No reminder"}
-          active={!task.reminder}
-          onSelect={clearAt}
+          label="No reminder"
+          active={at === null}
+          onSelect={() => {
+            if (task.reminder) clearAt()
+          }}
         />
       </div>
 
@@ -738,30 +843,55 @@ export function ReminderPanel({ task, patch }: PanelProps) {
 
       {/*
       9.3's "one picker, a time on that day", exact. It is open rather than
-      behind a disclosure, which is the one place this departs from the shared
-      arrangement and is AC-169's own requirement: the picker is opened and the
-      time is answered, with nothing to unfold first.
+      behind a disclosure: the picker is opened and the time is answered, with
+      nothing to unfold first (AC-169).
        */}
       <div className="px-2 pt-1.5">
-        <input
-          type="time"
-          aria-label="Reminder time"
-          {...(task.dueTime === undefined ? {} : { max: task.dueTime })}
-          value={at ?? ""}
-          onChange={(event) => {
-            const time = event.target.value
-            if (time === "") clearAt()
-            else setAt(time)
+        <TimeField
+          label="Reminder time"
+          value={at !== null && at >= 0 ? clockOfMinutes(at) : null}
+          onCommit={(time) => {
+            if (time === null) clearAt()
+            else setAt(minutesOfClock(time))
           }}
-          className="h-[var(--control-height)] w-full rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none"
         />
-        {refused && task.dueTime !== undefined ? (
+        {refused && dueAt !== null ? (
           <p role="status" className="pt-1.5 text-xs text-destructive">
-            {`The reminder must be at or before ${formatTime(task.dueTime, format) ?? task.dueTime}.`}
+            {`The reminder must be at or before ${clock(dueAt)}.`}
           </p>
         ) : null}
       </div>
     </div>
+  )
+}
+
+/* The repeat's interval: a number, written on Enter or on leaving the field,
+   so "12" is one write rather than "1" then "12". */
+function IntervalField({ value, onCommit }: { value: number; onCommit: (next: number) => void }) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const commit = () => {
+    if (draft === null) return
+    setDraft(null)
+    const next = Math.round(Number(draft))
+    if (Number.isFinite(next) && next >= 1 && next <= 99 && next !== value) onCommit(next)
+  }
+  return (
+    <input
+      type="number"
+      min={1}
+      max={99}
+      aria-label="Repeat every"
+      value={draft ?? String(value)}
+      onChange={(event) => setDraft(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault()
+          commit()
+        }
+      }}
+      onBlur={commit}
+      className="h-[var(--control-height)] w-16 rounded-md border border-border bg-card px-2 text-sm tabular-nums text-foreground outline-none"
+    />
   )
 }
 
@@ -812,7 +942,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
     },
     {
       label: `Monthly on the ${ordinal(anchor.getDate())}`,
-      fields: { recurrence: true, repeatUnit: "month", repeatEvery: "1", repeatDays: [] },
+      fields: { recurrence: true, repeatUnit: "month", repeatEvery: "1", repeatDays: [], repeatMonthDay: undefined },
     },
     {
       label: `Yearly on ${anchor.getDate()} ${MONTH_SHORT[anchor.getMonth()]}`,
@@ -826,7 +956,12 @@ export function RepeatPanel({ task, patch }: PanelProps) {
   /* Until: no end, a month on, or the end of the year, all counted from the
      task's own date so no option is already past; a stored end the two do
      not name is offered as itself so the choice shows. */
-  const monthOn = isoDay(new Date(anchor.getFullYear(), anchor.getMonth() + 1, anchor.getDate()))
+  /* "A month on" from the 31st is the last day of the next month, not the
+     2nd or 3rd of the one after. */
+  const lastOfNext = new Date(anchor.getFullYear(), anchor.getMonth() + 2, 0).getDate()
+  const monthOn = isoDay(
+    new Date(anchor.getFullYear(), anchor.getMonth() + 1, Math.min(anchor.getDate(), lastOfNext)),
+  )
   const yearEnd = `${String(anchor.getFullYear() + (anchor.getMonth() === 11 ? 1 : 0))}-12-31`
   const ends = [monthOn, yearEnd]
   if (task.repeatEnds !== undefined && !ends.includes(task.repeatEnds)) ends.push(task.repeatEnds)
@@ -835,6 +970,18 @@ export function RepeatPanel({ task, patch }: PanelProps) {
      day shows as chosen and a second day is added beside it, not instead. */
   const anchorKey = WEEKDAY_KEYS[(anchor.getDay() + 6) % 7] ?? "Mo"
   const weekDays = task.repeatDays?.length ? task.repeatDays : [anchorKey]
+  /* What the exact controls show for a task that does not repeat yet, and
+     what the first value picked there is written beside. */
+  const unit = task.recurrence ? (task.repeatUnit ?? "week") : "week"
+  const every = task.recurrence ? Math.max(1, Number(task.repeatEvery ?? "1") || 1) : 1
+  const customCommit = (fields: Partial<ConceptTask>) =>
+    commit({
+      recurrence: true,
+      repeatUnit: unit,
+      repeatEvery: String(every),
+      ...(task.recurrence ? {} : { repeatDays: [], repeatEnds: undefined, repeatMonthDay: undefined }),
+      ...fields,
+    })
 
   return (
     <div className="w-[268px]">
@@ -851,6 +998,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
               recurrence: false,
               repeatDays: [],
               repeatEnds: undefined,
+              repeatMonthDay: undefined,
             })
           }}
         />
@@ -867,44 +1015,40 @@ export function RepeatPanel({ task, patch }: PanelProps) {
 
       <PickerDivider />
 
+      {/* Opening the exact controls writes nothing; the first value picked
+          there is what makes a task that did not repeat start repeating. */}
       <PickerOption
-          menu
+        menu
         icon={Repeat2}
         label="Custom repeat…"
         active={false}
-        onSelect={() => {
-          setCustom((open) => !open)
-          if (!task.recurrence) commit({ recurrence: true, repeatUnit: "week", repeatEvery: "1" })
-        }}
+        onSelect={() => setCustom((open) => !open)}
       />
 
       {custom ? (
         <div className="pt-1">
-          <PickerSegments
-            label="Every"
-            active={task.repeatEvery ?? "1"}
-            options={[
-              { key: "1", label: "1" },
-              { key: "2", label: "2" },
-              { key: "3", label: "3" },
-              { key: "4", label: "4" },
-            ]}
-            onPick={(key) => commit({ repeatEvery: key })}
-          />
+          <div className="flex items-center gap-2 px-2 py-1">
+            <span className="w-12 shrink-0 text-xs text-muted-foreground">Every</span>
+            <IntervalField
+              value={every}
+              onCommit={(next) => customCommit({ repeatEvery: String(next) })}
+            />
+          </div>
           <PickerSegments
             label=""
             name="Unit"
-            active={task.repeatUnit ?? "week"}
+            active={unit}
             options={[
-              { key: "day", label: "days" },
-              { key: "week", label: "weeks" },
-              { key: "month", label: "months" },
+              { key: "day", label: every === 1 ? "day" : "days" },
+              { key: "week", label: every === 1 ? "week" : "weeks" },
+              { key: "month", label: every === 1 ? "month" : "months" },
+              { key: "year", label: every === 1 ? "year" : "years" },
             ]}
             onPick={(key) =>
-              commit({ repeatUnit: key as ConceptTask["repeatUnit"] })
+              customCommit({ repeatUnit: key as ConceptTask["repeatUnit"] })
             }
           />
-          {(task.repeatUnit ?? "week") === "week" ? (
+          {unit === "week" ? (
             <div className="px-2 py-1">
               {/* The weekday row gets its own line and a seven-column grid.
 
@@ -927,7 +1071,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
                       aria-pressed={on}
                       aria-label={DAY_LONG[(WEEKDAY_KEYS.indexOf(day) + 1) % 7] ?? day}
                       onClick={() =>
-                        commit({
+                        customCommit({
                           repeatDays: on
                             ? weekDays.filter((d) => d !== day)
                             : [...weekDays, day],
@@ -955,7 +1099,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
               { key: "", label: "No end" },
               ...ends.map((end) => ({ key: end, label: formatDate(end, now) })),
             ]}
-            onPick={(key) => commit({ repeatEnds: key || undefined })}
+            onPick={(key) => customCommit({ repeatEnds: key || undefined })}
           />
         </div>
       ) : null}

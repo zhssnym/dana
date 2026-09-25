@@ -64,7 +64,7 @@ import { TaskThread } from "./thread/TaskThread.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
 import { useMultiMemberFolderIds, useTask, useTaskDependencies } from "../api/queries.js"
 import { useUpdateTask } from "../api/mutations.js"
-import { presenterToday } from "../parts/presenters.js"
+import { presenterToday, rangeIsRelative } from "../parts/presenters.js"
 import { boardStatusOf, type BoardStatus } from "../views/BoardView.js"
 import {
   CHIP_ASSIGNEE,
@@ -87,8 +87,8 @@ import {
   type ConceptStep,
   type ConceptTask,
 } from "../tasks/task-model.js"
-import { useTimeFormat } from "../lib/time-format.js"
-import { formatDay } from "../lib/dates.js"
+import { formatTime, useTimeFormat, type TimeFormat } from "../lib/time-format.js"
+import { formatDate, formatDay } from "../lib/dates.js"
 import { useSortableList } from "../lib/use-sortable-list.js"
 import { cn } from "./ui/utils.js"
 import { Checkbox } from "./ui/checkbox.js"
@@ -659,17 +659,26 @@ type AddableProperty = "date" | "reminder" | "repeat" | "assignee" | "labels" | 
 
 /* The Schedule in one line (#215): "Starts Mon", "Mon – 30 Sep", or the due
    date alone, which a same-day pair also is. */
-function dateWords(task: ConceptTask): string {
+function dateWords(task: ConceptTask, format: TimeFormat): string {
   const dueDay = task.due ? parseDueLabel(task.due.label) : null
   const start =
     task.start === undefined || (dueDay !== null && isoDay(dueDay) === task.start)
       ? undefined
       : formatDay(task.start, presenterToday())
-  const due = task.due?.label
+  /* One form on both ends (`rangeIsRelative`): "23 Sep – 28 Sep", never
+     "23 Sep – Mon". */
+  const today = presenterToday()
+  const absolute =
+    start !== undefined && dueDay !== null && task.start !== undefined && !rangeIsRelative(task.start, isoDay(dueDay), today)
+  const due =
+    absolute && dueDay !== null
+      ? `${formatDate(isoDay(dueDay), today)}${task.dueTime === undefined ? "" : ` ${formatTime(task.dueTime, format) ?? task.dueTime}`}`
+      : task.due?.label
+  const startWords = absolute && task.start !== undefined ? formatDate(task.start, today) : start
   const words =
     due === undefined
       ? start === undefined ? "Empty" : `Starts ${start}`
-      : start === undefined ? due : `${start} – ${due}`
+      : startWords === undefined ? due : `${startWords} – ${due}`
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
@@ -936,7 +945,7 @@ export function TaskCard({
         {showDate ? (
           <PropertyPicker
             label={DATE_LABEL}
-            value={dateWords(task)}
+            value={dateWords(task, timeFormat)}
             empty={!task.due && task.start === undefined}
             {...(task.due?.overdue ? { tone: "danger" as const } : {})}
             defaultOpen={adding === "date"}
@@ -949,7 +958,7 @@ export function TaskCard({
         {showReminder ? (
           <PropertyPicker
             label={CHIP_REMINDER}
-            value={task.reminder ? reminderChipValue(task, timeFormat) : "Empty"}
+            value={reminderChipValue(task, timeFormat)}
             empty={!task.reminder}
             defaultOpen={adding === "reminder"}
             onOpenChange={settle("reminder")}

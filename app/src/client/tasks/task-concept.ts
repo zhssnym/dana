@@ -39,7 +39,7 @@ import { parseRecurrenceRule } from '../../shared/recurrence.js'
 import type { RecurrenceFrequency } from '../../shared/recurrence.js'
 import type { PatchTaskBody, TaskCard, TaskDetail } from '../../shared/tasks.js'
 import { dueDisplay, folderDisplay, personDisplay } from '../parts/presenters.js'
-import type { ConceptTask } from './task-model.js'
+import { minutesOfClock, parseIsoDate, reminderWords, type ConceptTask } from './task-model.js'
 import type { TimeFormat } from '../lib/time-format.js'
 
 /**
@@ -67,20 +67,18 @@ const REPEAT_UNITS: Record<RecurrenceFrequency, NonNullable<ConceptTask['repeatU
 }
 
 /**
- * A stored reminder as the clock time it fires at on the due day: 4.8's
- * time_of_day as it is, or an offset before a timed task's due_time (the
- * mode 7.9 requires once a task has one). Null where there is none, or where
- * an offset reaches back past the due day, which a time cannot say.
+ * When a stored reminder fires, in minutes from the due day's midnight: 4.8's
+ * time_of_day as it is, or a timed task's due_time less its offset (the mode
+ * 7.9 requires once a task has one). Negative where an offset reaches back
+ * before the due day, which is still a reminder and is shown as one. Null
+ * where there is none.
  */
-export function reminderClock(detail: TaskDetail): string | null {
+export function reminderMinutes(detail: TaskDetail): number | null {
   const reminder = detail.reminder
   if (reminder === null) return null
-  if (reminder.time_of_day !== null) return reminder.time_of_day.slice(0, 5)
+  if (reminder.time_of_day !== null) return minutesOfClock(reminder.time_of_day.slice(0, 5))
   if (reminder.offset_minutes === null || detail.due_time === null) return null
-  const [hour, minute] = detail.due_time.split(':').map(Number)
-  const at = (hour ?? 0) * 60 + (minute ?? 0) - reminder.offset_minutes
-  if (at < 0) return null
-  return `${String(Math.floor(at / 60)).padStart(2, '0')}:${String(at % 60).padStart(2, '0')}`
+  return minutesOfClock(detail.due_time.slice(0, 5)) - reminder.offset_minutes
 }
 
 function isDetail(task: TaskCard | TaskDetail): task is TaskDetail {
@@ -150,6 +148,7 @@ export function toConceptTask(
           repeatEvery: String(parsed.rule.interval),
           repeatDays: (parsed.rule.byDay ?? []).map((day) => day.slice(0, 1) + day.slice(1).toLowerCase()),
           ...(parsed.rule.until === null ? {} : { repeatEnds: parsed.rule.until }),
+          ...(parsed.rule.byMonthDay === null ? {} : { repeatMonthDay: parsed.rule.byMonthDay }),
         }
       : {}),
     ...(detail === null
@@ -170,15 +169,17 @@ export function toConceptTask(
           inside them is re-read for the viewer by `reminderChipValue`, so the
           format the person set is the format they are shown. A task with a
           due_time stores its reminder as an offset (7.9 refuses a time_of_day
-          there), and `reminderClock` reads that back as the clock time too.
+          there), and `reminderMinutes` reads that back, on the day before where
+          the offset reaches past midnight.
           */
-          ...(reminderClock(detail) === null
+          ...(reminderMinutes(detail) === null
             ? {}
             : {
-                reminder:
-                  detail.due_date === null
-                    ? `at ${reminderClock(detail) ?? ''}`
-                    : `${dueDisplay(detail, today, clock)?.label ?? ""} at ${reminderClock(detail) ?? ''}`,
+                reminderAt: reminderMinutes(detail) ?? 0,
+                reminder: reminderWords(
+                  detail.due_date === null ? null : parseIsoDate(detail.due_date),
+                  reminderMinutes(detail) ?? 0,
+                ),
               }),
         }),
   }
@@ -263,6 +264,8 @@ export const writtenElsewhere: readonly (keyof ConceptTask)[] = [
   'recurrence',
   'due',
   'dueTime',
+  'reminderAt',
+  'repeatMonthDay',
   'start',
   'comments',
   'attachments',

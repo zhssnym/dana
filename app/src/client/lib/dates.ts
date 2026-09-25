@@ -199,6 +199,16 @@ export function formatDay(date: string, today: string): string {
   return formatDate(date, today)
 }
 
+/**
+ * Whether `formatDay` says this day in a relative word ("Today", "Mon")
+ * rather than as a date. A range uses one form on both ends, so it asks this
+ * of each.
+ */
+export function isRelativeDay(date: string, today: string): boolean {
+  const offset = offsetFrom(date, today)
+  return offset !== null && offset >= -1 && offset <= 6
+}
+
 /** `formatDay` for mid-sentence use: "due today", "sent yesterday", "due Mon". */
 export function formatDayInline(date: string, today: string): string {
   const day = formatDay(date, today)

@@ -71,7 +71,6 @@ import {
   monthOf,
   periodTitle,
   shiftAnchor,
-  weekdayIndex,
 } from './grid.js'
 import type { Zoom } from './grid.js'
 import { cellsByDate } from './order.js'
@@ -115,7 +114,7 @@ const MONTH_CELL_LINES = 6
 const CELL_MIN_HEIGHT: Record<Zoom, string> = {
   // Padding and the day-number line, then MONTH_CELL_LINES rows of 20 with a
   // 2-pixel gap between them: 12 + 30 + 120 + 10.
-  month: 'min-h-[172px]',
+  month: 'min-h-[172px] max-sm:min-h-16',
   week: 'min-h-[420px]',
   day: 'min-h-[480px]',
 }
@@ -200,10 +199,10 @@ function CalendarEvent({
         <span
           className={cn(
             'ml-auto shrink-0 text-muted-foreground tabular-nums',
-            /* A month cell is a few words wide, so the time shows only where the
-               chip has room beside the title; the week and day zooms, and the
-               chip's tooltip, always say it. */
-            compact && 'hidden @[9rem]:inline',
+            /* The title says which task this is, so the time shows only where
+               the chip has room for both, at every zoom; the chip's tooltip
+               always says it. */
+            'hidden @[9rem]:inline',
           )}
         >
           {formatClockTime(event.dueTime, clock)}
@@ -305,7 +304,13 @@ function DayCell({
         />
       )}
 
-      <div className="pointer-events-none relative z-10 mb-1.5 flex h-6 items-center justify-between">
+      <div
+        className={cn(
+          'pointer-events-none relative z-10 mb-1.5 flex h-6 items-center justify-between',
+          /* The day zoom's title already names its one day. */
+          zoom === 'day' && 'hidden',
+        )}
+      >
         <span
           className={cn(
             'flex size-6 items-center justify-center rounded-md text-xs font-medium text-muted-foreground',
@@ -337,7 +342,20 @@ function DayCell({
         />
       </div>
 
-      <div className="relative z-10 space-y-0.5">
+      {/* A phone's month cell is a letter wide, so it says how many tasks the
+          day holds and opens that day, rather than cutting every title to one
+          letter. */}
+      {zoom === 'month' && events.length > 0 ? (
+        <button
+          type="button"
+          className="relative z-10 flex h-5 items-center rounded-sm px-1 text-xs tabular-nums text-muted-foreground hover:bg-muted hover:text-foreground sm:hidden"
+          aria-label={`${String(events.length)} ${events.length === 1 ? 'task' : 'tasks'} on ${formatDueDate(date, today)}`}
+          onClick={onReveal}
+        >
+          {events.length}
+        </button>
+      ) : null}
+      <div className={cn('relative z-10 space-y-0.5', zoom === 'month' && 'max-sm:hidden')}>
         {visible.map((event) => (
           <CalendarEvent
             key={event.key}
@@ -475,6 +493,9 @@ export function PlannedCalendar({
     const cell = grid.current?.querySelector('[data-today="true"]')
     if (cell === null || cell === undefined) return
     scrolled.current = true
+    /* Only when today is wholly below the fold: scrolling a partly visible
+       day into view pushed the page title and its View menu off screen. */
+    if (cell.getBoundingClientRect().top < window.innerHeight) return
     cell.scrollIntoView({ block: 'nearest' })
   }, [view.data])
 
@@ -508,10 +529,6 @@ export function PlannedCalendar({
 
   const columns = zoom === 'day' ? 1 : 7
   const template = `repeat(${String(columns)}, minmax(0, 1fr))`
-  const headers =
-    zoom === 'day'
-      ? [WEEKDAY_LABELS[weekdayIndex(anchor)] ?? WEEKDAY_LABELS[0]]
-      : [...WEEKDAY_LABELS]
   const weeks = useMemo(() => {
     const rows: string[][] = []
     for (let at = 0; at < dates.length; at += columns) {
@@ -521,7 +538,14 @@ export function PlannedCalendar({
   }, [dates, columns])
 
   return (
-    <div className="mt-5 mb-20 space-y-4">
+    /* The calendar takes the page's whole width, not the reading column: a
+       month of seven columns in 690px cut every title to a few letters.
+       `100cqw` is the scroll region's width (`tokens.css`), and the gutter
+       matches the shell's own padding. */
+    <div
+      className="mt-5 mb-20 space-y-4 [--calendar-gutter:1rem] md:[--calendar-gutter:2.5rem]"
+      style={{ marginInline: 'min(0px, calc(50% - 50cqw + var(--calendar-gutter)))' }}
+    >
       {/*
       9.1's inline failed-read line, beside the thing that failed. The grid
       still draws underneath it: Q3C's empty state is the bare grid and a
@@ -591,12 +615,13 @@ export function PlannedCalendar({
         </div>
 
         <div role="grid" aria-label="Upcoming calendar" className="bg-background" ref={grid}>
+          {zoom === 'day' ? null : (
           <div
             role="row"
             className="grid border-b border-border bg-background"
             style={{ gridTemplateColumns: template }}
           >
-            {headers.map((label) => (
+            {WEEKDAY_LABELS.map((label) => (
               <div
                 key={label}
                 role="columnheader"
@@ -612,6 +637,7 @@ export function PlannedCalendar({
               </div>
             ))}
           </div>
+          )}
 
           {weeks.map((week, row) => (
             <div

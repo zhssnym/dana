@@ -24,7 +24,7 @@ joins its two dates with "to" rather than an en dash, as every other range in
 this client's copy does.
 */
 
-import { formatDate, formatDayHeading, formatMonthHeading } from '../../lib/dates.js'
+import { formatDate, formatMonthHeading } from '../../lib/dates.js'
 
 /** 9.5's three zoom levels. Year zoom is cut for v1 by Q3C. */
 export type Zoom = 'day' | 'week' | 'month'
@@ -155,7 +155,9 @@ export function shiftAnchor(zoom: Zoom, anchor: string, direction: -1 | 1): stri
  * "21 to 27 Sep", with years only outside today's year.
  */
 export function periodTitle(zoom: Zoom, anchor: string, today = ''): string {
-  if (zoom === 'day') return formatDayHeading(anchor, today)
+  /* The day zoom names its date, "Fri 25 Sep": the Today button beside it
+     already says which day is today. */
+  if (zoom === 'day') return `${WEEKDAY_LABELS[weekdayIndex(anchor)] ?? ''} ${formatDate(anchor, today)}`
   if (zoom === 'month') return formatMonthHeading(anchor, today)
   const start = startOfWeek(anchor)
   const end = addDays(start, 6)

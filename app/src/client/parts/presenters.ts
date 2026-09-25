@@ -37,7 +37,14 @@ import { parseRecurrenceRule } from '../../shared/recurrence.js'
 import type { FolderGroupOption } from '../components/folder-group-dialog.js'
 import type { FolderRowProps } from '../components/folder-row.js'
 import type { TaskRowProps } from '../components/task-row.js'
-import { formatDate, formatDay, formatDayInline, formatDayTime } from '../lib/dates.js'
+import {
+  formatClockTime,
+  formatDate,
+  formatDay,
+  formatDayInline,
+  formatDayTime,
+  isRelativeDay,
+} from '../lib/dates.js'
 import type { TimeFormat } from '../lib/time-format.js'
 import { activationDateOf } from './schedule.js'
 
@@ -119,7 +126,29 @@ export function startsLabel(
 ): string | undefined {
   const { start_date: start, due_date: due } = task
   if (start === null || start === due) return undefined
-  return formatDay(start, today)
+  return due === null || rangeIsRelative(start, due, today) ? formatDay(start, today) : formatDate(start, today)
+}
+
+/**
+ * Whether both ends of a Schedule read as relative words ("Today – Fri").
+ * Where either does not, both are written as dates ("23 Sep – 28 Sep"): "Mon"
+ * after a date reads as that week's Monday rather than the day it is.
+ */
+export function rangeIsRelative(start: string, due: string, today: string): boolean {
+  return isRelativeDay(start, today) && isRelativeDay(due, today)
+}
+
+/** The due end of a range whose start is written as a date: "28 Sep", "28 Sep 6:00 PM". */
+export function dueAsDate(
+  task: Pick<TaskCard, 'status' | 'due_date' | 'due_time'>,
+  today: string,
+  clock: TimeFormat = '12',
+): DueDisplay | undefined {
+  const shown = dueDisplay(task, today, clock)
+  if (shown === undefined || task.due_date === null) return shown
+  const at = formatClockTime(task.due_time, clock)
+  const label = `${formatDate(task.due_date, today)}${at === '' ? '' : ` ${at}`}`
+  return { ...shown, label }
 }
 
 /* ------------------------------------------------------------------ *
@@ -656,7 +685,14 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
   return {
     title: task.title,
     folder: showFolder ? folderDisplay(task.folder, folders) : undefined,
-    due: showDue ? dueDisplay(task, today, clock) : undefined,
+    due: !showDue
+      ? undefined
+      : task.start_date !== null &&
+          task.due_date !== null &&
+          task.start_date !== task.due_date &&
+          !rangeIsRelative(task.start_date, task.due_date, today)
+        ? dueAsDate(task, today, clock)
+        : dueDisplay(task, today, clock),
     starts: showDue ? startsLabel(task, today) : undefined,
     status: task.status,
     important: task.important,

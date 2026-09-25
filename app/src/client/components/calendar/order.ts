@@ -143,24 +143,13 @@ export interface GridRange {
  * task, a same-day pair and a pair whose deadline is on this grid all draw on
  * the due date, so nothing that was drawn before moves.
  *
- * **Then the other end, and that is the fix issue #216 was named for.** Q3C
- * now returns every task whose Schedule *overlaps* the range, so a row can
- * arrive carrying a due date that is not on this grid at all: the issue's own
- * example, a task starting 28 September and due 3 October, reaches a day or
- * week grid around 28 September that has no 3 October cell. Placing it there
- * put it in no cell, and a row in no cell is not drawn - the server had
- * finally returned the row and the screen dropped it, which is worse than the
- * absence the change set out to remove. So the chip goes on whichever end of
- * the span the grid is actually showing.
- *
- * **And where neither end is on the grid, the first day of it.** A span that
- * encloses the whole range - AC-452's single-day range inside a long span -
- * has no end to draw on and is still a row the server returned, so it takes
- * the first cell rather than none. That is the only case that invents a day
- * the task does not carry, and it is guarded by the span genuinely covering
- * the grid: a row whose Schedule misses the range entirely, which Q3C does
- * not return, keeps its own date and lands in no cell exactly as before,
- * because inventing a cell for it would draw a chip nobody's data asked for.
+ * **Otherwise the grid's day nearest the deadline, which is issue #216's fix.**
+ * Q3C returns every task whose Schedule *overlaps* the range, so a row can
+ * arrive carrying a due date that is not on this grid at all, and a row in no
+ * cell is not drawn. A span running past the grid's last day draws on that
+ * last day, the nearest it can get to the deadline, at every zoom; a
+ * start-only task draws on its start. So a week, a month and a day never put
+ * one task on opposite ends of its span.
  *
  * **This is a chip and not a bar.** 9.5's continuous bar from Start through
  * Due, split into weekly segments, is still unbuilt; what this guarantees is
@@ -172,10 +161,14 @@ function cellDateOf(task: TaskCard, range: GridRange): string {
     date >= range.start && date <= range.end
   const { start_date: start, due_date: due } = task
   if (due !== null && inRange(due)) return due
-  if (start !== null && inRange(start)) return start
-  if (start !== null && due !== null && start <= range.start && due >= range.end) {
-    return range.start
+  /* One rule at every zoom: the due day, or the day of this grid nearest it
+     that the span covers. A week that ends before the deadline draws the
+     chip on its last day, not on the start, so the week and the month put
+     it on the same side of the span. */
+  if (start !== null && due !== null && due > range.end && start <= range.end) {
+    return range.end
   }
+  if (start !== null && inRange(start)) return start
   /* Q3C admits no row without a date, so the last fallback keeps the shape
      total rather than asserting it; such a row lands in no cell. */
   return due ?? start ?? ''
