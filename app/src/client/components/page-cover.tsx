@@ -240,9 +240,11 @@ export function AddCoverAction({
       }
       className={cn(
         "-ml-1.5 text-quiet-foreground hover:text-muted-foreground",
-        /* A touch screen has no hover to reveal it by, so it appears once the
-           page's heading is in use (its icon, title or menu tapped). */
-        "[@media(hover:none)]:hidden [@media(hover:none)]:group-focus-within/head:flex",
+        /* A touch screen has no hover to reveal it by, so it appears while the
+           title is being edited. Not on any focus in the heading: appearing on
+           a tap's pointerdown pushes the row down, and the tap's click (Share)
+           then lands on the line above. */
+        "[@media(hover:none)]:hidden [@media(hover:none)]:group-has-[textarea:focus]/head:flex",
       )}
     >
       <ImageIcon aria-hidden="true" />
