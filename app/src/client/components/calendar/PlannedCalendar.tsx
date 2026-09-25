@@ -456,7 +456,8 @@ export function PlannedCalendar({
   /*
   The grid scrolls today's row into view once, on arrival, and the person takes
   it from there; otherwise a month opened on its last day would show today three
-  weeks below the fold.
+  weeks below the fold. "nearest" moves only as far as it must, so a today that
+  is already in view keeps the page's title and View menu on screen too.
   */
   const grid = useRef<HTMLDivElement>(null)
   const scrolled = useRef(false)
@@ -465,7 +466,7 @@ export function PlannedCalendar({
     const cell = grid.current?.querySelector('[data-today="true"]')
     if (cell === null || cell === undefined) return
     scrolled.current = true
-    cell.scrollIntoView({ block: 'center' })
+    cell.scrollIntoView({ block: 'nearest' })
   }, [view.data])
 
   const cells = useMemo(

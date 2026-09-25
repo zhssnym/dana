@@ -165,6 +165,7 @@ export function PlaceControls({
       filter={place.filter}
       labels={place.labels}
       onChange={place.setFilter}
+      {...(place.spine.ownOrder === undefined ? {} : { ownOrder: place.spine.ownOrder })}
     />
       )}
     </>

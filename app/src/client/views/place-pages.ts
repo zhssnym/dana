@@ -52,6 +52,11 @@ export interface PlaceSpine {
   readonly capture: CaptureKind
   /** What a board groups by when Group by is the page's own arrangement. */
   readonly boardAxis: Exclude<GroupBy, 'none'>
+  /**
+   * The Sort menu's name for the page's own order where its rows cannot be
+   * dragged into a hand order: "Manual" would promise one. Absent: "Manual".
+   */
+  readonly ownOrder?: string
 }
 
 const LIST_AND_BOARD: readonly ViewMode[] = ['list', 'board']
@@ -71,6 +76,7 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     completed: true,
     capture: 'inline',
     boardAxis: 'folder',
+    ownOrder: 'Default',
   },
   scheduled: {
     key: 'scheduled',
@@ -85,6 +91,7 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     completed: true,
     capture: 'inline',
     boardAxis: 'folder',
+    ownOrder: 'Default',
   },
   assignments: {
     key: 'assignments',
@@ -99,6 +106,7 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     completed: true,
     capture: 'inline',
     boardAxis: 'person',
+    ownOrder: 'Default',
   },
   /*
   The folder page. Its name, path and capture are placeholders: it draws its own
@@ -142,6 +150,7 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     completed: false,
     capture: 'none',
     boardAxis: 'folder',
+    ownOrder: 'Default',
   },
 }
 
