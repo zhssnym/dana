@@ -20,7 +20,7 @@ import { cn } from "./ui/utils.js"
 
 export interface TaskMetaProps {
   readonly due?: { readonly label: string; readonly overdue?: boolean }
-  /** The Schedule's start where it is not the due day: "Starts 24 Sep" alone, "24 Sep – Fri" with a due date. */
+  /** The Schedule's start where it is not the due day: "24 Sep – Fri" with a due date; alone, the whole phrase ("Started yesterday", "Starts Mon"). */
   readonly starts?: string
   /** Late is not coloured where the list already says every row is late. */
   readonly overdueGiven?: boolean
@@ -51,7 +51,7 @@ export function TaskMeta({ due, starts, overdueGiven, steps, recurrence, extras,
             </span>
           </span>
         ) : starts === undefined ? null : (
-          <span className="shrink-0 whitespace-nowrap tabular-nums">Starts {starts}</span>
+          <span className="shrink-0 whitespace-nowrap tabular-nums">{starts}</span>
         )}
         {extras}
         {steps && steps.total > 0 ? (

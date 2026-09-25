@@ -4,11 +4,11 @@ Today, at /app/today: 6 Q1's open list, carried-over work first, then the
 Show completed is on. A grouping from the View menu replaces the groups.
 
 The "Today" group only holds what is due today (or undated) and not yet
-started. Every started task (a start date today or earlier) is under "In
-progress", the one name the Board and Linear give it, whether or not it has a
-due date and whether or not it was carried over; "Carried over" keeps only
-what arrived before today and has not started. A row here although its date is later and not started says why:
-"Added to Today" when the person pulled it in.
+started. A started task (a start date today or earlier) that is not overdue is
+under "In progress", the one name the Board and Linear give it; an overdue task
+is under "Carried over" at the top whether or not it has started, as Upcoming
+keeps it under "Overdue". A row here although its date is later and not
+started says why: "Added to Today" when the person pulled it in.
 */
 import type { TaskCard } from '../../shared/tasks.js'
 
@@ -61,22 +61,27 @@ export function TodayPage(): React.JSX.Element {
 
   const total = open.length + recap.length
 
-  /* Why each row is here. A started task is "In progress" whatever day it
-     arrived (AC-1010): a range begun last week is work under way, not work
-     left over. "Carried over" keeps what arrived earlier and has not started.
+  /* Why each row is here. Overdue work is "Carried over", started or not, so
+     a late task stays at the top as Upcoming keeps it under "Overdue". Started
+     work that is not late is "In progress" (AC-1010): a range begun last week
+     and due Friday is under way, not left over.
      #208: a Label narrowing empties a heading's rows; the heading goes too. */
+  const late = (task: TaskCard): boolean => task.due_date !== null && task.due_date < place.today
+  const underWay = (task: TaskCard): boolean =>
+    stageOf(task, place.today) === 'present' && !late(task)
   const carriedShown: TaskCard[] = []
   const dueToday: TaskCard[] = []
   const started: TaskCard[] = []
   const added: TaskCard[] = []
   for (const task of carried) {
     if (!wearsLabel(task, place.filter.label)) continue
-    if (stageOf(task, place.today) === 'present') started.push(task)
+    if (underWay(task)) started.push(task)
     else carriedShown.push(task)
   }
   for (const task of today) {
     if (!wearsLabel(task, place.filter.label)) continue
-    if (stageOf(task, place.today) === 'present') started.push(task)
+    if (underWay(task)) started.push(task)
+    else if (late(task)) carriedShown.push(task)
     else if (task.due_date === null || task.due_date <= place.today) dueToday.push(task)
     else added.push(task)
   }

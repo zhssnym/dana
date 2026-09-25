@@ -454,10 +454,11 @@ export function PlannedCalendar({
   const folders = useFolders()
   const update = useUpdateTask()
   /*
-  The grid scrolls today's row into view once, on arrival, and the person takes
-  it from there; otherwise a month opened on its last day would show today three
-  weeks below the fold. "nearest" moves only as far as it must, so a today that
-  is already in view keeps the page's title and View menu on screen too.
+  The grid brings today's row up once, on arrival, and the person takes it from
+  there; otherwise a month opened on its last day would show today three weeks
+  below the fold. It moves only as far as today's row needs, and never so far
+  that the page's title, its View menu or the month bar leave the screen: on a
+  short screen today's row shows its top edge rather than hiding the controls.
   */
   const grid = useRef<HTMLDivElement>(null)
   const scrolled = useRef(false)
@@ -466,7 +467,15 @@ export function PlannedCalendar({
     const cell = grid.current?.querySelector('[data-today="true"]')
     if (cell === null || cell === undefined) return
     scrolled.current = true
-    cell.scrollIntoView({ block: 'nearest' })
+    const scroller = cell.closest('[data-shell-scroll]')
+    if (scroller === null) return
+    const frame = scroller.getBoundingClientRect()
+    const below = cell.getBoundingClientRect().bottom - frame.bottom
+    if (below <= 0) return
+    const title = scroller.querySelector('h1')
+    const room = title === null ? 0 : title.getBoundingClientRect().top - frame.top
+    const by = Math.min(below, Math.max(0, room))
+    if (by > 0) scroller.scrollBy({ top: by })
   }, [view.data])
 
   const cells = useMemo(

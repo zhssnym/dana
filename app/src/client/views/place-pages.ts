@@ -29,7 +29,10 @@ export type PlaceKey =
 /** Where a page's always-visible capture point is, or that it has none. */
 export type CaptureKind = 'inline' | 'none'
 
-/** One Group by choice. `none` is the page's own arrangement, named for it. */
+/**
+ * One Group by choice. `none` is the page's own arrangement: "Default" on every
+ * Focus list, as Sort names its own order, so one word means one thing.
+ */
 export interface GroupChoice {
   readonly value: GroupBy
   readonly label: string
@@ -70,7 +73,7 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     views: ['list'],
     groups: [
       /* Today's own groups: Carried over, Today, In progress, Added to Today. */
-      { value: 'none', label: 'When' },
+      { value: 'none', label: 'Default' },
       { value: 'folder', label: 'Page' },
     ],
     completed: true,
@@ -85,7 +88,8 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     icon: CalendarDays,
     views: ['list', 'calendar'],
     groups: [
-      { value: 'none', label: 'Date' },
+      /* Upcoming's own groups: the date ladder (Overdue, In progress, Today, ...). */
+      { value: 'none', label: 'Default' },
       { value: 'folder', label: 'Page' },
     ],
     completed: true,
@@ -100,7 +104,8 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     icon: UserRoundCheck,
     views: LIST_AND_BOARD,
     groups: [
-      { value: 'none', label: 'Person' },
+      /* Assigned's own groups: one per person. */
+      { value: 'none', label: 'Default' },
       { value: 'folder', label: 'Page' },
     ],
     completed: true,
@@ -142,7 +147,8 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     icon: Layers3,
     views: LIST_AND_BOARD,
     groups: [
-      { value: 'none', label: 'None' },
+      /* An added list's own arrangement is one plain list. */
+      { value: 'none', label: 'Default' },
       { value: 'folder', label: 'Page' },
       { value: 'person', label: 'Person' },
       { value: 'date', label: 'Date' },
