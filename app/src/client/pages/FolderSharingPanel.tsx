@@ -156,6 +156,9 @@ export function FolderSharingPanel({
     setActive(-1)
     // A page invite must name its Access; folderInviteBody says which.
     invite.mutate(folderInviteBody(target, folder.id, inviteAccess))
+    // Each invite starts from the default again, so a Full control pick
+    // never carries over to the next person unasked.
+    setInviteAccess(DEFAULT_INVITE_ACCESS)
   }
 
   /* Remove someone else, after 9.6's confirm; `after` runs once confirmed. */
@@ -224,8 +227,8 @@ export function FolderSharingPanel({
             ) : (
             <>
             {mayShare ? (
-              <div className="mb-[var(--space-group)] flex gap-[var(--space-inline)] px-2">
-                <div className="relative min-w-0 flex-1">
+              <div className="mb-[var(--space-group)] flex flex-wrap gap-[var(--space-inline)] px-2 sm:flex-nowrap">
+                <div className="relative min-w-0 basis-full sm:flex-1 sm:basis-auto">
                   <Input
                     role="combobox"
                     aria-label={NAME_OR_EMAIL}

@@ -139,6 +139,7 @@ import { folderLink } from '../lib/nav-links.js'
 import {
   eligibleSuccessors,
   folderGates,
+  mayDraw,
   otherMembers,
   viewerFacts,
 } from '../lib/folder-authority.js'
@@ -495,11 +496,14 @@ export function FolderPage({
      choice the server answers 422. */
   const successors = eligibleSuccessors(members, basis.viewerId)
   /* Who the transfer goes to: the pick while they still qualify, or the only
-     candidate when there is one. A pick that lost Full control on a refetch
-     falls away rather than leaving the button live over nothing. */
+     candidate when nothing has been picked yet. A pick that lost Full control
+     on a refetch leaves nothing selected; it never falls onto someone else. */
   const heir =
-    successors.find((member) => member.user.id === transferTo) ??
-    (successors.length === 1 ? successors[0] : undefined)
+    transferTo === null
+      ? successors.length === 1
+        ? successors[0]
+        : undefined
+      : successors.find((member) => member.user.id === transferTo)
   /* Everybody else in the folder, which is a different question and the one
      the owner's delete dialog asks: somebody to hand it to is not the same as
      somebody who is in it. */
@@ -942,7 +946,11 @@ export function FolderPage({
             setSharing(!sharing)
           }}
         >
-          Share
+          {/* The word matches the panel's title: a member who can add
+              nobody opens a list of members, not a share. */}
+          {facts !== null && !mayDraw(facts, 'member.add') && !mayDraw(facts, 'invite.create')
+            ? 'Members'
+            : 'Share'}
         </Button>
       )}
       {/*
