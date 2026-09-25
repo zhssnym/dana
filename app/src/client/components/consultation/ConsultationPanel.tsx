@@ -35,6 +35,8 @@ export function ConsultationPanel({
   const [search, setSearch] = useSearchParams()
   const discussionId = search.get('discussion')
   const [started, setStarted] = useState<string | null>(null)
+  /* The thread last left, whose row takes focus when the list returns. */
+  const [left, setLeft] = useState<string | null>(null)
   /* The page's members, so no two of them wear one face here (r7). */
   const members = useFolder(folderId).data?.members ?? []
   const tab = useFolderFacets(folderId).data?.facets.find((facet) => facet.kind === 'consultation')
@@ -79,6 +81,7 @@ export function ConsultationPanel({
           folderId={folderId}
           viewer={viewer}
           personOf={personOf}
+          returnTo={left}
           onOpen={(id) => { open(id) }}
           onStarted={(id) => {
             setStarted(id)
@@ -93,7 +96,10 @@ export function ConsultationPanel({
           viewer={viewer}
           personOf={personOf}
           justStarted={started === discussionId}
-          onBack={() => { open(null) }}
+          onBack={() => {
+            setLeft(discussionId)
+            open(null)
+          }}
         />
       )}
     </div>

@@ -506,7 +506,8 @@ export function ThreadPosts({
 
       {deleting !== null ? (
         <ConfirmDialog
-          message="Delete this post? This cannot be undone."
+          message="Delete this post?"
+          description="This cannot be undone."
           confirmLabel="Delete"
           onCancel={() => { setDeleting(null) }}
           onContinue={() => {
