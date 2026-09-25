@@ -271,7 +271,9 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     const image = byKey('image')
     const file = byKey('file')
     // Upstream's items open the file panel on the new block (`CanvasFilePanel`).
-    if (image !== undefined) add('Media', 'Image', ['img', 'image', 'picture', 'photo'], () => { image.onItemClick() }, glyph(ImageIcon))
+    // Media is one command (#220): an empty image block whose chosen file
+    // decides image, audio or video. File is the generic attachment.
+    if (image !== undefined) add('Media', 'Media', ['media', 'img', 'image', 'picture', 'photo', 'audio', 'sound', 'music', 'video', 'movie'], () => { image.onItemClick() }, glyph(ImageIcon))
     if (file !== undefined) add('Media', 'File', ['file', 'attachment', 'upload', 'document'], () => { file.onItemClick() }, glyph(FileText))
   }
 
