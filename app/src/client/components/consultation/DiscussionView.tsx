@@ -209,7 +209,7 @@ function ThreadBody(props: {
         {renaming ? (
           <Rename discussion={d} onDone={() => { setRenaming(false) }} />
         ) : (
-          <h1 className="min-w-0 flex-1 truncate text-[length:var(--text-title-size)] leading-8 font-title text-foreground max-md:line-clamp-2 max-md:whitespace-normal">{d.title}</h1>
+          <h1 data-page-title="" className="min-w-0 flex-1 truncate text-[length:var(--text-title-size)] leading-8 font-title text-foreground max-md:line-clamp-2 max-md:whitespace-normal">{d.title}</h1>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-1">
           {resolvable && !closing ? (

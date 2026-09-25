@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { BlockNoteView } from '@blocknote/shadcn'
 import {
   FilePanelController, FormattingToolbarController, SideMenuController,
@@ -201,7 +201,32 @@ export function CanvasSurface({
   content (then nothing happens, so a Section never dissolves by accident);
   text merges (BlockNote's).
   */
+  /*
+  WCAG 2.1.2: Tab is a writing key only once you are writing. Focus that
+  arrives by Tab (from the view switch, or back by Shift-Tab) is passing
+  through: the next Tab or Shift-Tab moves on as it does anywhere else, and
+  nests nothing. A click or any other key in the text means you are writing,
+  and Tab nests again (Notion). Each arrival in the text decides afresh.
+  */
+  const writing = useRef(false)
+  const tabbed = useRef(false)
+  useEffect(() => {
+    const note = (event: KeyboardEvent): void => { tabbed.current = event.key === 'Tab' }
+    document.addEventListener('keydown', note, true)
+    return () => document.removeEventListener('keydown', note, true)
+  }, [])
+  const onFocusCapture = (event: React.FocusEvent): void => {
+    if (event.target !== editor.domElement || editor.domElement.contains(event.relatedTarget as Node | null)) return
+    writing.current = !tabbed.current
+  }
+
   const onKeyDownCapture = (event: React.KeyboardEvent): void => {
+    if (event.key === 'Tab' && !event.metaKey && !event.ctrlKey && !event.altKey && event.target === editor.domElement && !writing.current) {
+      // Passing through: the browser's Tab, with no editor behind it.
+      event.stopPropagation()
+      return
+    }
+    if (!['Tab', 'Shift', 'Escape'].includes(event.key)) writing.current = true
     if (event.metaKey || event.ctrlKey || event.altKey) return
     const { selection } = editor.prosemirrorState
     if (!selection.empty || editor.domElement === undefined || !editor.domElement.contains(event.target as Node)) return
@@ -211,8 +236,7 @@ export function CanvasSurface({
     const inList = LIST_TYPES.has(block.type) && parent !== undefined && !isSectionHeading(parent)
     if (event.key === 'Tab' && !event.shiftKey) {
       // Tab nests only when typed into the text itself. On a link or chip
-      // inside the page (its own focus stop) it is the browser's Tab, so the
-      // keys can always walk on past the canvas.
+      // inside the page (its own focus stop) it is the browser's Tab.
       if (event.target !== editor.domElement || block.type === 'codeBlock') return
       const next = simulateNest(editor.document as unknown as TreeBlock[], block.id)
       if (next === null || !admits(next)) stop()
@@ -259,6 +283,8 @@ export function CanvasSurface({
     <BlockSelectionStyle editor={editor} scope={scope} />
     <div
       onKeyDownCapture={onKeyDownCapture}
+      onFocusCapture={onFocusCapture}
+      onMouseDownCapture={() => { writing.current = true }}
       className={`dana-writing-canvas ${scope} min-w-0`}
       style={placeholder === undefined ? undefined : ({ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties)}
     >

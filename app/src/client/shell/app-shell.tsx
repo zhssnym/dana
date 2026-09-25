@@ -279,7 +279,7 @@ function usePageTitle(region: HTMLElement | null): void {
   useEffect(() => {
     if (region === null) return undefined
     const name = (): void => {
-      const marked = region.querySelector('[data-page-title]')
+      const marked = shownTitle(region)
       const heading = (marked?.getAttribute('data-page-title') || marked?.textContent || '').trim()
       const next = heading ? `${heading} – Dana` : 'Dana'
       if (document.title !== next) document.title = next
@@ -294,6 +294,15 @@ function usePageTitle(region: HTMLElement | null): void {
   }, [region])
 }
 
+/* The page's name as drawn: a thread view keeps the folder head mounted but
+   hidden, and a hidden element takes no focus and names nothing on screen. */
+function shownTitle(region: HTMLElement): HTMLElement | null {
+  for (const marked of region.querySelectorAll<HTMLElement>('[data-page-title]')) {
+    if (marked.getClientRects().length > 0) return marked
+  }
+  return null
+}
+
 /*
 The skip link moves focus to the page's name (or the scroll region on a page
 without one), made focusable only for that trip: a region left focusable took
@@ -301,7 +310,8 @@ every click on blank space, and the Esc handlers that read "focus on nothing"
 as `document.body` (a Discussion thread's, the canvas's) stopped firing.
  */
 function skipTo(region: HTMLElement | null): void {
-  const target = region?.querySelector<HTMLElement>('h1[data-page-title]') ?? region
+  const title = region === null ? null : shownTitle(region)
+  const target = title instanceof HTMLHeadingElement ? title : region
   if (target === null || target === undefined) return
   target.setAttribute('tabindex', '-1')
   target.addEventListener('blur', () => { target.removeAttribute('tabindex') }, { once: true })
