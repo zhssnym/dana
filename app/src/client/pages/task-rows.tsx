@@ -200,7 +200,9 @@ export function TaskRows({
   const rows = useMemo(
     () =>
       tasks.map((task) => {
-        const { due, ...display } = taskRowDisplay(task, context)
+        const { due, starts, ...shownDisplay } = taskRowDisplay(task, context)
+        /* Under a day's own heading the day is said; the start is not repeated. */
+        const display = given?.day === true || starts === undefined ? shownDisplay : { ...shownDisplay, starts }
         /* Under a day's own heading the row says only its time, if it has one. */
         const time = given?.day === true ? formatClockTime(task.due_time, context.clock ?? '12') : null
         const shown =

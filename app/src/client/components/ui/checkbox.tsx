@@ -10,7 +10,9 @@ looks the same wherever it is ticked.
 */
 const BOX =
   "flex size-[var(--checkbox-size)] shrink-0 items-center justify-center rounded-xs border transition-[background-color,border-color] duration-[var(--duration-fast)] ease-[var(--ease-standard)] motion-reduce:transition-none"
-const UNCHECKED = "border-border bg-background"
+/* The box edge is quiet grey rather than the hairline: at the hairline an
+   empty box measured 1.2:1 and was hard to find (WCAG 1.4.11 asks 3:1). */
+const UNCHECKED = "border-quiet-foreground bg-background"
 const CHECKED = "border-primary bg-primary"
 
 /** The tick: a 20-unit stroke retracting to nothing over --duration-base. */

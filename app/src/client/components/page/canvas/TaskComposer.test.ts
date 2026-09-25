@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 /*
 AC-996 to AC-998: the Task composer's projection and its conflict merge lose
-no writing (issue #221, the Task half).
+no writing (issue #221, the Task half). AC-1210: a pasted checklist becomes
+subtasks without losing the writing under it.
 */
 import { BlockNoteEditor } from '@blocknote/core'
 import { describe, expect, test } from 'vitest'
 
 import type { PageView } from '../../../../shared/pages.js'
 import { baselineOf, canvasOperations } from './adapters.js'
-import { dehydrateTask, hydrateTask, mergeDraft, taskSchema } from './TaskComposer.js'
+import { dehydrateTask, hydrateTask, liftChecklists, mergeDraft, taskSchema } from './TaskComposer.js'
 
 const id = (n: number): string => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const file = id(99)
@@ -103,5 +104,29 @@ describe('Task composer', () => {
       expect(texts).toContain(text)
     }
     expect(texts.indexOf('Tab B rewrote this')).toBe(texts.indexOf('Legacy line one\nLegacy line two') + 1)
+  })
+
+  test('AC-1210 a pasted checklist lifts out as subtasks in order, ticks kept, nested ones flattened, a stored to-do and the writing under an item kept', () => {
+    const editor = editorOf(stored)
+    const [first] = editor.insertBlocks([
+      { id: id(30), type: 'checkListItem', content: 'Book the room', children: [
+        { id: id(31), type: 'checkListItem', content: 'Ask Imran' },
+        { id: id(32), type: 'paragraph', content: 'kept words' },
+      ] },
+      { id: id(33), type: 'checkListItem', props: { checked: true }, content: 'Send\nthe invite' },
+      { id: id(34), type: 'checkListItem', content: '' },
+    ], id(2), 'after')
+    expect(first?.id).toBe(id(30))
+    const lifted = liftChecklists(editor.document, new Set([id(10)]))
+    expect(lifted.subtasks).toEqual([{ title: 'Book the room', done: false }, { title: 'Ask Imran', done: false }, { title: 'Send the invite', done: true }])
+    const flat = (blocks: typeof lifted.blocks): string[] => blocks.flatMap((b) => [b.id, ...flat(b.children)])
+    const ids = flat(lifted.blocks)
+    expect(ids).not.toContain(id(30))
+    expect(ids).not.toContain(id(31))
+    expect(ids).not.toContain(id(33))
+    // What was under an item stays, where the item stood; the stored to-do stays.
+    expect(ids.indexOf(id(32))).toBe(ids.indexOf(id(2)) + 1)
+    expect(ids).toContain(id(10))
+    expect(ids.length).toBe(flat(editor.document).length - 4)
   })
 })

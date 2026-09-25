@@ -1352,6 +1352,10 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
          place; a page block lives in a folder's document and names its
          child page through `ref_folder_id`. */
       { name: 'page_blocks_page_kind_check', columns: ['folder_id', 'kind', 'ref_folder_id'] },
+      /* Migration 0057 (#213): a native Result lives only in a facet
+         document, at most 4000 characters. `page_blocks_kind_check` and
+         `page_blocks_rich_content_check` gained `result` in place. */
+      { name: 'page_blocks_result_home_check', columns: ['facet_id', 'kind', 'text'] },
     ],
     foreignKeys: [
       /* Migration 0027 (#210): the third home. CASCADE because a facet's

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { BlockNoteView } from '@blocknote/shadcn'
 import {
   FilePanelController, FormattingToolbarController, SideMenuController,
@@ -66,6 +66,7 @@ export function CanvasSurface({
   placeholder,
   peopleFolderId,
   onNotice,
+  results = false,
 }: {
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
@@ -91,6 +92,8 @@ export function CanvasSurface({
   /** Where a refused gesture's sentence goes: the page's one save line
    * (`SaveFailure`), so a canvas never draws a second status line. */
   readonly onNotice: (message: string) => void
+  /** The Results tab: the slash menu offers Result (#213). */
+  readonly results?: boolean
 }): React.JSX.Element {
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light'>(pageTheme)
@@ -102,7 +105,8 @@ export function CanvasSurface({
   const slashContext = useMemo(() => ({
     surface: headingMode === 'document' ? 'document' as const : headingMode === 'none' ? 'plain' as const : flatGroups ? 'shelf' as const : 'work' as const,
     onCreateTask: onCreateTask === undefined ? undefined : () => { onCreateTask() },
-  }), [headingMode, flatGroups, onCreateTask])
+    results,
+  }), [headingMode, flatGroups, onCreateTask, results])
   useEffect(() => installCanvasGuard(editor, onNotice), [editor, onNotice])
   useEffect(() => onCreateTask ? bindTaskCommand(editor, requestTask) : undefined, [editor, onCreateTask, requestTask])
   useEffect(() => {
@@ -197,7 +201,32 @@ export function CanvasSurface({
   content (then nothing happens, so a Section never dissolves by accident);
   text merges (BlockNote's).
   */
+  /*
+  WCAG 2.1.2: Tab is a writing key only once you are writing. Focus that
+  arrives by Tab (from the view switch, or back by Shift-Tab) is passing
+  through: the next Tab or Shift-Tab moves on as it does anywhere else, and
+  nests nothing. A click or any other key in the text means you are writing,
+  and Tab nests again (Notion). Each arrival in the text decides afresh.
+  */
+  const writing = useRef(false)
+  const tabbed = useRef(false)
+  useEffect(() => {
+    const note = (event: KeyboardEvent): void => { tabbed.current = event.key === 'Tab' }
+    document.addEventListener('keydown', note, true)
+    return () => document.removeEventListener('keydown', note, true)
+  }, [])
+  const onFocusCapture = (event: React.FocusEvent): void => {
+    if (event.target !== editor.domElement || editor.domElement.contains(event.relatedTarget as Node | null)) return
+    writing.current = !tabbed.current
+  }
+
   const onKeyDownCapture = (event: React.KeyboardEvent): void => {
+    if (event.key === 'Tab' && !event.metaKey && !event.ctrlKey && !event.altKey && event.target === editor.domElement && !writing.current) {
+      // Passing through: the browser's Tab, with no editor behind it.
+      event.stopPropagation()
+      return
+    }
+    if (!['Tab', 'Shift', 'Escape'].includes(event.key)) writing.current = true
     if (event.metaKey || event.ctrlKey || event.altKey) return
     const { selection } = editor.prosemirrorState
     if (!selection.empty || editor.domElement === undefined || !editor.domElement.contains(event.target as Node)) return
@@ -206,7 +235,9 @@ export function CanvasSurface({
     const parent = editor.getParentBlock(block.id)
     const inList = LIST_TYPES.has(block.type) && parent !== undefined && !isSectionHeading(parent)
     if (event.key === 'Tab' && !event.shiftKey) {
-      if (block.type === 'codeBlock') return
+      // Tab nests only when typed into the text itself. On a link or chip
+      // inside the page (its own focus stop) it is the browser's Tab.
+      if (event.target !== editor.domElement || block.type === 'codeBlock') return
       const next = simulateNest(editor.document as unknown as TreeBlock[], block.id)
       if (next === null || !admits(next)) stop()
     } else if (event.key === 'Enter' && !event.shiftKey) {
@@ -220,6 +251,17 @@ export function CanvasSurface({
       turnBlocksInto(editor, [block.id], TURN_TARGETS[0]!, undefined)
       editor.setTextCursorPosition(block.id, 'start')
     }
+  }
+
+  /* Mod+K on selected text is the link field (BlockNote's own handler, on the
+     editor, has already opened it); it goes no further, so the app's search
+     shortcut on the document does not open over it. With no text selected,
+     Mod+K is search, as everywhere. */
+  const linkKey = (event: React.KeyboardEvent): void => {
+    if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'k' || event.shiftKey || event.altKey) return
+    if (editor.domElement === undefined || !editor.domElement.contains(event.target as Node)) return
+    if (editor.prosemirrorState.selection.empty || editor.getSelectedText() === '') return
+    event.stopPropagation()
   }
 
   // Clicking below the last block writes on: an empty last line is reused,
@@ -252,6 +294,9 @@ export function CanvasSurface({
     <BlockSelectionStyle editor={editor} scope={scope} />
     <div
       onKeyDownCapture={onKeyDownCapture}
+      onKeyDown={linkKey}
+      onFocusCapture={onFocusCapture}
+      onMouseDownCapture={() => { writing.current = true }}
       className={`dana-writing-canvas ${scope} min-w-0`}
       style={placeholder === undefined ? undefined : ({ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties)}
     >

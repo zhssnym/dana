@@ -1,344 +1,199 @@
 /*
-The Linear view: the page's Work document told as the story of the work, top
-to bottom, like a GitHub issue's timeline (round 10).
+The Linear view: the page's tasks as GitHub Issues (m2 ghissues; scratchpad
+m2/ghissues/DESIGN.md). Open and Closed tabs; Open groups the tasks by
+milestone (the page's sections) in page order, Closed lists finished and not
+planned work newest first. A row is the issue line: state mark, title, labels,
+"Opened … by …", comment count and the shared task meta (date, subtasks,
+repeat, assignee, star). Choosing a row opens the task as an issue in place
+(`?issue=<id>`, so Back returns here): `linear/IssuePage.tsx`.
 
-It is a rendering of the same document Freeform edits (`linear/document.ts`):
-a task is a step, and every block after it until the next step or section is
-that step's content, so a note, an image or a link travels with its step from
-the queue to the present and into the history. A section is a milestone.
-Nothing is moved when a step starts or finishes; the view regroups.
-
-- **Past** - finished steps in the order they were finished, quiet, each with
-  its content in one line. The last three show; "Show n earlier" opens the rest.
-- **Present** - every step in progress. One is open as the working area (the
-  viewer's last choice, kept per page in this browser): its subtasks, its
-  content, and an input that adds to it. The others are one line and their
-  latest note; clicking one opens it there.
-- **Future** - the queue by milestone. "Start" moves a step into the present.
-
-Only steps have a box, and the box is the only control on the line: it
-completes, reopens, or finishes a queued step early. The line is solid where
-the work has reached and dashed through what has not started. The end of the
-line adds a step, or with "/" text, an image, a link or a milestone.
-Clicking a title opens the task. The stage rule and each part's order are
-shared with the Board (`linear/stage.ts`).
+Keys are the rows' shared contract (`row-keys.ts`): arrows move, Enter opens,
+Space closes or reopens. Each milestone ends with a line that adds a task to
+it; the last line adds one outside every milestone, or with "/" a milestone.
 */
 import { useMemo, useState } from 'react'
-import { useAddStep, useUpdateTask } from '../api/mutations.js'
+import { useSearchParams } from 'react-router'
+
+import { useWearFilterLabel } from '../api/labels.js'
 import { useFolderCompletedTasks, mergeCompletedDays } from '../api/queries.js'
-import { uploadFile } from '../api/http.js'
+import { Tabs } from '../components/ui/tabs.js'
 import { cn } from '../components/ui/utils.js'
 import { taskRowDisplay } from '../parts/presenters.js'
 import { RowMeta } from '../components/task-meta.js'
-import { formatDay, formatDayInline } from '../lib/dates.js'
+import { formatDayInline } from '../lib/dates.js'
+import { agoFor } from '../lib/history.js'
 import { useRowKeys } from '../components/row-keys.js'
-import { Subtasks } from './linear/Subtasks.js'
-import { LineContent } from './linear/Content.js'
 import { Composer } from './linear/Composer.js'
-import { segment, useLineWriter } from './linear/document.js'
-import type { NewBlock } from './linear/document.js'
-import { futureMilestones, pageRank, pastOrder, presentOrder, startDay } from './linear/stage.js'
-import type { Milestone } from './linear/stage.js'
-import styles from './LinearView.module.css'
+import { useLineWriter } from './linear/document.js'
+import { IssuePage } from './linear/IssuePage.js'
+import { CommentCount, LabelChip, StateMark } from './linear/IssueParts.js'
+import { issueState, labelsOf, openGroups, STATE_WORD, useCommentCounts, usePeople } from './linear/issues.js'
+import { wearsLabel } from './filter.js'
 import type { RowContext } from '../parts/presenters.js'
 import type { RowActions } from '../parts/useRowActions.js'
-import type { PageBlock, PageView } from '../../shared/pages.js'
+import type { PageView } from '../../shared/pages.js'
 import type { TaskCard } from '../../shared/tasks.js'
 
 const MOTION = 'duration-[var(--duration-base)] ease-[var(--ease-standard)] motion-reduce:transition-none'
-const PAST_TAIL = 3
 const QUIET_ACTION =
   'h-6 shrink-0 rounded-sm px-1.5 text-xs text-muted-foreground transition-[background-color,color] hover:bg-muted hover:text-foreground'
-/* Drawn only while the step is pointed at or worked in, so a hidden action
-   never takes width from the title; always drawn on touch, which has no hover. */
-const ON_HOVER =
-  'hidden group-hover/step:inline-flex group-focus-within/step:inline-flex [@media(hover:none)]:inline-flex'
-const ROW = cn(
-  'relative flex min-h-[var(--row-height)] items-center gap-2 rounded-md pr-1.5 transition-colors hover:bg-muted/60',
-  MOTION,
-)
 
-/* The open step in progress, per page, in this browser only. A new key. */
-const EXPANDED_KEY = 'dana.linear.expanded'
-function readExpanded(folderId: string): string | null {
-  try {
-    const map = JSON.parse(localStorage.getItem(EXPANDED_KEY) ?? '{}') as Record<string, unknown>
-    const id = map[folderId]
-    return typeof id === 'string' ? id : null
-  } catch {
-    return null
-  }
-}
-function writeExpanded(folderId: string, taskId: string): void {
-  try {
-    const map = JSON.parse(localStorage.getItem(EXPANDED_KEY) ?? '{}') as Record<string, unknown>
-    localStorage.setItem(EXPANDED_KEY, JSON.stringify({ ...map, [folderId]: taskId }))
-  } catch {
-    /* Remembering is a convenience; the first step in progress opens instead. */
-  }
-}
-
-/** Whether the work has reached a stretch of the line. */
-type Reach = 'reached' | 'ahead'
-
-function Line(props: { readonly above: Reach | null; readonly below: Reach | null }): React.JSX.Element {
-  const part = (reach: Reach | null, place: string): React.JSX.Element | null =>
-    reach === null ? null : (
-      <span
-        aria-hidden
-        className={cn(
-          'pointer-events-none absolute left-3 w-0.5 -translate-x-1/2',
-          place,
-          reach === 'reached' ? 'bg-border' : styles.loose,
-        )}
-      />
-    )
-  return (
-    <>
-      {part(props.above, 'top-0 h-4')}
-      {part(props.below, 'top-4 bottom-0')}
-    </>
-  )
-}
-
-type BoxState = 'future' | 'present' | 'done' | 'abandoned'
-
-/** A step's box on the line: the only control the line has. */
-function StepBox(props: {
-  readonly state: BoxState
-  readonly label: string
-  readonly animate?: boolean
-  readonly onClick: () => void
-}): React.JSX.Element {
-  const { state } = props
-  return (
-    <button
-      type="button"
-      aria-label={props.label}
-      data-box={state}
-      onClick={(event) => {
-        event.stopPropagation()
-        props.onClick()
-      }}
-      className="group/box relative flex size-6 shrink-0 items-center justify-center rounded-sm"
-    >
-      <span
-        aria-hidden
-        className={cn(
-          'flex size-4 items-center justify-center rounded-sm border-[1.5px] transition-[background-color,border-color]',
-          MOTION,
-          state === 'future' && 'border-quiet-foreground bg-background group-hover/box:border-muted-foreground',
-          state === 'present' && 'border-primary bg-background group-hover/box:bg-primary/15',
-          state === 'done' && 'border-muted-foreground bg-muted-foreground',
-          state === 'abandoned' && 'border-quiet-foreground bg-background',
-        )}
-      >
-        {state === 'done' && (
-          <svg viewBox="0 0 12 12" className="size-2.5 text-background">
-            <path d="M2.5 6.2 5 8.6 9.6 3.6" pathLength={1} className={cn(styles.check, props.animate && styles.drawn)} />
-          </svg>
-        )}
-        {state === 'abandoned' && <span className="h-0.5 w-2 rounded-full bg-quiet-foreground" />}
-      </span>
-    </button>
-  )
-}
+type Tab = 'open' | 'closed'
 
 export function LinearView(props: {
   readonly folderId: string
   readonly page: PageView
   readonly tasks: readonly TaskCard[]
+  /* Every finished task: a milestone they close stays closed whatever the
+     Label filter is. Only the Closed list is narrowed to `label`. */
   readonly completed: readonly TaskCard[]
+  /* The Label filter's choice, which a task added here is given too. */
+  readonly label: string | null
   readonly showCompleted: boolean
   readonly today: string
   readonly context: RowContext
   readonly actions: RowActions
 }): React.JSX.Element {
-  const { folderId, page, tasks, completed, showCompleted, today, context, actions } = props
-  const update = useUpdateTask()
-  const addSubtask = useAddStep()
+  const { folderId, page, tasks, completed, label, today, context, actions } = props
+  const wearFilterLabel = useWearFilterLabel(folderId)
+  const [search, setSearch] = useSearchParams()
+  const issueId = search.get('issue')
+  const [tab, setTab] = useState<Tab>('open')
   const writer = useLineWriter(folderId)
-  /* The page reads the same query; here it is read for its days and pages. */
   const done = useFolderCompletedTasks(folderId, true)
-  const [pastOpen, setPastOpen] = useState(false)
-  const [opened, setOpened] = useState<ReadonlyMap<string, boolean>>(new Map())
-  const [doneAtOpen] = useState(() => new Set(completed.map((t) => t.id)))
-  const [chosen, setChosen] = useState<string | null>(() => readExpanded(folderId))
-
-  const rank = useMemo(() => pageRank(page), [page])
-  const line = useMemo(() => segment(page), [page])
-  const contentOf = (taskId: string): readonly PageBlock[] => line.contentOf.get(taskId) ?? []
-  const hasIntro = line.intro.length > 0
-  /* One Tab stop for the view; arrows move, Enter opens, Space completes. */
+  const counts = useCommentCounts(folderId)
+  const person = usePeople(folderId)
   const keys = useRowKeys<HTMLDivElement>()
 
-  /* Past, oldest first, so the story runs down into the present. The same
-     order the Board's Done column uses. */
-  const past = useMemo(() => {
-    const finished: { task: TaskCard; date: string | null }[] = []
+  const openIssue = (task: Pick<TaskCard, 'id'>): void => {
+    setSearch((current) => {
+      const next = new URLSearchParams(current)
+      next.set('issue', task.id)
+      return next
+    })
+  }
+  const closeIssue = (): void => {
+    setSearch((current) => {
+      const next = new URLSearchParams(current)
+      next.delete('issue')
+      return next
+    })
+  }
+
+  /* Closed, newest first: finished work by the day it was finished, with not
+     planned work (which has no finishing day) placed by its last change. The
+     days come from the query; which finished tasks are listed is `completed`
+     narrowed to the chosen Label, while every one still closes its milestone. */
+  const allClosed = useMemo(() => {
+    const rows: { task: TaskCard; day: string; date: string | null }[] = []
+    const seen = new Set<string>()
     for (const day of mergeCompletedDays(done.data?.pages)) {
-      for (const task of day.rows) finished.push({ task, date: day.date })
+      for (const task of day.rows) {
+        if (seen.has(task.id)) continue
+        seen.add(task.id)
+        rows.push({ task, day: day.date, date: day.date })
+      }
     }
-    const abandoned = tasks.filter((task) => task.status === 'abandoned').map((task) => ({ task, date: null }))
-    return pastOrder(finished, abandoned)
+    for (const task of tasks) {
+      if (task.status !== 'abandoned' || seen.has(task.id)) continue
+      rows.push({ task, day: task.updated_at.slice(0, 10), date: null })
+    }
+    return rows.sort((a, b) => b.day.localeCompare(a.day) || b.task.updated_at.localeCompare(a.task.updated_at))
   }, [done.data, tasks])
+  const closed = useMemo(() => {
+    const kept = new Set(completed.filter((task) => wearsLabel(task, label)).map((task) => task.id))
+    return allClosed.filter((row) => row.date === null || kept.has(row.task.id))
+  }, [allClosed, completed, label])
+  const closedTasks = useMemo(() => allClosed.map((row) => row.task), [allClosed])
+  const groups = useMemo(() => openGroups(page, tasks, closedTasks), [page, tasks, closedTasks])
 
-  const present = useMemo(() => presentOrder(tasks, today, rank), [tasks, today, rank])
-  const future = useMemo(
-    () => futureMilestones(page, tasks, completed, today, rank),
-    [page, tasks, completed, today, rank],
-  )
-  const expandedId = present.some((task) => task.id === chosen) ? chosen : (present[0]?.id ?? null)
-  const expand = (taskId: string): void => {
-    setChosen(taskId)
-    writeExpanded(folderId, taskId)
-  }
-
-  const firstMilestone =
-    future.find((g) => g.id !== null && g.tasks.length > 0)?.id ?? future.find((g) => g.id !== null)?.id
-  const isOpen = (group: Milestone): boolean =>
-    group.id === null || (opened.get(group.id) ?? group.id === firstMilestone)
-  const nextId = future.find((g) => isOpen(g) && g.tasks.length > 0)?.tasks[0]?.id
-
-  const rowContext: RowContext = { ...context, today }
-  const start = (task: TaskCard): void => {
-    update.mutate({ id: task.id, body: { start_date: startDay(task, today) } })
-    expand(task.id)
-  }
-  const unstart = (task: TaskCard): void => {
-    update.mutate({ id: task.id, body: { start_date: null } })
-  }
-  const add = (after: string | null, block: NewBlock): void => {
-    void writer.write({ op: 'add_block', after, block })
-  }
-  const addImage = (after: string | null, file: File): void => {
-    void uploadFile('image', folderId, file).then((uploaded) => add(after, { kind: 'image', fileId: uploaded.id }))
-  }
-  const editText = (id: string, text: string): void => {
-    void writer.write({ op: 'edit_text', id, text })
-  }
-  const remove = (id: string): void => {
-    void writer.write({ op: 'remove_block', id })
-  }
-
-  const shownPast = pastOpen ? past : past.slice(-PAST_TAIL)
-  const earlier = past.length - shownPast.length
-  const showEarlier = earlier > 0 || (pastOpen && done.hasNextPage)
-  /* "Show completed" off hides the past; the story starts at the present. */
-  const hasPast = showCompleted && past.length > 0
-  const hasPresent = present.length > 0
-
-  /* The one task meta line every view draws (date, subtasks, repeat, star). */
-  const meta = (task: TaskCard): React.JSX.Element => {
-    const { steps, ...display } = taskRowDisplay(task, rowContext)
+  if (issueId !== null) {
     return (
-      <RowMeta
-        className="shrink-0 pl-1"
-        source={{
-          ...display,
-          ...(steps === undefined ? {} : { steps: { done: steps.complete, total: steps.total } }),
-        }}
-        onToggleImportant={() => actions.onToggleImportant(task)}
+      <IssuePage
+        key={issueId}
+        taskId={issueId}
+        folderId={folderId}
+        page={page}
+        today={today}
+        actions={actions}
+        onBack={closeIssue}
       />
     )
   }
 
-  /* A title opens the task (renaming is done there). It takes only its own
-     width, so the rest of a step in progress can open it here. */
-  const title = (task: TaskCard, className: string): React.JSX.Element => (
-    <span className="flex min-w-0 flex-1">
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation()
-          actions.onOpenTask(task)
-        }}
-        className={cn('h-7 min-w-0 truncate rounded-sm px-1.5 text-left text-sm', className)}
-      >
-        {task.title}
-      </button>
-    </span>
-  )
+  const rowContext: RowContext = { ...context, today }
+  const toggle = (task: TaskCard): void =>
+    task.status === 'abandoned' ? actions.onRestore(task) : actions.onToggleComplete(task)
 
-  /* A row's keyboard contract (`row-keys.ts`), and `data-task-id` so the peek
-     steps through the rows in the order drawn here. Enter opens the task
-     unless the row says otherwise; `s` starts a queued step. */
-  const rowKeys = (task: TaskCard, complete: () => void, extra?: { onEnter?: () => void; onStart?: () => void }) => ({
-    'data-row-key': '',
-    'data-task-id': task.id,
-    onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
-      if (event.target !== event.currentTarget) return
-      if (event.key === 'Enter') {
-        event.preventDefault()
-        if (extra?.onEnter) extra.onEnter()
-        else actions.onOpenTask(task)
-      } else if (event.key === ' ') {
-        event.preventDefault()
-        complete()
-      } else if (event.key === 's' && extra?.onStart !== undefined) {
-        event.preventDefault()
-        extra.onStart()
-      }
-    },
-  })
+  const byline = (task: TaskCard, date: string | null): string => {
+    const state = issueState(task)
+    if (state === 'completed') return date === null ? 'Closed' : `Closed ${formatDayInline(date, today)}`
+    if (state === 'not-planned') return `Closed as not planned ${agoFor(Date.parse(task.updated_at))}`
+    const who = task.created_by === null ? '' : ` by ${person(task.created_by.id).name}`
+    return `Opened ${agoFor(Date.parse(task.created_at))}${who}`
+  }
 
-  const presentStep = (task: TaskCard, index: number): React.JSX.Element => {
-    const above: Reach | null = index === 0 && !hasPast && !hasIntro ? null : 'reached'
-    const below: Reach = index < present.length - 1 ? 'reached' : 'ahead'
-    const complete = (): void => actions.onToggleComplete(task)
-    if (task.id !== expandedId) {
-      return (
-        <li key={task.id} aria-current="step" className="group/step group/row relative">
-          <Line above={above} below={below} />
-          <div
-            {...rowKeys(task, complete, { onEnter: () => expand(task.id) })}
-            onClick={() => expand(task.id)}
-            className={cn(ROW, 'cursor-pointer')}
-          >
-            <StepBox state="present" label={`Complete ${task.title}`} onClick={complete} />
-            {title(task, 'text-foreground')}
-            {meta(task)}
-          </div>
-          <LineContent blocks={contentOf(task.id)} line={<Line above={below} below={below} />} mode="latest" editable={false} />
-        </li>
-      )
-    }
+  const row = (task: TaskCard, date: string | null = null): React.JSX.Element => {
+    const state = issueState(task)
+    /* A closed row's dates are over; its byline says when it closed. */
+    const { steps, due, starts, ...rest } = taskRowDisplay(task, rowContext)
+    const display = state === 'open' ? { ...rest, ...(due === undefined ? {} : { due }), ...(starts === undefined ? {} : { starts }) } : rest
+    const labels = labelsOf(task)
     return (
-      <li key={task.id} aria-current="step" className="group/step group/row relative flex gap-2 py-1">
-        <Line above={above} below={below} />
-        <span className="flex h-[var(--row-height)] w-6 shrink-0 items-center justify-center self-start mt-1">
-          <StepBox state="present" label={`Complete ${task.title}`} onClick={complete} />
-        </span>
-        <div className="min-w-0 flex-1 rounded-md bg-muted px-2 py-1">
-          <div {...rowKeys(task, complete)} className="flex min-h-[var(--row-height)] items-center gap-2 rounded-sm">
-            {title(task, 'font-section text-foreground')}
-            <button type="button" onClick={() => unstart(task)} className={cn(QUIET_ACTION, ON_HOVER)}>
-              Not now
-            </button>
-            {meta(task)}
+      <li key={task.id} className="group/row">
+        <div
+          data-row-key=""
+          data-task-id={task.id}
+          onClick={() => openIssue(task)}
+          onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              openIssue(task)
+            } else if (event.key === ' ') {
+              event.preventDefault()
+              toggle(task)
+            }
+          }}
+          className={cn(
+            'flex min-h-[var(--row-height)] cursor-pointer items-start gap-2 rounded-md px-1.5 py-1.5 transition-colors hover:bg-muted/60',
+            MOTION,
+          )}
+        >
+          <span className="flex h-5 items-center" title={STATE_WORD[state]}>
+            <StateMark state={state} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  openIssue(task)
+                }}
+                className={cn(
+                  'min-w-0 truncate text-left text-sm font-section leading-5 hover:underline',
+                  state === 'open' ? 'text-foreground' : 'text-muted-foreground',
+                )}
+              >
+                {task.title}
+              </button>
+              {labels.map((label) => (
+                <LabelChip key={label.id} name={label.name} color={label.color} />
+              ))}
+            </div>
+            <p className="truncate text-xs leading-4 text-muted-foreground">{byline(task, date)}</p>
           </div>
-          <Subtasks task={task} onOpen={() => actions.onOpenTask(task)} />
-          <LineContent
-            blocks={contentOf(task.id)}
-            line={null}
-            mode="full"
-            editable
-            inCard
-            onEditText={editText}
-            onRemove={remove}
-          />
-          <div className="py-1">
-            <Composer
-              variant="card"
-              kinds={['text', 'subtask', 'image', 'link']}
-              label={`Add to ${task.title}`}
-              placeholder="Add to this step, or type / for more"
-              onSubmit={(kind, text) => {
-                if (kind === 'subtask') addSubtask.mutate({ taskId: task.id, title: text })
-                else if (kind === 'link') add(task.id, { kind: 'link', url: text })
-                else add(task.id, { kind: 'text', text })
+          <div className="flex h-5 shrink-0 items-center gap-3">
+            <CommentCount count={counts.get(task.id)} />
+            <RowMeta
+              className="shrink-0"
+              source={{
+                ...display,
+                ...(steps === undefined ? {} : { steps: { done: steps.complete, total: steps.total } }),
               }}
-              onImage={(file) => addImage(task.id, file)}
+              onToggleImportant={() => actions.onToggleImportant(task)}
             />
           </div>
         </div>
@@ -346,168 +201,88 @@ export function LinearView(props: {
     )
   }
 
+  const addTo = (section: string | null) => (kind: string, text: string): void => {
+    if (kind === 'milestone') void writer.write({ op: 'add_milestone', name: text })
+    else {
+      /* Under a Label filter a new task wears that label, or it would vanish
+         the moment it was made. */
+      const id = crypto.randomUUID()
+      void writer.write({ op: 'add_step', title: text, section, id }).then(() => {
+        wearFilterLabel(id, label)
+      })
+    }
+  }
+
   return (
     <div ref={keys} className="pb-2">
-      {hasIntro && (
-        <LineContent blocks={line.intro} line={<Line above={null} below="reached" />} mode="compact" editable={false} />
-      )}
-
-      {hasPast && (
-        <section aria-label="Done">
-          <ol role="list" className="flex flex-col">
-            {showEarlier && (
-              <li className="relative flex h-[var(--row-height)] items-center gap-2">
-                <Line above={hasIntro ? 'reached' : null} below="reached" />
-                <span className="w-6 shrink-0" aria-hidden />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (pastOpen) void done.fetchNextPage()
-                    setPastOpen(true)
-                  }}
-                  className={QUIET_ACTION}
-                >
-                  {earlier > 0 ? `Show ${String(earlier)} earlier` : 'Show earlier'}
-                </button>
-              </li>
-            )}
-            {shownPast.map(({ task, date }, index) => {
-              const abandoned = task.status === 'abandoned'
-              const toggle = (): void => (abandoned ? actions.onRestore(task) : actions.onToggleComplete(task))
-              return (
-                <li key={task.id} className="relative">
-                  <Line above={index === 0 && !showEarlier && !hasIntro ? null : 'reached'} below="reached" />
-                  <div {...rowKeys(task, toggle)} className={ROW}>
-                    <StepBox
-                      state={abandoned ? 'abandoned' : 'done'}
-                      label={`Reopen ${task.title}`}
-                      animate={!doneAtOpen.has(task.id)}
-                      onClick={toggle}
-                    />
-                    {title(task, cn('text-muted-foreground', abandoned && 'line-through'))}
-                    {/* The day it was finished, quiet, so it never reads as a due date. */}
-                    {date !== null && (
-                      <span
-                        className="shrink-0 pl-1 text-xs tabular-nums text-quiet-foreground"
-                        title={`Finished ${formatDayInline(date, today)}`}
-                      >
-                        Done {formatDay(date, today)}
-                      </span>
-                    )}
-                  </div>
-                  <LineContent
-                    blocks={contentOf(task.id)}
-                    line={<Line above="reached" below="reached" />}
-                    mode="compact"
-                    editable={false}
-                  />
-                </li>
-              )
-            })}
-          </ol>
-        </section>
-      )}
-
-      <section aria-label="In progress">
-        <ol role="list" className="flex flex-col">
-          {present.map(presentStep)}
-          {!hasPresent && (
-            <li className="relative flex h-[var(--row-height)] items-center gap-2">
-              <Line above={hasPast || hasIntro ? 'reached' : null} below="ahead" />
-              <span className="w-6 shrink-0" aria-hidden />
-              <p className="px-1.5 text-sm text-muted-foreground">Nothing in progress</p>
-            </li>
-          )}
-        </ol>
-      </section>
-
-      <section aria-label="Up next">
-        <ol role="list" className="flex flex-col">
-          {future.map((group) => {
-            const open = isOpen(group)
-            const lead = group.id === null ? [] : (line.leadOf.get(group.id) ?? [])
-            return (
-              <li key={group.id ?? 'none'} className="flex flex-col">
-                {group.id !== null && (
-                  <div className="relative pt-2">
-                    <span
-                      aria-hidden
-                      className={cn('pointer-events-none absolute top-0 bottom-0 left-3 w-0.5 -translate-x-1/2', styles.loose)}
-                    />
-                    <button
-                      type="button"
-                      aria-expanded={open}
-                      onClick={() => setOpened((map) => new Map(map).set(group.id ?? '', !open))}
-                      className={cn(ROW, 'w-full text-left')}
-                    >
-                      <span className="flex w-6 shrink-0 justify-center" aria-hidden>
-                        <span className="size-2.5 rotate-45 rounded-xs border-[1.5px] border-muted-foreground bg-background" />
-                      </span>
-                      <span className="min-w-0 truncate px-1.5 text-sm font-section text-foreground">{group.name}</span>
-                      {!open && group.tasks.length > 0 && (
-                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{group.tasks.length}</span>
-                      )}
-                    </button>
-                  </div>
-                )}
-                {open && lead.length > 0 && (
-                  <LineContent blocks={lead} line={<Line above="ahead" below="ahead" />} mode="compact" editable={false} />
-                )}
-                {open && (
-                  <ol role="list" className="flex flex-col">
-                    {group.tasks.map((task) => (
-                      <li key={task.id} className="group/step group/row relative">
-                        <Line above="ahead" below="ahead" />
-                        <div
-                          {...rowKeys(task, () => actions.onToggleComplete(task), { onStart: () => start(task) })}
-                          className={ROW}
-                        >
-                          <StepBox
-                            state="future"
-                            label={`Complete ${task.title}`}
-                            onClick={() => actions.onToggleComplete(task)}
-                          />
-                          {title(task, 'text-foreground')}
-                          <button
-                            type="button"
-                            onClick={() => start(task)}
-                            aria-label={`Start ${task.title}`}
-                            className={cn(QUIET_ACTION, task.id !== nextId && ON_HOVER)}
-                          >
-                            Start
-                          </button>
-                          {meta(task)}
-                        </div>
-                        <LineContent
-                          blocks={contentOf(task.id)}
-                          line={<Line above="ahead" below="ahead" />}
-                          mode="compact"
-                          editable={false}
-                        />
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </li>
-            )
-          })}
-        </ol>
-      </section>
-
-      <Composer
-        variant="line"
-        line={<Line above="ahead" below={null} />}
-        kinds={['step', 'text', 'image', 'link', 'milestone']}
-        label="New step"
-        placeholder="New step, or type / for more"
-        onSubmit={(kind, text) => {
-          if (kind === 'milestone') void writer.write({ op: 'add_milestone', name: text })
-          else if (kind === 'text') add(null, { kind: 'text', text })
-          else if (kind === 'link') add(null, { kind: 'link', url: text })
-          else void writer.write({ op: 'add_step', title: text })
-        }}
-        onImage={(file) => addImage(null, file)}
+      <Tabs
+        label="Issues"
+        value={tab}
+        onValueChange={setTab}
+        className="mb-2"
+        items={[
+          { value: 'open', label: 'Open' },
+          { value: 'closed', label: 'Closed' },
+        ]}
       />
+
+      {tab === 'open' ? (
+        <div role="tabpanel" aria-label="Open" className="flex flex-col">
+          {groups.map((group) => (
+            <section
+              key={group.id ?? 'none'}
+              aria-label={group.name ?? 'No milestone'}
+              className="mb-[var(--space-group)]"
+            >
+              {group.name !== null && (
+                <h3 className="flex h-[var(--row-height)] items-center gap-2 px-1.5 text-sm font-section text-foreground">
+                  <span aria-hidden className="flex size-4 items-center justify-center">
+                    <span className="size-2.5 rotate-45 rounded-xs border-[1.5px] border-muted-foreground" />
+                  </span>
+                  <span className="min-w-0 truncate">{group.name}</span>
+                </h3>
+              )}
+              <ul role="list" className="flex flex-col gap-[var(--space-row)]">
+                {group.tasks.map((task) => row(task))}
+              </ul>
+              {group.id === null ? null : (
+                <Composer
+                  variant="line"
+                  kinds={['step']}
+                  label={`New task in ${group.name ?? 'this milestone'}`}
+                  placeholder="New task"
+                  onSubmit={addTo(group.id)}
+                  onImage={() => undefined}
+                />
+              )}
+            </section>
+          ))}
+          {groups.length === 0 && <p className="px-1.5 py-1.5 text-sm text-muted-foreground">No open tasks</p>}
+          <Composer
+            variant="line"
+            kinds={['step', 'milestone']}
+            label="New task"
+            placeholder="New task, or type / for a milestone"
+            onSubmit={addTo(null)}
+            onImage={() => undefined}
+          />
+        </div>
+      ) : (
+        <div role="tabpanel" aria-label="Closed">
+          {closed.length === 0 && !done.isPending ? (
+            <p className="px-1.5 py-1.5 text-sm text-muted-foreground">Nothing closed yet</p>
+          ) : (
+            <ul role="list" className="flex flex-col gap-[var(--space-row)]">
+              {closed.map(({ task, date }) => row(task, date))}
+            </ul>
+          )}
+          {done.hasNextPage && (
+            <button type="button" onClick={() => void done.fetchNextPage()} className={cn(QUIET_ACTION, 'mt-1 ml-1')}>
+              Show more
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

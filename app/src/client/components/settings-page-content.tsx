@@ -223,7 +223,7 @@ export function SettingsPageContent({
             />
             {sample ? (
               <StackingRow
-                label="Sample data"
+                label="Sample workspace"
                 description={
                   sample.present
                     ? `${String(sample.folders)} pages and ${String(sample.tasks)} tasks to show you around`

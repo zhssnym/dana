@@ -291,6 +291,9 @@ export const WORKFLOW_OMITTED_BLOCK_KINDS = [
      thing this format promises not to carry (#185), and it would name nothing
      in the importing account. The placeholder records that it was there. */
   'page',
+  /* #213: a Result lives only in a Results facet, which no workflow carries
+     (R2). Named so the two lists stay complete. */
+  'result',
 ] as const
 export type WorkflowOmittedBlockKind = (typeof WORKFLOW_OMITTED_BLOCK_KINDS)[number]
 

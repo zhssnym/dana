@@ -122,6 +122,7 @@ export function FolderHeader({
           <textarea
             key={name}
             defaultValue={name}
+            data-page-title={name}
             aria-label="Page name"
             maxLength={100}
             rows={1}
@@ -153,12 +154,13 @@ export function FolderHeader({
             }}
             className={cn(
               FIELD,
-              'flex-1 resize-none overflow-hidden [field-sizing:content] break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-semibold text-foreground',
+              'flex-1 resize-none overflow-hidden [field-sizing:content] break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-foreground',
             )}
           />
         ) : (
           /* A heading, always, and the click is the rename (AC-226, AC-217). */
           <h1
+            data-page-title=""
             onClick={
               editable
                 ? (event) => {
@@ -168,7 +170,7 @@ export function FolderHeader({
                 : undefined
             }
             className={cn(
-              'min-w-0 flex-1 break-words [overflow-wrap:anywhere] text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-semibold text-foreground',
+              'min-w-0 flex-1 break-words [overflow-wrap:anywhere] text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-foreground',
               editable ? 'cursor-text' : '',
             )}
           >

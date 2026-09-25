@@ -13,8 +13,9 @@ import { useMe } from '../api/queries.js'
 import { presenterToday } from '../parts/presenters.js'
 import { Button } from '../components/ui/button.js'
 import { Image as ImageIcon } from '../lib/icons.js'
-import { ViewMenu } from './FilterControl.js'
-import { sortRows } from './filter.js'
+import { useWearFilterLabel } from '../api/labels.js'
+import { LabelFilterClear, ViewMenu } from './FilterControl.js'
+import { labelsWorn, sortRows, wearsLabel } from './filter.js'
 import type { GroupBy, PageFilter } from './filter.js'
 import { usePageFilter } from './filter-store.js'
 import { captureDefaults } from './place-pages.js'
@@ -48,6 +49,8 @@ export interface Place {
   readonly narrow: (rows: readonly TaskCard[]) => readonly TaskCard[]
   /** A capture at this page's entry defaults, optionally inside a column. */
   readonly capture: (title: string, column?: ColumnValue) => void
+  /** The Labels this page's rows wear, which the View menu offers (#208). */
+  readonly labels: readonly { readonly id: string; readonly name: string; readonly color: string }[]
 }
 
 /** What a folder page supplies that its spine cannot: its own id's worth. */
@@ -61,7 +64,7 @@ export interface PlaceOptions {
 
 export function usePlace(
   spine: PlaceSpine,
-  _rows: readonly TaskCard[],
+  rows: readonly TaskCard[],
   options: PlaceOptions = {},
 ): Place {
   const [filter, setFilter] = usePageFilter(options.filterKey ?? spine.key)
@@ -70,6 +73,9 @@ export function usePlace(
   const me = useMe()
   const create = useCreateTask()
   const pull = usePullIntoMyDay()
+  /* A place page's own capture writes no page, so only the viewer's own
+     Labels can be put on what it makes. */
+  const wearFilterLabel = useWearFilterLabel(null)
   const today = presenterToday()
   const viewerId = me.data?.user.id ?? null
 
@@ -101,6 +107,9 @@ export function usePlace(
       {
         onSuccess: (task) => {
           if (defaults.pullIntoToday) pull.mutate(task.id)
+          /* Under a Label filter a new task wears that label, or it would
+             vanish the moment it was made. */
+          wearFilterLabel(task.id, filter.label)
         },
       },
     )
@@ -119,16 +128,19 @@ export function usePlace(
        abandoned alike. An abandoned row stays in place, struck and muted. */
     narrow: (input) =>
       sortRows(
-        (options.showCompleted ?? filter.showCompleted)
-          ? input
-          : input.filter((task) => task.status !== 'abandoned'),
+        input.filter(
+          (task) =>
+            ((options.showCompleted ?? filter.showCompleted) || task.status !== 'abandoned') &&
+            wearsLabel(task, filter.label),
+        ),
         filter.sort,
       ),
     capture: options.capture ?? capture,
+    labels: labelsWorn(rows),
   }
 }
 
-/** Filter chips are gone: nothing narrows. Kept for the folder page's import. */
+/** Filter chips are gone; the one narrowing (Label) is said by PlaceControls. Kept for the folder page's import. */
 export function PlaceFilterChips(_props: { readonly place: Place }): null {
   return null
 }
@@ -142,8 +154,18 @@ export function PlaceControls({
   /** Nothing to group or sort: the View menu is left out. */
   readonly bare?: boolean
 }): React.JSX.Element | null {
-  if (bare) return null
+  if (bare && place.filter.label === null) return null
+  /* The calendar draws its own grid and honours none of grouping, sort, Label
+     or Show completed, so there its View menu is Layout alone. */
+  const calendar = place.mode === 'calendar'
   return (
+    <>
+      {calendar ? null : <LabelFilterClear
+        filter={place.filter}
+        labels={place.labels}
+        onChange={place.setFilter}
+      />}
+      {bare ? null : (
     <ViewMenu
       layouts={place.spine.views}
       layout={place.mode}
@@ -151,8 +173,13 @@ export function PlaceControls({
       groups={place.spine.groups}
       completed={place.spine.completed}
       filter={place.filter}
+      labels={place.labels}
       onChange={place.setFilter}
+      {...(place.spine.ownOrder === undefined ? {} : { ownOrder: place.spine.ownOrder })}
+      layoutOnly={calendar}
     />
+      )}
+    </>
   )
 }
 
@@ -186,7 +213,7 @@ export function ScreenHead({
         </Button>
       </div>
       <div className="flex min-h-(--text-title-line) items-center justify-between gap-4">
-        <h1 className="min-w-0 truncate text-(length:--text-title-size) leading-(--text-title-line) font-title text-foreground">
+        <h1 data-page-title="" className="min-w-0 truncate text-(length:--text-title-size) leading-(--text-title-line) font-title text-foreground">
           {title}
         </h1>
         {controls === undefined || controls === null ? null : (

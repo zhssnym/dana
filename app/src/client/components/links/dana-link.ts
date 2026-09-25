@@ -24,6 +24,7 @@ const KIND_OF_SEGMENT: Readonly<Record<string, string>> = {
   facets: 'facet',
   discussions: 'discussion',
   outcomes: 'outcome',
+  results: 'result',
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -76,8 +77,8 @@ const looseSearch = z.object({ results: z.array(z.unknown()) }).transform(({ res
     return parsed.success ? [parsed.data] : []
   }))
 
-export function searchReferences(q: string): Promise<LooseSummary[]> {
-  return getPlain(looseSearch, '/references/search', { q })
+export function searchReferences(q: string, folder?: string): Promise<LooseSummary[]> {
+  return getPlain(looseSearch, '/references/search', folder === undefined ? { q } : { q, folder })
 }
 
 export function resolveReference(kind: string, id: string): Promise<LooseSummary> {
@@ -104,9 +105,9 @@ const looseBacklinks = z.object({ results: z.array(z.unknown()), truncated: z.bo
   }))
 
 /** The kinds whose `/{segment}/:id/backlinks` route exists. */
-export type BacklinkTargetKind = 'task' | 'folder' | 'shelf' | 'facet' | 'discussion' | 'outcome'
+export type BacklinkTargetKind = 'task' | 'folder' | 'shelf' | 'facet' | 'discussion' | 'outcome' | 'result'
 const SEGMENT_OF_KIND: Record<BacklinkTargetKind, string> = {
-  task: 'tasks', folder: 'folders', shelf: 'shelves', facet: 'facets', discussion: 'discussions', outcome: 'outcomes',
+  task: 'tasks', folder: 'folders', shelf: 'shelves', facet: 'facets', discussion: 'discussions', outcome: 'outcomes', result: 'results',
 }
 
 export function backlinksOf(kind: BacklinkTargetKind, id: string): Promise<{ truncated: boolean; results: LooseBacklink[] }> {
@@ -131,7 +132,7 @@ export function backlinkPath(row: LooseBacklink): string | null {
 }
 
 const KIND_NOUN: Readonly<Record<string, string>> = {
-  task: 'Task', folder: 'Page', shelf: 'Collection', facet: 'Facet', discussion: 'Discussion', outcome: 'Outcome',
+  task: 'Task', folder: 'Page', shelf: 'Collection', facet: 'Tab', discussion: 'Discussion', outcome: 'Outcome', result: 'Result',
 }
 export function kindNoun(kind: string): string {
   return KIND_NOUN[kind] ?? 'Link'

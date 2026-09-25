@@ -83,6 +83,41 @@
   background: var(--muted);
   padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
 }
+/* #213: a native Result. The flag says what it is; the statement carries
+   the weight a Section title does, and nothing else is drawn. */
+.dana-writing-canvas .dana-result {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(var(--spacing) * 2);
+  /* Held to the line's width, so a long "Referenced from" truncates. */
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: var(--font-weight-section);
+  /* Room for the arrival tint (below) so it never hugs the text. */
+  margin-inline: calc(var(--spacing) * -1.5);
+  padding-inline: calc(var(--spacing) * 1.5);
+  border-radius: var(--radius-sm);
+  transition: background-color var(--duration-slow) var(--ease-standard);
+}
+/* Opened by its link: the selected tint, for a moment (CanvasResult). */
+.dana-writing-canvas .dana-result[data-arrived] {
+  background-color: var(--selected);
+}
+.dana-writing-canvas .dana-result-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding-top: 0.2em;
+  color: var(--muted-foreground);
+  user-select: none;
+}
+.dana-writing-canvas .dana-result [data-referenced-from] {
+  font-weight: var(--font-weight-regular);
+}
+/* The editor styles its own links; a "Referenced from" row is not one. */
+.dana-writing-canvas .dana-result [data-referenced-from] a {
+  color: var(--foreground);
+  text-decoration: none;
+}
 .dana-writing-canvas [data-content-type='codeBlock'] {
   font-size: var(--text-sm);
 }
@@ -265,7 +300,16 @@
 .dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) {
   --dana-hint: "Press '/' for commands";
 }
+/* The empty page keeps its own words once clicked into, so Purpose and
+   Results say one thing focused or not; later empty lines say the above. */
+.dana-writing-canvas .bn-editor.ProseMirror-focused > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child) {
+  --dana-hint: var(--dana-canvas-placeholder, "Press '/' for commands");
+}
 .dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type='heading'][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) { --dana-hint: "Heading"; }
+/* A Result is a node view: BlockNote marks its wrapper, not its content. */
+.dana-writing-canvas .bn-editor.ProseMirror-focused [data-is-empty-and-focused] > .bn-block-content[data-content-type='result']:has(.ProseMirror-trailingBreak:only-child) { --dana-hint: "What came of it"; }
+/* The hint is not the statement, so it is not in the statement's weight. */
+.dana-writing-canvas .dana-result .bn-inline-content::before { font-weight: var(--font-weight-regular); }
 .dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content:is([data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='checkListItem'], [data-content-type='toggleListItem'])[data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) { --dana-hint: "List"; }
 /* r8-caret: every hint above is drawn here, inside the inline content the
    caret lives in, as ProseMirror's own placeholder is: a zero-height float

@@ -4,10 +4,11 @@ Today, at /app/today: 6 Q1's open list, carried-over work first, then the
 Show completed is on. A grouping from the View menu replaces the groups.
 
 The "Today" group only holds what is due today (or undated) and not yet
-started. Every started task (a start date today or earlier) is under "In
-progress", the one name the Board and Linear give it, whether or not it has a
-due date. A row here although its date is later and not started says why:
-"Added to Today" when the person pulled it in.
+started. A started task (a start date today or earlier) that is not overdue is
+under "In progress", the one name the Board and Linear give it; an overdue task
+is under "Carried over" at the top whether or not it has started, as Upcoming
+keeps it under "Overdue". A row here although its date is later and not
+started says why: "Added to Today" when the person pulled it in.
 */
 import type { TaskCard } from '../../shared/tasks.js'
 
@@ -17,6 +18,7 @@ import { SampleStrip } from '../onboarding/SampleStrip.js'
 import { StarterOffer, useMayBeFresh } from '../onboarding/StarterOffer.js'
 import { stageOf } from '../views/linear/stage.js'
 import { groupRows } from '../views/grouping.js'
+import { wearsLabel } from '../views/filter.js'
 import { PLACES } from '../views/place-pages.js'
 import { PlaceGroup, PlaceHead, usePlace } from '../views/usePlace.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -59,15 +61,32 @@ export function TodayPage(): React.JSX.Element {
 
   const total = open.length + recap.length
 
-  /* Why each of today's rows is here. Only a row dated later needs a reason. */
+  /* Why each row is here. Overdue work is "Carried over", started or not, so
+     a late task stays at the top as Upcoming keeps it under "Overdue". Started
+     work that is not late is "In progress" (AC-1010): a range begun last week
+     and due Friday is under way, not left over.
+     #208: a Label narrowing empties a heading's rows; the heading goes too. */
+  const late = (task: TaskCard): boolean => task.due_date !== null && task.due_date < place.today
+  const underWay = (task: TaskCard): boolean =>
+    stageOf(task, place.today) === 'present' && !late(task)
+  const carriedShown: TaskCard[] = []
   const dueToday: TaskCard[] = []
   const started: TaskCard[] = []
   const added: TaskCard[] = []
+  for (const task of carried) {
+    if (!wearsLabel(task, place.filter.label)) continue
+    if (underWay(task)) started.push(task)
+    else carriedShown.push(task)
+  }
   for (const task of today) {
-    if (stageOf(task, place.today) === 'present') started.push(task)
+    if (!wearsLabel(task, place.filter.label)) continue
+    if (underWay(task)) started.push(task)
+    else if (late(task)) carriedShown.push(task)
     else if (task.due_date === null || task.due_date <= place.today) dueToday.push(task)
     else added.push(task)
   }
+  /* One order across both sources, the server's own: due date, undated last. */
+  started.sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'))
   const reasons = (started.length === 0 ? 0 : 1) + (added.length === 0 ? 0 : 1)
 
   const pageBody = (
@@ -90,15 +109,15 @@ export function TodayPage(): React.JSX.Element {
           <>
             {/* AC-097 reads "Carried over". With nothing carried, the day is
                 one list and needs no heading. */}
-            {carried.length === 0 ? null : (
+            {carriedShown.length === 0 ? null : (
               <PlaceGroup name="Carried over" heading="Carried over">
-                {rows(carried)}
+                {rows(carriedShown)}
               </PlaceGroup>
             )}
             {dueToday.length === 0 ? null : (
               <PlaceGroup
                 name="Today"
-                {...(carried.length === 0 && reasons === 0 ? {} : { heading: 'Today' })}
+                {...(carriedShown.length === 0 && reasons === 0 ? {} : { heading: 'Today' })}
               >
                 {rows(dueToday, true)}
               </PlaceGroup>
@@ -149,7 +168,7 @@ export function TodayPage(): React.JSX.Element {
         {/* A fresh account's own first act comes before the offer of an
             example; otherwise "New task" closes the list. */}
         {mayBeFresh ? (
-          <StarterOffer lead={quickAdd} fallback={list} />
+          <StarterOffer body={pageBody} quickAdd={quickAdd} />
         ) : (
           list
         )}

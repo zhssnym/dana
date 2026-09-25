@@ -41,6 +41,10 @@ export const queryKeys = {
      'folder' so the folder's own thread and a task's never collide. */
   shelf: (id: string) => ['shelves', id] as const,
   folderPage: (id: string) => ['folders', id, 'page'] as const,
+  /** One member's details and their merged Access and Responsibility history (#209). */
+  folderMember: (id: string, userId: string) => ['folders', id, 'members', userId] as const,
+  folderMemberHistory: (id: string, userId: string) =>
+    ['folders', id, 'members', userId, 'history'] as const,
   /** Every edge inside one folder (#207), which the Linear view draws. */
   folderDependencies: (id: string) => ['folders', id, 'dependencies'] as const,
   folderFacets: (id: string) => ['folders', id, 'facets'] as const,
@@ -67,6 +71,10 @@ export const queryKeys = {
    * *reusable* taxonomy into the file and therefore needs the definitions
    * nothing is currently wearing (#227 area 4). */
   folderLabels: (id: string) => ['folders', id, 'labels'] as const,
+  /** The label picker's read: the viewer's Personal Labels plus, with a page,
+   * that page's (#208). */
+  labels: (folderId: string | null, state: 'active' | 'all') =>
+    ['labels', folderId ?? 'personal', state] as const,
 
   /** One Discussion (7.27's GET /discussions/:id). */
   discussion: (id: string) => ['discussions', id] as const,

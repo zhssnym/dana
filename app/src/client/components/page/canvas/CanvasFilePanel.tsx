@@ -17,27 +17,30 @@ export interface CanvasUploadedFile {
   readonly name: string
 }
 
-const accepts: Record<CanvasMediaKind, string> = {
-  image: RASTER_MIMES.join(','),
-  audio: AUDIO_MIMES.join(','),
-  video: VIDEO_MIMES.join(','),
-  file: '',
+const MEDIA_ACCEPT = [...RASTER_MIMES, ...AUDIO_MIMES, ...VIDEO_MIMES].join(',')
+
+/** Which preview a chosen file gets, from the same allowlists the server
+ * holds; anything off them is a generic File (the server would refuse it as
+ * media, and a File is always offered for download). */
+export function mediaKindOf(mime: string): CanvasMediaKind {
+  if ((RASTER_MIMES as readonly string[]).includes(mime)) return 'image'
+  if ((AUDIO_MIMES as readonly string[]).includes(mime)) return 'audio'
+  if ((VIDEO_MIMES as readonly string[]).includes(mime)) return 'video'
+  return 'file'
 }
 
 /**
- * Exact-kind upload panel for Dana media blocks.
+ * The upload panel for Dana's two file commands (#220).
  *
- * BlockNote's editor-wide upload hook receives only a File, so it cannot know
- * whether a JPG was inserted through "File" (which must stay a File) or
- * "Image". The selected block does know. This panel is therefore the authority
- * for explicit insertion and replacement: block kind in, matching upload kind
- * out, no extension-based reclassification.
+ * People see two: **Media** and **File**. Media is an image, audio or video
+ * block (an empty one is always an image block, the Media placeholder); the
+ * file chosen decides which, by its MIME against the server's allowlists, and
+ * a file off them falls back to a File block. File is the generic attachment
+ * and stays one whatever the bytes are: a JPG chosen through File is a File,
+ * served for download. Replacing keeps that line: a media block re-detects
+ * among media, a File block stays a File.
  *
- * One exception, kept for pasted or dropped files: an empty File
- * block given a raster image uploads it as an image and becomes an Image
- * block. A block that already holds something keeps its kind on replace.
- *
- * It opens from the block's quiet "Add an image" / "Add a file" row (see
+ * It opens from the block's quiet "Add media" / "Add a file" row (see
  * `schema.ts`) and draws its own popover surface (`ui/popover.tsx`'s classes):
  * BlockNote's floating wrapper has none. Upload only, no "Embed link": the
  * adapter refuses external media URLs, and the page's connect-src cannot fetch
@@ -67,7 +70,7 @@ export function CanvasFilePanel({
   ) {
     return null
   }
-  const kind = block.type as CanvasMediaKind
+  const isFile = block.type === 'file'
 
   return (
     <div className="w-80 space-y-2 rounded-lg bg-popover p-3 text-sm text-popover-foreground shadow-md">
@@ -75,20 +78,19 @@ export function CanvasFilePanel({
         ref={input}
         className="sr-only"
         type="file"
-        {...(accepts[kind] === '' ? {} : { accept: accepts[kind] })}
+        {...(isFile ? {} : { accept: MEDIA_ACCEPT })}
         onChange={(event) => {
           const file = event.currentTarget.files?.[0]
           event.currentTarget.value = ''
           if (file === undefined) return
-          const asImage = kind === 'file' && !block.props.url &&
-            (RASTER_MIMES as readonly string[]).includes(file.type)
+          const kind: CanvasMediaKind = isFile ? 'file' : mediaKindOf(file.type)
           setBusy(true)
           setError('')
-          void onUpload(asImage ? 'image' : kind, file)
+          void onUpload(kind, file)
             .then((uploaded) => {
               const props = { url: uploaded.url, name: uploaded.name }
-              if (asImage) editor.updateBlock(blockId, { type: 'image', props })
-              else editor.updateBlock(blockId, { props })
+              if (kind === block.type) editor.updateBlock(blockId, { props })
+              else editor.updateBlock(blockId, { type: kind, props })
             })
             .catch((failure: unknown) => {
               setError(

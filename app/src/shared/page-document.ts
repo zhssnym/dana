@@ -51,7 +51,7 @@ export const isPresentationHeadingKind = (kind:string):kind is PresentationHeadi
 export const MEDIA_BLOCK_KINDS = ['image','file','audio','video'] as const
 export type MediaBlockKind = (typeof MEDIA_BLOCK_KINDS)[number]
 export const isMediaKind = (kind:string):kind is MediaBlockKind => (MEDIA_BLOCK_KINDS as readonly string[]).includes(kind)
-export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video','diagram','divider','page'] as const
+export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video','diagram','divider','page','result'] as const
 export type DocumentBlockKind = (typeof DOCUMENT_BLOCK_KINDS)[number]
 /**
  * The kinds that persist a dragged width (4.17's `width_pct`, 25 to 100).
@@ -112,7 +112,9 @@ export const BLOCK_FILE_KINDS:Readonly<Record<MediaBlockKind,readonly FileKind[]
  * Download is always available wherever the viewer may read the file.
  */
 export const blockMayOpen = (kind:string):boolean => kind==='image'||kind==='audio'||kind==='video'
-export const RICH_TEXT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,...LIST_BLOCK_KINDS,'quote','callout'] as const
+/** #213: `result` is the native Result, a Results facet's block alone (the
+ * facet applier and `page_blocks_result_home_check` say so). */
+export const RICH_TEXT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,...LIST_BLOCK_KINDS,'quote','callout','result'] as const
 /** The one test for "may this take part in list nesting", written once. */
 export const isListKind = (kind:string):kind is ListBlockKind => (LIST_BLOCK_KINDS as readonly string[]).includes(kind)
 /**
@@ -125,7 +127,7 @@ export const isListKind = (kind:string):kind is ListBlockKind => (LIST_BLOCK_KIN
  * (`page_blocks_list_parent_kind_check`); the parent half, precedence, the one
  * Section rule and the depth ceiling are `domain/document-outline.ts`.
  */
-export const NEST_PARENT_KINDS = ['paragraph',...PRESENTATION_HEADING_KINDS,...LIST_BLOCK_KINDS,'quote','callout'] as const
+export const NEST_PARENT_KINDS = ['paragraph',...PRESENTATION_HEADING_KINDS,...LIST_BLOCK_KINDS,'quote','callout','result'] as const
 /** How deep blocks nest under blocks: a root block is depth 0, its child 1. */
 export const MAX_NEST_DEPTH = 12
 /** May a block of this kind sit under another block at all. */

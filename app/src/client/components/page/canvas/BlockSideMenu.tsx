@@ -16,8 +16,9 @@ import { useBlockNoteEditor, useComponentsContext, useExtension, useExtensionSta
 import { blockLink, blockSelection, setBlockSelection } from './block-selection.js'
 import { conversionOf, isCurrent, withoutIds } from './turn-into.js'
 import type { TreeBlock, TurnTarget } from './turn-into.js'
-import { Check, Copy, GripVertical, Link2, Plus, Repeat2, Trash2 } from '../../../lib/icons.js'
+import { Check, CheckCircle2, Copy, GripVertical, Link2, Plus, Repeat2, Trash2 } from '../../../lib/icons.js'
 import type { LucideIcon } from '../../../lib/icons.js'
+import { kindIconOf } from './slash-items.js'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- both canvas schemas pass through here
 export type AnyEditor = BlockNoteEditor<any, any, any>
@@ -55,6 +56,17 @@ function MenuIcon({ icon: Icon }: { readonly icon: LucideIcon }): React.JSX.Elem
   return <Icon className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
 }
 
+/** A Turn into row: the kind's icon and name as the `/` menu shows them, a tick on the current kind. */
+function TurnRow({ icon, title, current }: { readonly icon: LucideIcon | undefined; readonly title: string; readonly current: boolean }): React.JSX.Element {
+  return (
+    <span className="flex flex-1 items-center gap-2">
+      {icon === undefined ? null : <MenuIcon icon={icon} />}
+      <span className="flex-1">{title}</span>
+      {current ? <Check size={14} /> : null}
+    </span>
+  )
+}
+
 function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element {
   const editor = useBlockNoteEditor() as AnyEditor
   const Components = useComponentsContext()!
@@ -76,10 +88,10 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
           <Components.Generic.Menu.Dropdown sub={true} className="bn-menu-dropdown dana-block-menu">
             {targets.map((target) => (
               <Item key={target.key} className="bn-menu-item" onClick={() => { model.turnInto(ids, target) }}>
-                <span className="flex flex-1 items-center justify-between gap-6">{target.title}{isCurrent(block, target) ? <Check size={14} /> : null}</span>
+                <TurnRow icon={kindIconOf(target.type, target.level)} title={target.title} current={isCurrent(block, target)} />
               </Item>
             ))}
-            {extra === null ? null : <Item className="bn-menu-item" onClick={extra.run}><span>{extra.title}</span></Item>}
+            {extra === null ? null : <Item className="bn-menu-item" onClick={extra.run}><TurnRow icon={CheckCircle2} title={extra.title} current={false} /></Item>}
           </Components.Generic.Menu.Dropdown>
         </Components.Generic.Menu.Root>
       ) : null}
@@ -88,7 +100,7 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
           <span className="flex flex-1 items-center gap-2"><MenuIcon icon={Copy} /><span className="flex-1">Duplicate</span><span className="text-xs text-muted-foreground">{MOD}D</span></span>
         </Item>
       ) : null}
-      <Item className="bn-menu-item" onClick={() => { void navigator.clipboard?.writeText(blockLink(block.id)) }}>
+      <Item className="bn-menu-item" onClick={() => { void navigator.clipboard?.writeText(block.type === 'result' ? `${window.location.origin}/app/results/${block.id}` : blockLink(block.id)) }}>
         <span className="flex flex-1 items-center gap-2"><MenuIcon icon={Link2} />Copy link to block</span>
       </Item>
       {removal === null ? null : 'note' in removal

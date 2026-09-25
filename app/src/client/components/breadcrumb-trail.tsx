@@ -29,6 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu.js'
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip.js'
 import { cn } from './ui/utils.js'
 
 interface Crumb {
@@ -87,34 +88,46 @@ export function HistoryArrows(): React.JSX.Element {
 
   return (
     <div className="flex shrink-0 items-center gap-0.5 max-md:hidden">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="text-muted-foreground hover:text-foreground disabled:opacity-40"
-        aria-label="Go back"
-        title="Go back"
-        disabled={!canBack}
-        onClick={() => {
-          void navigate(-1)
-        }}
-      >
-        <ArrowLeft className="size-4" strokeWidth={1.75} aria-hidden="true" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="text-muted-foreground hover:text-foreground disabled:opacity-40"
-        aria-label="Go forward"
-        title="Go forward"
-        disabled={!canForward}
-        onClick={() => {
-          void navigate(1)
-        }}
-      >
-        <ArrowRight className="size-4" strokeWidth={1.75} aria-hidden="true" />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground disabled:opacity-40"
+              aria-label="Go back"
+              disabled={!canBack}
+              onClick={() => {
+                void navigate(-1)
+              }}
+            />
+          }
+        >
+          <ArrowLeft className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Go back</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground disabled:opacity-40"
+              aria-label="Go forward"
+              disabled={!canForward}
+              onClick={() => {
+                void navigate(1)
+              }}
+            />
+          }
+        >
+          <ArrowRight className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Go forward</TooltipContent>
+      </Tooltip>
     </div>
   )
 }
@@ -177,7 +190,8 @@ export function BreadcrumbTrail({
                 'flex min-w-0 items-center gap-0.5',
                 /* The current crumb wins the space: ancestors give way first,
                    and the fold button never shrinks. */
-                crumb === 'fold' ? 'shrink-0' : position === last ? 'shrink' : 'shrink-[8]',
+                /* On a phone the two crumbs share the squeeze, so the parent keeps a readable stub. */
+                crumb === 'fold' ? 'shrink-0' : position === last ? 'shrink' : 'shrink-[8] max-md:shrink',
                 phoneHidden && 'max-md:hidden',
               )}
             >

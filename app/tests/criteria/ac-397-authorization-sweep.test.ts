@@ -314,6 +314,8 @@ type ResourceId =
      and as the home of an open input round; plus one (superseded) Outcome. */
   | 'discussionId'
   | 'outcomeId'
+  /* #213: a native Result, a block of the folder's Results facet. */
+  | 'resultId'
   | 'inputRoundId'
   /* Issue #320: the General discussion the owner's legacy Folder-thread
      comment was filed under, read back from that comment rather than made
@@ -408,6 +410,17 @@ async function fixturesOf(): Promise<Fixtures> {
   if (purposeFacetId === undefined) {
     throw new Error('AC-397 folder fixture has no native Purpose facet')
   }
+  const resultsFacetId = (
+    nativeFacets.json() as { facets: Array<{ id: string; kind: string }> }
+  ).facets.find((facet) => facet.kind === 'results')?.id
+  if (resultsFacetId === undefined) {
+    throw new Error('AC-397 folder fixture has no native Results facet')
+  }
+  const resultId = randomUUID()
+  await app.db.execute(sql`
+    INSERT INTO page_blocks (id, facet_id, kind, position, text)
+    VALUES (${resultId}::uuid, ${resultsFacetId}::uuid, 'result', 0,
+            'ac397 the result')`)
   const trashedFacetId = await makeFacet(owner, folderId, 'ac397 doomed facet')
   await trashFacet(owner, folderId, trashedFacetId)
 
@@ -478,6 +491,7 @@ async function fixturesOf(): Promise<Fixtures> {
     trashedFacetId,
     discussionId,
     outcomeId,
+    resultId,
     generalDiscussionId,
     inputRoundId,
     trashedDiscussionId,
@@ -943,6 +957,16 @@ const TABLE = new Map<string, Row>([
       stranger: {
         expected: 404,
         rule: '7.14: the thread is member-only throughout, and a folder outside the viewer\'s membership is 404 and never 403',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/folders/:id/comment-counts',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/comment-counts` }),
+      stranger: {
+        expected: 404,
+        rule: "7.14: a task thread's count is the thread's, member-only, and a folder outside the viewer's membership is 404",
       },
     },
   ],
@@ -1628,6 +1652,26 @@ const TABLE = new Map<string, Row>([
       stranger: {
         expected: 404,
         rule: 'issues #214 and #320, 10.2: a Discussion is a Dana Link target gated on membership of its live Folder, so a non-member is told what an id naming nothing is told — 404, and no source is scanned',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/results/:id/backlinks',
+    {
+      attempt: (fx) => ({ path: `/results/${fx.resultId}/backlinks` }),
+      stranger: {
+        expected: 404,
+        rule: 'issues #213 and #214, 10.2: a Result is a Dana Link target gated on membership of the live Folder of its Results facet, so a non-member is told what an id naming nothing is told — 404, and no source is scanned',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/results/:id',
+    {
+      attempt: (fx) => ({ path: `/results/${fx.resultId}` }),
+      stranger: {
+        expected: 404,
+        rule: "#213: a Result's location is exactly as visible as its Results facet, and inaccessible is indistinguishable from nonexistent",
       },
     },
   ],
@@ -2526,6 +2570,11 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       what: 'the outcome, as a Dana Link',
       path: `/references/outcome/${fx.outcomeId}`,
       holds: fx.outcomeId,
+    }),
+    resultId: (fx) => ({
+      what: 'the result, as a Dana Link',
+      path: `/references/result/${fx.resultId}`,
+      holds: fx.resultId,
     }),
     trashedDiscussionId: (fx) => ({
       what: 'the trashed discussion',

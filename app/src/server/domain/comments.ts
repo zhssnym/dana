@@ -559,6 +559,24 @@ export async function threadView(
   return { comments: rows.map(lineFrom) }
 }
 
+/* The comment count of every task thread in a folder (m2 ghissues). The
+   caller has resolved the viewer's access to the folder, and every member
+   reads every task thread in it, so there is no further clause. */
+export async function taskCommentCounts(
+  db: Db,
+  folderId: string,
+): Promise<{ task_id: string; comments: number }[]> {
+  const rows = await rowsOf(
+    db,
+    sql`SELECT c.task_id, count(*)::int AS comments
+          FROM comments c
+         WHERE c.folder_id = ${folderId} AND c.task_id IS NOT NULL
+         GROUP BY c.task_id
+         ORDER BY c.task_id`,
+  )
+  return rows.map((row) => ({ task_id: String(row.task_id), comments: Number(row.comments) }))
+}
+
 /* One comment as the thread would read it. The caller has already resolved
    the viewer's access to it, so there is no membership clause here and this
    function must never be reached with an id `accessibleComment` did not

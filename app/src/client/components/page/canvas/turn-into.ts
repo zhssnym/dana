@@ -14,7 +14,7 @@ turned into anything but a Section lifts them out after it.
 */
 import { isSectionHeading, isToggleHeading } from './outline.js'
 
-export type TurnKey = 'text' | 'h1' | 'h2' | 'h3' | 'th1' | 'th2' | 'th3' | 'toggle' | 'bullet' | 'numbered' | 'quote' | 'callout' | 'code'
+export type TurnKey = 'text' | 'h1' | 'h2' | 'h3' | 'th1' | 'th2' | 'th3' | 'toggle' | 'bullet' | 'numbered' | 'quote' | 'callout' | 'code' | 'result'
 
 export interface TurnTarget {
   readonly key: TurnKey
@@ -40,6 +40,8 @@ export const TURN_TARGETS: readonly TurnTarget[] = [
   { key: 'quote', title: 'Quote', type: 'quote' },
   { key: 'callout', title: 'Callout', type: 'callout' },
   { key: 'code', title: 'Code', type: 'codeBlock' },
+  // Offered on the Results tab alone (`offersResults`).
+  { key: 'result', title: 'Result', type: 'result' },
 ]
 
 /** Kinds made of one run of text, the only ones that can be turned into another.

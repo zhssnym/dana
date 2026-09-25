@@ -141,9 +141,7 @@ export function TaskBoard({
         `due_date` because a task *captured* in it is new and has no Schedule to
         keep; a task *dropped* into it has one, and writing the due date onto a
         Start-only card would convert it into a Start+Due task with nothing
-        saying so. A pair is refused rather than half-moved, which is the same
-        answer the calendar's drag gives and for the same reason: the
-        whole-range move is unbuilt.
+        saying so. A pair moves whole, as on the calendar.
         */
         const moved = scheduleLanding(task, landing)
         if (moved === null) return false

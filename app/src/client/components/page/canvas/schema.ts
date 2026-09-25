@@ -4,6 +4,7 @@ import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files
 import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 
 import { createCanvasCallout } from './CanvasCallout.js'
+import { createCanvasResult } from './CanvasResult.js'
 import { formatDate } from '../../../lib/dates.js'
 import { todayInBrowserZone } from '../../../api/tz.js'
 import { isoDay } from '../../../tasks/task-model.js'
@@ -213,7 +214,8 @@ function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T
 const audio = withReclaimNotice(mediaSpec(defaultBlockSpecs.audio, AUDIO_MIMES), 'file')
 const video = withReclaimNotice(mediaSpec(defaultBlockSpecs.video, VIDEO_MIMES), 'file')
 const file = withReclaimNotice(defaultBlockSpecs.file, 'file', 'Add a file')
-const image = withReclaimNotice(mediaSpec(defaultBlockSpecs.image, RASTER_MIMES), 'picture', 'Add an image')
+// An empty image block is the Media command's placeholder (#220, `CanvasFilePanel`).
+const image = withReclaimNotice(mediaSpec(defaultBlockSpecs.image, RASTER_MIMES), 'picture', 'Add media')
 
 /* A toggle opens by default, like a Section, so what is written under it goes
    inside: Enter at the end of an open toggle's title starts its first child
@@ -262,6 +264,8 @@ export const canvasSchema = BlockNoteSchema.create({
     toggleListItem: toggleList,
     divider: { ...defaultBlockSpecs.divider, extensions: withoutInputRules(defaultBlockSpecs.divider.extensions, () => true) },
     callout: createCanvasCallout(),
+    // A native Result (#213); only the Results tab's `/result` inserts one.
+    result: createCanvasResult(),
     codeBlock: defaultBlockSpecs.codeBlock,
     image,
     file,

@@ -68,13 +68,14 @@ observer that will report it, through the query cache's own error path and
 9.1's toast. A rejection escaping this prefetch would be an unhandled one,
 which is not how the error state is meant to arrive.
 */
-void queryClient.prefetchQuery({
-  queryKey: queryKeys.me(),
-  queryFn: () => getPlain(meResponse, '/me'),
-})
-// Only under /app: on / (where sign-out lands) they are 401s nobody reads.
+// Only under /app: on / (where sign-out lands), /privacy and /terms they are
+// 401s nobody reads, and each one is a red line in a visitor's console.
 const inApp = window.location.pathname.startsWith('/app')
 if (inApp) {
+  void queryClient.prefetchQuery({
+    queryKey: queryKeys.me(),
+    queryFn: () => getPlain(meResponse, '/me'),
+  })
   void queryClient.prefetchQuery({
     queryKey: queryKeys.folders(),
     queryFn: () => getPlain(getFoldersResponse, '/folders'),

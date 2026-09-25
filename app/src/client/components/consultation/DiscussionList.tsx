@@ -10,7 +10,8 @@ Pressing the mark resolves (the thread view's close without a decision) or
 reopens the thread, with Undo. The title carries the row; an unread one (a
 post from someone else since this person last read it, the server's
 `read_at`) is heavier and nothing else marks it. On the right: an open
-thread's other participants and "4 posts · 12 min"; a resolved one's
+thread's last post ("Bilal: How about Tuesday?", wide screens only) after its
+title, its other participants and "4 posts · 12 min"; a resolved one's
 "Resolved 15 Sep".
 
 The keyboard path is the task lists' (`row-keys.ts`): arrows move, Enter
@@ -20,7 +21,7 @@ the parameter is ignored since both groups are always shown.
 The list re-reads every twenty seconds while the tab is visible
 (`useDiscussions`), so new activity arrives without a reload.
 */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import {
   useCreateDiscussion,
@@ -33,8 +34,9 @@ import { DISCUSSION_TITLE_MAX } from '../../../shared/consultation.js'
 import { MessageCircle, Plus, ResolvedMark } from '../../lib/icons.js'
 import type { PersonResolver } from '../../lib/thread.js'
 import { formatAgo, formatCompactDate } from '../../parts/format-dates.js'
-import { presenterToday } from '../../parts/presenters.js'
+import { initialsOf, presenterToday } from '../../parts/presenters.js'
 import { pushUndo, undoLabel } from '../../shell/undo.js'
+import { Face } from '../person-face.js'
 import { useRowKeys } from '../row-keys.js'
 import { InlineError } from '../state-patterns.js'
 import { Skeleton } from '../ui/skeleton.js'
@@ -60,12 +62,15 @@ export function DiscussionList({
   folderId,
   viewer,
   personOf,
+  returnTo = null,
   onOpen,
   onStarted,
 }: {
   readonly folderId: string
   readonly viewer: ConsultationViewer | null
   readonly personOf: PersonResolver
+  /** The thread just left by Escape or Back: its row takes focus once drawn. */
+  readonly returnTo?: string | null
   readonly onOpen: (discussionId: string) => void
   readonly onStarted: (discussionId: string) => void
 }): React.JSX.Element {
@@ -85,6 +90,11 @@ export function DiscussionList({
   }
 
   const discussions = list.data?.pages.flatMap((page) => page.discussions) ?? []
+  const landed = list.data !== undefined
+  useEffect(() => {
+    if (returnTo === null || !landed) return
+    keys.current?.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(returnTo)}"]`)?.focus()
+  }, [returnTo, landed, keys])
   const stateOf = (d: Discussion): State => moved.get(d.id) ?? (d.state === 'open' ? 'open' : 'resolved')
   const may = (d: Discussion): boolean => {
     if (viewer === null) return false
@@ -212,6 +222,8 @@ function ThreadRow({
 }): React.JSX.Element {
   const isOpen = state === 'open'
   const fresh = isUnread(d, viewerId)
+  /* What was said last, so the list answers "does this need me?" unopened. */
+  const last = d.last_post !== null && d.last_post !== undefined && d.last_post.preview !== '' ? d.last_post : null
   const mark = isOpen ? (
     <MessageCircle className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
   ) : (
@@ -257,15 +269,22 @@ function ThreadRow({
       ) : (
         <span className="flex size-[var(--control-height)] items-center justify-center">{mark}</span>
       )}
-      <span
-        title={d.title}
-        className={cn(
-          'min-w-0 truncate',
-          isOpen ? 'text-foreground' : 'text-muted-foreground',
-          fresh ? 'font-title' : 'font-normal',
-        )}
-      >
-        {d.title}
+      <span className="flex min-w-0 items-baseline gap-2">
+        <span
+          title={d.title}
+          className={cn(
+            'max-w-full min-w-0 shrink-0 truncate',
+            isOpen ? 'text-foreground' : 'text-muted-foreground',
+            fresh ? 'font-title' : 'font-normal',
+          )}
+        >
+          {d.title}
+        </span>
+        {isOpen && last !== null ? (
+          <span className="min-w-0 flex-1 truncate text-muted-foreground max-md:hidden">
+            {last.author_id === viewerId ? 'You' : personOf(last.author_id).name}: {last.preview}
+          </span>
+        ) : null}
       </span>
       <span className="flex items-center gap-2 pl-3 text-xs whitespace-nowrap text-muted-foreground">
         {isOpen ? (
@@ -301,17 +320,12 @@ function Faces({
       {ids.map((id) => {
         const person = personOf(id)
         return (
-          <span
+          <Face
             key={id}
-            title={person.name}
-            className="flex size-4 items-center justify-center overflow-hidden rounded-full bg-muted text-[0.625rem] leading-none text-muted-foreground ring-2 ring-background"
-          >
-            {person.image === undefined ? (
-              (person.name.trim()[0] ?? '?').toUpperCase()
-            ) : (
-              <img src={person.image} alt="" className="size-full object-cover" />
-            )}
-          </span>
+            dense
+            className="ring-2 ring-background"
+            person={{ id, initials: initialsOf(person.name), name: person.name, ...(person.image === undefined ? {} : { image: person.image }) }}
+          />
         )
       })}
     </span>
@@ -392,10 +406,11 @@ function NewThread({
 }
 
 function ListSkeleton(): React.JSX.Element {
+  /* The rows' own height, so the list does not jump when it lands. */
   return (
-    <div className="divide-y divide-border" aria-label="Loading threads" aria-busy="true">
+    <div className="flex flex-col px-1.5" aria-label="Loading threads" aria-busy="true">
       {[0, 1, 2].map((row) => (
-        <div key={row} className="py-3">
+        <div key={row} className="flex h-[var(--row-height)] items-center">
           <Skeleton className={row === 1 ? 'h-3.5 w-2/5' : 'h-3.5 w-3/5'} />
         </div>
       ))}

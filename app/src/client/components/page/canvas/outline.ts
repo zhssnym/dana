@@ -45,6 +45,7 @@ const NEST_PARENT_TYPES: ReadonlySet<string> = new Set([
   'toggleListItem',
   'quote',
   'callout',
+  'result',
 ])
 
 const KNOWN_TYPES: ReadonlySet<string> = new Set([

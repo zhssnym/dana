@@ -164,7 +164,7 @@ export async function backlinksOf(
     executor,
     sql`SELECT pb.id, pb.kind, pb.ref_folder_id, pb.rich_content,
                ff.id AS home_id, ff.folder_id,
-               COALESCE(ff.display_name, CASE ff.kind
+               fo.name || ' · ' || COALESCE(ff.display_name, CASE ff.kind
                  WHEN 'main' THEN ${DEFAULT_FACET_NAMES.main}
                  WHEN 'purpose' THEN ${DEFAULT_FACET_NAMES.purpose}
                  WHEN 'consultation' THEN ${DEFAULT_FACET_NAMES.consultation}

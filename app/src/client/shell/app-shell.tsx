@@ -129,21 +129,11 @@ hidden, then the window bar (arrows, trail, page controls). Below 768px the
 same window bar sits between Menu and Search, so a phone has one bar.
 */
 function TopBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): React.JSX.Element {
-  const { isMobile, state, setOpenMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
   if (!isMobile) {
     return (
-      <div className="flex shrink-0 items-center">
-        {state === 'expanded' ? null : (
-          <Tooltip>
-            <TooltipTrigger
-              render={<SidebarTrigger size="icon" className="ml-2 shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground" />}
-            />
-            <TooltipContent side="bottom">Expand sidebar</TooltipContent>
-          </Tooltip>
-        )}
-        <div className="min-w-0 flex-1">
-          <WindowBar />
-        </div>
+      <div className="shrink-0">
+        <WindowBar />
       </div>
     )
   }
@@ -212,8 +202,19 @@ function TopTrail(): React.JSX.Element {
   }
   /* A top-level place (Today, Settings, Trash, a collection) has no crumb:
      its title already says where you are, and saying it twice is noise. */
+  /* With the sidebar hidden on a laptop, the one control that brings it back
+     leads the bar, spaced and drawn like the arrows beside it. */
+  const { isMobile, state } = useSidebar()
   return (
     <WindowBarLead>
+      {isMobile || state === 'expanded' ? null : (
+        <Tooltip>
+          <TooltipTrigger
+            render={<SidebarTrigger size="icon" className="shrink-0 text-muted-foreground hover:text-foreground" />}
+          />
+          <TooltipContent side="bottom">Expand sidebar</TooltipContent>
+        </Tooltip>
+      )}
       <HistoryArrows />
       {trail}
     </WindowBarLead>
@@ -266,8 +267,61 @@ function useDefaultTimezone(stored: string | undefined): void {
   }, [stored])
 }
 
+/*
+WCAG 2.4.2: a tab (and a screen reader arriving on a page) is named after the
+page's own name, the element marked `data-page-title` (the head's `h1`, or the
+rename field while it is open, which carries the name as the attribute's
+value). Canvas headings are `h1`s too, so "the first h1" is not the page's
+name. Watched rather than set per page, so a rename or a slow read renames the
+tab too.
+ */
+function usePageTitle(region: HTMLElement | null): void {
+  useEffect(() => {
+    if (region === null) return undefined
+    const name = (): void => {
+      const marked = shownTitle(region)
+      const heading = (marked?.getAttribute('data-page-title') || marked?.textContent || '').trim()
+      const next = heading ? `${heading} – Dana` : 'Dana'
+      if (document.title !== next) document.title = next
+    }
+    name()
+    const watch = new MutationObserver(name)
+    watch.observe(region, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['data-page-title'] })
+    return () => {
+      watch.disconnect()
+      document.title = 'Dana'
+    }
+  }, [region])
+}
+
+/* The page's name as drawn: a thread view keeps the folder head mounted but
+   hidden, and a hidden element takes no focus and names nothing on screen. */
+function shownTitle(region: HTMLElement): HTMLElement | null {
+  for (const marked of region.querySelectorAll<HTMLElement>('[data-page-title]')) {
+    if (marked.getClientRects().length > 0) return marked
+  }
+  return null
+}
+
+/*
+The skip link moves focus to the page's name (or the scroll region on a page
+without one), made focusable only for that trip: a region left focusable took
+every click on blank space, and the Esc handlers that read "focus on nothing"
+as `document.body` (a Discussion thread's, the canvas's) stopped firing.
+ */
+function skipTo(region: HTMLElement | null): void {
+  const title = region === null ? null : shownTitle(region)
+  const target = title instanceof HTMLHeadingElement ? title : region
+  if (target === null || target === undefined) return
+  target.setAttribute('tabindex', '-1')
+  target.addEventListener('blur', () => { target.removeAttribute('tabindex') }, { once: true })
+  target.focus()
+}
+
 export function AppShell(): React.JSX.Element {
   const location = useLocation()
+  const [content, setContent] = useState<HTMLDivElement | null>(null)
+  usePageTitle(content)
   const me = useMe()
   useDefaultTimezone(me.data?.user.timezone)
   /*
@@ -442,6 +496,17 @@ export function AppShell(): React.JSX.Element {
         {...(modalOpen ? { "aria-hidden": true, inert: true } : {})}
         className="flex h-svh flex-col overflow-hidden bg-background"
       >
+        {/* The first Tab on every page: past the sidebar to the page itself. */}
+        <a
+          href="#dana-content"
+          onClick={(event) => {
+            event.preventDefault()
+            skipTo(content)
+          }}
+          className="fixed top-2 left-2 z-50 rounded-md bg-background px-2 py-1 text-sm text-foreground not-focus:sr-only"
+        >
+          Skip to content
+        </a>
         <SidebarProvider
           className="h-svh min-h-0"
           open={railOpen}
@@ -503,7 +568,12 @@ export function AppShell(): React.JSX.Element {
             <TopTrail />
             <UpdateChrome showUpdate={update.showUpdate} onUpdate={update.applyUpdate} />
             {/* The one region that scrolls. */}
-            <div data-shell-scroll className="min-h-0 flex-1 overflow-y-auto">
+            <div
+              ref={setContent}
+              id="dana-content"
+              data-shell-scroll
+              className="min-h-0 flex-1 overflow-y-auto"
+            >
               <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-4 py-4 md:px-10 md:py-6">
                 {/* 9.8: pending invites sit above every /app page; a read in
                     flight, a failed read and an empty answer all draw nothing. */}

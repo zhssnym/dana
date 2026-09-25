@@ -49,8 +49,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Clock3,
-  Folder as FolderIcon,
   Plus,
   Repeat2,
 } from '../../lib/icons.js'
@@ -58,9 +56,11 @@ import {
 import { usePlannedCalendarView, useFolders } from '../../api/queries.js'
 import { useUpdateTask } from '../../api/mutations.js'
 import { formatDueDate, presenterToday } from '../../parts/presenters.js'
-import { movableEnd } from '../../parts/schedule.js'
+import { shiftedSchedule } from '../../parts/schedule.js'
 import { InlineError } from '../state-patterns.js'
 import { Button } from '../ui/button.js'
+import { Segmented } from '../ui/segmented.js'
+import { useIsMobile } from '../ui/use-mobile.js'
 import { cn } from '../ui/utils.js'
 import { formatClockTime } from '../../lib/dates.js'
 import { useTimeFormat } from '../../lib/time-format.js'
@@ -72,7 +72,6 @@ import {
   monthOf,
   periodTitle,
   shiftAnchor,
-  weekdayIndex,
 } from './grid.js'
 import type { Zoom } from './grid.js'
 import { cellsByDate } from './order.js'
@@ -116,7 +115,7 @@ const MONTH_CELL_LINES = 6
 const CELL_MIN_HEIGHT: Record<Zoom, string> = {
   // Padding and the day-number line, then MONTH_CELL_LINES rows of 20 with a
   // 2-pixel gap between them: 12 + 30 + 120 + 10.
-  month: 'min-h-[172px]',
+  month: 'min-h-[172px] max-sm:min-h-16',
   week: 'min-h-[420px]',
   day: 'min-h-[480px]',
 }
@@ -130,31 +129,52 @@ const ZOOM_LABEL: Record<Zoom, string> = { day: 'Day', week: 'Week', month: 'Mon
  * The glyph reports what the row is before the title is read: the repeat mark
  * for a projection, the check for a completed row and the ban for an abandoned
  * one, which are Q3C's three renderings ("Pending renders normal, completed
- * faded and checked, abandoned faded and struck"), the clock for a timed row
- * and the folder dot for everything else.
+ * faded and checked, abandoned faded and struck"), and the page's colour
+ * dot for everything else.
  */
 function CalendarEvent({
   event,
   compact,
+  dense,
   onOpen,
 }: {
   readonly event: CellEvent
   readonly compact: boolean
+  /** A phone's month (m2): the glyph alone, and the cell is what a tap reaches. */
+  readonly dense: boolean
   readonly onOpen: () => void
 }): React.JSX.Element {
   const ghost = event.kind === 'ghost'
   const completed = event.status === 'completed'
   const abandoned = event.status === 'abandoned'
-  /* A real, open row can be carried to another day; a ghost is a projection and
-     has no date of its own to move.
-
-     `moves` is the fourth condition (issue #216): it names which end of the
-     Schedule a drop writes, and is null for a Start+Due pair, whose whole-range
-     drag Q3C asks for and nothing has built. Writing the due date alone would
-     resize a span the person was carrying with nothing saying so, so the drag
-     is refused: the non-destructive reading of an unbuilt feature. */
-  const movable = !ghost && !completed && !abandoned && event.moves !== null
   const clock = useTimeFormat()
+  const glyph = ghost ? (
+    <Repeat2 className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+  ) : completed ? (
+    <Check className="size-3 shrink-0" strokeWidth={2} aria-hidden="true" />
+  ) : abandoned ? (
+    <Ban className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+  ) : (
+    /* The page's colour as a dot (m2): the folder glyph it replaces said the
+       same thing in three times the room, and a timed row's clock repeated
+       what its time already says. */
+    <span
+      className="size-1.5 shrink-0 rounded-full bg-muted-foreground"
+      style={event.folderColor === null ? undefined : { backgroundColor: event.folderColor }}
+      aria-hidden="true"
+    />
+  )
+  if (dense) {
+    return (
+      <span className="flex size-3 items-center justify-center text-muted-foreground" aria-hidden="true">
+        {glyph}
+      </span>
+    )
+  }
+  /* A real, open row can be carried to another day; a ghost is a projection and
+     has no date of its own to move. `moves` says which end a drop writes, and a
+     Start+Due pair moves whole. */
+  const movable = !ghost && !completed && !abandoned && event.moves !== null
 
   return (
     <button
@@ -169,9 +189,11 @@ function CalendarEvent({
           : undefined
       }
       className={cn(
-        'flex w-full items-center gap-1.5 overflow-hidden rounded-sm border border-transparent bg-muted px-1.5 text-left text-foreground transition-[background-color,border-color] hover:border-border hover:bg-background focus-visible:outline-none',
+        '@container flex w-full gap-1.5 overflow-hidden rounded-sm border border-transparent bg-muted px-1.5 text-left text-foreground transition-[background-color,border-color] hover:border-border hover:bg-background focus-visible:outline-none',
         movable && 'cursor-grab active:cursor-grabbing',
-        compact ? 'min-h-5 text-xs' : 'min-h-7 text-xs leading-4',
+        /* A week or a day has the height to spare, so a title takes two lines
+           there rather than three letters (m2). */
+        compact ? 'min-h-5 items-center text-xs' : 'min-h-7 items-start py-1.5 text-xs leading-4',
         completed && 'bg-background text-muted-foreground',
         abandoned && 'bg-background text-muted-foreground line-through',
         ghost &&
@@ -182,29 +204,32 @@ function CalendarEvent({
         onOpen()
       }}
       aria-label={`${ghost ? 'Upcoming repeating occurrence: ' : ''}${event.title}`}
+      title={event.dueTime === null ? event.title : `${event.title}, ${formatClockTime(event.dueTime, clock)}`}
     >
-      {ghost ? (
-        <Repeat2 className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-      ) : completed ? (
-        <Check className="size-3 shrink-0" strokeWidth={2} aria-hidden="true" />
-      ) : abandoned ? (
-        <Ban className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-      ) : event.dueTime !== null ? (
-        <Clock3 className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+      <span className="flex h-4 shrink-0 items-center">{glyph}</span>
+      {compact ? (
+        <>
+          {/* A month cell is narrow: the title first, since it says which task
+              this is, and the time after it only where the chip has room for
+              both; the chip's tooltip always says it. */}
+          <span className="min-w-0 truncate">{event.title}</span>
+          {event.dueTime === null ? null : (
+            <span className="ml-auto hidden shrink-0 text-muted-foreground tabular-nums @[9rem]:inline">
+              {formatClockTime(event.dueTime, clock)}
+            </span>
+          )}
+        </>
       ) : (
-        <FolderIcon
-          className="size-3.5 shrink-0"
-          style={event.folderColor === null ? undefined : { color: event.folderColor }}
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
-      )}
-      {event.dueTime === null ? null : (
-        <span className="shrink-0 text-muted-foreground">
-          {formatClockTime(event.dueTime, clock)}
+        /* A week or a day has height to spare: the time above the title. */
+        <span className="flex min-w-0 flex-col">
+          {event.dueTime === null ? null : (
+            <span className="shrink-0 text-muted-foreground tabular-nums">
+              {formatClockTime(event.dueTime, clock)}
+            </span>
+          )}
+          <span className="line-clamp-2 break-words">{event.title}</span>
         </span>
       )}
-      <span className="truncate">{event.title}</span>
     </button>
   )
 }
@@ -219,12 +244,15 @@ function DayCell({
   lastColumn,
   lastRow,
   events,
+  dense,
   onReveal,
   onDropTask,
   onCreate,
 }: {
   readonly date: string
   readonly zoom: Zoom
+  /** A phone's month: dots, and a tap shows the day rather than adding to it. */
+  readonly dense: boolean
   readonly today: string
   readonly anchorMonth: string
   readonly column: number
@@ -246,11 +274,13 @@ function DayCell({
   one only where it is needed would make that week's row taller than the
   others, which is the growth the constant height forbids.
   */
-  const overflows = zoom === 'month' && events.length > MONTH_CELL_LINES
+  const overflows = !dense && zoom === 'month' && events.length > MONTH_CELL_LINES
   const visible = overflows ? events.slice(0, MONTH_CELL_LINES - 1) : events
   const hidden = events.length - visible.length
+  /* A phone draws the week as an agenda, one day per line, so titles stay
+     whole. */
+  const agenda = zoom === 'week'
   const outsideMonth = zoom === 'month' && monthOf(date) !== anchorMonth
-  const weekend = zoom !== 'day' && column > 4
 
   return (
     <div
@@ -259,11 +289,13 @@ function DayCell({
       data-date={date}
       className={cn(
         'group/calendar-cell relative border-r border-b border-border p-1.5',
-        CELL_MIN_HEIGHT[zoom],
-        outsideMonth && 'bg-muted',
-        weekend && !outsideMonth && 'bg-muted/40',
+        /* One tint, for the one thing it says (m2): a drop target. Weekends
+           and the neighbouring months' days are told apart by their numbers. */
+        dense ? 'min-h-16 overflow-hidden' : CELL_MIN_HEIGHT[zoom],
         lastColumn && 'border-r-0',
         lastRow && 'border-b-0',
+        agenda && 'max-sm:min-h-14 max-sm:border-r-0',
+        agenda && !lastColumn && 'max-sm:border-b',
         over && 'bg-muted',
       )}
       onDragOver={(drag) => {
@@ -290,7 +322,14 @@ function DayCell({
       affordance is reachable by keyboard and announces what it does; it is
       painted beneath the rows, so a click on a row opens that task.
       */}
-      {onCreate === undefined ? null : (
+      {dense ? (
+        <button
+          type="button"
+          className="absolute inset-0 z-0 rounded-none text-left outline-none"
+          aria-label={`Show ${formatDueDate(date, today)}`}
+          onClick={onReveal}
+        />
+      ) : onCreate === undefined ? null : (
         <button
           type="button"
           className="absolute inset-0 z-0 rounded-none text-left outline-none transition-colors hover:bg-muted/70"
@@ -301,12 +340,23 @@ function DayCell({
         />
       )}
 
-      <div className="pointer-events-none relative z-10 mb-1.5 flex h-6 items-center justify-between">
+      <div
+        className={cn(
+          'pointer-events-none relative z-10 mb-1.5 flex h-6 items-center justify-between',
+          /* The day zoom's title already names its one day. */
+          zoom === 'day' && 'hidden',
+          /* The agenda has no column heads, so each line names its weekday.
+             A pseudo-element, so the cell's text still starts with the day. */
+          agenda &&
+            'max-sm:justify-start max-sm:gap-1 max-sm:before:text-xs max-sm:before:font-medium max-sm:before:text-muted-foreground max-sm:before:content-[attr(data-weekday)]',
+        )}
+        data-weekday={agenda ? WEEKDAY_LABELS[column] : undefined}
+      >
         <span
           className={cn(
             'flex size-6 items-center justify-center rounded-md text-xs font-medium text-muted-foreground',
+            outsideMonth && 'text-quiet-foreground',
             date === today && 'bg-primary text-primary-foreground',
-            outsideMonth && date !== today && 'text-muted-foreground',
           )}
         >
           {/*
@@ -327,18 +377,19 @@ function DayCell({
           {dayOfMonth(date)}{' '}
         </span>
         <Plus
-          className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover/calendar-cell:opacity-100 group-focus-within/calendar-cell:opacity-100"
+          className="size-3.5 text-muted-foreground max-sm:hidden opacity-0 transition-opacity group-hover/calendar-cell:opacity-100 group-focus-within/calendar-cell:opacity-100"
           strokeWidth={1.75}
           aria-hidden="true"
         />
       </div>
 
-      <div className="relative z-10 space-y-0.5">
+      <div className={cn('relative z-10', dense ? 'pointer-events-none flex flex-wrap gap-0.5' : 'space-y-0.5')}>
         {visible.map((event) => (
           <CalendarEvent
             key={event.key}
             event={event}
             compact={zoom === 'month'}
+            dense={dense}
             onOpen={() => {
               // 9.5: a ghost opens the series' current occurrence, and the
               // banner rides that path alone.
@@ -358,7 +409,7 @@ function DayCell({
         {hidden > 0 ? (
           <button
             type="button"
-            className="flex h-5 items-center rounded-sm px-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none"
+            className="flex h-5 items-center rounded-sm px-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none"
             onClick={onReveal}
           >
             +{hidden} more
@@ -438,6 +489,9 @@ export function PlannedCalendar({
   */
   const zoom = useCalendarZoom()
   const [anchor, setAnchor] = useState<string>(today)
+  /* A phone's month is seven columns of fifty pixels: no title fits, so it
+     draws dots and a tap opens the day (m2). */
+  const dense = useIsMobile() && zoom === 'month'
 
   /* 9.5's "leaves the page": a reveal lasts as long as the calendar is on
      screen and never longer, so nothing a person peeked at follows them to the
@@ -459,60 +513,76 @@ export function PlannedCalendar({
   const folders = useFolders()
   const update = useUpdateTask()
   /*
-  The grid scrolls today's row into view once, on arrival, and the person takes
-  it from there; otherwise a month opened on its last day would show today three
-  weeks below the fold.
+  The grid opens on today's week, once, on arrival, and the person takes it from
+  there; otherwise a month opened on its last day would show today three weeks
+  below the fold. When today's row is not wholly on screen the grid scrolls it
+  up to sit just under the month bar, which is sticky inside the scroller, so
+  the controls stay while the title may go: today's tasks and the weeks after
+  them are what the calendar is opened for. A today already in view moves
+  nothing.
   */
   const grid = useRef<HTMLDivElement>(null)
+  const bar = useRef<HTMLDivElement>(null)
   const scrolled = useRef(false)
   useEffect(() => {
     if (scrolled.current || view.data === undefined) return
     const cell = grid.current?.querySelector('[data-today="true"]')
     if (cell === null || cell === undefined) return
     scrolled.current = true
-    cell.scrollIntoView({ block: 'center' })
+    const scroller = cell.closest('[data-shell-scroll]')
+    if (scroller === null) return
+    const frame = scroller.getBoundingClientRect()
+    const box = cell.getBoundingClientRect()
+    if (box.bottom <= frame.bottom) return
+    const head = bar.current?.getBoundingClientRect().height ?? 0
+    const by = box.top - frame.top - head
+    if (by > 0) scroller.scrollBy({ top: by })
   }, [view.data])
 
   /*
-  7.6's PATCH of one end of the Schedule, from a drop.
+  A day cell holds only rows on their own day: a task on its Due Date, or on
+  its Start Date when it has no Due Date. So a day holds the same tasks at
+  every zoom, and a phone's count is what the day it opens lists. A span whose
+  own day is off this grid is "running" (order.ts) and is listed once above
+  the grid instead of on a day that would read as its deadline, until 9.5's
+  span bar exists.
+  */
+  const { cells, running } = useMemo(() => {
+    const placed = cellsByDate(view.data?.real ?? [], view.data?.virtual ?? [], folders.data ?? [], {
+      start,
+      end,
+    })
+    const through: CellEvent[] = []
+    const own = new Map<string, CellEvent[]>()
+    for (const [day, events] of placed) {
+      own.set(day, events.filter((event) => !event.running))
+      through.push(...events.filter((event) => event.running))
+    }
+    through.sort((a, b) => (a.title < b.title ? -1 : a.title > b.title ? 1 : 0))
+    return { cells: own, running: through }
+  }, [view.data, folders.data, start, end])
 
-  **Which end is the row's to say, not this function's** (issue #216). Q3C:
-  "Dragging moves a Due-only task's Due Date, a Start-only task's Start Date,
-  and a Start+Due range whole." Writing `{ due_date: date }` for every row would
-  silently turn a Start-only task dropped after its start date into a Start+Due
-  task. `movableEnd` answers the first two forms and refuses the third, whose
-  whole-range drag is unbuilt; the card is not draggable in that case either, so
-  reaching here with a null end is a drop the grid should not have offered and
-  is dropped rather than approximated.
+  /*
+  7.6's PATCH of the Schedule, from a drop (Q3C, issue #216): a Due-only row
+  moves its Due Date, a Start-only row its Start Date, and a Start+Due pair
+  moves whole by the days between the cell it was drawn on and the cell it
+  landed on, so its span is kept. `shiftedSchedule` holds the rule.
   */
   function moveTaskTo(taskId: string, date: string): void {
     const row = (view.data?.real ?? []).find((card) => card.id === taskId)
     if (row === undefined) return
-    const end = movableEnd(row)
-    if (end === null) return
-    if (row[end] === date) return
+    let from: string | null = null
+    for (const [day, events] of cells) {
+      if (events.some((event) => event.kind === 'real' && event.taskId === taskId)) from = day
+    }
+    const body = shiftedSchedule(row, from ?? date, date)
+    if (body === null) return
     // The card moving is the answer; success says nothing.
-    update.mutate({
-      id: taskId,
-      body: end === 'due_date' ? { due_date: date } : { start_date: date },
-    })
+    update.mutate({ id: taskId, body })
   }
-
-  const cells = useMemo(
-    () =>
-      cellsByDate(view.data?.real ?? [], view.data?.virtual ?? [], folders.data ?? [], {
-        start,
-        end,
-      }),
-    [view.data, folders.data, start, end],
-  )
 
   const columns = zoom === 'day' ? 1 : 7
   const template = `repeat(${String(columns)}, minmax(0, 1fr))`
-  const headers =
-    zoom === 'day'
-      ? [WEEKDAY_LABELS[weekdayIndex(anchor)] ?? WEEKDAY_LABELS[0]]
-      : [...WEEKDAY_LABELS]
   const weeks = useMemo(() => {
     const rows: string[][] = []
     for (let at = 0; at < dates.length; at += columns) {
@@ -522,7 +592,14 @@ export function PlannedCalendar({
   }, [dates, columns])
 
   return (
-    <div className="mt-5 mb-20 space-y-4">
+    /* The calendar takes the page's whole width, not the reading column: a
+       month of seven columns in 690px cut every title to a few letters.
+       `100cqw` is the scroll region's width (`tokens.css`), and the gutter
+       matches the shell's own padding. */
+    <div
+      className="mt-5 mb-20 space-y-3 [--calendar-gutter:1rem] md:[--calendar-gutter:2.5rem]"
+      style={{ marginInline: 'min(0px, calc(50% - 50cqw + var(--calendar-gutter)))' }}
+    >
       {/*
       9.1's inline failed-read line, beside the thing that failed. The grid
       still draws underneath it: Q3C's empty state is the bare grid and a
@@ -537,84 +614,87 @@ export function PlannedCalendar({
         />
       ) : null}
 
+      {/*
+      The toolbar (m2): the period's name, then the system's own controls at
+      the one control height: a plain Today, ghost Previous/Next, and the zoom
+      as Segmented. It sits on the page rather than in a tinted bar, so the
+      grid's hairline is the only frame. It sticks to the top of the scroller,
+      so the controls stay while today's week is scrolled up beneath it.
+      */}
+      <div
+        ref={bar}
+        className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 bg-background py-1"
+      >
+        <div className="flex min-w-0 items-center gap-1">
+          <h2 className="mr-2 min-w-0 truncate text-sm font-section text-foreground">
+            {periodTitle(zoom, anchor, today)}
+          </h2>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Previous"
+            onClick={() => {
+              setAnchor((was) => shiftAnchor(zoom, was, -1))
+            }}
+          >
+            <ChevronLeft className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Next"
+            onClick={() => {
+              setAnchor((was) => shiftAnchor(zoom, was, 1))
+            }}
+          >
+            <ChevronRight className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setAnchor(today)
+            }}
+          >
+            Today
+          </Button>
+        </div>
+
+        <Segmented
+          label="Calendar zoom"
+          value={zoom}
+          onValueChange={setCalendarZoom}
+          options={CALENDAR_ZOOMS.map((level) => ({ value: level, label: ZOOM_LABEL[level] }))}
+        />
+      </div>
+
       <div className="overflow-hidden rounded-md border border-border bg-background">
-        <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border bg-muted px-2 py-1.5">
-          <div className="flex min-w-0 items-center gap-2">
-            <h2 className="min-w-36 truncate px-2 text-sm leading-6 font-semibold text-foreground">
-              {periodTitle(zoom, anchor, today)}
-            </h2>
-            <Button
-              variant="outline"
-              className="h-[var(--control-height)] border-border bg-background px-3 text-sm font-medium text-foreground shadow-none hover:bg-muted"
-              onClick={() => {
-                setAnchor(today)
-              }}
-            >
-              Today
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="flex overflow-hidden rounded-md border border-border bg-background">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-[var(--control-height)] rounded-none border-r border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Previous"
-                onClick={() => {
-                  setAnchor((was) => shiftAnchor(zoom, was, -1))
-                }}
-              >
-                <ChevronLeft className="size-5" strokeWidth={1.75} aria-hidden="true" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-[var(--control-height)] rounded-none text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Next"
-                onClick={() => {
-                  setAnchor((was) => shiftAnchor(zoom, was, 1))
-                }}
-              >
-                <ChevronRight className="size-5" strokeWidth={1.75} aria-hidden="true" />
-              </Button>
-            </div>
-
-            {/* `aria-pressed` is what carries the current zoom; the raised
-                tone is a second cue and never the only one. */}
-            <div
-              className="flex h-11 items-center rounded-md border border-border bg-background p-0.5"
-              role="group"
-              aria-label="Calendar zoom"
-            >
-              {CALENDAR_ZOOMS.map((level) => (
-                <Button
-                  key={level}
-                  variant="ghost"
-                  className={cn(
-                    'h-[var(--control-height)] rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-muted',
-                    zoom === level &&
-                      'bg-muted text-foreground hover:bg-muted',
-                  )}
-                  aria-pressed={zoom === level}
-                  onClick={() => {
-                    setCalendarZoom(level)
+        {running.length > 0 ? (
+          <div className="border-b border-border px-2 py-2">
+            <p className="px-1.5 pb-1 text-xs text-muted-foreground">Also running</p>
+            <div className={cn('grid gap-0.5', zoom === 'day' ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4')}>
+              {running.map((event) => (
+                <CalendarEvent
+                  key={event.key}
+                  event={{ ...event, moves: null }}
+                  compact={false}
+                  dense={false}
+                  onOpen={() => {
+                    openTask(event.taskId, { upcoming: false })
                   }}
-                >
-                  {ZOOM_LABEL[level]}
-                </Button>
+                />
               ))}
             </div>
           </div>
-        </div>
+        ) : null}
 
         <div role="grid" aria-label="Upcoming calendar" className="bg-background" ref={grid}>
+          {zoom === 'day' ? null : (
           <div
             role="row"
-            className="grid border-b border-border bg-background"
+            className={cn('grid border-b border-border bg-background', zoom === 'week' && 'max-sm:hidden')}
             style={{ gridTemplateColumns: template }}
           >
-            {headers.map((label) => (
+            {WEEKDAY_LABELS.map((label) => (
               <div
                 key={label}
                 role="columnheader"
@@ -630,12 +710,13 @@ export function PlannedCalendar({
               </div>
             ))}
           </div>
+          )}
 
           {weeks.map((week, row) => (
             <div
               key={week[0] ?? ''}
               role="row"
-              className="grid"
+              className={cn('grid', zoom === 'week' && 'max-sm:grid-cols-1!')}
               style={{ gridTemplateColumns: template }}
             >
               {week.map((date, column) => (
@@ -649,6 +730,7 @@ export function PlannedCalendar({
                   lastColumn={column === week.length - 1}
                   lastRow={row === weeks.length - 1}
                   events={cells.get(date) ?? []}
+                  dense={dense}
                   onReveal={() => {
                     // 9.5's reveal: the day zoom draws every row the day holds.
                     // It changes what is drawn and never the account (#140): a

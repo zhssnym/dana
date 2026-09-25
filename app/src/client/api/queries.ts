@@ -72,6 +72,17 @@ import type {
   GetSearchResponse,
 } from '../../shared/views.js'
 
+import { getFolderAccessHistoryResponse } from '../../shared/folder-access.js'
+import type { FolderAccessHistoryEntry } from '../../shared/folder-access.js'
+import {
+  getFolderMemberDetailsResponse,
+  getResponsibilityHistoryResponse,
+} from '../../shared/responsibility.js'
+import type {
+  GetFolderMemberDetailsResponse,
+  ResponsibilityHistoryEntry,
+} from '../../shared/responsibility.js'
+
 import { getPlain, getView } from './http.js'
 import { queryKeys } from './keys.js'
 
@@ -625,5 +636,48 @@ export function useDiscussion(id: string, enabled = true): UseQueryResult<Discus
     queryKey: queryKeys.discussion(id),
     queryFn: () => getPlain(discussionSchema, `/discussions/${id}`),
     enabled,
+  })
+}
+
+/** One member of a page, for the sharing panel's member details (#209). */
+export function useFolderMember(
+  folderId: string,
+  userId: string,
+): UseQueryResult<GetFolderMemberDetailsResponse> {
+  return useQuery({
+    queryKey: queryKeys.folderMember(folderId, userId),
+    queryFn: () =>
+      getPlain(getFolderMemberDetailsResponse, `/folders/${folderId}/members/${userId}`),
+  })
+}
+
+export type MemberHistoryEntry =
+  | { readonly kind: 'access'; readonly entry: FolderAccessHistoryEntry }
+  | { readonly kind: 'responsibility'; readonly entry: ResponsibilityHistoryEntry }
+
+/**
+ * A member's Access and Responsibility history as one list, newest first. The
+ * two records stay separate on the server (#230); the panel reads them as one.
+ */
+export function useFolderMemberHistory(
+  folderId: string,
+  userId: string,
+  enabled: boolean,
+): UseQueryResult<readonly MemberHistoryEntry[]> {
+  return useQuery({
+    queryKey: queryKeys.folderMemberHistory(folderId, userId),
+    enabled,
+    queryFn: async () => {
+      const base = `/folders/${folderId}/members/${userId}`
+      const [access, responsibility] = await Promise.all([
+        getPlain(getFolderAccessHistoryResponse, `${base}/access-history`),
+        getPlain(getResponsibilityHistoryResponse, `${base}/responsibility/history`),
+      ])
+      const merged: MemberHistoryEntry[] = [
+        ...access.entries.map((entry) => ({ kind: 'access' as const, entry })),
+        ...responsibility.entries.map((entry) => ({ kind: 'responsibility' as const, entry })),
+      ]
+      return merged.sort((a, b) => b.entry.effective_at.localeCompare(a.entry.effective_at))
+    },
   })
 }

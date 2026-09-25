@@ -22,7 +22,12 @@ themselves has been adopted, and it stays, its register row dropped. The
 same for a folder the person has shared: a sample folder with another
 member is left where it is, reported back so the strip can say so, and its
 register row dropped, because the moment it had a second member it stopped
-being a sample and became a thing two people hold.
+being a sample and became a thing two people hold. A sample page the person
+wrote into (a task, a block, a comment or a thread of theirs) is not
+destroyed but moved to Trash, whole from the top of its sample tree, and
+named back: removal is not a delete that reaches their own work, and with
+nothing of the old sample left in view the undo's fresh copy duplicates
+nothing.
 
 Removal goes through `domain/trash.ts`'s `destroyFolders` and `destroyTasks`,
 the one collection the purge and the permanent delete already share, so a
@@ -47,7 +52,13 @@ import { recordAccessTransition } from '../domain/folder-access.js'
 import { initialKeys, keyBetween } from '../domain/fractional-index.js'
 import { applyDocument, documentMetadata } from '../domain/page-document.js'
 import { positionedItems } from '../domain/page-order.js'
-import { appendHomeBlock, lastChildPosition } from '../domain/page-tree.js'
+import { trashFolderSubtree } from '../domain/folders.js'
+import {
+  appendHomeBlock,
+  lastChildPosition,
+  lockPageTree,
+  removeHomeBlock,
+} from '../domain/page-tree.js'
 import { upsertReminder } from '../domain/tasks.js'
 import { destroyFolders, destroyTasks } from '../domain/trash.js'
 import { today } from '../time/today.js'
@@ -693,6 +704,8 @@ export interface SampleRemoval {
   fileIds: string[]
   /** Sample folders left standing because someone else is a member. */
   keptFolders: string[]
+  /** Sample pages the person wrote into, moved to Trash with their writing. */
+  trashedFolders: string[]
 }
 
 function idList(ids: readonly string[]): SQL {
@@ -709,22 +722,91 @@ export async function removeSampleWorkspace(
   return inTransaction(db, async (tx) => {
     await tx.execute(sql`SELECT 1 FROM users WHERE id = ${userId}::uuid FOR UPDATE`)
 
+    // What the person wrote after the sample did: a task the sample did not
+    // write, a block written or edited since (the sample's own carry the
+    // register's moment, one transaction's now()), a comment or a thread of
+    // theirs posted since.
+    const ownWriting = (folder: SQL, since: SQL): SQL => sql`(
+      EXISTS (SELECT 1 FROM tasks t
+               WHERE t.folder_id = ${folder}
+                 AND t.id NOT IN (SELECT o.id FROM sample_objects o
+                                   WHERE o.user_id = ${userId}::uuid AND o.kind = 'task'))
+      OR EXISTS (SELECT 1 FROM page_blocks b
+                  WHERE b.updated_at > ${since}
+                    AND (b.folder_id = ${folder}
+                         OR b.facet_id IN (SELECT ff.id FROM folder_facets ff
+                                            WHERE ff.folder_id = ${folder})
+                         OR b.task_id IN (SELECT t.id FROM tasks t WHERE t.folder_id = ${folder})))
+      OR EXISTS (SELECT 1 FROM comments c
+                  WHERE c.folder_id = ${folder} AND c.author_id = ${userId}::uuid
+                    AND c.created_at > ${since})
+      OR EXISTS (SELECT 1 FROM discussions d
+                  WHERE d.folder_id = ${folder} AND d.created_by = ${userId}::uuid
+                    AND d.created_at > ${since}))`
+
     const folders = await rowsOf(
       tx,
-      sql`SELECT f.id, f.name,
+      sql`SELECT f.id, f.name, f.parent_folder_id, f.deleted_at IS NOT NULL AS trashed,
                  (SELECT count(*)::int FROM folder_members m
                    WHERE m.folder_id = f.id AND m.user_id <> ${userId}::uuid
-                     AND m.user_id NOT IN (${idList(SAMPLE_PERSON_IDS)})) AS others
+                     AND m.user_id NOT IN (${idList(SAMPLE_PERSON_IDS)})) AS others,
+                 ${ownWriting(sql`f.id`, sql`s.created_at`)} AS own_work
           FROM sample_objects s
           JOIN folders f ON f.id = s.id AND f.owner_id = ${userId}::uuid
           WHERE s.user_id = ${userId}::uuid AND s.kind = 'folder'`,
     )
+    // A sample page someone else holds stays where it is. A sample page the
+    // person wrote into goes to Trash, whole, from the top of its sample
+    // tree, so their writing comes back in its place on a restore, nothing
+    // of the sample stays in view, and the undo's fresh sample has no
+    // survivor beside it to duplicate.
+    const byId = new Map(folders.map((row) => [String(row.id), row]))
+    const shared = (id: string): boolean => Number(byId.get(id)?.others ?? 0) > 0
+    const rootOf = (id: string): string => {
+      let at = id
+      for (;;) {
+        const parent = byId.get(at)?.parent_folder_id
+        if (parent === null || parent === undefined) return at
+        const up = String(parent)
+        if (!byId.has(up) || shared(up)) return at
+        at = up
+      }
+    }
+    const trashRoots = [
+      ...new Set(
+        folders
+          .filter((row) => !shared(String(row.id)) && row.own_work === true && row.trashed !== true)
+          .map((row) => rootOf(String(row.id))),
+      ),
+    ]
+    // A page the person already put in Trash with their writing in it stays there.
+    const inTrashedTree = (id: string): boolean =>
+      trashRoots.includes(rootOf(id)) ||
+      (byId.get(id)?.trashed === true && byId.get(id)?.own_work === true)
+    const keptRows = folders.filter((row) => shared(String(row.id)))
     const doomedFolders = folders
-      .filter((row) => Number(row.others) === 0)
       .map((row) => String(row.id))
-    const keptFolders = folders
-      .filter((row) => Number(row.others) > 0)
-      .map((row) => String(row.name))
+      .filter((id) => !shared(id) && !inTrashedTree(id))
+    const keptFolders = keptRows.map((row) => String(row.name))
+    const trashedFolders = trashRoots.map((id) => String(byId.get(id)?.name ?? ''))
+
+    if (trashRoots.length > 0) {
+      await lockPageTree(tx)
+      // A shared page under one going to Trash stays live, at the top level.
+      const detach = keptRows
+        .filter((row) => row.parent_folder_id !== null && inTrashedTree(String(row.parent_folder_id)))
+        .map((row) => String(row.id))
+      if (detach.length > 0) {
+        await tx.execute(
+          sql`UPDATE folders SET parent_folder_id = NULL, child_position = NULL
+              WHERE id IN (${idList(detach)})`,
+        )
+      }
+      for (const id of trashRoots) {
+        await removeHomeBlock(tx, id)
+        await trashFolderSubtree(tx, userId, id)
+      }
+    }
 
     // The tasks still where the sample put them: in a doomed sample folder
     // or on Desk. A task in any other folder has been adopted.
@@ -733,7 +815,12 @@ export async function removeSampleWorkspace(
       JOIN tasks t ON t.id = s.id
       JOIN folders f ON f.id = t.folder_id
       WHERE s.user_id = ${userId}::uuid AND s.kind = 'task'
-        AND (f.is_default AND f.owner_id = ${userId}::uuid
+        AND ((f.is_default AND f.owner_id = ${userId}::uuid
+              AND NOT EXISTS (SELECT 1 FROM comments c
+                               WHERE c.task_id = t.id AND c.author_id = ${userId}::uuid
+                                 AND c.created_at > s.created_at)
+              AND NOT EXISTS (SELECT 1 FROM page_blocks b
+                               WHERE b.task_id = t.id AND b.updated_at > s.created_at))
              ${doomedFolders.length === 0 ? sql`` : sql`OR f.id IN (${idList(doomedFolders)})`})`
 
     const tasks = await destroyTasks(tx, doomedTasks)
@@ -810,7 +897,7 @@ export async function removeSampleWorkspace(
     // folders are the person's from here.
     await tx.execute(sql`DELETE FROM sample_objects WHERE user_id = ${userId}::uuid`)
 
-    return { fileIds, keptFolders }
+    return { fileIds, keptFolders, trashedFolders }
   })
 }
 

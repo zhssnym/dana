@@ -200,6 +200,8 @@ export default function PostEditor({
     <div
       ref={host}
       className="min-w-0"
+      /* The thread reads this: Escape in an empty new post leaves it. */
+      data-post-editor={editing ? 'edit' : 'new'}
       onKeyDownCapture={(event) => {
         if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
           event.preventDefault()

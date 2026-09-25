@@ -3,6 +3,7 @@ Dana Link references (issue #223, M1-C1). Two reads, no writes, no table.
 
     GET /api/v1/references/:kind/:id   one target, as a chip summary
     GET /api/v1/references/search      the picker's list, as it is typed
+    GET /api/v1/results/:id            where a native Result lives (#213)
 
 **Why the resolve endpoint takes a kind and an id rather than a URL.** The
 grammar of a Dana Link is `src/shared/references.ts` and both sides import it,
@@ -37,7 +38,7 @@ import type { DbClient } from '../../../db/client.js'
 import { referenceKind, referenceSearchQuery } from '../../shared/references.js'
 import { requireSession } from '../auth/index.js'
 import { accessOf } from '../domain/folders.js'
-import { resolveReference, searchReferences } from '../domain/references.js'
+import { resolveReference, resultLocation, searchReferences } from '../domain/references.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
@@ -119,6 +120,25 @@ export function createReferencesRouter(
         kind: kind.data,
         id,
       })
+      if (found === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      res.status(200).json(found)
+    },
+  )
+
+  /* #213: a native Result's home, for its `/app/results/:id` link. The gate
+     is in the query (`resultGate`): membership of the Result's live Folder. */
+  router.get(
+    '/results/:id',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const id = parsedId(res, req.params.id)
+      if (id === null) return
+      const found = await resultLocation(db, viewer(req), id)
       if (found === null) {
         sendError(res, 404, 'not_found', 'Not found.')
         return

@@ -47,11 +47,13 @@ export const REFERENCE_KINDS = [
   'facet',
   'discussion',
   'outcome',
+  /* #213: a native Result, one block of a Folder's Results facet. */
+  'result',
 ] as const
 export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
 
 export const referenceKind = z.enum(REFERENCE_KINDS, {
-  error: 'must be one of task, folder, shelf, facet, discussion or outcome',
+  error: 'must be one of task, folder, shelf, facet, discussion, outcome or result',
 })
 
 /** The client route segment each kind is addressed by, which is the plural
@@ -69,6 +71,7 @@ const KIND_SEGMENT: Record<ReferenceKind, string> = {
   facet: 'facets',
   discussion: 'discussions',
   outcome: 'outcomes',
+  result: 'results',
 }
 
 const KIND_OF_SEGMENT = new Map<string, ReferenceKind>(
@@ -220,3 +223,17 @@ export const getReferenceSearchResponse = z.object({
 export type GetReferenceSearchResponse = z.infer<
   typeof getReferenceSearchResponse
 >
+
+/**
+ * `GET /results/:id` (#213): where a native Result lives, so its Dana Link
+ * (`/app/results/:id`) can open the Folder's Results tab at that block. Gated
+ * exactly as the resolver gates `result`: a Result the viewer cannot open is
+ * the same 404 as one that is not there.
+ */
+export const getResultLocationResponse = z.object({
+  id: z.uuid(),
+  folder_id: z.uuid(),
+  facet_id: z.uuid(),
+  label: z.string(),
+})
+export type GetResultLocationResponse = z.infer<typeof getResultLocationResponse>

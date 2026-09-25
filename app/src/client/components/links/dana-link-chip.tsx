@@ -20,7 +20,7 @@ import { Link2 } from '../../lib/icons.js'
 import { danaLinkOf, resolveReference } from './dana-link.js'
 import { DanaLinkKindIcon } from './kind-icon.js'
 
-const CHIP = 'dana-link-chip mx-px inline-flex max-w-[24rem] items-center gap-1 rounded-md bg-muted px-1.5 align-baseline text-[length:var(--text-body-size)] leading-[1.5] font-medium text-foreground! no-underline!'
+const CHIP = 'dana-link-chip mx-px inline-flex max-w-[24rem] items-baseline gap-1 rounded-md bg-muted px-1.5 align-baseline text-[length:inherit] leading-[inherit] [&>svg]:self-center font-medium text-foreground! no-underline!'
 
 export function DanaLinkChip({ href, stored }: { readonly href: string; readonly stored: string }): React.JSX.Element {
   const target = danaLinkOf(href)

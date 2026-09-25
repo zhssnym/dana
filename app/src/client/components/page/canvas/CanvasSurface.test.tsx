@@ -45,7 +45,6 @@ vi.mock('./guard.js', () => ({ installCanvasGuard: () => () => {} }))
 vi.mock('./mentions.js', () => ({ MentionSuggestions: () => null }))
 vi.mock('./commands.js', () => ({
   bindTaskCommand: () => () => {},
-  headingOneContext: () => undefined,
   placeSection: () => false,
   sectionPlace: () => null,
   removeCanvasBlocks: () => {},

@@ -53,15 +53,20 @@ export function useMayBeFresh(): boolean {
 }
 
 /**
- * The offer when the account is fresh and has not dismissed it, after `lead`
- * (the page's own "New task", which comes first); otherwise `fallback`.
+ * The offer when the account is fresh and has not dismissed it, in place of
+ * `body` and after `quickAdd` (the page's own "New task", which comes first);
+ * otherwise `body` then `quickAdd`, the list's own order.
+ *
+ * `quickAdd` keeps one place in the tree in both states: the first task a
+ * fresh person adds ends the offer, and an input remounted elsewhere would
+ * drop focus and the keystrokes typed after Enter.
  */
 export function StarterOffer({
-  lead,
-  fallback,
+  body,
+  quickAdd,
 }: {
-  readonly lead: ReactNode
-  readonly fallback: ReactNode
+  readonly body: ReactNode
+  readonly quickAdd: ReactNode
 }): React.JSX.Element {
   const navigate = useNavigate()
   const importWorkflow = useImportWorkflow()
@@ -73,7 +78,7 @@ export function StarterOffer({
     all.data === undefined
       ? null
       : all.data.planned.length + all.data.tasks_inbox.length + all.data.tasks_groups.length
-  if (dismissed || taskCount !== 0) return <>{fallback}</>
+  const shown = !dismissed && taskCount === 0
 
   const choose = (starter: Starter): void => {
     if (importWorkflow.isPending) return
@@ -86,37 +91,40 @@ export function StarterOffer({
   }
 
   return (
-    <div className="space-y-[var(--space-group)]">
-      {lead}
-      <section
-        aria-labelledby="starter-offer-heading"
-        className="-mx-0.5 flex flex-col gap-[var(--space-row)]"
-      >
-        <h2 id="starter-offer-heading" className="px-2 pb-1 text-sm font-section text-foreground">
-          {COPY.heading}
-        </h2>
-        {STARTERS.map((starter) => (
+    <div className={shown ? 'space-y-[var(--space-group)]' : undefined}>
+      {shown ? null : body}
+      {quickAdd}
+      {!shown ? null : (
+        <section
+          aria-labelledby="starter-offer-heading"
+          className="-mx-0.5 flex flex-col gap-[var(--space-row)]"
+        >
+          <h2 id="starter-offer-heading" className="px-2 pb-1 text-sm font-section text-foreground">
+            {COPY.heading}
+          </h2>
+          {STARTERS.map((starter) => (
+            <Row
+              key={starter.id}
+              aria-disabled={importWorkflow.isPending}
+              label={starter.label}
+              description={starter.summary}
+              onClick={() => {
+                choose(starter)
+              }}
+            />
+          ))}
+          {/* A row action like any other: 2px under the rows, not set apart. */}
           <Row
-            key={starter.id}
             aria-disabled={importWorkflow.isPending}
-            label={starter.label}
-            description={starter.summary}
+            label={<span className="text-muted-foreground">{COPY.dismiss}</span>}
             onClick={() => {
-              choose(starter)
+              if (importWorkflow.isPending) return
+              dismissStarters()
+              setDismissed(true)
             }}
           />
-        ))}
-        {/* A row action like any other: 2px under the rows, not set apart. */}
-        <Row
-          aria-disabled={importWorkflow.isPending}
-          label={<span className="text-muted-foreground">{COPY.dismiss}</span>}
-          onClick={() => {
-            if (importWorkflow.isPending) return
-            dismissStarters()
-            setDismissed(true)
-          }}
-        />
-      </section>
+        </section>
+      )}
     </div>
   )
 }
