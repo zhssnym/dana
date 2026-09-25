@@ -57,18 +57,7 @@ export interface BoardColumn {
   every column's answer but that one.
   */
   takes?: boolean
-  /* A status column's colour, Notion's: Not started grey, In progress blue,
-     Done green. Only the page's status board sets it; a column of people or
-     folders has no colour to wear, so its name stays plain text. */
-  tone?: BoardTone
 }
-
-export type BoardTone = "grey" | "blue" | "green"
-
-/* Round 4: the status pills stay but go muted. One neutral pill for every
-   tone; the column's position and name say which status it is, so colour is
-   saved for the rare thing that matters (a late date). */
-const PILL = "rounded-full bg-muted px-2 py-0.5 text-muted-foreground"
 
 /* -------------------------------------------------------------- capture, */
 
@@ -410,16 +399,18 @@ export function TaskBoard({
           <div className="group/col mb-1 flex h-7 items-center gap-1.5 px-1">
             {columnLead?.(column)}
             {column.mark}
+            {/* The heading a list group wears (m2): plain text, no pill; a
+                group nobody made (and Done) in the quieter ink. */}
             <span
               className={cn(
-                "min-w-0 truncate text-xs font-medium",
-                column.tone ? PILL : "text-muted-foreground",
+                "min-w-0 truncate text-sm font-section",
+                column.quiet ? "text-muted-foreground" : "text-foreground",
               )}
             >
               {column.label}
             </span>
             {/* The count sits at the far end, apart from the name. */}
-            <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+            <span className="ml-auto text-xs text-quiet-foreground tabular-nums">
               {column.tasks.length}
             </span>
           </div>

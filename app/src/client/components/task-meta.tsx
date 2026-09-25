@@ -43,7 +43,8 @@ export function TaskMeta({ due, starts, overdueGiven, steps, recurrence, extras,
       <span className="flex min-w-0 items-center gap-3 overflow-hidden">
         {due ? (
           <span className="shrink-0 whitespace-nowrap tabular-nums">
-            {starts === undefined ? null : `${starts} – `}
+            {/* A phone keeps the title's room and says the deadline alone. */}
+            {starts === undefined ? null : <span className="max-sm:hidden">{`${starts} – `}</span>}
             <span className={cn(late && "text-destructive")}>
               {late ? <span className="sr-only">Overdue, </span> : null}
               {due.label}

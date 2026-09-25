@@ -25,7 +25,7 @@ carry no completion box.
 */
 import { useMemo } from 'react'
 import { BoardQuickAdd, TaskBoard as PrototypeBoard } from '../components/task-board.js'
-import type { BoardColumn, BoardTask, BoardTone } from '../components/task-board.js'
+import type { BoardColumn, BoardTask } from '../components/task-board.js'
 import { useCreateTask } from '../api/mutations.js'
 import { taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
@@ -40,11 +40,10 @@ export type BoardStatus = 'not_started' | 'in_progress' | 'done'
 const COLUMNS: readonly {
   readonly key: BoardStatus
   readonly label: string
-  readonly tone: BoardTone
 }[] = [
-  { key: 'not_started', label: 'Not started', tone: 'grey' },
-  { key: 'in_progress', label: 'In progress', tone: 'blue' },
-  { key: 'done', label: 'Done', tone: 'green' },
+  { key: 'not_started', label: 'Not started' },
+  { key: 'in_progress', label: 'In progress' },
+  { key: 'done', label: 'Done' },
 ]
 
 const COLUMN_OF: Record<Stage, BoardStatus> = {
@@ -109,7 +108,6 @@ export function BoardView({
   const mapped: BoardColumn[] = COLUMNS.map((column) => ({
     key: column.key,
     label: column.label,
-    tone: column.tone,
     /* Finished cards strike through and drop their details: the board's own
        contract for its `done` flag, as `views/TaskBoard.tsx` sets it. */
     ...(column.key === 'done' ? { done: true, quiet: true } : {}),
