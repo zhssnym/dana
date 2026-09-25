@@ -41,6 +41,10 @@ export const queryKeys = {
      'folder' so the folder's own thread and a task's never collide. */
   shelf: (id: string) => ['shelves', id] as const,
   folderPage: (id: string) => ['folders', id, 'page'] as const,
+  /** One member's details and their merged Access and Responsibility history (#209). */
+  folderMember: (id: string, userId: string) => ['folders', id, 'members', userId] as const,
+  folderMemberHistory: (id: string, userId: string) =>
+    ['folders', id, 'members', userId, 'history'] as const,
   /** Every edge inside one folder (#207), which the Linear view draws. */
   folderDependencies: (id: string) => ['folders', id, 'dependencies'] as const,
   folderFacets: (id: string) => ['folders', id, 'facets'] as const,
