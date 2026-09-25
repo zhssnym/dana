@@ -25,8 +25,9 @@ import { useId, useState } from 'react'
 
 import type { GetConnectionsResponse } from '../../shared/connections.js'
 import { FOLDER_ACCESS_LABELS } from '../../shared/folder-access.js'
+import type { FolderAccessPreset } from '../../shared/folder-access.js'
 import type { GetFolderResponse } from '../../shared/folders.js'
-import { folderInviteBody } from '../api/folder-invite.js'
+import { DEFAULT_INVITE_ACCESS, folderInviteBody } from '../api/folder-invite.js'
 import {
   useCancelInvite,
   useCreateInvite,
@@ -44,7 +45,8 @@ import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
 import { ConfirmDialog, useConfirm } from './task-rows.js'
 import { PersonFace } from '../components/person-face.js'
-import { AccessMenu, MemberDetails } from './MemberDetails.js'
+import { ChevronDown } from '../lib/icons.js'
+import { AccessMenu, InviteAccessPicker, MemberDetails } from './MemberDetails.js'
 
 /** 9.1's sections table for this page. */
 const SHARING_PANEL = 'Sharing panel'
@@ -77,6 +79,7 @@ export function FolderSharingPanel({
   folder,
   connections,
   viewer,
+  viewerId,
   onClose,
 }: {
   readonly folder: GetFolderResponse
@@ -85,6 +88,9 @@ export function FolderSharingPanel({
   /** The viewer's own Access facts (issue #228). Null while unknown, which
    * withholds the administrative controls rather than flashing them. */
   readonly viewer: FolderViewerFacts | null
+  /** Who is looking: their own row is marked, and never offers Remove
+   * (leaving is the page menu's Leave page…). */
+  readonly viewerId: string | null
   readonly onClose: () => void
 }): React.JSX.Element {
   const mayRemove = viewer !== null && mayDraw(viewer, 'member.remove')
@@ -100,6 +106,7 @@ export function FolderSharingPanel({
   const confirm = useConfirm()
   const listId = useId()
   const [text, setText] = useState('')
+  const [inviteAccess, setInviteAccess] = useState<FolderAccessPreset>(DEFAULT_INVITE_ACCESS)
   const [pickedEmail, setPickedEmail] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
@@ -148,15 +155,30 @@ export function FolderSharingPanel({
     setOpen(false)
     setActive(-1)
     // A page invite must name its Access; folderInviteBody says which.
-    invite.mutate(folderInviteBody(target, folder.id))
+    invite.mutate(folderInviteBody(target, folder.id, inviteAccess))
   }
+
+  /* Remove someone else, after 9.6's confirm; `after` runs once confirmed. */
+  function askRemove(userId: string, name: string, after?: () => void): void {
+    confirm.ask(
+      removeMemberConfirm(name, folder.name),
+      () => {
+        removeMember.mutate({ folderId: folder.id, userId })
+        after?.()
+      },
+      { confirmLabel: 'Remove', cancelLabel: 'Cancel' },
+    )
+  }
+  const mayShare = mayAdd || mayInvite
 
   return (
     <>
     <Sheet
       open
       onOpenChange={(next) => {
-        if (!next) onClose()
+        /* A press inside the confirm reads as outside this non-modal sheet;
+           Share stays open under it, whichever the answer. */
+        if (!next && confirm.pending === null) onClose()
       }}
       /* Non-modal (DES-154, DES-186): the page stays usable beside it. */
       modal={false}
@@ -174,7 +196,9 @@ export function FolderSharingPanel({
       >
         <section aria-label={SHARING_PANEL} className="flex min-h-0 flex-1 flex-col">
           <SheetHeader className="border-b border-border px-5 py-4 pr-16">
-            <SheetTitle className="text-sm font-title">Share {folder.name}</SheetTitle>
+            <SheetTitle className="text-sm font-title">
+              {mayShare ? `Share ${folder.name}` : `Members of ${folder.name}`}
+            </SheetTitle>
           </SheetHeader>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
@@ -182,13 +206,24 @@ export function FolderSharingPanel({
               <MemberDetails
                 folderId={folder.id}
                 userId={openMember}
+                viewerId={viewerId}
+                ask={confirm.ask}
+                onRemove={
+                  mayRemove && openMember !== viewerId
+                    ? (name) => {
+                        askRemove(openMember, name, () => {
+                          setOpenMember(null)
+                        })
+                      }
+                    : undefined
+                }
                 onBack={() => {
                   setOpenMember(null)
                 }}
               />
             ) : (
             <>
-            {mayAdd || mayInvite ? (
+            {mayShare ? (
               <div className="mb-[var(--space-group)] flex gap-[var(--space-inline)] px-2">
                 <div className="relative min-w-0 flex-1">
                   <Input
@@ -279,6 +314,11 @@ export function FolderSharingPanel({
                     </ul>
                   ) : null}
                 </div>
+                <InviteAccessPicker
+                  value={inviteAccess}
+                  onChange={setInviteAccess}
+                  disabled={pending}
+                />
                 <Button disabled={target === null || pending} onClick={submit}>
                   Invite
                 </Button>
@@ -293,6 +333,7 @@ export function FolderSharingPanel({
                 .sort((a, b) => Number(b.is_owner) - Number(a.is_owner))
                 .map((member) => {
                 const name = member.user.display_name ?? 'Someone'
+                const isSelf = member.user.id === viewerId
                 return (
                   <li key={member.user.id} className={ROW}>
                     <PersonFace
@@ -311,9 +352,17 @@ export function FolderSharingPanel({
                       }}
                     >
                       {name}
+                      {isSelf ? <span className="text-muted-foreground"> (you)</span> : null}
                     </button>
                     {member.is_owner ? (
-                      <span className="shrink-0 px-1.5 text-xs text-muted-foreground">Owner</span>
+                      /* The hidden chevron keeps Owner in the column the
+                         pickers' labels sit in. */
+                      <span className="inline-flex shrink-0 items-center gap-1 px-1.5 text-xs text-muted-foreground">
+                        Owner
+                        {mayChange ? (
+                          <ChevronDown aria-hidden="true" className="invisible size-3.5" />
+                        ) : null}
+                      </span>
                     ) : (
                       <AccessMenu
                         size="sm"
@@ -321,19 +370,12 @@ export function FolderSharingPanel({
                         userId={member.user.id}
                         access={member.access}
                         mayChange={mayChange}
+                        self={isSelf}
+                        ask={confirm.ask}
                         onRemove={
-                          mayRemove
+                          mayRemove && !isSelf
                             ? () => {
-                                confirm.ask(
-                                  removeMemberConfirm(name, folder.name),
-                                  () => {
-                                    removeMember.mutate({
-                                      folderId: folder.id,
-                                      userId: member.user.id,
-                                    })
-                                  },
-                                  { confirmLabel: 'Remove', cancelLabel: 'Cancel' },
-                                )
+                                askRemove(member.user.id, name)
                               }
                             : undefined
                         }

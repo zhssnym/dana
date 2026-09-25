@@ -42,16 +42,29 @@ import { ChevronDown, ChevronLeft } from '../lib/icons.js'
 import { documentToText, textToDocument } from '../lib/responsibility-text.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
+import type { ConfirmLabels } from './task-rows.js'
 
-const HEADING = 'px-2 pb-1 text-sm font-medium text-foreground'
+/** The panel's one confirm (`useConfirm().ask`), shared so a confirm opened
+ * here is the panel's and the panel knows not to close under it. */
+export type AskConfirm = (message: string, run: () => void, labels?: ConfirmLabels) => void
+
+const HEADING = 'pb-1 text-sm font-medium text-foreground'
 
 export function MemberDetails({
   folderId,
   userId,
+  viewerId,
+  ask,
+  onRemove,
   onBack,
 }: {
   readonly folderId: string
   readonly userId: string
+  /** Who is looking, so their own row confirms before lowering itself. */
+  readonly viewerId: string | null
+  readonly ask: AskConfirm
+  /** Remove this member, the list row's own act; absent where not offered. */
+  readonly onRemove?: ((name: string) => void) | undefined
   readonly onBack: () => void
 }): React.JSX.Element {
   const details = useFolderMember(folderId, userId)
@@ -70,7 +83,8 @@ export function MemberDetails({
     return (
       <div>
         {back}
-        {details.isError ? (
+        {/* Only a 404 means they left; any other failure is the toast's. */}
+        {details.error instanceof ApiError && details.error.status === 404 ? (
           <p className="px-2 text-sm text-muted-foreground">This member is no longer on the page.</p>
         ) : null}
       </div>
@@ -90,7 +104,7 @@ export function MemberDetails({
             image={member.user.avatar_url}
           />
           <h3 className="min-w-0 flex-1 truncate text-sm font-title text-foreground">{name}</h3>
-          {member.is_owner ? <span className="text-xs text-muted-foreground">Owner</span> : null}
+          {member.is_owner ? <span className="text-sm text-muted-foreground">Owner</span> : null}
         </div>
       </div>
 
@@ -102,6 +116,15 @@ export function MemberDetails({
             userId={userId}
             access={member.access}
             mayChange={member.viewer_may_change_access}
+            self={userId === viewerId}
+            ask={ask}
+            onRemove={
+              onRemove === undefined || member.is_owner
+                ? undefined
+                : () => {
+                    onRemove(name)
+                  }
+            }
           />
         </div>
         {member.viewer_may_change_self_edit_grant ? (
@@ -134,7 +157,7 @@ export function MemberDetails({
       />
 
       <section aria-label="History">
-        <div className="flex items-center gap-[var(--space-inline)]">
+        <div className="flex items-center gap-[var(--space-inline)] px-2">
           <h3 className={`${HEADING} flex-1`}>History</h3>
           <Button
             variant="ghost"
@@ -168,13 +191,17 @@ export function MemberDetails({
 A member's Access as a picker: the one control both the member list and the
 details use, so changing someone's Access is two clicks from the list. Remove,
 when offered, sits under the presets rather than as a button on every row.
-Without the right to change it, it is the label and nothing to press.
+Without the right to change it, it is the label and nothing to press. On the
+viewer's own row any change lowers them below Full control, after which they
+cannot change it back, so it asks first.
 */
 export function AccessMenu({
   folderId,
   userId,
   access,
   mayChange,
+  self = false,
+  ask,
   onRemove,
   size = 'default',
 }: {
@@ -182,6 +209,8 @@ export function AccessMenu({
   readonly userId: string
   readonly access: FolderAccessPreset
   readonly mayChange: boolean
+  readonly self?: boolean
+  readonly ask?: AskConfirm | undefined
   readonly onRemove?: (() => void) | undefined
   readonly size?: 'default' | 'sm'
 }): React.JSX.Element {
@@ -216,7 +245,19 @@ export function AccessMenu({
             onValueChange={(next: unknown) => {
               const picked = FOLDER_ACCESS_PRESETS.find((preset) => preset === next)
               if (picked === undefined || picked === access) return
-              changeAccess.mutate({ folderId, userId, access: picked, expected: access })
+              const run = (): void => {
+                changeAccess.mutate({ folderId, userId, access: picked, expected: access })
+              }
+              if (!self) {
+                run()
+                return
+              }
+              const to = FOLDER_ACCESS_LABELS[picked]
+              if (ask === undefined) return
+              ask(`Lower your own Access to ${to}? You can't raise it back yourself.`, run, {
+                confirmLabel: `Change to ${to}`,
+                cancelLabel: 'Cancel',
+              })
             }}
           >
             {FOLDER_ACCESS_PRESETS.map((preset: FolderAccessPreset) => (
@@ -232,6 +273,52 @@ export function AccessMenu({
             Remove from page
           </DropdownMenuItem>
         )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/* The Access an invite grants, picked beside the Invite button. Presets only,
+   and nothing is sent until Invite. */
+export function InviteAccessPicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  readonly value: FolderAccessPreset
+  readonly onChange: (next: FolderAccessPreset) => void
+  readonly disabled?: boolean
+}): React.JSX.Element {
+  const label = FOLDER_ACCESS_LABELS[value]
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            disabled={disabled}
+            className="shrink-0 pr-1.5 text-muted-foreground"
+            aria-label={`Invite with Access: ${label}`}
+          />
+        }
+      >
+        {label}
+        <ChevronDown strokeWidth={1.75} aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuRadioGroup
+          value={value}
+          onValueChange={(next: unknown) => {
+            const picked = FOLDER_ACCESS_PRESETS.find((preset) => preset === next)
+            if (picked !== undefined) onChange(picked)
+          }}
+        >
+          {FOLDER_ACCESS_PRESETS.map((preset: FolderAccessPreset) => (
+            <DropdownMenuRadioItem key={preset} value={preset} className="text-sm" closeOnClick>
+              {FOLDER_ACCESS_LABELS[preset]}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -278,7 +365,7 @@ function Responsibilities({
 
   return (
     <section aria-label="Responsibilities">
-      <div className="flex items-center gap-[var(--space-inline)]">
+      <div className="flex items-center gap-[var(--space-inline)] px-2">
         <h3 className={`${HEADING} flex-1`}>Responsibilities</h3>
         {mayEdit && draft === null ? (
           <Button

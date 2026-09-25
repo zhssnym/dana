@@ -494,6 +494,12 @@ export function FolderPage({
      there is no default successor; offering anyone else would be offering a
      choice the server answers 422. */
   const successors = eligibleSuccessors(members, basis.viewerId)
+  /* Who the transfer goes to: the pick while they still qualify, or the only
+     candidate when there is one. A pick that lost Full control on a refetch
+     falls away rather than leaving the button live over nothing. */
+  const heir =
+    successors.find((member) => member.user.id === transferTo) ??
+    (successors.length === 1 ? successors[0] : undefined)
   /* Everybody else in the folder, which is a different question and the one
      the owner's delete dialog asks: somebody to hand it to is not the same as
      somebody who is in it. */
@@ -1157,6 +1163,7 @@ export function FolderPage({
           folder={detail}
           connections={connections.data}
           viewer={facts}
+          viewerId={basis.viewerId}
           onClose={() => {
             setSharing(false)
           }}
@@ -1190,7 +1197,8 @@ export function FolderPage({
 
       **There is no default and nothing is sorted**, because no rule would order
       them: the roster's own order is used, which is the order the Share panel
-      this person just came from shows.
+      this person just came from shows. A single candidate is picked
+      already, since there is nothing to choose between.
 
       **An empty list is a sentence and not an empty box.** A folder can be full
       of people and have nobody eligible, and that person's next step — give
@@ -1211,7 +1219,7 @@ export function FolderPage({
             <DialogDescription>
               {successors.length === 0
                 ? `Nobody else in ${detail?.name ?? 'this page'} has Full control, so there is nobody to hand it to yet. Give a member Full control in Share, then transfer it to them.`
-                : `Choose who owns ${detail?.name ?? 'this page'} next. Only members who have Full control can take it on, and you stay a member.`}
+                : `Choose who owns ${detail?.name ?? 'this page'} next. Only members who have Full control can take it on, and you stay a member. Only the new owner can hand it back.`}
             </DialogDescription>
           </DialogHeader>
           {successors.length === 0 ? (
@@ -1231,16 +1239,15 @@ export function FolderPage({
             <>
               {/* Picking a name only selects it: handing the page over is
                   the footer's one button, which says so. */}
-              <div role="radiogroup" aria-label="New owner" className="flex flex-col gap-[var(--space-row)]">
+              <div role="group" aria-label="New owner" className="flex flex-col gap-[var(--space-row)]">
                 {successors.map((member) => {
                   const name = member.user.display_name ?? 'Someone'
-                  const picked = transferTo === member.user.id
+                  const picked = heir?.user.id === member.user.id
                   return (
                     <button
                       key={member.user.id}
                       type="button"
-                      role="radio"
-                      aria-checked={picked}
+                      aria-pressed={picked}
                       data-focus={picked ? 'self' : undefined}
                       className={cn(
                         'flex min-h-[var(--row-height)] w-full items-center gap-[var(--space-inline)] rounded-md px-2 text-left text-sm text-foreground',
@@ -1260,15 +1267,18 @@ export function FolderPage({
                 <DialogClose render={<Button variant="ghost">Cancel</Button>} />
                 <Button
                   variant="commit"
-                  disabled={transferTo === null || transfer.isPending}
+                  disabled={heir === undefined || transfer.isPending}
                   onClick={() => {
-                    if (transferTo === null) return
+                    if (heir === undefined) return
                     transfer.mutate(
-                      { id, to: transferTo },
+                      { id, to: heir.user.id },
                       {
                         onSuccess: () => {
                           setTransferOpen(false)
                           setTransferTo(null)
+                          showToast(
+                            `${heir.user.display_name ?? 'Someone'} now owns ${detail?.name ?? 'this page'}`,
+                          )
                         },
                       },
                     )
