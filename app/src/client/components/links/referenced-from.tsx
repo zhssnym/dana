@@ -23,6 +23,10 @@ export function ReferencedFrom({ kind, id, className = '' }: {
     queryKey: queryKeys.backlinks(kind, id),
     queryFn: () => backlinksOf(kind, id),
     retry: false,
+    /* Live on every opening: the app's default is never stale, and nothing
+       invalidates this when a link to here is written in another document,
+       so a cached "nothing yet" would outlive the link that answers it. */
+    staleTime: 0,
   })
   const rows = query.data?.results ?? []
   if (rows.length === 0) return null

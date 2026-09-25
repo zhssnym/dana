@@ -74,11 +74,14 @@ function summary(
 /* The facets a `facet` reference may name: the document-bearing natives,
    Purpose (#211) and Results (#213). Both are shared by construction
    (`folder_facets_owner_kind_check`), so folder membership is the whole access
-   join. The label is the stored override or that kind's default name. */
+   join. The label is the Page's name and the tab's (its stored override or
+   that kind's default name), "Half marathon · Purpose": every Page has a
+   Purpose, so the tab's name alone would be one of many identical rows in the
+   picker and an ambiguous chip. Every query using it joins `folders fo`. */
 const documentNativeFacet = sql`ff.kind IN ('purpose', 'results')`
-const facetLabel = sql`COALESCE(ff.display_name,
+const facetLabel = sql`(fo.name || ' · ' || COALESCE(ff.display_name,
   CASE ff.kind WHEN 'results' THEN ${DEFAULT_FACET_NAMES.results}
-               ELSE ${DEFAULT_FACET_NAMES.purpose} END)`
+               ELSE ${DEFAULT_FACET_NAMES.purpose} END))`
 
 /* A Discussion or an Outcome the viewer may open (#320): the Discussion not
    trashed, its Folder live, the viewer a member of it. `d` is the Discussion. */

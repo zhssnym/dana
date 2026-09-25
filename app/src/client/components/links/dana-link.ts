@@ -132,7 +132,7 @@ export function backlinkPath(row: LooseBacklink): string | null {
 }
 
 const KIND_NOUN: Readonly<Record<string, string>> = {
-  task: 'Task', folder: 'Page', shelf: 'Collection', facet: 'Facet', discussion: 'Discussion', outcome: 'Outcome', result: 'Result',
+  task: 'Task', folder: 'Page', shelf: 'Collection', facet: 'Tab', discussion: 'Discussion', outcome: 'Outcome', result: 'Result',
 }
 export function kindNoun(kind: string): string {
   return KIND_NOUN[kind] ?? 'Link'

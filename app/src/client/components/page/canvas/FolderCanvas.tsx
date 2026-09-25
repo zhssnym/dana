@@ -16,6 +16,7 @@ import { FOLDER_ACTION_PARAM } from '../../../shell/app-sidebar.js'
 import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider } from './CanvasTask.js'
+import { SavedResults } from './CanvasResult.js'
 import { CanvasSurface } from './CanvasSurface.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { canvasSchema } from './schema.js'
@@ -484,6 +485,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
   }
   const draftBox = `.dana-writing-canvas .bn-block[data-id="${draftTask}"] > .react-renderer > .bn-block-content`
   const draftStyle = draftTask === null ? '' : `${draftBox}{display:flex;flex-direction:row;align-items:center} ${draftBox}::before{content:"";flex-shrink:0;width:var(--checkbox-size);height:var(--checkbox-size);border:1px solid color-mix(in srgb, var(--muted-foreground) 50%, transparent);border-radius:var(--radius-sm);margin-inline:calc((var(--control-height) - var(--checkbox-size)) / 2)} ${draftBox}::after{content:none !important} ${draftBox} > *{flex:1;min-width:0}${draftEmpty ? ` ${draftBox} .bn-inline-content::before{content:"Task title" !important;color:var(--muted-foreground);position:absolute;pointer-events:none}` : ''}`
+  /* The Results a save has stored: only those can be linked to yet, so only
+     they ask for "Referenced from" (a new one would be a 404 in the console). */
+  const savedResults = useMemo(() => new Set(page.blocks.filter((block) => block.kind === 'result').map((block) => block.id)), [page])
   const pendingTask = writer.pending?.request.operations.some((operation) => operation.op === 'create_task') === true
   const draftHasRequest = ((): boolean => {
     try {
@@ -516,6 +520,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       }}
       onDiscard={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}
     /> : null}
+    <SavedResults.Provider value={savedResults}>
     <CanvasTaskProvider tasks={tasks} completed={completed} context={context} actions={actions} onAsk={onAsk}>
       {draftStyle === '' ? null : <style>{draftStyle}</style>}
       <div
@@ -525,7 +530,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       >
       <CanvasSurface
         peopleFolderId={folderId}
-        placeholder={placeholder}
+        placeholder={results === true ? 'Write what came of this, or type / for a Result' : presentationHeadings === true ? 'Write why this page exists' : placeholder}
         editor={editor}
         onChange={changed}
         onCreateTask={facetId === undefined ? askTask : undefined}
@@ -544,6 +549,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       />
       </div>
     </CanvasTaskProvider>
+    </SavedResults.Provider>
     <SaveFailure
       message={error || (writer.state === 'failed' ? NOT_SAVED : null) || notice || null}
       onRetry={!error && writer.state === 'failed' && writer.pending ? () => { void writer.retry() } : undefined}
