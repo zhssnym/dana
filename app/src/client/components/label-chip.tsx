@@ -43,6 +43,9 @@ export function byName<T extends { readonly name: string }>(labels: readonly T[]
  * card too narrow for two names (the card is the `card` container), only the
  * dots, so the title keeps the width and no name is cut to three letters.
  */
+/** The longest single name a narrow board card draws beside its date. */
+const CARD_NAME = 10
+
 export function RowLabels({ labels }: { readonly labels: readonly LabelLook[] }) {
   if (labels.length === 0) return null
   const sorted = byName(labels)
@@ -58,8 +61,13 @@ export function RowLabels({ labels }: { readonly labels: readonly LabelLook[] })
           <LabelDot color={label.color} />
           <span
             className={cn(
-              "max-w-[7rem] truncate max-md:sr-only",
-              sorted.length > 1 && "@max-[20rem]/card:sr-only",
+              "truncate max-md:sr-only",
+              /* Two names share the line, so each is capped and a short one
+                 is never cut by a long one; one name takes what the line has.
+                 A narrow card has room for one short name only, so two names,
+                 or one long one, are drawn as their dots there. */
+              sorted.length > 1 && "max-w-[7rem]",
+              (sorted.length > 1 || label.name.length > CARD_NAME) && "@max-[20rem]/card:sr-only",
             )}
           >
             {label.name}

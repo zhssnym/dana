@@ -47,7 +47,7 @@ export function segment(page: PageView): LineDoc {
 
 export type NewBlock = { kind: 'text'; text: string } | { kind: 'link'; url: string; text?: string } | { kind: 'image'; fileId: string }
 export type LineEdit =
-  | { op: 'add_step'; title: string }
+  | { op: 'add_step'; title: string; id?: string }
   | { op: 'add_block'; after: string | null; block: NewBlock }
   | { op: 'add_milestone'; name: string }
   | { op: 'edit_text'; id: string; text: string }
@@ -81,7 +81,7 @@ export function applyEdit(page: PageView, edit: LineEdit): { document: CanvasDoc
 
   switch (edit.op) {
     case 'add_step': {
-      const id = crypto.randomUUID()
+      const id = edit.id ?? crypto.randomUUID()
       items.push({ kind: 'task', id, section_block_id: endSection(before), list_parent_block_id: null })
       return done({ id, title: edit.title })
     }

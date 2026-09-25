@@ -15,7 +15,7 @@ assigned to them, which only the server can decide under its lock: so a
 contributor is offered them and a refusal comes back as the server's toast.
 Making or changing the page's labels takes Can edit.
 */
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import type { LabelDefinition } from "../../shared/labels.js"
 import { useFolders } from "../api/queries.js"
@@ -95,7 +95,13 @@ export function TaskLabelsRow({
       <Popover open={open} onOpenChange={change}>
         <PopoverTrigger
           render={
-            <button type="button" onClick={(event) => event.stopPropagation()} className={PROPERTY_ROW}>
+            <button
+              type="button"
+              onClick={(event) => event.stopPropagation()}
+              /* Grows with wrapped chips, key on the first line, so the picker
+                 opens under every worn label rather than over the second line. */
+              className={cn(PROPERTY_ROW, "h-auto min-h-[var(--control-height)] items-start py-1")}
+            >
               <span className={PROPERTY_LABEL}>Labels</span>
               {worn.length === 0 ? (
                 <span className="text-muted-foreground">Empty</span>
@@ -141,18 +147,21 @@ export function TaskLabelsRow({
 function LabelOption({
   label,
   on,
+  active,
   onToggle,
 }: {
   readonly label: LabelDefinition
   readonly on: boolean
+  readonly active: boolean
   readonly onToggle: () => void
 }) {
   return (
     <button
       type="button"
       aria-pressed={on}
+      data-active={active || undefined}
       onClick={onToggle}
-      className="flex h-[var(--control-height)] w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground transition-colors hover:bg-accent"
+      className={cn(OPTION, active && "bg-accent")}
     >
       <LabelDot color={label.color} />
       <span className="flex-1 truncate">{label.name}</span>
@@ -164,6 +173,9 @@ function LabelOption({
     </button>
   )
 }
+
+const OPTION =
+  "flex h-[var(--control-height)] w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground transition-colors hover:bg-accent"
 
 function Heading({ children }: { readonly children: string }) {
   return <p className="px-2 pt-2 pb-1 text-xs text-muted-foreground">{children}</p>
@@ -181,6 +193,9 @@ function LabelPicker({
   readonly onEdit: () => void
 }) {
   const [query, setQuery] = useState("")
+  /* The one option Enter takes: the first match unless the arrows moved it. */
+  const [active, setActive] = useState(0)
+  const list = useRef<HTMLDivElement>(null)
   const labels = useLabels(folderId)
   const rights = useLabelRights(folderId)
   const setLabel = useSetTaskLabel()
@@ -194,6 +209,19 @@ function LabelPicker({
   const canMakePage =
     rights.manage && folderId !== null && typed !== "" && !rows.some((l) => l.scope === "folder" && same(l.name, typed))
   const canMakeMine = typed !== "" && !rows.some((l) => l.scope === "personal" && same(l.name, typed))
+
+  /* Matches first, then the Make rows: Enter makes a label only when nothing
+     matches or the arrows moved onto Make. */
+  const options: (() => void)[] = [
+    ...[...shownPage, ...mine].map((label) => () => toggle(label)),
+    ...(canMakePage ? [() => make(folderId)] : []),
+    ...(canMakeMine ? [() => make(null)] : []),
+  ]
+  const current = Math.min(active, options.length - 1)
+  const makeAt = shownPage.length + mine.length
+  useEffect(() => {
+    list.current?.querySelector("[data-active]")?.scrollIntoView({ block: "nearest" })
+  }, [current, query])
 
   function toggle(label: LabelDefinition) {
     setLabel.mutate({ taskId, labelId: label.id, on: !worn.includes(label.id) })
@@ -219,47 +247,74 @@ function LabelPicker({
         placeholder="Find or make a label"
         value={query}
         maxLength={40}
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setActive(0)
+        }}
         onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault()
+            if (options.length === 0) return
+            const step = event.key === "ArrowDown" ? 1 : -1
+            setActive((current + step + options.length) % options.length)
+            return
+          }
           if (event.key !== "Enter") return
           event.preventDefault()
-          const exact = [...shownPage, ...mine].find((label) => same(label.name, typed))
-          if (exact !== undefined) toggle(exact)
-          else if (canMakePage) make(folderId)
-          else if (canMakeMine) make(null)
+          options[current]?.()
         }}
       />
-      <div className="mt-1 max-h-72 overflow-y-auto">
+      <div ref={list} className="mt-1 max-h-72 overflow-y-auto">
         {shownPage.length > 0 ? (
           <>
             <Heading>This page</Heading>
-            {shownPage.map((label) => (
-              <LabelOption key={label.id} label={label} on={worn.includes(label.id)} onToggle={() => toggle(label)} />
+            {shownPage.map((label, index) => (
+              <LabelOption
+                key={label.id}
+                label={label}
+                on={worn.includes(label.id)}
+                active={current === index}
+                onToggle={() => toggle(label)}
+              />
             ))}
           </>
         ) : null}
         {mine.length > 0 ? (
           <>
             <Heading>Just for me</Heading>
-            {mine.map((label) => (
-              <LabelOption key={label.id} label={label} on={worn.includes(label.id)} onToggle={() => toggle(label)} />
+            {mine.map((label, index) => (
+              <LabelOption
+                key={label.id}
+                label={label}
+                on={worn.includes(label.id)}
+                active={current === shownPage.length + index}
+                onToggle={() => toggle(label)}
+              />
             ))}
           </>
         ) : null}
         {labels.isSuccess && rows.length === 0 && typed === "" ? (
           <p className="px-2 py-2 text-sm text-muted-foreground">Type a name to make your first label.</p>
         ) : null}
+        {canMakePage || canMakeMine ? (
+          <div className={cn(makeAt > 0 && "mt-1 border-t border-border pt-1")}>
+            {canMakePage ? (
+              <MakeOption onSelect={() => make(folderId)} active={current === makeAt} name={typed}>
+                for this page
+              </MakeOption>
+            ) : null}
+            {canMakeMine ? (
+              <MakeOption
+                onSelect={() => make(null)}
+                active={current === makeAt + (canMakePage ? 1 : 0)}
+                name={typed}
+              >
+                just for me
+              </MakeOption>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-      {canMakePage || canMakeMine ? (
-        <div className="mt-1 border-t border-border pt-1">
-          {canMakePage ? (
-            <MakeOption onSelect={() => make(folderId)}>{`Make “${typed}” for this page`}</MakeOption>
-          ) : null}
-          {canMakeMine ? (
-            <MakeOption onSelect={() => make(null)}>{`Make “${typed}” just for me`}</MakeOption>
-          ) : null}
-        </div>
-      ) : null}
       {rows.length > 0 ? (
         <div className="mt-1 border-t border-border pt-1">
           <MakeOption onSelect={onEdit} plain>
@@ -271,23 +326,40 @@ function LabelPicker({
   )
 }
 
+/**
+ * A row that acts rather than toggles. With `name`, it makes that label: the
+ * name is cut when long, the scope words after it never are, since they are
+ * all that tells the two Make rows apart.
+ */
 function MakeOption({
   onSelect,
   plain = false,
+  active = false,
+  name,
   children,
 }: {
   readonly onSelect: () => void
   readonly plain?: boolean
+  readonly active?: boolean
+  readonly name?: string
   readonly children: string
 }) {
   return (
     <button
       type="button"
+      data-active={active || undefined}
       onClick={onSelect}
-      className="flex h-[var(--control-height)] w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground transition-colors hover:bg-accent"
+      className={cn(OPTION, active && "bg-accent")}
     >
       {plain ? null : <Plus className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden="true" />}
-      <span className="truncate">{children}</span>
+      {name === undefined ? (
+        <span className="truncate">{children}</span>
+      ) : (
+        <>
+          <span className="min-w-0 truncate">{`Make “${name}”`}</span>
+          <span className="shrink-0 text-muted-foreground">{children}</span>
+        </>
+      )}
     </button>
   )
 }
@@ -353,7 +425,7 @@ function LabelEditRow({ label, editable }: { readonly label: LabelDefinition; re
     patch.mutate({ label, fields: { name: next } }, { onError: () => setName(label.name) })
   }
   return (
-    <li className="flex items-center gap-2 py-0.5">
+    <li className="group flex items-center gap-2 py-0.5">
       <Popover>
         <PopoverTrigger
           disabled={!editable}
@@ -405,7 +477,14 @@ function LabelEditRow({ label, editable }: { readonly label: LabelDefinition; re
       {editable ? (
         <Button
           variant="ghost"
-          className="shrink-0 text-muted-foreground"
+          /* Archive shows on the row the pointer or focus is on (always on
+             touch), not as a column of the same word; Restore always, since
+             on an archived row it is what the row is saying. */
+          className={cn(
+            "shrink-0 text-muted-foreground",
+            !label.archived &&
+              "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100",
+          )}
           onClick={() => archive.mutate({ label, archived: !label.archived })}
         >
           {label.archived ? "Restore" : "Archive"}

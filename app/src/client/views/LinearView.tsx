@@ -25,6 +25,7 @@ shared with the Board (`linear/stage.ts`).
 */
 import { useMemo, useState } from 'react'
 import { useAddStep, useUpdateTask } from '../api/mutations.js'
+import { useSetTaskLabel } from '../api/labels.js'
 import { useFolderCompletedTasks, mergeCompletedDays } from '../api/queries.js'
 import { uploadFile } from '../api/http.js'
 import { cn } from '../components/ui/utils.js'
@@ -39,6 +40,7 @@ import { segment, useLineWriter } from './linear/document.js'
 import type { NewBlock } from './linear/document.js'
 import { futureMilestones, pageRank, pastOrder, presentOrder, startDay } from './linear/stage.js'
 import type { Milestone } from './linear/stage.js'
+import { wearsLabel } from './filter.js'
 import styles from './LinearView.module.css'
 import type { RowContext } from '../parts/presenters.js'
 import type { RowActions } from '../parts/useRowActions.js'
@@ -148,13 +150,18 @@ export function LinearView(props: {
   readonly folderId: string
   readonly page: PageView
   readonly tasks: readonly TaskCard[]
+  /* Every finished task: a milestone they close stays closed whatever the
+     Label filter is. Only the past is narrowed to `label`. */
   readonly completed: readonly TaskCard[]
+  /* The Label filter's choice, which a step added here is given too. */
+  readonly label: string | null
   readonly showCompleted: boolean
   readonly today: string
   readonly context: RowContext
   readonly actions: RowActions
 }): React.JSX.Element {
-  const { folderId, page, tasks, completed, showCompleted, today, context, actions } = props
+  const { folderId, page, tasks, completed, label, showCompleted, today, context, actions } = props
+  const setLabel = useSetTaskLabel()
   const update = useUpdateTask()
   const addSubtask = useAddStep()
   const writer = useLineWriter(folderId)
@@ -174,17 +181,16 @@ export function LinearView(props: {
 
   /* Past, oldest first, so the story runs down into the present. The same
      order the Board's Done column uses. The days come from the query; which
-     finished tasks belong is `completed`, which the page has already narrowed
-     to the chosen Label. */
+     finished tasks belong is `completed` narrowed to the chosen Label. */
   const past = useMemo(() => {
-    const kept = new Set(completed.map((task) => task.id))
+    const kept = new Set(completed.filter((task) => wearsLabel(task, label)).map((task) => task.id))
     const finished: { task: TaskCard; date: string | null }[] = []
     for (const day of mergeCompletedDays(done.data?.pages)) {
       for (const task of day.rows) if (kept.has(task.id)) finished.push({ task, date: day.date })
     }
     const abandoned = tasks.filter((task) => task.status === 'abandoned').map((task) => ({ task, date: null }))
     return pastOrder(finished, abandoned)
-  }, [done.data, tasks, completed])
+  }, [done.data, tasks, completed, label])
 
   const present = useMemo(() => presentOrder(tasks, today, rank), [tasks, today, rank])
   const future = useMemo(
@@ -507,7 +513,14 @@ export function LinearView(props: {
           if (kind === 'milestone') void writer.write({ op: 'add_milestone', name: text })
           else if (kind === 'text') add(null, { kind: 'text', text })
           else if (kind === 'link') add(null, { kind: 'link', url: text })
-          else void writer.write({ op: 'add_step', title: text })
+          else {
+            /* Under a Label filter a new step wears that label, or it would
+               vanish the moment it was made. */
+            const id = crypto.randomUUID()
+            void writer.write({ op: 'add_step', title: text, id }).then(() => {
+              if (label !== null) setLabel.mutate({ taskId: id, labelId: label, on: true })
+            })
+          }
         }}
         onImage={(file) => addImage(null, file)}
       />

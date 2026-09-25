@@ -27,6 +27,7 @@ import { useMemo } from 'react'
 import { BoardQuickAdd, TaskBoard as PrototypeBoard } from '../components/task-board.js'
 import type { BoardColumn, BoardTask, BoardTone } from '../components/task-board.js'
 import { useCreateTask } from '../api/mutations.js'
+import { useSetTaskLabel } from '../api/labels.js'
 import { taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import type { RowActions } from '../parts/useRowActions.js'
@@ -34,6 +35,7 @@ import type { PageView } from '../../shared/pages.js'
 import type { TaskCard } from '../../shared/tasks.js'
 import { futureMilestones, pageRank, pastOrder, presentOrder, stageOf, startDay } from './linear/stage.js'
 import type { Stage } from './linear/stage.js'
+import { wearsLabel } from './filter.js'
 
 export type BoardStatus = 'not_started' | 'in_progress' | 'done'
 
@@ -63,6 +65,7 @@ export function BoardView({
   page,
   tasks,
   completed,
+  label,
   showCompleted,
   today,
   context,
@@ -73,13 +76,18 @@ export function BoardView({
   /* Its document, for the order Linear uses; absent while it loads. */
   readonly page: PageView | undefined
   readonly tasks: readonly TaskCard[]
+  /* Every finished task: a milestone they close stays closed whatever the
+     Label filter is. Only the Done column is narrowed to `label`. */
   readonly completed: readonly TaskCard[]
+  /* The Label filter's choice, which a task added here is given too. */
+  readonly label: string | null
   readonly showCompleted: boolean
   readonly today: string
   readonly context: RowContext
   readonly actions: RowActions
 }): React.JSX.Element {
   const create = useCreateTask()
+  const setLabel = useSetTaskLabel()
 
   const ordered = useMemo((): Record<BoardStatus, readonly TaskCard[]> => {
     const rank = page === undefined ? new Map<string, number>() : pageRank(page)
@@ -89,12 +97,12 @@ export function BoardView({
         : futureMilestones(page, tasks, completed, today, rank).flatMap((group) => group.tasks)
     const done = showCompleted
       ? pastOrder(
-          completed.map((task) => ({ task })),
+          completed.filter((task) => wearsLabel(task, label)).map((task) => ({ task })),
           tasks.filter((task) => task.status === 'abandoned').map((task) => ({ task })),
         ).map((row) => row.task)
       : []
     return { not_started: notStarted, in_progress: presentOrder(tasks, today, rank), done }
-  }, [page, tasks, completed, showCompleted, today])
+  }, [page, tasks, completed, label, showCompleted, today])
 
   const byId = new Map([...tasks, ...completed].map((task) => [task.id, task]))
 
@@ -103,6 +111,12 @@ export function BoardView({
       title,
       folder_id: folderId,
       ...(status === 'in_progress' ? { start_date: today } : {}),
+    }, {
+      /* Under a Label filter a new card wears that label, or it would vanish
+         the moment it was made. */
+      onSuccess: (made) => {
+        if (label !== null) setLabel.mutate({ taskId: made.id, labelId: label, on: true })
+      },
     })
   }
 
