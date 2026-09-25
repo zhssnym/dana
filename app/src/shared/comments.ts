@@ -436,3 +436,13 @@ export const taskThreadReadResponse = z.object({
   read_at: z.string().nullable(),
 })
 export type TaskThreadReadResponse = z.infer<typeof taskThreadReadResponse>
+
+/**
+ * GET /folders/:id/comment-counts (m2 ghissues): how many comments each task
+ * on the page carries, replies included, so an issue row can say "3" without
+ * one thread read per row. A task with none is absent rather than zero.
+ */
+export const commentCountsResponse = z.object({
+  counts: z.array(z.object({ task_id: z.uuid(), comments: z.number().int().positive() })),
+})
+export type CommentCountsResponse = z.infer<typeof commentCountsResponse>

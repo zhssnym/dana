@@ -961,6 +961,16 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'GET /api/v1/folders/:id/comment-counts',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/comment-counts` }),
+      stranger: {
+        expected: 404,
+        rule: "7.14: a task thread's count is the thread's, member-only, and a folder outside the viewer's membership is 404",
+      },
+    },
+  ],
+  [
     'POST /api/v1/folders/:id/comments',
     {
       attempt: (fx) => ({
