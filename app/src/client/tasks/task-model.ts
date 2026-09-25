@@ -276,6 +276,8 @@ export interface ConceptTask {
   /* A due date is a day, not a moment, so there is no time field here. A task
      that needs a time of day has a reminder, which carries one. */
   due?: { label: string; overdue?: boolean }
+  /* The Schedule's start, as 4.11 writes a date ("2026-09-24"); absent when none (#215). */
+  start?: string
   reminder?: string
   repeatEvery?: string
   repeatDays?: string[]

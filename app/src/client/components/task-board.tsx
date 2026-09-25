@@ -190,7 +190,7 @@ function BoardCard({
      of plain tasks stays compact; such a card is starred from the task. */
   const finished = done || task.status === "abandoned"
   const hasMeta =
-    (task.due !== undefined && !given?.due && !done) ||
+    ((task.due !== undefined || task.starts !== undefined) && !given?.due && !done) ||
     (task.folder !== undefined && !given?.folder) ||
     ((task.blockedBy ?? 0) > 0 && !finished) ||
     (task.assignee !== undefined && task.assignee !== null && !given?.assignee) ||
@@ -285,6 +285,7 @@ function BoardCard({
           className={"-mb-1 mt-0.5 w-full justify-between pl-7"}
           source={{
             ...(task.due === undefined ? {} : { due: task.due }),
+            ...(task.starts === undefined ? {} : { starts: task.starts }),
             ...(task.folder === undefined ? {} : { folder: task.folder }),
             ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
             ...(task.steps === undefined ? {} : { steps: { done: task.steps.complete, total: task.steps.total } }),

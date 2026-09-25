@@ -763,6 +763,8 @@ export interface TaskRowProps {
     overdue?: boolean
   }
   due?: { label: string; overdue?: boolean }
+  /* The start of a Schedule, in the due label's words, where it is not the due day (#215). */
+  starts?: string
   status?: TaskStatus
   important?: boolean
   importantTooltip?: string
@@ -1113,6 +1115,7 @@ export function TaskRow(props: TaskRowProps) {
         className="max-w-[60vw] pl-3 md:max-w-none"
         source={{
           ...(task.due === undefined ? {} : { due: task.due }),
+          ...(props.starts === undefined ? {} : { starts: props.starts }),
           ...(task.folder === undefined ? {} : { folder: task.folder }),
           ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
           ...(counts === null ? {} : { steps: counts }),

@@ -23,11 +23,12 @@ them but semantically one task. The range is inclusive at the day level. Draggin
 Due-only task's Due Date, a Start-only task's Start Date, and a Start+Due range whole,
 preserving its day span; there is no edge resizing.
 
-Until the spanning bar and the whole-range drag are built, a Start+Due pair draws as one
-chip: on its Due Date where the grid holds that day, else on its Start Date, else on the
-grid's first day when the span encloses the whole range. A row the query returned must be
-drawn somewhere. Such a row is not draggable on the calendar or on a date-grouped board,
-because moving one end would resize a span nobody asked to resize.
+Until the spanning bar is built, a Start+Due pair draws as one chip: on its Due Date where
+the grid holds that day, else on its Start Date, else on the grid's first day when the span
+encloses the whole range. A row the query returned must be drawn somewhere. Dragging that
+chip moves both dates by the days between the cell it left and the cell it landed on; on a
+date-grouped board the Due Date lands on the column's day and the Start Date keeps its
+distance. A pair dropped where no day is (No date) is refused rather than losing a date.
 
 Pending renders normal (overdue styled on past dates), completed faded and checked,
 abandoned faded and struck: the calendar is a record. Virtual instances: for every
