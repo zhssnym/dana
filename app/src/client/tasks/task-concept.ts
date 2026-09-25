@@ -69,6 +69,14 @@ const REPEAT_UNITS: Record<RecurrenceFrequency, NonNullable<ConceptTask['repeatU
   YEARLY: 'year',
 }
 
+/* A civil date's weekday as RFC 5545 names it ("SU"), or null undated. */
+function weekdayOf(date: string | null): string | null {
+  if (date === null) return null
+  const [year, month, day] = date.split('-').map(Number)
+  if (year === undefined || month === undefined || day === undefined) return null
+  return ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][new Date(Date.UTC(year, month - 1, day)).getUTCDay()] ?? null
+}
+
 function isDetail(task: TaskCard | TaskDetail): task is TaskDetail {
   return 'steps' in task
 }
@@ -128,7 +136,19 @@ export function toConceptTask(
       .filter((label) => !label.archived)
       .map((label) => ({ id: label.id, name: label.name })),
     ...(parsed !== null && parsed.ok
-      ? { repeatUnit: REPEAT_UNITS[parsed.rule.freq] }
+      ? {
+          repeatUnit: REPEAT_UNITS[parsed.rule.freq],
+          /* The rule's shape, so the card's Repeat panel opens on the rule
+             that is stored rather than on "every 1 week". A single weekday
+             is left implicit (the due date's), which is how the presets
+             write it and what "Weekly on Sunday" names. */
+          ...(parsed.rule.interval === 1 ? {} : { repeatEvery: String(parsed.rule.interval) }),
+          ...(parsed.rule.byDay === null ||
+          parsed.rule.byDay.length === 0 ||
+          (parsed.rule.byDay.length === 1 && parsed.rule.byDay[0] === weekdayOf(task.due_date))
+            ? {}
+            : { repeatDays: parsed.rule.byDay.map((day) => `${day.charAt(0)}${day.charAt(1).toLowerCase()}`) }),
+        }
       : {}),
     ...(detail === null
       ? {}

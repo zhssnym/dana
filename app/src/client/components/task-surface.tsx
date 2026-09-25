@@ -64,6 +64,10 @@ function Title({
   const [draft, setDraft] = useState(value)
   const [editing, setEditing] = useState(false)
   const [refusal, setRefusal] = useState<string | null>(null)
+  /* Enter and Escape settle the field themselves and then blur it; the blur
+     that follows must not commit again (a second PATCH on Enter, and on
+     Escape the stale draft, which put back the very edit Escape refused). */
+  const settled = useRef(false)
 
   function commit(next: string): void {
     const trimmed = next.replace(/\s+/g, " ").trim()
@@ -89,6 +93,7 @@ function Title({
         aria-label="title"
         aria-invalid={refusal !== null}
         onFocus={() => {
+          settled.current = false
           setDraft(value)
           setEditing(true)
         }}
@@ -96,11 +101,18 @@ function Title({
           setDraft(event.target.value)
           if (refusal !== null) setRefusal(null)
         }}
-        onBlur={() => commit(draft)}
+        onBlur={() => {
+          if (settled.current) {
+            settled.current = false
+            return
+          }
+          commit(draft)
+        }}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             event.preventDefault()
             commit(draft)
+            settled.current = true
             event.currentTarget.blur()
           }
           if (event.key === "Escape") {
@@ -109,11 +121,12 @@ function Title({
             setDraft(value)
             setRefusal(null)
             setEditing(false)
+            settled.current = true
             event.currentTarget.blur()
           }
         }}
         className={cn(
-          "text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-semibold hover:bg-transparent focus:bg-transparent",
+          "text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title hover:bg-transparent focus:bg-transparent",
           done ? "text-muted-foreground line-through" : "text-foreground",
         )}
       />
@@ -217,7 +230,6 @@ export function TaskView({
 
   const controls = (
     <div className="flex shrink-0 items-center gap-1">
-      {task.abandoned ? <span className="px-2 text-xs text-muted-foreground">Abandoned</span> : null}
       {steps && (steps.prev !== null || steps.next !== null) ? (
         <>
           <HeaderButton
@@ -261,7 +273,8 @@ export function TaskView({
       /* A different task is a fresh draft. */
       key={props.id}
       value={task.title}
-      done={Boolean(task.done)}
+      /* Finished either way, as a list row draws it; Status says which. */
+      done={Boolean(task.done) || Boolean(task.abandoned)}
       onRename={(title) => patch(task.id, { title })}
     />
   )
@@ -270,7 +283,7 @@ export function TaskView({
     <>
       <TaskCard task={task} patch={patch} {...cardHandlers} />
       {/* #214: the documents that link to this Task. Absent while none do. */}
-      <ReferencedFrom kind="task" id={props.id} />
+      <ReferencedFrom kind="task" id={props.id} className="-ml-1" />
     </>
   )
 
