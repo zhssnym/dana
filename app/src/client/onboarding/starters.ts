@@ -123,7 +123,7 @@ export const STARTERS: readonly [Starter, Starter, Starter] = [
               section('What the team is for'),
               task('Write down what this team is for, in one sentence'),
               task('List the three things that actually matter this quarter'),
-              task('Mark the one task that is genuinely urgent as important, then open Important'),
+              task('Mark the one task that is genuinely urgent as important, then add Important with the + beside Focus'),
               section('The weekly rhythm'),
               paragraph(
                 'A small team does not need a process. It needs the same three questions ' +
