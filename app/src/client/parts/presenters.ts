@@ -37,7 +37,7 @@ import { parseRecurrenceRule } from '../../shared/recurrence.js'
 import type { FolderGroupOption } from '../components/folder-group-dialog.js'
 import type { FolderRowProps } from '../components/folder-row.js'
 import type { TaskRowProps } from '../components/task-row.js'
-import { formatDate, formatDay, formatDayInline, formatDayTime } from '../lib/dates.js'
+import { formatClockTime, formatDate, formatDay, formatDayInline, formatDayTime } from '../lib/dates.js'
 import type { TimeFormat } from '../lib/time-format.js'
 import { activationDateOf } from './schedule.js'
 
@@ -120,6 +120,26 @@ export function startsLabel(
   const { start_date: start, due_date: due } = task
   if (start === null || start === due) return undefined
   return formatDay(start, today)
+}
+
+/**
+ * A Schedule drawn as a range (m2): both ends in one language, "22 Sep –
+ * 29 Sep", where `startsLabel` and `dueDisplay` alone would read "22 Sep – Mon"
+ * and leave the reader to work out which Monday. Undefined when there is no
+ * range to draw, and the row keeps its relative words ("Mon", "Today").
+ */
+export function rangeDisplay(
+  task: Pick<TaskCard, 'status' | 'start_date' | 'due_date' | 'due_time'>,
+  today: string,
+  clock: TimeFormat = '12',
+): { readonly starts: string; readonly due: DueDisplay } | undefined {
+  const { start_date: start, due_date: dueDate } = task
+  if (start === null || dueDate === null || start === dueDate) return undefined
+  const at = formatClockTime(task.due_time, clock)
+  const end = formatDate(dueDate, today)
+  const label = at === '' ? end : `${end} ${at}`
+  const overdue = task.status === 'pending' && dueDate < today
+  return { starts: formatDate(start, today), due: overdue ? { label, overdue: true } : { label } }
 }
 
 /* ------------------------------------------------------------------ *
@@ -653,11 +673,13 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
       ? personDisplay(task.assignee)
       : undefined
 
+  const range = showDue ? rangeDisplay(task, today, clock) : undefined
+
   return {
     title: task.title,
     folder: showFolder ? folderDisplay(task.folder, folders) : undefined,
-    due: showDue ? dueDisplay(task, today, clock) : undefined,
-    starts: showDue ? startsLabel(task, today) : undefined,
+    due: showDue ? (range?.due ?? dueDisplay(task, today, clock)) : undefined,
+    starts: showDue ? (range?.starts ?? startsLabel(task, today)) : undefined,
     status: task.status,
     important: task.important,
     importantTooltip: importantTooltipFor(task, starTooltip, today),
