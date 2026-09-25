@@ -169,7 +169,9 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
       const kind: CanvasMediaKind = (RASTER_MIMES as readonly string[]).includes(mime) ? 'image'
         : (AUDIO_MIMES as readonly string[]).includes(mime) ? 'audio'
           : (VIDEO_MIMES as readonly string[]).includes(mime) ? 'video' : 'file'
-      return uploadCanvasFile(kind, file)
+      // BlockNote applies an object result as an updateBlock partial, so the
+      // url and name go under `props` or a dropped file leaves the block empty.
+      return { props: await uploadCanvasFile(kind, file) }
     },
   })
   const projection = (current: readonly CanvasBlock[]): CanvasDocument => flat(dehydrateCanvas(current, width, NO_REFS))

@@ -213,7 +213,8 @@ function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T
 const audio = withReclaimNotice(mediaSpec(defaultBlockSpecs.audio, AUDIO_MIMES), 'file')
 const video = withReclaimNotice(mediaSpec(defaultBlockSpecs.video, VIDEO_MIMES), 'file')
 const file = withReclaimNotice(defaultBlockSpecs.file, 'file', 'Add a file')
-const image = withReclaimNotice(mediaSpec(defaultBlockSpecs.image, RASTER_MIMES), 'picture', 'Add an image')
+// An empty image block is the Media command's placeholder (#220, `CanvasFilePanel`).
+const image = withReclaimNotice(mediaSpec(defaultBlockSpecs.image, RASTER_MIMES), 'picture', 'Add media')
 
 /* A toggle opens by default, like a Section, so what is written under it goes
    inside: Enter at the end of an open toggle's title starts its first child
