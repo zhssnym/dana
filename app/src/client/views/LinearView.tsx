@@ -14,6 +14,7 @@ it; the last line adds one outside every milestone, or with "/" a milestone.
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
+import { useWearFilterLabel } from '../api/labels.js'
 import { useFolderCompletedTasks, mergeCompletedDays } from '../api/queries.js'
 import { Tabs } from '../components/ui/tabs.js'
 import { cn } from '../components/ui/utils.js'
@@ -27,6 +28,7 @@ import { useLineWriter } from './linear/document.js'
 import { IssuePage } from './linear/IssuePage.js'
 import { CommentCount, LabelChip, StateMark } from './linear/IssueParts.js'
 import { issueState, labelsOf, openGroups, STATE_WORD, useCommentCounts, usePeople } from './linear/issues.js'
+import { wearsLabel } from './filter.js'
 import type { RowContext } from '../parts/presenters.js'
 import type { RowActions } from '../parts/useRowActions.js'
 import type { PageView } from '../../shared/pages.js'
@@ -42,13 +44,18 @@ export function LinearView(props: {
   readonly folderId: string
   readonly page: PageView
   readonly tasks: readonly TaskCard[]
+  /* Every finished task: a milestone they close stays closed whatever the
+     Label filter is. Only the Closed list is narrowed to `label`. */
   readonly completed: readonly TaskCard[]
+  /* The Label filter's choice, which a task added here is given too. */
+  readonly label: string | null
   readonly showCompleted: boolean
   readonly today: string
   readonly context: RowContext
   readonly actions: RowActions
 }): React.JSX.Element {
-  const { folderId, page, tasks, today, context, actions } = props
+  const { folderId, page, tasks, completed, label, today, context, actions } = props
+  const wearFilterLabel = useWearFilterLabel(folderId)
   const [search, setSearch] = useSearchParams()
   const issueId = search.get('issue')
   const [tab, setTab] = useState<Tab>('open')
@@ -74,8 +81,10 @@ export function LinearView(props: {
   }
 
   /* Closed, newest first: finished work by the day it was finished, with not
-     planned work (which has no finishing day) placed by its last change. */
-  const closed = useMemo(() => {
+     planned work (which has no finishing day) placed by its last change. The
+     days come from the query; which finished tasks are listed is `completed`
+     narrowed to the chosen Label, while every one still closes its milestone. */
+  const allClosed = useMemo(() => {
     const rows: { task: TaskCard; day: string; date: string | null }[] = []
     const seen = new Set<string>()
     for (const day of mergeCompletedDays(done.data?.pages)) {
@@ -91,7 +100,11 @@ export function LinearView(props: {
     }
     return rows.sort((a, b) => b.day.localeCompare(a.day) || b.task.updated_at.localeCompare(a.task.updated_at))
   }, [done.data, tasks])
-  const closedTasks = useMemo(() => closed.map((row) => row.task), [closed])
+  const closed = useMemo(() => {
+    const kept = new Set(completed.filter((task) => wearsLabel(task, label)).map((task) => task.id))
+    return allClosed.filter((row) => row.date === null || kept.has(row.task.id))
+  }, [allClosed, completed, label])
+  const closedTasks = useMemo(() => allClosed.map((row) => row.task), [allClosed])
   const groups = useMemo(() => openGroups(page, tasks, closedTasks), [page, tasks, closedTasks])
 
   if (issueId !== null) {
@@ -190,7 +203,14 @@ export function LinearView(props: {
 
   const addTo = (section: string | null) => (kind: string, text: string): void => {
     if (kind === 'milestone') void writer.write({ op: 'add_milestone', name: text })
-    else void writer.write({ op: 'add_step', title: text, section })
+    else {
+      /* Under a Label filter a new task wears that label, or it would vanish
+         the moment it was made. */
+      const id = crypto.randomUUID()
+      void writer.write({ op: 'add_step', title: text, section, id }).then(() => {
+        wearFilterLabel(id, label)
+      })
+    }
   }
 
   return (

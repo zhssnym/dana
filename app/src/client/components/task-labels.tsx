@@ -15,7 +15,7 @@ assigned to them, which only the server can decide under its lock: so a
 contributor is offered them and a refusal comes back as the server's toast.
 Making or changing the page's labels takes Can edit.
 */
-import { useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 
 import type { LabelDefinition } from "../../shared/labels.js"
 import { useFolders } from "../api/queries.js"
@@ -31,7 +31,7 @@ import { Check, Plus } from "../lib/icons.js"
 import { IDENTITY_COLORS } from "../parts/identity-colors.js"
 import type { ConceptTask } from "../tasks/task-model.js"
 
-import { LabelChip, LabelDot } from "./label-chip.js"
+import { byName, LabelChip, LabelDot } from "./label-chip.js"
 import { PROPERTY_LABEL, PROPERTY_ROW } from "./task-pickers.js"
 import { Button } from "./ui/button.js"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog.js"
@@ -39,12 +39,21 @@ import { Input } from "./ui/input.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
 import { cn } from "./ui/utils.js"
 
-/* The swatches a new label draws from, grey left for last. */
-const SWATCHES = IDENTITY_COLORS.map(([, hex]) => hex)
+/*
+The colour a new label starts with: the least used here, taken in an order that
+puts far-apart hues next to each other, so the first few labels on a page are
+told apart at a glance rather than drawn as three neighbouring warm dots. Grey
+is never picked for you.
+*/
+const SPREAD = ["Blue", "Green", "Orange", "Purple", "Pink", "Yellow", "Red"]
+  .map((name) => IDENTITY_COLORS.find(([colour]) => colour === name)?.[1])
+  .filter((hex): hex is string => hex !== undefined)
 
-function nextColor(taken: number): string {
-  const lively = SWATCHES.slice(1)
-  return lively[taken % lively.length] ?? SWATCHES[0] ?? "#8a8a8a"
+function nextColor(taken: readonly { readonly color: string }[]): string {
+  const uses = (hex: string) => taken.filter((label) => same(label.color, hex)).length
+  let pick = SPREAD[0] ?? "#8a8a8a"
+  for (const hex of SPREAD) if (uses(hex) < uses(pick)) pick = hex
+  return pick
 }
 
 /** What this viewer may do with labels on one task's page. */
@@ -75,7 +84,7 @@ export function TaskLabelsRow({
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const [editing, setEditing] = useState(false)
-  const worn = task.labels ?? []
+  const worn = byName(task.labels ?? [])
   function change(next: boolean) {
     setOpen(next)
     onOpenChange?.(next)
@@ -86,7 +95,13 @@ export function TaskLabelsRow({
       <Popover open={open} onOpenChange={change}>
         <PopoverTrigger
           render={
-            <button type="button" onClick={(event) => event.stopPropagation()} className={PROPERTY_ROW}>
+            <button
+              type="button"
+              onClick={(event) => event.stopPropagation()}
+              /* Grows with wrapped chips, key on the first line, so the picker
+                 opens under every worn label rather than over the second line. */
+              className={cn(PROPERTY_ROW, "h-auto min-h-[var(--control-height)] items-start py-1")}
+            >
               <span className={PROPERTY_LABEL}>Labels</span>
               {worn.length === 0 ? (
                 <span className="text-muted-foreground">Empty</span>
@@ -107,33 +122,51 @@ export function TaskLabelsRow({
               folderId={folderId}
               worn={worn.map((label) => label.id)}
               onEdit={() => {
-                change(false)
+                /* The row stays claimed until the dialog closes, or a task
+                   wearing no label would take the dialog away with its row. */
+                setOpen(false)
                 setEditing(true)
               }}
             />
           ) : null}
         </PopoverContent>
       </Popover>
-      {editing ? <LabelEditor folderId={folderId} onClose={() => setEditing(false)} /> : null}
+      {editing ? (
+        <LabelEditor
+          folderId={folderId}
+          onClose={() => {
+            setEditing(false)
+            onOpenChange?.(false)
+          }}
+        />
+      ) : null}
     </>
   )
 }
 
 function LabelOption({
+  id,
   label,
   on,
+  active,
   onToggle,
 }: {
+  readonly id: string
   readonly label: LabelDefinition
   readonly on: boolean
+  readonly active: boolean
   readonly onToggle: () => void
 }) {
   return (
     <button
       type="button"
-      aria-pressed={on}
+      id={id}
+      role="option"
+      aria-selected={on}
+      tabIndex={-1}
+      data-active={active || undefined}
       onClick={onToggle}
-      className="flex h-[var(--control-height)] w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground transition-colors hover:bg-accent"
+      className={cn(OPTION, active && "bg-accent")}
     >
       <LabelDot color={label.color} />
       <span className="flex-1 truncate">{label.name}</span>
@@ -146,8 +179,15 @@ function LabelOption({
   )
 }
 
-function Heading({ children }: { readonly children: string }) {
-  return <p className="px-2 pt-2 pb-1 text-xs text-muted-foreground">{children}</p>
+const OPTION =
+  "flex h-[var(--control-height)] w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground transition-colors hover:bg-accent"
+
+function Heading({ id, children }: { readonly id: string; readonly children: string }) {
+  return (
+    <p id={id} role="presentation" className="px-2 pt-2 pb-1 text-xs text-muted-foreground">
+      {children}
+    </p>
+  )
 }
 
 function LabelPicker({
@@ -162,86 +202,180 @@ function LabelPicker({
   readonly onEdit: () => void
 }) {
   const [query, setQuery] = useState("")
-  const labels = useLabels(folderId)
+  /* The one option Enter takes: the first match once something is typed,
+     or where the arrows moved it; none on an empty box, where Enter does
+     nothing rather than take off a label nobody pointed at. */
+  const [active, setActive] = useState(-1)
+  const list = useRef<HTMLDivElement>(null)
+  const ids = useId()
+  const optionId = (index: number) => `${ids}-option-${String(index)}`
+  /* Archived labels too: a typed name an archived one still holds is offered
+     back rather than made again, which the server would refuse. */
+  const labels = useLabels(folderId, "all")
   const rights = useLabelRights(folderId)
   const setLabel = useSetTaskLabel()
   const create = useCreateLabel()
-  const rows = labels.data?.rows ?? []
+  const archive = useArchiveLabel()
+  const every = labels.data?.rows ?? []
+  const rows = every.filter((label) => !label.archived)
   const typed = query.trim()
   const matches = (label: LabelDefinition) => typed === "" || label.name.toLowerCase().includes(typed.toLowerCase())
   const pageLabels = rows.filter((label) => label.scope === "folder" && matches(label))
   const mine = rows.filter((label) => label.scope === "personal" && matches(label))
   const shownPage = rights.apply ? pageLabels : []
-  const canMakePage =
-    rights.manage && folderId !== null && typed !== "" && !rows.some((l) => l.scope === "folder" && same(l.name, typed))
-  const canMakeMine = typed !== "" && !rows.some((l) => l.scope === "personal" && same(l.name, typed))
+  const held = (scope: LabelDefinition["scope"]) =>
+    typed === "" ? undefined : every.find((label) => label.scope === scope && same(label.name, typed))
+  const heldPage = held("folder")
+  const heldMine = held("personal")
+  /* Each kind offers one row for the typed name: Restore when an archived
+     label holds it, Make when nothing does, neither when an active one does. */
+  const pageAct: (() => void) | null =
+    !rights.manage || folderId === null || typed === ""
+      ? null
+      : heldPage === undefined
+        ? () => make(folderId)
+        : heldPage.archived
+          ? () => restore(heldPage)
+          : null
+  const mineAct: (() => void) | null =
+    typed === "" ? null : heldMine === undefined ? () => make(null) : heldMine.archived ? () => restore(heldMine) : null
+
+  /* Matches first, then the Make or Restore rows: Enter makes a label only
+     when nothing matches or the arrows moved onto Make. */
+  const options: (() => void)[] = [
+    ...[...shownPage, ...mine].map((label) => () => toggle(label)),
+    ...(pageAct === null ? [] : [pageAct]),
+    ...(mineAct === null ? [] : [mineAct]),
+  ]
+  const current = active < 0 ? -1 : Math.min(active, options.length - 1)
+  const makeAt = shownPage.length + mine.length
+  const mineAt = makeAt + (pageAct === null ? 0 : 1)
+  useEffect(() => {
+    list.current?.querySelector("[data-active]")?.scrollIntoView({ block: "nearest" })
+  }, [current, query])
 
   function toggle(label: LabelDefinition) {
     setLabel.mutate({ taskId, labelId: label.id, on: !worn.includes(label.id) })
   }
 
+  function wear(labelId: string) {
+    setQuery("")
+    setActive(-1)
+    setLabel.mutate({ taskId, labelId, on: true })
+  }
+
   function make(scopeFolder: string | null) {
     create.mutate(
-      { folderId: scopeFolder, name: typed, color: nextColor(rows.length) },
-      {
-        onSuccess: (made) => {
-          setQuery("")
-          setLabel.mutate({ taskId, labelId: made.id, on: true })
-        },
-      },
+      { folderId: scopeFolder, name: typed, color: nextColor(rows) },
+      { onSuccess: (made) => wear(made.id) },
     )
   }
 
+  function restore(label: LabelDefinition) {
+    archive.mutate({ label, archived: false }, { onSuccess: () => wear(label.id) })
+  }
+
+  const listId = `${ids}-list`
   return (
     <div className="flex flex-col">
       <Input
         autoFocus
+        role="combobox"
+        aria-expanded
+        aria-autocomplete="list"
+        aria-controls={listId}
+        aria-activedescendant={current < 0 ? undefined : optionId(current)}
         aria-label="Find or make a label"
         placeholder="Find or make a label"
         value={query}
         maxLength={40}
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setActive(event.target.value.trim() === "" ? -1 : 0)
+        }}
         onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault()
+            if (options.length === 0) return
+            const step = event.key === "ArrowDown" ? 1 : -1
+            const from = current < 0 ? (step === 1 ? -1 : 0) : current
+            setActive((from + step + options.length) % options.length)
+            return
+          }
           if (event.key !== "Enter") return
           event.preventDefault()
-          const exact = [...shownPage, ...mine].find((label) => same(label.name, typed))
-          if (exact !== undefined) toggle(exact)
-          else if (canMakePage) make(folderId)
-          else if (canMakeMine) make(null)
+          if (current >= 0) options[current]?.()
         }}
       />
-      <div className="mt-1 max-h-72 overflow-y-auto">
+      <div
+        ref={list}
+        id={listId}
+        role="listbox"
+        aria-label="Labels"
+        aria-multiselectable
+        className="mt-1 max-h-72 overflow-y-auto"
+      >
         {shownPage.length > 0 ? (
-          <>
-            <Heading>This page</Heading>
-            {shownPage.map((label) => (
-              <LabelOption key={label.id} label={label} on={worn.includes(label.id)} onToggle={() => toggle(label)} />
+          <div role="group" aria-labelledby={`${ids}-page`}>
+            <Heading id={`${ids}-page`}>This page</Heading>
+            {shownPage.map((label, index) => (
+              <LabelOption
+                key={label.id}
+                id={optionId(index)}
+                label={label}
+                on={worn.includes(label.id)}
+                active={current === index}
+                onToggle={() => toggle(label)}
+              />
             ))}
-          </>
+          </div>
         ) : null}
         {mine.length > 0 ? (
-          <>
-            <Heading>Just for me</Heading>
-            {mine.map((label) => (
-              <LabelOption key={label.id} label={label} on={worn.includes(label.id)} onToggle={() => toggle(label)} />
+          <div role="group" aria-labelledby={`${ids}-mine`}>
+            <Heading id={`${ids}-mine`}>Just for me</Heading>
+            {mine.map((label, index) => (
+              <LabelOption
+                key={label.id}
+                id={optionId(shownPage.length + index)}
+                label={label}
+                on={worn.includes(label.id)}
+                active={current === shownPage.length + index}
+                onToggle={() => toggle(label)}
+              />
             ))}
-          </>
+          </div>
         ) : null}
-        {labels.isSuccess && rows.length === 0 && typed === "" ? (
-          <p className="px-2 py-2 text-sm text-muted-foreground">Type a name to make your first label.</p>
+        {pageAct !== null || mineAct !== null ? (
+          <div role="group" aria-label="New" className={cn(makeAt > 0 && "mt-1 border-t border-border pt-1")}>
+            {pageAct !== null ? (
+              <MakeOption
+                id={optionId(makeAt)}
+                onSelect={pageAct}
+                active={current === makeAt}
+                name={heldPage?.name ?? typed}
+                restore={heldPage !== undefined}
+              >
+                for this page
+              </MakeOption>
+            ) : null}
+            {mineAct !== null ? (
+              <MakeOption
+                id={optionId(mineAt)}
+                onSelect={mineAct}
+                active={current === mineAt}
+                name={heldMine?.name ?? typed}
+                restore={heldMine !== undefined}
+              >
+                just for me
+              </MakeOption>
+            ) : null}
+          </div>
         ) : null}
       </div>
-      {canMakePage || canMakeMine ? (
-        <div className="mt-1 border-t border-border pt-1">
-          {canMakePage ? (
-            <MakeOption onSelect={() => make(folderId)}>{`Make “${typed}” for this page`}</MakeOption>
-          ) : null}
-          {canMakeMine ? (
-            <MakeOption onSelect={() => make(null)}>{`Make “${typed}” just for me`}</MakeOption>
-          ) : null}
-        </div>
+      {labels.isSuccess && rows.length === 0 && typed === "" ? (
+        <p className="px-2 py-2 text-sm text-muted-foreground">Type a name to make your first label.</p>
       ) : null}
-      {rows.length > 0 ? (
+      {every.length > 0 ? (
         <div className="mt-1 border-t border-border pt-1">
           <MakeOption onSelect={onEdit} plain>
             Edit labels
@@ -252,23 +386,49 @@ function LabelPicker({
   )
 }
 
+/**
+ * A row that acts rather than toggles. With `name`, it makes that label: the
+ * name is cut when long, the scope words after it never are, since they are
+ * all that tells the two Make rows apart.
+ */
 function MakeOption({
+  id,
   onSelect,
   plain = false,
+  active = false,
+  restore = false,
+  name,
   children,
 }: {
+  readonly id?: string
   readonly onSelect: () => void
   readonly plain?: boolean
+  readonly active?: boolean
+  /** The name is held by an archived label, which this row brings back. */
+  readonly restore?: boolean
+  readonly name?: string
   readonly children: string
 }) {
   return (
     <button
       type="button"
+      id={id}
+      role={id === undefined ? undefined : "option"}
+      aria-selected={id === undefined ? undefined : false}
+      tabIndex={id === undefined ? undefined : -1}
+      data-active={active || undefined}
       onClick={onSelect}
-      className="flex h-[var(--control-height)] w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground transition-colors hover:bg-accent"
+      className={cn(OPTION, active && "bg-accent")}
     >
       {plain ? null : <Plus className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden="true" />}
-      <span className="truncate">{children}</span>
+      {name === undefined ? (
+        <span className="truncate">{children}</span>
+      ) : (
+        <>
+          <span className="min-w-0 truncate">{`${restore ? "Restore" : "Make"} “${name}”`}</span>
+          <span className="shrink-0 text-muted-foreground">{children}</span>
+        </>
+      )}
     </button>
   )
 }
@@ -334,7 +494,7 @@ function LabelEditRow({ label, editable }: { readonly label: LabelDefinition; re
     patch.mutate({ label, fields: { name: next } }, { onError: () => setName(label.name) })
   }
   return (
-    <li className="flex items-center gap-2 py-0.5">
+    <li className="group flex items-center gap-2 py-0.5">
       <Popover>
         <PopoverTrigger
           disabled={!editable}
@@ -377,12 +537,23 @@ function LabelEditRow({ label, editable }: { readonly label: LabelDefinition; re
           if (event.key === "Enter") event.currentTarget.blur()
           if (event.key === "Escape") setName(label.name)
         }}
-        className={cn("h-[var(--control-height)] flex-1 rounded-md px-1", label.archived && "text-muted-foreground")}
+        className={cn(
+          "h-[var(--control-height)] flex-1 rounded-md px-2",
+          editable && "transition-colors hover:bg-accent focus-visible:bg-accent",
+          label.archived && "text-muted-foreground",
+        )}
       />
       {editable ? (
         <Button
           variant="ghost"
-          className="shrink-0 text-muted-foreground"
+          /* Archive shows on the row the pointer or focus is on (always on
+             touch), not as a column of the same word; Restore always, since
+             on an archived row it is what the row is saying. */
+          className={cn(
+            "shrink-0 text-muted-foreground",
+            !label.archived &&
+              "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100",
+          )}
           onClick={() => archive.mutate({ label, archived: !label.archived })}
         >
           {label.archived ? "Restore" : "Archive"}

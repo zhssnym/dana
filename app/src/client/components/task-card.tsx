@@ -859,6 +859,8 @@ export function TaskCard({
   const showAssignee = assignable && (Boolean(task.assignee) || adding === "assignee")
 
   /* A revealed row that closes without an answer goes away again. */
+  const addProperty = useRef<HTMLButtonElement>(null)
+
   function settle(which: AddableProperty) {
     return (open: boolean) => {
       if (!open) setAdding((current) => (current === which ? null : current))
@@ -974,7 +976,26 @@ export function TaskCard({
 
         {/* #208: the task's Labels, and the picker that changes them. */}
         {task.folder?.id !== undefined && (labels.length > 0 || adding === "labels") ? (
-          <TaskLabelsRow task={task} defaultOpen={adding === "labels"} onOpenChange={settle("labels")} />
+          <TaskLabelsRow
+            task={task}
+            defaultOpen={adding === "labels"}
+            /* Held open while the picker is: taking off the last label must not
+               pull the row, and the picker with it, out from under the pointer. */
+            onOpenChange={(open) => {
+              if (open) {
+                setAdding("labels")
+                return
+              }
+              settle("labels")(false)
+              /* With no label left the row goes, and the focus with it: hand
+                 it to "Add property", where Labels is offered again. */
+              if (labels.length === 0)
+                requestAnimationFrame(() => {
+                  if (document.activeElement === null || document.activeElement === document.body)
+                    addProperty.current?.focus()
+                })
+            }}
+          />
         ) : null}
 
         {addable.length > 0 ? (
@@ -982,6 +1003,7 @@ export function TaskCard({
             <DropdownMenuTrigger
               render={
                 <button
+                  ref={addProperty}
                   type="button"
                   className={cn(
                     "flex h-[var(--control-height)] w-full items-center gap-2 rounded-sm px-2 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground data-popup-open:bg-accent",

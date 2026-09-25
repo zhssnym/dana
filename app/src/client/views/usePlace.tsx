@@ -13,6 +13,7 @@ import { useMe } from '../api/queries.js'
 import { presenterToday } from '../parts/presenters.js'
 import { Button } from '../components/ui/button.js'
 import { Image as ImageIcon } from '../lib/icons.js'
+import { useWearFilterLabel } from '../api/labels.js'
 import { LabelFilterClear, ViewMenu } from './FilterControl.js'
 import { labelsWorn, sortRows, wearsLabel } from './filter.js'
 import type { GroupBy, PageFilter } from './filter.js'
@@ -72,6 +73,9 @@ export function usePlace(
   const me = useMe()
   const create = useCreateTask()
   const pull = usePullIntoMyDay()
+  /* A place page's own capture writes no page, so only the viewer's own
+     Labels can be put on what it makes. */
+  const wearFilterLabel = useWearFilterLabel(null)
   const today = presenterToday()
   const viewerId = me.data?.user.id ?? null
 
@@ -103,6 +107,9 @@ export function usePlace(
       {
         onSuccess: (task) => {
           if (defaults.pullIntoToday) pull.mutate(task.id)
+          /* Under a Label filter a new task wears that label, or it would
+             vanish the moment it was made. */
+          wearFilterLabel(task.id, filter.label)
         },
       },
     )

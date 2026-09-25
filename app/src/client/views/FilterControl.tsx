@@ -223,12 +223,16 @@ export function LabelFilterClear({
       variant="ghost"
       className="max-w-48 text-sm text-foreground"
       aria-label={`Show all labels, not only ${current?.name ?? 'this label'}`}
+      title={current?.name}
       onClick={() => {
         onChange({ ...filter, label: null })
       }}
     >
       {current === undefined ? null : <LabelDot color={current.color} />}
-      <span className="truncate">{current?.name ?? 'One label'}</span>
+      {/* On a phone the dot says which, so the page's name keeps its line. */}
+      <span className={current === undefined ? 'truncate' : 'truncate max-md:hidden'}>
+        {current?.name ?? 'One label'}
+      </span>
       <X className="size-3.5 text-muted-foreground" aria-hidden="true" />
     </Button>
   )

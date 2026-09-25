@@ -155,6 +155,8 @@ import { usePageImport } from '../shell/workflow-import.js'
 import { FolderTabs } from '../components/folder-facets.js'
 import type { CreateFacetInput, FacetCapabilities } from '../components/folder-facets.js'
 import { PageSection } from '../components/page/PageSection.js'
+import { labelsWorn } from '../views/filter.js'
+import { useWearFilterLabel } from '../api/labels.js'
 import { PLACES } from '../views/place-pages.js'
 import { BoardView } from '../views/BoardView.js'
 import { LinearView } from '../views/LinearView.js'
@@ -273,6 +275,7 @@ export function FolderPage({
   const actions = useRowActions()
   const confirm = useConfirm()
   const create = useCreateTask()
+  const wearFilterLabel = useWearFilterLabel(id)
   const remove = useDeleteFolder()
   const restore = useRestoreFolder()
   const patch = useRenameFolder()
@@ -362,6 +365,12 @@ export function FolderPage({
         folder_id: id,
         ...(column?.due_date === undefined ? {} : { due_date: column.due_date }),
         ...(column?.assignee_id === undefined ? {} : { assignee_id: column.assignee_id }),
+      }, {
+        /* Under a Label filter a new task wears that label, or it would
+           vanish the moment it was made. */
+        onSuccess: (made) => {
+          wearFilterLabel(made.id, place.filter.label)
+        },
       })
     },
   })
@@ -377,6 +386,20 @@ export function FolderPage({
   const completedDays = mergeCompletedDays(completed.data?.pages)
   /* The finished Tasks the canvas draws in place, checked and muted. */
   const completedRows = useMemo(() => completedDays.flatMap((day) => day.rows), [completedDays])
+  /* Board and Linear narrow their finished work to the Label filter
+     themselves; the canvas keeps every block, as the Label item says. */
+  const labelFilterId = place.filter.label
+  /* With finished work shown, a Label only it wears is offered as well; and
+     the chosen Label keeps its name when hiding finished work leaves no open
+     row wearing it. */
+  const wornLabels = useMemo(
+    () =>
+      labelsWorn([...openRows, ...completedRows]).filter(
+        (label) =>
+          showCompleted || label.id === labelFilterId || place.labels.some((open) => open.id === label.id),
+      ),
+    [showCompleted, openRows, completedRows, place.labels, labelFilterId],
+  )
 
   const context: RowContext = {
     ...basis,
@@ -910,7 +933,7 @@ export function FolderPage({
         onShowCompleted={changeShowCompleted}
       />
       {labelFilter ? (
-        <LabelChoice filter={place.filter} labels={place.labels} onChange={place.setFilter} />
+        <LabelChoice filter={place.filter} labels={wornLabels} onChange={place.setFilter} />
       ) : null}
     </>
   ) : undefined
@@ -918,7 +941,7 @@ export function FolderPage({
   const headerActions = (
     <>
       {labelFilter ? (
-        <LabelFilterClear filter={place.filter} labels={place.labels} onChange={place.setFilter} />
+        <LabelFilterClear filter={place.filter} labels={wornLabels} onChange={place.setFilter} />
       ) : null}
       {/* 9.6's Share control, a word rather than a glyph. Withheld on a
           default folder, which INV-2 makes single-member and 5.3 refuses an
@@ -1082,6 +1105,7 @@ export function FolderPage({
                     page={page.data}
                     tasks={visible}
                     completed={completedRows}
+                    label={labelFilterId}
                     showCompleted={showCompleted}
                     today={place.today}
                     context={context}
@@ -1094,6 +1118,7 @@ export function FolderPage({
                       page={page.data}
                       tasks={visible}
                       completed={completedRows}
+                      label={labelFilterId}
                       showCompleted={showCompleted}
                       today={place.today}
                       context={context}

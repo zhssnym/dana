@@ -236,7 +236,7 @@ function BoardCard({
         zIndex: carried ? 30 : undefined,
       }}
       className={cn(
-        "group/row relative cursor-pointer rounded-md border border-border bg-background px-2.5 py-2 transition-colors hover:bg-hover",
+        "group/row @container/card relative cursor-pointer rounded-md border border-border bg-background px-2.5 py-2 transition-colors hover:bg-hover",
         T_FAST,
         carried && "cursor-grabbing shadow-[var(--elevation-2)]",
       )}

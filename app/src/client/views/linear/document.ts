@@ -15,7 +15,7 @@ import { queryKeys } from '../../api/keys.js'
 export type LineEdit =
   /* `section`: into that milestone, at its end; null: outside every
      milestone, before the first. */
-  | { op: 'add_step'; title: string; section: string | null }
+  | { op: 'add_step'; title: string; section: string | null; id?: string }
   | { op: 'add_milestone'; name: string }
 
 function record(id: string, fields: Partial<CanvasRecord> & Pick<CanvasRecord, 'block_kind'>): CanvasRecord {
@@ -31,7 +31,7 @@ export function applyEdit(page: PageView, edit: LineEdit): { document: CanvasDoc
 
   switch (edit.op) {
     case 'add_step': {
-      const id = crypto.randomUUID()
+      const id = edit.id ?? crypto.randomUUID()
       const isSection = (item: CanvasPlacement): boolean =>
         item.kind === 'block' && kindOf.get(item.id) === 'section' && item.section_block_id === null
       let at: number
