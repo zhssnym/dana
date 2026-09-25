@@ -289,7 +289,6 @@ export function FolderPage({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
   /* An owner deleting a shared folder is asked one question first. */
-  const [deleteAsk, setDeleteAsk] = useState(false)
   // 9.6's inline rename: the title is a heading until this is true.
   const [renaming, setRenaming] = useState(false)
   const [coverOpen, setCoverOpen] = useState(false)
@@ -393,7 +392,6 @@ export function FolderPage({
   /* Off once trashed: the cover read is a folder read too. */
   const hasCover = usePageHasCover(leaving ? '' : coverKey)
 
-  const isOwner = detail?.is_owner ?? false
   const isDefault = detail?.is_default ?? false
   const members = detail?.members ?? []
   /*
@@ -525,7 +523,9 @@ export function FolderPage({
 
   function doDelete(): void {
     /* 9.6: to Trash for every member at once, the undo bar, no
-       confirmation. The inverse is 7.13's restore. */
+       confirmation, an owner with other members included (Hassan: delete
+       never asks; M2 retired AC-283's question). Handing the page on first
+       stays in the "…" as Transfer ownership. The inverse is 7.13's restore. */
     const name = detail?.name ?? ''
     setLeftId(id)
     /* Leave first: the delete's invalidation would otherwise refetch every
@@ -641,35 +641,6 @@ export function FolderPage({
     confirm.ask(leaveFolderConfirm(detail?.name ?? ''), () => {
       leave.mutate(id, { onSuccess: () => navigate(paths.today) })
     })
-  }
-
-  /*
-  The one question asked of an owner whose folder has other members: hand it on,
-  or delete it for them too.
-
-  The first option is a transfer, because the server answers an owner's leave
-  409 "Transfer ownership before leaving": the folder stays alive for the people
-  in it and leaves this person's sidebar. AC-283.
-
-  The second option is `doDelete` above, 7.13's soft delete for every member
-  with the undo bar. An owner alone in the folder is asked nothing, 9.6's
-  confirm-free delete standing, because there is nobody to hand it to.
-
-  **A Full-control member who is not the owner is not asked either** (AC-015):
-  the question is about custody, and custody is not theirs to pass on. They get
-  9.6's plain delete and the undo bar, exactly as a sole owner does.
-  */
-  function askDelete(): void {
-    if (isOwner && others.length > 0) setDeleteAsk(true)
-    else doDelete()
-  }
-
-  /** The way out of the delete question that is not deletion: name a
-   * successor. Closes one dialog and opens the other rather than acting, so
-   * the person still chooses who. */
-  function handOn(): void {
-    setDeleteAsk(false)
-    setTransferOpen(true)
   }
 
   /*
@@ -911,7 +882,7 @@ export function FolderPage({
        two strings here would be the second copy this whole change removes. */
     else if (action === 'leave') askLeave()
     else if (action === 'delete') {
-      if (gates?.trash === true) askDelete()
+      if (gates?.trash === true) doDelete()
       else refuse('folder.trash')
     }
   })
@@ -1000,7 +971,7 @@ export function FolderPage({
              last Full-control member; `folderGates` reads both off the roster. */
           leave: gates?.leave === true ? askLeave : undefined,
           /* Full control's, which custody does not confer (AC-015). */
-          delete: gates?.trash === true ? askDelete : undefined,
+          delete: gates?.trash === true ? doDelete : undefined,
         }}
       />
     </>
@@ -1257,37 +1228,6 @@ export function FolderPage({
               ))}
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* The owner's question: see `askDelete`. */}
-      <Dialog open={deleteAsk} onOpenChange={setDeleteAsk}>
-        <DialogContent className="max-w-[440px]">
-          <DialogHeader>
-            <DialogTitle>Delete {detail?.name}?</DialogTitle>
-            <DialogDescription>
-              Delete for everyone? It stays in Trash for 30 days.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose render={<Button variant="ghost">Cancel</Button>} />
-            {/* Handing it on opens the picker rather than acting, because
-                somebody has to be named. Offered only when somebody can take it. */}
-            {successors.length > 0 ? (
-              <Button variant="outline" onClick={handOn}>
-                Hand it to a member…
-              </Button>
-            ) : null}
-            <Button
-              variant="destructive"
-              onClick={() => {
-                setDeleteAsk(false)
-                doDelete()
-              }}
-            >
-              Delete for everyone
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -283,7 +283,11 @@ export function FolderSharingPanel({
 
             <h3 className="px-2 pb-1 text-sm font-medium text-foreground">Members</h3>
             <ul role="list" className="flex flex-col gap-[var(--space-row)]">
-              {folder.members.map((member) => {
+              {/* The owner first: who holds the page is the first thing the
+                  list answers. The rest keep the server's order. */}
+              {[...folder.members]
+                .sort((a, b) => Number(b.is_owner) - Number(a.is_owner))
+                .map((member) => {
                 const name = member.user.display_name ?? 'Someone'
                 return (
                   <li key={member.user.id} className={ROW}>
@@ -297,7 +301,7 @@ export function FolderSharingPanel({
                         Responsibilities and their history (#209). */}
                     <button
                       type="button"
-                      className="min-w-0 flex-1 truncate rounded-sm text-left text-sm text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                      className="min-w-0 flex-1 truncate rounded-sm text-left text-sm text-foreground hover:underline"
                       onClick={() => {
                         setOpenMember(member.user.id)
                       }}
