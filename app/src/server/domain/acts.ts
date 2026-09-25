@@ -816,47 +816,41 @@ export async function duplicateTask(
       stored?.due_date === null || stored?.due_date === undefined
         ? null
         : String(stored.due_date)
-    if (anchor === null && zoneIsNeededToReanchor(storedDue)) {
-      return { kind: 'tz_required' } as const
-    }
-    /* 9.6's rule applied in the caller's zone: a date already behind them
-       moves up to today, a date still ahead of them copies as it stands. In
-       the arm where no zone was named, the guard above has proved the date is
-       ahead in every zone, so `anchor` being null cannot reach the
-       comparison. */
-    const dueForCopy =
-      storedDue !== null && anchor !== null && storedDue < anchor
-        ? anchor
-        : storedDue
-    /*
-    The start date follows the due date by the same number of days when 9.6
-    re-anchors a spent one, and copies as it stands otherwise (issue #215).
-
-    Copying it verbatim would be wrong in the case it is most likely to meet:
-    a task starting 1 January
-    and due 10 January, duplicated in September, would come out starting in January
-    and due today - a nine-month Schedule nobody wrote. What a duplicate is for
-    is the shape of the work, and the Schedule is a shape rather than two
-    independent dates.
-
-    Moving them together is not the recurring start-to-due window #215
-    excludes; that exclusion is about generation inventing a window per
-    occurrence, where here the window already exists and is being carried.
-
-    Three arms. No stored start is null whatever happens to the due date. A
-    start with no re-anchor copies as it stands, because there is no delta.
-    And a start under a re-anchor takes the same delta as the due date, so
-    tasks_start_before_due_check holds for the same reason it held before: both
-    ends moved equally.
-    */
     const storedStart =
       stored?.start_date === null || stored?.start_date === undefined
         ? null
         : String(stored.start_date)
-    const startForCopy =
-      storedStart === null || storedDue === null || dueForCopy === null || dueForCopy === storedDue
-        ? storedStart
-        : addDays(storedStart, daysBetween(storedDue, dueForCopy))
+    /* The start is the earlier end, so it is the one that decides whether a
+       zone is needed to tell past from future. */
+    if (anchor === null && zoneIsNeededToReanchor(storedStart ?? storedDue)) {
+      return { kind: 'tz_required' } as const
+    }
+    /*
+    9.6's rule applied in the caller's zone, and Imran's ruling on #215 for the
+    start: a duplicate never begins before it existed.
+
+    - no start: a spent due date moves up to today, a future one copies;
+    - a start today or later copies with its due date as they stand;
+    - a past start moves to today; a due date still ahead stays, a spent one
+      moves forward by the original start-to-due span; a start alone just moves.
+
+    In the arm where no zone was named, the guard above has proved every date
+    is ahead in every zone, so `anchor` being null copies both as they stand.
+    tasks_start_before_due_check holds in every arm: the pair either keeps its
+    order or is rebuilt from today plus a non-negative span.
+    */
+    let startForCopy = storedStart
+    let dueForCopy = storedDue
+    if (anchor !== null) {
+      if (storedStart === null) {
+        if (storedDue !== null && storedDue < anchor) dueForCopy = anchor
+      } else if (storedStart < anchor) {
+        startForCopy = anchor
+        if (storedDue !== null && storedDue < anchor) {
+          dueForCopy = addDays(anchor, daysBetween(storedStart, storedDue))
+        }
+      }
+    }
     const row = stored
     const rule =
       row?.recurrence_rule === null || row?.recurrence_rule === undefined

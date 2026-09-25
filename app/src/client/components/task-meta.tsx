@@ -2,7 +2,7 @@
 The one task meta line (round 4). Every view draws a task's right side through
 here so a task looks the same everywhere, in fixed positions:
 
-  date · [extras] · subtasks n/m · repeat glyph · star
+  date (or start – due) · [extras] · subtasks n/m · repeat glyph · star
 
 - The date is the label `dueDisplay` made on the viewer's clock (12/24h), in
   the day/month order of the viewer's locale (`lib/dates.ts`, the one formatter).
@@ -19,6 +19,8 @@ import { cn } from "./ui/utils.js"
 
 export interface TaskMetaProps {
   readonly due?: { readonly label: string; readonly overdue?: boolean }
+  /** The Schedule's start where it is not the due day: "Starts 24 Sep" alone, "24 Sep – Fri" with a due date. */
+  readonly starts?: string
   /** Late is not coloured where the list already says every row is late. */
   readonly overdueGiven?: boolean
   readonly steps?: { readonly done: number; readonly total: number }
@@ -34,17 +36,22 @@ export interface TaskMetaProps {
   readonly className?: string
 }
 
-export function TaskMeta({ due, overdueGiven, steps, recurrence, extras, star, className }: TaskMetaProps) {
+export function TaskMeta({ due, starts, overdueGiven, steps, recurrence, extras, star, className }: TaskMetaProps) {
   const late = Boolean(due?.overdue) && !overdueGiven
   return (
     <span className={cn("flex min-w-0 items-center gap-3 text-xs text-muted-foreground", className)}>
       <span className="flex min-w-0 items-center gap-3 overflow-hidden">
         {due ? (
-          <span className={cn("shrink-0 whitespace-nowrap tabular-nums", late && "text-destructive")}>
-            {late ? <span className="sr-only">Overdue, </span> : null}
-            {due.label}
+          <span className="shrink-0 whitespace-nowrap tabular-nums">
+            {starts === undefined ? null : `${starts} – `}
+            <span className={cn(late && "text-destructive")}>
+              {late ? <span className="sr-only">Overdue, </span> : null}
+              {due.label}
+            </span>
           </span>
-        ) : null}
+        ) : starts === undefined ? null : (
+          <span className="shrink-0 whitespace-nowrap tabular-nums">Starts {starts}</span>
+        )}
         {extras}
         {steps && steps.total > 0 ? (
           <span className="shrink-0 whitespace-nowrap tabular-nums" title={`${steps.done} of ${steps.total} subtasks done`}>
@@ -70,6 +77,7 @@ function repeatTitle(recurrence: string): string {
 /** What a view knows about a task, in the row's display shape. */
 export interface RowMetaSource {
   readonly due?: { readonly label: string; readonly overdue?: boolean }
+  readonly starts?: string
   readonly folder?: { readonly name: string }
   readonly assignee?: { readonly initials: string; readonly name: string; readonly image?: string; readonly id?: string } | null
   readonly steps?: { readonly done: number; readonly total: number }
@@ -130,6 +138,7 @@ export function RowMeta({
     <TaskMeta
       className={className}
       {...(source.due === undefined || given.due ? {} : { due: source.due })}
+      {...(source.starts === undefined || given.due ? {} : { starts: source.starts })}
       {...(given.overdue === undefined ? {} : { overdueGiven: given.overdue })}
       {...(source.steps === undefined ? {} : { steps: source.steps })}
       {...(source.recurrence === undefined ? {} : { recurrence: source.recurrence })}

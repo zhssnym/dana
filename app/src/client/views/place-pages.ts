@@ -14,7 +14,7 @@ import {
   UserRoundCheck,
 } from '../lib/icons.js'
 import { paths } from '../routes.js'
-import { movableEnd } from '../parts/schedule.js'
+import { movableEnd, shiftedSchedule } from '../parts/schedule.js'
 import type { Schedule } from '../parts/schedule.js'
 import type { GroupBy } from './filter.js'
 import type { ViewMode } from './view-mode.js'
@@ -161,7 +161,7 @@ export interface ColumnValue {
 
 /**
  * What a drop writes: a date column's day lands on the end of the Schedule the
- * row carries (Q3C), and a Start+Due pair is refused rather than half-moved.
+ * row carries (Q3C), and a Start+Due pair moves whole.
  */
 export function scheduleLanding(
   task: Schedule,
@@ -172,7 +172,12 @@ export function scheduleLanding(
   if (end === null) return null
   if (end === 'due_date') return landing
   const { due_date: day, ...rest } = landing
-  return { ...rest, start_date: day }
+  if (end === 'start_date') return { ...rest, start_date: day }
+  /* A pair moves whole: its deadline lands on the column's day and the start
+     keeps its distance. Into "No date" it cannot go without losing a date. */
+  if (day === null || task.due_date === null) return null
+  const moved = shiftedSchedule(task, task.due_date, day)
+  return moved === null ? null : { ...rest, ...moved }
 }
 
 export interface CaptureDefaults {

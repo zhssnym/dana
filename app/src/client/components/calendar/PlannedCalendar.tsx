@@ -58,7 +58,7 @@ import {
 import { usePlannedCalendarView, useFolders } from '../../api/queries.js'
 import { useUpdateTask } from '../../api/mutations.js'
 import { formatDueDate, presenterToday } from '../../parts/presenters.js'
-import { movableEnd } from '../../parts/schedule.js'
+import { shiftedSchedule } from '../../parts/schedule.js'
 import { InlineError } from '../state-patterns.js'
 import { Button } from '../ui/button.js'
 import { cn } from '../ui/utils.js'
@@ -146,13 +146,8 @@ function CalendarEvent({
   const completed = event.status === 'completed'
   const abandoned = event.status === 'abandoned'
   /* A real, open row can be carried to another day; a ghost is a projection and
-     has no date of its own to move.
-
-     `moves` is the fourth condition (issue #216): it names which end of the
-     Schedule a drop writes, and is null for a Start+Due pair, whose whole-range
-     drag Q3C asks for and nothing has built. Writing the due date alone would
-     resize a span the person was carrying with nothing saying so, so the drag
-     is refused: the non-destructive reading of an unbuilt feature. */
+     has no date of its own to move. `moves` says which end a drop writes, and a
+     Start+Due pair moves whole. */
   const movable = !ghost && !completed && !abandoned && event.moves !== null
   const clock = useTimeFormat()
 
@@ -473,31 +468,6 @@ export function PlannedCalendar({
     cell.scrollIntoView({ block: 'center' })
   }, [view.data])
 
-  /*
-  7.6's PATCH of one end of the Schedule, from a drop.
-
-  **Which end is the row's to say, not this function's** (issue #216). Q3C:
-  "Dragging moves a Due-only task's Due Date, a Start-only task's Start Date,
-  and a Start+Due range whole." Writing `{ due_date: date }` for every row would
-  silently turn a Start-only task dropped after its start date into a Start+Due
-  task. `movableEnd` answers the first two forms and refuses the third, whose
-  whole-range drag is unbuilt; the card is not draggable in that case either, so
-  reaching here with a null end is a drop the grid should not have offered and
-  is dropped rather than approximated.
-  */
-  function moveTaskTo(taskId: string, date: string): void {
-    const row = (view.data?.real ?? []).find((card) => card.id === taskId)
-    if (row === undefined) return
-    const end = movableEnd(row)
-    if (end === null) return
-    if (row[end] === date) return
-    // The card moving is the answer; success says nothing.
-    update.mutate({
-      id: taskId,
-      body: end === 'due_date' ? { due_date: date } : { start_date: date },
-    })
-  }
-
   const cells = useMemo(
     () =>
       cellsByDate(view.data?.real ?? [], view.data?.virtual ?? [], folders.data ?? [], {
@@ -506,6 +476,25 @@ export function PlannedCalendar({
       }),
     [view.data, folders.data, start, end],
   )
+
+  /*
+  7.6's PATCH of the Schedule, from a drop (Q3C, issue #216): a Due-only row
+  moves its Due Date, a Start-only row its Start Date, and a Start+Due pair
+  moves whole by the days between the cell it was drawn on and the cell it
+  landed on, so its span is kept. `shiftedSchedule` holds the rule.
+  */
+  function moveTaskTo(taskId: string, date: string): void {
+    const row = (view.data?.real ?? []).find((card) => card.id === taskId)
+    if (row === undefined) return
+    let from: string | null = null
+    for (const [day, events] of cells) {
+      if (events.some((event) => event.kind === 'real' && event.taskId === taskId)) from = day
+    }
+    const body = shiftedSchedule(row, from ?? date, date)
+    if (body === null) return
+    // The card moving is the answer; success says nothing.
+    update.mutate({ id: taskId, body })
+  }
 
   const columns = zoom === 'day' ? 1 : 7
   const template = `repeat(${String(columns)}, minmax(0, 1fr))`

@@ -37,7 +37,7 @@ import { parseRecurrenceRule } from '../../shared/recurrence.js'
 import type { FolderGroupOption } from '../components/folder-group-dialog.js'
 import type { FolderRowProps } from '../components/folder-row.js'
 import type { TaskRowProps } from '../components/task-row.js'
-import { formatDate, formatDayInline, formatDayTime } from '../lib/dates.js'
+import { formatDate, formatDay, formatDayInline, formatDayTime } from '../lib/dates.js'
 import type { TimeFormat } from '../lib/time-format.js'
 import { activationDateOf } from './schedule.js'
 
@@ -105,6 +105,21 @@ export function dueDisplay(
   const label = formatDayTime(dueDate, dueTime, today, clock)
   const overdue = task.status === 'pending' && dueDate < today
   return overdue ? { label, overdue: true } : { label }
+}
+
+/**
+ * The start of a Schedule as the row says it, in the due label's own words
+ * ("Today", "Mon", "24 Sep"), or undefined where there is no start or it is
+ * the due day itself, which the due label already says (#215). Never
+ * overdue: a start passing is not late (9.5).
+ */
+export function startsLabel(
+  task: Pick<TaskCard, 'start_date' | 'due_date'>,
+  today: string,
+): string | undefined {
+  const { start_date: start, due_date: due } = task
+  if (start === null || start === due) return undefined
+  return formatDay(start, today)
 }
 
 /* ------------------------------------------------------------------ *
@@ -527,6 +542,7 @@ export type TaskRowDisplay = Pick<
   | 'title'
   | 'folder'
   | 'due'
+  | 'starts'
   | 'status'
   | 'important'
   | 'importantTooltip'
@@ -632,6 +648,7 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
     title: task.title,
     folder: showFolder ? folderDisplay(task.folder, folders) : undefined,
     due: showDue ? dueDisplay(task, today, clock) : undefined,
+    starts: showDue ? startsLabel(task, today) : undefined,
     status: task.status,
     important: task.important,
     importantTooltip: importantTooltipFor(task, starTooltip, today),

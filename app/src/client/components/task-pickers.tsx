@@ -50,7 +50,7 @@ a half-built rule is worse than shipping none, so the repeat stays a value the
 card holds.
 */
 import { useDeleteReminder, usePutReminder, useUpdateTask } from "../api/mutations.js"
-import { isoDay } from "../tasks/task-model.js"
+import { isoDay, parseIsoDate } from "../tasks/task-model.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
 import { formatTime, useTimeFormat } from "../lib/time-format.js"
 /*
@@ -328,16 +328,19 @@ export function PickerSegments({
   active,
   onPick,
 }: {
-  label: string
+  /* Absent where the row the picker opened from already names the field. */
+  label?: string
   options: { key: string; label: string }[]
   active: string
   onPick: (key: string) => void
 }) {
   return (
     <div className="flex items-center gap-2 px-2 py-1">
-      <span className="w-12 shrink-0 text-xs text-muted-foreground">
-        {label}
-      </span>
+      {label === undefined ? null : (
+        <span className="w-12 shrink-0 text-xs text-muted-foreground">
+          {label}
+        </span>
+      )}
       <div className="flex flex-wrap gap-1">
         {options.map((option) => (
           <button
@@ -411,8 +414,23 @@ function nextWeekAfter(from: Date): Date {
   return sameDay(monday, addDays(from, 1)) ? addDays(monday, 7) : monday
 }
 
+/* Said where a start would land after the due date, or a due date before the
+   start; nothing is written and neither end moves (#215, 7.6's 422). */
+export const START_AFTER_DUE = "The start must be on or before the due date."
+
 export function DuePanel({ task, patch }: PanelProps) {
-  const selected = task.due ? parseDueLabel(task.due.label) : null
+  /*
+  **One Schedule, two ends (#215).** The panel edits the due date unless the
+  person switches to Starts; the presets, the grid and Clear then answer for
+  that end, and the grid draws the span between them. A task not made yet has
+  only a due date: its draft carries one day into the create.
+  */
+  const [end, setEnd] = useState<"due" | "start">("due")
+  const [refused, setRefused] = useState(false)
+  const dueDate = task.due ? parseDueLabel(task.due.label) : null
+  const startDate = task.start === undefined ? null : parseIsoDate(task.start)
+  const editingStart = end === "start" && task.id !== "new"
+  const selected = editingStart ? startDate : dueDate
   /*
   **The due picker opens with its grid showing.**
 
@@ -451,6 +469,22 @@ export function DuePanel({ task, patch }: PanelProps) {
      so both close. See `PickerClose`. */
   const update = useUpdateTask()
   const set = (date: Date) => {
+    const day = isoDay(date)
+    /* Refused here as the server would refuse it, and nothing moves. */
+    const crosses = editingStart
+      ? dueDate !== null && day > isoDay(dueDate)
+      : task.start !== undefined && day < task.start
+    if (crosses) {
+      setRefused(true)
+      return
+    }
+    setRefused(false)
+    if (editingStart) {
+      patch(task.id, { start: day })
+      update.mutate({ id: task.id, body: { start_date: day } })
+      close()
+      return
+    }
     patch(task.id, { due: dueLabelFor(date) })
     /* A task not made yet has no address; its draft carries the day into the
        create instead. */
@@ -502,7 +536,25 @@ export function DuePanel({ task, patch }: PanelProps) {
       named choices. The list keeps its label as a group, so the presets are
       still announced as belonging to the field.
        */}
-      <div role="group" aria-label="Due date" className="flex flex-col">
+      {task.id === "new" ? null : (
+        <PickerSegments
+          options={[
+            { key: "due", label: "Due" },
+            { key: "start", label: "Starts" },
+          ]}
+          active={end}
+          onPick={(key) => {
+            setRefused(false)
+            setEnd(key === "start" ? "start" : "due")
+          }}
+        />
+      )}
+      {refused ? (
+        <p role="status" className="px-2 pb-1 text-xs text-destructive">
+          {START_AFTER_DUE}
+        </p>
+      ) : null}
+      <div role="group" aria-label={editingStart ? "Start date" : "Due date"} className="flex flex-col">
         {presets.map((preset) => (
           <PickerOption
             finishes
@@ -515,9 +567,18 @@ export function DuePanel({ task, patch }: PanelProps) {
         ))}
         <PickerOption
           icon={Ban}
-          label={task.due ? DATE_CLEAR : "No date"}
-          active={!task.due}
+          label={selected ? DATE_CLEAR : "No date"}
+          active={!selected}
           onSelect={() => {
+            if (editingStart) {
+              /* A start clears alone: nothing cascades from it (8.4). */
+              if (task.start === undefined) return
+              setRefused(false)
+              patch(task.id, { start: undefined })
+              update.mutate({ id: task.id, body: { start_date: null } })
+              close()
+              return
+            }
             if (!task.due) return
             /* The warning lives in this popover, so clearing closes it only
                where there is nothing to ask. */
@@ -545,10 +606,17 @@ export function DuePanel({ task, patch }: PanelProps) {
       {/* The grid stands plainly below the hairline; a toggle row would read as
           a setting rather than a way to show the calendar. */}
       <div className="pt-1">
-        <Calendar selected={selected} onSelect={set} today={today()} />
+        <Calendar
+          /* Keyed on the end, so switching shows that end's month. */
+          key={end}
+          selected={selected}
+          {...(startDate !== null && dueDate !== null ? { range: { from: startDate, to: dueDate } } : {})}
+          onSelect={set}
+          today={today()}
+        />
       </div>
 
-      {task.due ? (
+      {task.due && !editingStart ? (
         <>
           <PickerDivider />
           <label className="flex items-center gap-2 px-2 pt-1.5 text-xs text-muted-foreground">

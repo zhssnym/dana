@@ -74,7 +74,7 @@ export interface CellEvent {
    * the sentence. A ghost is a projection with no date of its own, so it is
    * null here as well as undraggable for the reason `PlannedCalendar` gives.
    */
-  readonly moves: 'start_date' | 'due_date' | null
+  readonly moves: 'start_date' | 'due_date' | 'range' | null
 }
 
 /**
@@ -199,8 +199,8 @@ function realEvent(
     folderColor: folderDisplay(task.folder, folders).color,
     /* Which end of the Schedule a drop writes, decided from the row rather
        than assumed to be the deadline (Q3C, issue #216). Null on a ghost,
-       which has no date of its own to move, and null on a Start+Due pair,
-       whose whole-range drag is unbuilt. */
+       which has no date of its own to move; `range` on a Start+Due pair,
+       which moves whole. */
     moves: movableEnd(task),
   }
 }

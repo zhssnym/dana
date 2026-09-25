@@ -77,6 +77,8 @@ import { INVITE_BY_EMAIL, STEP_CAP_NOTICE } from "./task-copy.js"
    `shared/tasks.ts` spends it inline in a zod `max`. */
 const STEP_CAP = 50
 import {
+  isoDay,
+  parseDueLabel,
   reminderChipValue,
   repeatSummary,
   stepCount,
@@ -84,6 +86,7 @@ import {
   type ConceptTask,
 } from "../tasks/task-model.js"
 import { useTimeFormat } from "../lib/time-format.js"
+import { formatDay } from "../lib/dates.js"
 import { useSortableList } from "../lib/use-sortable-list.js"
 import { cn } from "./ui/utils.js"
 import { Checkbox } from "./ui/checkbox.js"
@@ -647,10 +650,20 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
 
 type AddableProperty = "date" | "reminder" | "repeat" | "assignee" | "steps"
 
+/* The Schedule in one line (#215): "Starts Mon", "Mon – 30 Sep", or the due
+   date alone, which a same-day pair also is. */
 function dateWords(task: ConceptTask): string {
-  if (!task.due) return "Empty"
-  const label = task.due.label
-  return label.charAt(0).toUpperCase() + label.slice(1)
+  const dueDay = task.due ? parseDueLabel(task.due.label) : null
+  const start =
+    task.start === undefined || (dueDay !== null && isoDay(dueDay) === task.start)
+      ? undefined
+      : formatDay(task.start, presenterToday())
+  const due = task.due?.label
+  const words =
+    due === undefined
+      ? start === undefined ? "Empty" : `Starts ${start}`
+      : start === undefined ? due : `${start} – ${due}`
+  return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 /* A menu-shaped property row (folder, assignee): same anatomy as the
@@ -869,7 +882,7 @@ export function TaskCard({
     new URLSearchParams(globalThis.location?.search ?? "").get("tab") === "discussion" ? "discussion" : "notes",
   )
 
-  const showDate = Boolean(task.due) || adding === "date"
+  const showDate = Boolean(task.due) || task.start !== undefined || adding === "date"
   const showReminder = Boolean(task.reminder) || adding === "reminder"
   const showRepeat = Boolean(task.recurrence) || adding === "repeat"
   const showAssignee = assignable && (Boolean(task.assignee) || adding === "assignee")
@@ -882,7 +895,7 @@ export function TaskCard({
   }
 
   const addable: { key: string; label: string; icon: LucideIcon; onSelect: () => void }[] = [
-    ...(!task.due
+    ...(!task.due && task.start === undefined
       ? [{ key: "date", label: DATE_LABEL, icon: CalendarDays, onSelect: () => setAdding("date") }]
       : []),
     ...(task.due && !task.reminder
@@ -914,7 +927,7 @@ export function TaskCard({
           <PropertyPicker
             label={DATE_LABEL}
             value={dateWords(task)}
-            empty={!task.due}
+            empty={!task.due && task.start === undefined}
             {...(task.due?.overdue ? { tone: "danger" as const } : {})}
             defaultOpen={adding === "date"}
             onOpenChange={settle("date")}

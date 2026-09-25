@@ -117,6 +117,7 @@ export function toConceptTask(
     abandoned: task.status === 'abandoned',
     folder: { name: folder.name, color: folder.color, id: task.folder.id },
     due: dueDisplay(task, today, clock),
+    ...(task.start_date === null ? {} : { start: task.start_date }),
     assignee,
     important: task.important,
     pulled: task.pulled,
@@ -240,6 +241,7 @@ export const writtenElsewhere: readonly (keyof ConceptTask)[] = [
   'repeatUnit',
   'recurrence',
   'due',
+  'start',
   'comments',
   'attachments',
 ]
