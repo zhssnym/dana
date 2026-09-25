@@ -5,9 +5,9 @@ finite work, and no description line -- Purpose holds that), a row of plain
 text tabs in intro-to-conclusion order (Purpose · Work · Results · Discussion,
 then custom tabs), and the tab's body. The page opens on Work (`main`), whose
 body is the canvas, where a finished Task stays in place, checked and muted.
-The "…" menu's "View ›" draws the page's tasks as List (the canvas), Linear
-(the same order as a thread of steps) or Board (Not started · In progress ·
-Done), and shows or hides completed Tasks.
+The view icons at the end of Work's tab row draw the page's tasks as Freeform
+(the canvas), Linear (the same document as a timeline of steps) or Board (Not
+started · In progress · Done); the "…" menu shows or hides completed Tasks.
 
 What is deliberate rather than transcription:
 
@@ -188,11 +188,7 @@ for the duplicate finds it named as one.
 const SHARING_PANEL_WIDTH = 440
 
 /* A page's three views, in the tab row's toggle order. */
-/* Linear is hidden for now (its code stays); a stored 'linear' opens as Freeform. */
-function shownFolderView(view: FolderView): FolderView {
-  return view === 'linear' ? 'freeform' : view
-}
-const FOLDER_VIEWS: readonly FolderView[] = ['freeform', 'board']
+const FOLDER_VIEWS: readonly FolderView[] = ['freeform', 'linear', 'board']
 const VIEW_ICONS = { freeform: ListIcon, linear: GitCommitVertical, board: SquareKanban } as const
 
 /**
@@ -249,8 +245,7 @@ export function FolderPage({
   const [search, setSearch] = useSearchParams()
   /* Linear, Board or Freeform: this device's choice for every page, kept apart
      from the place pages' layout. `?mode=` seeds it, as it seeds theirs. */
-  const [storedView, setFolderView] = useFolderView()
-  const folderView = shownFolderView(storedView)
+  const [folderView, setFolderView] = useFolderView()
   const seededView = modeFromSearch(search.toString())
   useEffect(() => {
     if (seededView !== null) writeFolderView(folderViewOf(seededView))
