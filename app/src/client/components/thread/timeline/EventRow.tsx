@@ -171,7 +171,7 @@ function phraseOf(act: Act): React.ReactNode {
     case 'promoted':
       return 'turned a subtask into a task'
     case 'blocked-by':
-      return 'made this wait on'
+      return 'marked this blocked by'
     case 'blocking':
       return (
         <>

@@ -370,9 +370,7 @@ function StepList({
             className="min-w-0 flex-1 rounded-sm bg-background px-1 text-sm text-foreground outline-none"
           />
         </div>
-      ) : (
-        <EmptyAction label="Add subtask" onSelect={() => setAdding(true)} />
-      )}
+      ) : null}
     </div>
   )
 }

@@ -21,7 +21,7 @@ import { useFolderOpenTasks, useReferenceSearch, useTaskDependencies } from "../
 import { useAddTaskDependency, useRemoveTaskDependency } from "../api/mutations.js"
 import { ApiError } from "../api/http.js"
 import type { TaskDependencyEdge } from "../../shared/task-dependencies.js"
-import { CheckCircle2, Plus, X } from "../lib/icons.js"
+import { CheckCircle2, X } from "../lib/icons.js"
 import { openTask } from "./task-open.js"
 import { cn } from "./ui/utils.js"
 
@@ -33,9 +33,6 @@ export const DEPENDS_ON_ACTION = "Blocked by…"
 export const BLOCKS_ACTION = "Blocks…"
 export const BLOCKED_BY_HEADING = "Blocked by"
 export const BLOCKS_HEADING = "Blocks"
-
-const QUIET_BUTTON =
-  "inline-flex h-[var(--control-height)] items-center gap-2 rounded-sm px-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 
 /** Why an add was refused, in words for the person rather than the field. */
 function refusalOf(error: unknown, mode: Mode): string {
@@ -95,11 +92,6 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
     [dependsOn, blocks],
   )
 
-  function open(next: Mode) {
-    setRefusal(null)
-    setMode((current) => (current === next ? null : next))
-  }
-
   function pick(otherId: string) {
     if (mode === null) return
     const current = mode
@@ -114,29 +106,6 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
       },
     )
   }
-
-  const actions = (
-    <div className="flex flex-wrap items-center gap-0.5">
-      <button
-        type="button"
-        className={cn(QUIET_BUTTON, mode === "depends_on" && "bg-muted text-foreground")}
-        aria-expanded={mode === "depends_on"}
-        onClick={() => open("depends_on")}
-      >
-        <Plus className="size-3.5" strokeWidth={2} aria-hidden="true" />
-        {DEPENDS_ON_ACTION}
-      </button>
-      <button
-        type="button"
-        className={cn(QUIET_BUTTON, mode === "blocks" && "bg-muted text-foreground")}
-        aria-expanded={mode === "blocks"}
-        onClick={() => open("blocks")}
-      >
-        <Plus className="size-3.5" strokeWidth={2} aria-hidden="true" />
-        {BLOCKS_ACTION}
-      </button>
-    </div>
-  )
 
   const picker =
     mode === null ? null : (
@@ -198,7 +167,6 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
           onRemove={(edge) => remove.mutate({ taskId, dependencyId: edge.id })}
         />
       ) : null}
-      <div className="-ml-1.5">{actions}</div>
       {picker}
     </div>,
     title,
