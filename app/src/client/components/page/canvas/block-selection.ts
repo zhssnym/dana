@@ -359,12 +359,14 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
         /* A row ProseMirror selected (↓ from text onto a Task): its keys are
            read here, before ProseMirror, which would act at the page's first
            line (`stepFromRow`). ↑/↓ step on; the rest are a picked block's:
-           Enter opens a Task or sub-page, Backspace/Delete remove it by the
+           Enter opens a Task or sub-page, Space ticks a Task, Backspace/Delete remove it by the
            surface's rule, a letter does nothing. */
         const row = onHost && !mod && !event.altKey && view.state.selection instanceof NodeSelection && view.state.selection.node.isBlock ? currentBlockId(view) : null
         if (row !== null) {
           if ((key === 'ArrowUp' || key === 'ArrowDown') && !event.shiftKey) { stop(); stepFromRow(editor, view, row, key === 'ArrowUp' ? -1 : 1); return }
           if (key === 'Enter' && !event.shiftKey) { stop(); editSelection(editor, view, [row]); return }
+          // Space ticks a Task row, as its glyph does (M4 §2.7).
+          if (key === ' ' && !event.shiftKey) { stop(); outerOf(view, row)?.querySelector<HTMLElement>(':scope > .bn-block [data-canvas-task-id] [role="checkbox"]')?.click(); return }
           if (key === 'Backspace' || key === 'Delete') { stop(); actions.remove([row]); return }
           if (key.length === 1) { stop(); return }
         }

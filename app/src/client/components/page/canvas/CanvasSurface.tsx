@@ -31,6 +31,7 @@ import { backspaceToText, contains, simulateNest, TEXT_TYPES, TURN_TARGETS } fro
 import type { TreeBlock } from './turn-into.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { MentionSuggestions } from './mentions.js'
+import { AddTaskLine } from './AddTaskLine.js'
 import { useCanvasTaskDelete } from './CanvasTask.js'
 import './canvas.css'
 
@@ -185,6 +186,7 @@ export function CanvasSurface({
   useBlockSelectionKeys(editor, selectionActions)
   useBlockAnchor(editor, true)
   const scope = `dana-canvas-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const lastLine = onCreateTask !== undefined && headingMode === 'section' && !flatGroups && placeholder !== undefined
 
   // Tab nests any block under the block above it (0038), only where the
   // result is a shape this canvas can keep; elsewhere it does nothing rather
@@ -298,7 +300,7 @@ export function CanvasSurface({
       onFocusCapture={onFocusCapture}
       onMouseDownCapture={() => { writing.current = true }}
       className={`dana-writing-canvas ${scope} min-w-0`}
-      style={placeholder === undefined ? undefined : ({ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties)}
+      style={placeholder === undefined || lastLine ? undefined : ({ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties)}
     >
       <BlockNoteView
         editor={editor}
@@ -322,6 +324,8 @@ export function CanvasSurface({
         {editable ? <MentionSuggestions editor={editor} folderId={peopleFolderId} /> : null}
         <CanvasMarquee />
       </BlockNoteView>
+      {/* Work's last line, for a reader who can write (the one asked to, `placeholder`). */}
+      {lastLine ? <AddTaskLine editor={editor} page={peopleFolderId ?? ''} editable={editable} /> : null}
       {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}
     </div>
     <AlertDialog open={referenceToConvert !== null} onOpenChange={(open) => { if (!open) setReferenceToConvert(null) }}>

@@ -14,6 +14,69 @@ export function createTaskAtCursor(editor: CanvasEditor): boolean {
   return true
 }
 
+/** A Task made from this line through the page's own Task act (the same one `[] ` and `/task` use). */
+export function createTaskFrom(editor: CanvasEditor, block: CanvasBlock): boolean {
+  const command = taskCommands.get(editor)
+  if (!command) return false
+  command(block)
+  return true
+}
+
+/** Where the Work thread's last line writes: an empty line to reuse, the block to follow, or the Section to open. */
+export type LinePlace = { readonly reuse: string } | { readonly after: string } | { readonly into: string }
+
+const isEmptyLine = (block: CanvasBlock): boolean =>
+  block.type === 'paragraph' && Array.isArray(block.content) && block.content.length === 0 && block.children.length === 0
+
+/**
+ * The place a line typed in the last line lands. `section` is the Section in
+ * view (the phone's pinned line); without it, or when it is gone, the line
+ * goes where the page ends: after the last block of the innermost last
+ * Section, as clicking below the page writes (`CanvasSurface` `writeBelow`).
+ * An empty last line is reused rather than followed by another.
+ */
+export function lastLinePlace(document: readonly CanvasBlock[], section?: string): LinePlace | null {
+  const inView = section === undefined ? undefined : findBlock(document, section)
+  let holder: CanvasBlock | undefined = inView !== undefined && isSectionHeading(inView) ? inView : undefined
+  let last = holder === undefined ? document.at(-1) : holder.children.at(-1)
+  if (holder === undefined) {
+    while (last !== undefined && isSectionHeading(last)) {
+      holder = last
+      last = last.children.at(-1)
+    }
+  }
+  if (last !== undefined) return isEmptyLine(last) ? { reuse: last.id } : { after: last.id }
+  return holder === undefined ? null : { into: holder.id }
+}
+
+/** A text line at that place, holding `text`; its id, or null where the place is gone. */
+export function openLineAt(editor: CanvasEditor, place: LinePlace, text: string): string | null {
+  const content = text === '' ? [] : [{ type: 'text' as const, text, styles: {} }]
+  if ('reuse' in place) {
+    if (editor.getBlock(place.reuse) === undefined) return null
+    editor.updateBlock(place.reuse, { type: 'paragraph', content } as never)
+    return place.reuse
+  }
+  if ('after' in place) {
+    if (editor.getBlock(place.after) === undefined) return null
+    return editor.insertBlocks([{ type: 'paragraph', content } as never], place.after, 'after')[0]?.id ?? null
+  }
+  const section = editor.getBlock(place.into)
+  if (section === undefined) return null
+  const id = crypto.randomUUID()
+  editor.updateBlock(section, { children: [{ id, type: 'paragraph', content }] } as never)
+  return editor.getBlock(id) === undefined ? null : id
+}
+
+function findBlock(blocks: readonly CanvasBlock[], id: string): CanvasBlock | undefined {
+  for (const block of blocks) {
+    if (block.id === id) return block
+    const found = findBlock(block.children, id)
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
 export function ancestorsOf(blocks: readonly CanvasBlock[], id: string, parents: CanvasBlock[] = []): CanvasBlock[] | null {
   for (const block of blocks) {
     if (block.id === id) return parents
