@@ -72,7 +72,7 @@ import type {
 import { accessOf } from './folders.js'
 import { dropFolderLabelsOnMove, taskLabelsOf } from './labels.js'
 import { taskDependencyCountsOf } from './task-dependency-counts.js'
-import { positionAtSectionEnd, seededItems } from './page-order.js'
+import { positionAfter, positionAtSectionEnd, seededItems } from './page-order.js'
 import {
   TaskDocumentRefusal,
   applyTaskDocumentLocked,
@@ -1752,7 +1752,13 @@ export async function transitionTask(
       if (generating && tz !== undefined) {
         const outcome = await generateSuccessor(tx, { taskId, tz })
         if (outcome.kind === 'generated') {
-          const position=positionAtSectionEnd(await seededItems(tx,current.folderId),{kind:'task',id:outcome.successorId},current.sectionBlockId)
+          /* The next occurrence stands directly after the one just done, so
+             the Work thread's next step is the row below the tick; after an
+             uncomplete, the recreated one takes the reclaimed one's place. */
+          const items = await seededItems(tx, current.folderId)
+          const successor = { kind: 'task', id: outcome.successorId } as const
+          const position = positionAfter(items, successor, { kind: 'task', id: taskId })
+            ?? positionAtSectionEnd(items, successor, current.sectionBlockId)
           await tx.execute(sql`UPDATE tasks SET page_position=${position},section_block_id=${current.sectionBlockId}::uuid WHERE id=${outcome.successorId}::uuid`)
           generatedTask = cardOf(
             await viewOrFail(tx, viewerId, outcome.successorId),
