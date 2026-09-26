@@ -192,9 +192,13 @@ Where the thread was when a task was opened from it, so Back lands there.
 
 The shell's one scroll region (`[data-shell-scroll]`) outlives the route, so the
 browser restores nothing; this page does. Held in memory for the session, per
-page, and only read on a Back (a POP), never on a fresh visit.
+page, and only read on a Back (a POP) onto the very history entry the task was
+opened from, never on a fresh visit or on a Back into a later visit of the page.
 */
-const threadScroll = new Map<string, { readonly top: number; readonly taskId: string }>()
+const threadScroll = new Map<
+  string,
+  { readonly top: number; readonly taskId: string; readonly entry: string }
+>()
 const TASK_PATH = '/app/tasks/'
 
 function useThreadScroll(folderId: string, ready: boolean): void {
@@ -215,14 +219,17 @@ function useThreadScroll(folderId: string, ready: boolean): void {
       threadScroll.set(folderId, {
         top: scroller.scrollTop,
         taskId: decodeURIComponent(next.slice(TASK_PATH.length)),
+        entry: key,
       })
     }
-  }, [folderId])
+  }, [folderId, key])
   useEffect(() => {
     if (!ready || navigationType !== 'POP' || restoredFor.current === key) return
     const saved = threadScroll.get(folderId)
     const scroller = document.querySelector<HTMLElement>('[data-shell-scroll]')
-    if (saved === undefined || scroller === null) return
+    /* Keyed to the history entry: coming back by the sidebar and later
+       pressing Back into that newer visit must not replay an old position. */
+    if (saved === undefined || saved.entry !== key || scroller === null) return
     /* The canvas measures and lays out after its data arrives, so the height
        the position needs may come late: try until the opened task is drawn and
        the position fits, or about two seconds have gone. */
