@@ -30,24 +30,20 @@
   --dana-thread-hairline: calc(var(--spacing) / 4);
   /* BlockNote pads a heading 18px above; the thread says it in a step. */
   --dana-thread-heading-pad: calc(var(--spacing) * 4);
-  /* The line is the hairline token (§2.1), and the done stretch is the done
-     colour at twice its weight (AC-1514): the checks, joined up. Neither is
-     a new value; the metrics above are steps of --spacing, named here only
-     so the rules below read. */
+  /* The line, grey or done, is one weight (AC-1514's done colour is only a
+     colour): --dana-thread-weight, the weight of the heading badge's pole,
+     centred on --dana-thread-x like every badge. A hairline cannot be
+     centred there (x is a whole pixel, so a 1px line sits half a pixel off
+     every badge and beside the done line), and a line of two weights did not
+     run out of the badges as one stroke. Only a dropped task's strike keeps
+     the hairline. */
   --dana-thread-ink: var(--line);
   --dana-thread-done-ink: var(--color-success-600);
   --dana-thread-weight: calc(var(--spacing) / 2);
-  /* A grey line is a hairline-wide box, drawn by the box itself: at 125% or
-     150% zoom a hairline placed half a pixel inside a wider box rasterises
-     across two device pixels, and the rail drew as a doubled ladder. Only a
-     line on the done stretch is --dana-thread-weight wide (`threadStyle`
-     sets --dana-thread-width), its grey a hairline down its middle; and a
-     section heading's green stays beside its own row (--dana-thread-own),
-     so no grey line below it has a wider green to hide. */
-  --dana-thread-solid: linear-gradient(var(--dana-thread-ink), var(--dana-thread-ink)) 50% 0 / var(--dana-thread-hairline) 100% no-repeat;
+  --dana-thread-solid: linear-gradient(var(--dana-thread-ink), var(--dana-thread-ink)) 50% 0 / var(--dana-thread-weight) 100% no-repeat;
   /* Opaque gaps, the line's full width: a dashed stretch hides the section
      line drawn beneath it, done or not. */
-  --dana-thread-dashed: repeating-linear-gradient(to bottom, var(--dana-thread-ink) 0 var(--spacing), transparent var(--spacing) calc(var(--spacing) * 2)) 50% 0 / var(--dana-thread-hairline) 100% no-repeat, linear-gradient(var(--background), var(--background));
+  --dana-thread-dashed: repeating-linear-gradient(to bottom, var(--dana-thread-ink) 0 var(--spacing), transparent var(--spacing) calc(var(--spacing) * 2)) 50% 0 / var(--dana-thread-weight) 100% no-repeat, linear-gradient(var(--background), var(--background));
   /* Solid on the same opaque ground: past the done stretch's end, inside a
      section it runs through, the section's green stays hidden. */
   --dana-thread-covered: var(--dana-thread-solid), linear-gradient(var(--background), var(--background));
@@ -69,12 +65,12 @@
 .dana-thread .bn-block-outer {
   --dana-thread-line: var(--dana-thread-solid);
   --dana-thread-under: var(--dana-thread-solid);
-  --dana-thread-width: var(--dana-thread-hairline);
+  --dana-thread-width: var(--dana-thread-weight);
   --dana-thread-own: 100%;
   --dana-thread-line-top: calc(var(--spacing) * 0);
   --dana-thread-center: var(--dana-thread-half);
   --dana-thread-knee: var(--dana-thread-center);
-  --dana-thread-frontier: linear-gradient(var(--dana-thread-ink), var(--dana-thread-ink)) 50% 0 / var(--dana-thread-hairline) var(--dana-thread-knee) no-repeat, var(--dana-thread-dashed);
+  --dana-thread-frontier: linear-gradient(var(--dana-thread-ink), var(--dana-thread-ink)) 50% 0 / var(--dana-thread-weight) var(--dana-thread-knee) no-repeat, var(--dana-thread-dashed);
   /* The done stretch: the done colour down to --dana-thread-fill, over the
      item's own grey line (`--dana-thread-under`, which threadStyle sets). */
   --dana-thread-done: linear-gradient(var(--dana-thread-done-ink), var(--dana-thread-done-ink)) 50% 0 / 100% min(var(--dana-thread-fill), var(--dana-thread-own)) no-repeat, var(--dana-thread-under);
