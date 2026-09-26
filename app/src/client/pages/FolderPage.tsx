@@ -70,6 +70,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Navigate, useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router'
 
 import {
+  useCreateFacet,
   useDeleteFacet,
   useRestoreFacet,
   useDeleteFolder,
@@ -329,6 +330,7 @@ function FolderPageBody({
   const patch = useRenameFolder()
   const leave = useLeaveFolder()
   const transfer = useTransferOwnership()
+  const createFacet = useCreateFacet()
   const patchFacet = usePatchFacet()
   const deleteFacet = useDeleteFacet()
   const restoreFacet = useRestoreFacet()
@@ -580,6 +582,14 @@ function FolderPageBody({
       },
       () => {},
     )
+  }
+
+  /* The tab row's "+": a blank shared tab after the one open. */
+  function addFolderFacet(name: string): void {
+    createFacet.mutate({
+      folderId: id,
+      body: { kind: 'shared_blank', display_name: name, after_facet_id: activeFacet?.id },
+    }, { onSuccess: selectFacet })
   }
 
   function renameFolderFacet(facet: Facet, name: string | null): void {
@@ -1046,6 +1056,7 @@ function FolderPageBody({
               }}
               onReorder={reorderFolderFacets}
               capabilities={facetCapabilities}
+              onAdd={addFolderFacet}
               onRename={renameFolderFacet}
               onHide={hideFolderFacet}
               onDelete={removeFolderFacet}
