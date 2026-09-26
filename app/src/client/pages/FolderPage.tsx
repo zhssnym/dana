@@ -472,6 +472,7 @@ export function FolderPage({
       next.delete('discussion')
       next.delete('outcome')
       next.delete('result')
+      next.delete('issue')
       return next
     }, { replace: true })
   }, [setSearch])

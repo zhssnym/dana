@@ -226,8 +226,10 @@ export function BreadcrumbTrail({
                 <Link
                   to={folderTo !== undefined && crumb.id === folderId ? folderTo : paths.folder(crumb.id ?? '')}
                   /* The page already under a peek: going to it closes the
-                     peek without stacking a second entry for the same page. */
-                  replace={paths.folder(crumb.id ?? '') === pathname}
+                     peek without stacking a second entry for the same page.
+                     Leaving an open issue or thread (`folderTo`) pushes, so
+                     Back returns to it rather than to a copy of the list. */
+                  replace={folderTo === undefined && paths.folder(crumb.id ?? '') === pathname}
                   title={crumb.name}
                   className={cn(CRUMB, 'text-muted-foreground hover:bg-accent hover:text-foreground')}
                 >

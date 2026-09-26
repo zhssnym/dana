@@ -91,6 +91,7 @@ import { openSearch } from './overlays.js'
 import { useModalOpen, useRightEdge } from '../components/right-edge.js'
 import { WindowBar, WindowBarActions, WindowBarLead } from '../components/window-bar.js'
 import { BreadcrumbTrail, HistoryArrows } from '../components/breadcrumb-trail.js'
+import { useFolderView } from '../views/view-mode.js'
 import {
   clampSidebarWidth,
   clearSidebarWidth,
@@ -179,8 +180,14 @@ function TopTrail(): React.JSX.Element {
   const discussionId = pathname.startsWith(FOLDER_PREFIX) ? new URLSearchParams(search).get('discussion') : null
   const discussion = useDiscussion(discussionId ?? '', discussionId !== null)
   /* An issue open in the Linear view is `?issue=<task id>` on its page: named
-     the same way, its page's crumb leading back to the issue list. */
-  const issueId = pathname.startsWith(FOLDER_PREFIX) && discussionId === null ? new URLSearchParams(search).get('issue') : null
+     the same way, its page's crumb leading back to the issue list. Only while
+     the issue is on screen: the Work tab (no `facet`) in the Linear view. */
+  const [folderView] = useFolderView()
+  const issueParams = new URLSearchParams(search)
+  const issueId =
+    pathname.startsWith(FOLDER_PREFIX) && discussionId === null && folderView === 'linear' && !issueParams.has('facet')
+      ? issueParams.get('issue')
+      : null
   const taskId = pathname.startsWith(TASK_PREFIX) ? pathname.slice(TASK_PREFIX.length) : issueId
   const task = useTask(taskId)
 

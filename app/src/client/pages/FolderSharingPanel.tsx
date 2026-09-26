@@ -21,7 +21,7 @@ in the same sheet (`MemberDetails`, #209), which reads that one member itself.
 The region "Sharing panel" (9.1) sits inside the sheet, because a dialog cannot
 also be the region its controls are addressed within.
 */
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 
 import type { GetConnectionsResponse } from '../../shared/connections.js'
 import { FOLDER_ACCESS_LABELS } from '../../shared/folder-access.js'
@@ -112,6 +112,18 @@ export function FolderSharingPanel({
   const [active, setActive] = useState(-1)
   /* The member whose details replace the lists (#209), or null for the lists. */
   const [openMember, setOpenMember] = useState<string | null>(null)
+  /* Leaving a member's details puts focus back on that member's row. */
+  const lastMember = useRef<string | null>(null)
+  useEffect(() => {
+    if (openMember !== null) {
+      lastMember.current = openMember
+      return
+    }
+    const id = lastMember.current
+    lastMember.current = null
+    if (id === null) return
+    document.querySelector<HTMLElement>(`[data-member-row="${CSS.escape(id)}"]`)?.focus()
+  }, [openMember])
 
   const memberIds = new Set(folder.members.map((member) => member.user.id))
   const invitable = (connections ?? []).filter((entry) => !memberIds.has(entry.user.id))
@@ -209,15 +221,15 @@ export function FolderSharingPanel({
                 <>
                   <button
                     type="button"
-                    className="shrink-0 rounded-sm text-muted-foreground hover:text-foreground"
+                    className="min-w-0 max-w-[60%] truncate rounded-sm text-muted-foreground hover:text-foreground"
                     onClick={() => {
                       setOpenMember(null)
                     }}
                   >
                     {sheetTitle}
                   </button>
-                  <span aria-hidden="true" className="text-quiet-foreground">/</span>
-                  <span className="min-w-0 truncate">
+                  <span aria-hidden="true" className="shrink-0 text-quiet-foreground">/</span>
+                  <span className="min-w-0 flex-1 truncate">
                     {folder.members.find((member) => member.user.id === openMember)?.user.display_name ?? 'Someone'}
                   </span>
                 </>
@@ -367,6 +379,7 @@ export function FolderSharingPanel({
                         Responsibilities and their history (#209). */}
                     <button
                       type="button"
+                      data-member-row={member.user.id}
                       className="min-w-0 flex-1 truncate rounded-sm text-left text-sm text-foreground hover:underline underline-offset-2"
                       onClick={() => {
                         setOpenMember(member.user.id)
