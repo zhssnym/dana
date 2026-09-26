@@ -1,9 +1,10 @@
 /*
 The issue page's sidebar, GitHub's sections in Dana's words (RESEARCH-ISSUE
 3.8): Assignee, Labels, Milestone, Dates, Relationships and Participants.
-Only Dates and Relationships have a gear, because the task peek it opens edits
-exactly those; an empty assignee offers "Assign yourself" to someone who may
-assign. A phone reads the sidebar after the thread, without Participants.
+Each section the task peek edits has a gear that opens it: Assignee (for
+someone who may assign), Labels, Dates and Relationships. Milestone has none,
+because a task's section is its place in the page document, moved on the page
+and not in the peek. An empty assignee also offers "Assign yourself". Below xl the sidebar reads after the thread (a phone without Participants), so the thread keeps GitHub's measure.
 */
 import type { TaskDependencies, TaskDependencyEdge } from '../../../../shared/task-dependencies.js'
 import type { TaskDetail } from '../../../../shared/tasks.js'
@@ -27,7 +28,7 @@ function Section(props: {
     <section
       aria-label={props.label}
       className={cn(
-        'flex min-w-0 flex-col gap-1 py-1.5 text-sm md:gap-1.5 md:border-b md:border-border md:py-3 md:first:pt-0 md:last:border-b-0',
+        'flex min-w-0 flex-col gap-1 py-1.5 text-sm xl:gap-1.5 xl:border-b xl:border-border xl:py-3 xl:first:pt-0 xl:last:border-b-0',
         props.wide === true && 'col-span-2',
         props.className,
       )}
@@ -107,7 +108,10 @@ export function IssueSidebar(props: {
   readonly person: (id: string | null | undefined) => Person
   /** Null when the viewer may not assign. */
   readonly onAssignMe: (() => void) | null
+  /** Opens the peek for dates, labels and relationships; null when the viewer may not edit. */
   readonly onEdit: (() => void) | null
+  /** Opens the peek for the assignee; null when the viewer may not assign. */
+  readonly onEditAssignee: (() => void) | null
   readonly onOpenTask: (taskId: string, folderId: string) => void
 }): React.JSX.Element {
   const { detail, today, onEdit } = props
@@ -117,8 +121,8 @@ export function IssueSidebar(props: {
   const assignee = detail.assignee === null ? null : props.person(detail.assignee.id)
 
   return (
-    <div className="grid grid-cols-2 gap-x-4 md:flex md:flex-col">
-      <Section label="Assignee" onEdit={null}>
+    <div className="grid grid-cols-2 gap-x-4 xl:flex xl:flex-col">
+      <Section label="Assignee" onEdit={props.onEditAssignee}>
         {assignee === null ? (
           <p className={MUTED}>
             No one
@@ -142,7 +146,7 @@ export function IssueSidebar(props: {
           </p>
         )}
       </Section>
-      <Section label="Labels" onEdit={null}>
+      <Section label="Labels" onEdit={onEdit}>
         {labels.length === 0 ? (
           <p className={MUTED}>None</p>
         ) : (

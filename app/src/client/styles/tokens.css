@@ -543,3 +543,14 @@ button:not(:disabled),
 :root:not([data-theme="dark"]) {
   --color-graphite-400: #8f8e8a;
 }
+
+/* ---- m3-issue: the issue page's measure. GitHub's thread is about 820px
+   beside a 256px sidebar; the list column (--content-list) would squeeze it
+   to about 400px. While an issue page is showing, the shell's column takes
+   this wider cap instead (views/linear/IssuePage.tsx marks its article). */
+:root {
+  --content-issue: clamp(720px, 80vw, 1216px);
+}
+[data-shell-scroll] > div:has([data-issue-page]) {
+  --shell-content-max: var(--content-issue);
+}

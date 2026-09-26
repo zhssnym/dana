@@ -20,10 +20,11 @@ import {
   ListChecks,
   Pencil,
   RotateCcw,
+  Tag,
   Trash2,
   UserRound,
 } from '../../../lib/icons.js'
-import { StateMark } from '../IssueParts.js'
+import { LabelChip, StateMark } from '../IssueParts.js'
 import { issueState } from '../issues.js'
 import type { Act, EventEntry } from './timeline.js'
 
@@ -66,6 +67,8 @@ function badgeOf(act: Act): React.JSX.Element {
       return <RotateCcw {...lucide} />
     case 'trashed':
       return <Trash2 {...lucide} />
+    case 'label':
+      return <Tag {...lucide} />
     case 'step':
       return act.action === 'completed' ? <Check {...lucide} /> : <ListChecks {...lucide} />
     case 'blocked-by':
@@ -92,8 +95,9 @@ function names(list: readonly string[]): React.ReactNode {
   )
 }
 
-/** The words after the person. */
-function phraseOf(act: Act): React.ReactNode {
+/** The words after the person. `labelColor` finds a label's dot by name;
+ * a label since removed from the task draws without one. */
+function phraseOf(act: Act, labelColor: (name: string) => string | null): React.ReactNode {
   switch (act.t) {
     case 'assigned':
       return (
@@ -178,6 +182,15 @@ function phraseOf(act: Act): React.ReactNode {
           {act.edges.length === 1 ? null : <span className={INK}>{act.edges.length} tasks</span>}
         </>
       )
+    case 'label': {
+      const color = labelColor(act.name)
+      return (
+        <>
+          {act.added ? 'added' : 'removed'}{' '}
+          {color === null ? <span className={INK}>{act.name}</span> : <LabelChip name={act.name} color={color} />}
+        </>
+      )
+    }
     case 'other':
       return act.text
   }
@@ -213,6 +226,7 @@ export function EventRow(props: {
   readonly person: (id: string | null | undefined) => Person
   readonly folderId: string
   readonly onOpenTask: (taskId: string, folderId: string) => void
+  readonly labelColor: (name: string) => string | null
 }): React.JSX.Element {
   const { entry } = props
   const { act } = entry
@@ -233,7 +247,7 @@ export function EventRow(props: {
           <span className="mr-1 inline-block align-[-3px]">
             <Face person={actor} className="size-4 data-[size=sm]:size-4" />
           </span>
-          <span className="font-section text-foreground">{actor.name}</span> {phraseOf(act)}{' '}
+          <span className="font-section text-foreground">{actor.name}</span> {phraseOf(act, props.labelColor)}{' '}
           <time dateTime={at.toISOString()} title={at.toLocaleString()} className="whitespace-nowrap">
             {agoFor(entry.at)}
           </time>

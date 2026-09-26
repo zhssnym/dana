@@ -10,7 +10,7 @@ their access lets them press: closing as completed and reopening a completed
 issue need task.status.complete, not planned and its reopening need
 task.status.abandon.
 */
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useEffect, useRef } from 'react'
 
 import { postFileIds } from '../../../../shared/comments.js'
 import type { PostContent } from '../../../../shared/comments.js'
@@ -46,10 +46,27 @@ function StateButtons(props: {
   readonly onReopen: () => void
 }): React.JSX.Element | null {
   const { state, withComment, may } = props
+  /* Closing swaps "Close issue" for "Reopen issue" (and back), so the pressed
+     button unmounts and focus would fall to the body. Once the state has
+     moved, focus goes to the button that took its place. */
+  const pressed = useRef(false)
+  useEffect(() => {
+    if (!pressed.current) return
+    pressed.current = false
+    document.querySelector<HTMLElement>('[data-issue-state-button]')?.focus()
+  }, [state])
+  const close = (reason: 'completed' | 'not-planned'): void => {
+    pressed.current = true
+    props.onClose(reason)
+  }
+  const reopen = (): void => {
+    pressed.current = true
+    props.onReopen()
+  }
   if (state !== 'open') {
     if (!(state === 'completed' ? may.complete : may.abandon)) return null
     return (
-      <Button variant="outline" disabled={props.busy} onClick={props.onReopen}>
+      <Button variant="outline" disabled={props.busy} data-issue-state-button onClick={reopen}>
         <StateMark state="open" className="size-3.5" />
         {withComment ? 'Reopen with comment' : 'Reopen issue'}
       </Button>
@@ -58,7 +75,7 @@ function StateButtons(props: {
   if (!may.complete) return null
   if (!may.abandon) {
     return (
-      <Button variant="outline" disabled={props.busy} onClick={() => props.onClose('completed')}>
+      <Button variant="outline" disabled={props.busy} data-issue-state-button onClick={() => close('completed')}>
         <StateMark state="completed" className="size-3.5" />
         {withComment ? 'Close with comment' : 'Close issue'}
       </Button>
@@ -70,7 +87,8 @@ function StateButtons(props: {
         variant="outline"
         disabled={props.busy}
         className="rounded-r-none"
-        onClick={() => props.onClose('completed')}
+        data-issue-state-button
+        onClick={() => close('completed')}
       >
         <StateMark state="completed" className="size-3.5" />
         {withComment ? 'Close with comment' : 'Close issue'}
@@ -90,14 +108,14 @@ function StateButtons(props: {
           <ChevronDown className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
-          <DropdownMenuItem onClick={() => props.onClose('completed')} className="items-start">
+          <DropdownMenuItem onClick={() => close('completed')} className="items-start">
             <StateMark state="completed" className="mt-0.5 size-3.5" />
             <span className="flex flex-col">
               <span>Close as completed</span>
               <span className="text-xs text-muted-foreground">Done, closed, no more work</span>
             </span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => props.onClose('not-planned')} className="items-start">
+          <DropdownMenuItem onClick={() => close('not-planned')} className="items-start">
             <StateMark state="not-planned" className="mt-0.5 size-3.5" />
             <span className="flex flex-col">
               <span>Close as not planned</span>

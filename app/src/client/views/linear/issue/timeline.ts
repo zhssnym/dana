@@ -38,6 +38,7 @@ export type Act =
   | { readonly t: 'promoted' }
   | { readonly t: 'blocked-by'; readonly edges: readonly TaskDependencyEdge[] }
   | { readonly t: 'blocking'; readonly edges: readonly TaskDependencyEdge[] }
+  | { readonly t: 'label'; readonly added: boolean; readonly name: string }
   | { readonly t: 'other'; readonly text: string }
 
 export interface EventEntry {
@@ -66,6 +67,7 @@ const ASSIGNED = /^assigned to (.+)$/
 const UNASSIGNED = /^unassigned (.+)$/
 const DATE_SET = /^set the (due|start) date to (\d{4}-\d{2}-\d{2})$/
 const DATE_REMOVED = /^removed the (due|start) date$/
+const LABEL = /^(added|removed) the label '(.+)'$/
 export const DESCRIPTION_EDITED = 'edited the description'
 const STEP = /^(added|renamed|completed|reopened|moved|removed) (?:a |the )?step (?:to )?'(.+)'$/
 
@@ -113,6 +115,8 @@ function actsOf(line: EventLine, previousName: string | null, actorName: string)
       if (detail === 'set a reminder') return [{ t: 'reminder', set: true }]
       if (detail === 'removed the reminder') return [{ t: 'reminder', set: false }]
       if (detail === 'promoted a step to a task') return [{ t: 'promoted' }]
+      const label = LABEL.exec(detail)
+      if (label !== null) return [{ t: 'label', added: label[1] === 'added', name: label[2] ?? '' }]
       const step = STEP.exec(detail)
       if (step !== null) {
         const action = step[1] as StepAction | 'moved'

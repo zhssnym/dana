@@ -1358,13 +1358,14 @@ async function patchTaskIn(
         assigneeId !== current.assigneeId
           ? assigneeId
           : null
+      const verb = moving
+        ? 'moved'
+        : patch.title !== undefined && patch.title !== current.title
+          ? 'renamed'
+          : 'edited'
       await recordEvent(tx, {
         actorId: viewerId,
-        verb: moving
-          ? 'moved'
-          : patch.title !== undefined && patch.title !== current.title
-            ? 'renamed'
-            : 'edited',
+        verb,
         subjectKind: 'task',
         subjectId: taskId,
         subjectName: patch.title ?? current.title,
@@ -1374,7 +1375,12 @@ async function patchTaskIn(
             ? `assigned to ${await displayNameOf(tx, newAssignee)}`
             : reminder !== null && sets.length === 0
               ? 'set a reminder'
-              : await plainEditDetail(tx, patch, current, assigneeId),
+              : // Only a plain edit takes a detail: on a move or a rename a
+                // lowercase detail would outrank the verb in the history
+                // sheet (sentenceOf) and the move or rename would vanish.
+                verb === 'edited'
+                ? await plainEditDetail(tx, patch, current, assigneeId)
+                : undefined,
         recipients: newAssignee === null ? undefined : [newAssignee],
       })
     }

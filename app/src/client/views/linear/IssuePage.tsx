@@ -32,7 +32,7 @@ import { Pencil } from '../../lib/icons.js'
 import type { RowActions } from '../../parts/useRowActions.js'
 import { Subtasks } from './Subtasks.js'
 import { StatePill } from './IssueParts.js'
-import { issueState, sectionReader, usePeople } from './issues.js'
+import { issueState, labelsOf, sectionReader, usePeople } from './issues.js'
 import { CommentBox, IssueBox } from './issue/CommentBox.js'
 import { EventRow } from './issue/EventRow.js'
 import { IssueComposer, postBody } from './issue/IssueComposer.js'
@@ -161,7 +161,6 @@ export function IssuePage(props: {
   const { sectionOf, sections } = sectionReader(page)
   const milestone = sections.find((section) => section.id === sectionOf(detail))?.name ?? null
   const canComment = gates?.createComment ?? false
-  const canEdit = facts !== null && mayDraw(facts, 'task.edit')
   const canAssign = facts !== null && mayDraw(facts, 'task.assign')
   const viewerId = me?.id ?? null
   const edited = bodyEditedAt(events)
@@ -169,6 +168,9 @@ export function IssuePage(props: {
      assignment, so an assignee's own reach is added here (folder-actions.ts's
      whenAssignedToActor); the server stays the authority. */
   const mine = viewerId !== null && detail.assignee?.id === viewerId
+  /* task.edit and label.apply share one gate: Can edit, or Can contribute on
+     one's own task. */
+  const canEdit = facts !== null && (mayDraw(facts, 'task.edit') || (mine && facts.access === 'can_contribute'))
   const stateMay: StateMay = {
     complete:
       facts !== null &&
@@ -217,6 +219,8 @@ export function IssuePage(props: {
   for (const comment of comments ?? []) join(comment.author_id)
   for (const entry of timeline) if (entry.kind === 'event') join(entry.actorId)
 
+  const labelColor = (name: string): string | null => labelsOf(detail).find((label) => label.name === name)?.color ?? null
+
   const may = {
     mutateOwn: gates?.mutateOwnComment ?? false,
     moderate: gates?.moderate ?? false,
@@ -224,7 +228,7 @@ export function IssuePage(props: {
   }
 
   return (
-    <article aria-label={detail.title} className="flex flex-col gap-4 pb-2">
+    <article data-issue-page aria-label={detail.title} className="flex flex-col gap-4 pb-2">
       <header className="flex flex-col gap-2 border-b border-border pb-3">
         <TitleEditor
           title={detail.title}
@@ -236,7 +240,7 @@ export function IssuePage(props: {
         </div>
       </header>
 
-      <div className="flex flex-col gap-6 md:flex-row md:items-start">
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
         <div className="flex min-w-0 flex-1 flex-col">
           {/* The timeline: one rule down the left, behind every box and badge. */}
           <div className="relative flex flex-col">
@@ -293,7 +297,14 @@ export function IssuePage(props: {
               <ol role="list" aria-label="Timeline" className="flex flex-col">
                 {timeline.map((entry) =>
                   entry.kind === 'event' ? (
-                    <EventRow key={entry.key} entry={entry} person={person} folderId={folderId} onOpenTask={openLinked} />
+                    <EventRow
+                      key={entry.key}
+                      entry={entry}
+                      person={person}
+                      folderId={folderId}
+                      onOpenTask={openLinked}
+                      labelColor={labelColor}
+                    />
                   ) : (
                     <li key={entry.key} className="flex flex-col gap-2 py-2">
                       <CommentBox
@@ -332,7 +343,7 @@ export function IssuePage(props: {
           </div>
         </div>
 
-        <aside aria-label="Details" className="md:w-64 md:shrink-0">
+        <aside aria-label="Details" className="xl:w-64 xl:shrink-0">
           <IssueSidebar
             detail={detail}
             folderId={folderId}
@@ -345,6 +356,7 @@ export function IssuePage(props: {
               canAssign && viewerId !== null ? () => update.mutate({ id: taskId, body: { assignee_id: viewerId } }) : null
             }
             onEdit={canEdit ? () => actions.onOpenTask(card) : null}
+            onEditAssignee={canAssign ? () => actions.onOpenTask(card) : null}
             onOpenTask={openLinked}
           />
         </aside>
