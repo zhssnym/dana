@@ -97,6 +97,7 @@ export function HistoryArrows(): React.JSX.Element {
               size="icon"
               className="text-muted-foreground hover:text-foreground disabled:opacity-40"
               aria-label="Go back"
+              data-history-back
               disabled={!canBack}
               onClick={() => {
                 void navigate(-1)
