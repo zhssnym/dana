@@ -3,16 +3,17 @@ The Discussion tab's threads as one list, like an issues list: no groups, no
 tabs, no column headers, most recent activity first as the server orders
 them, and "New thread" as the last row.
 
-Each thread is one row at the task row's height with one leading mark: a
-thread about a task shows the task's state mark (linking to the task); any
-other shows an outline speech bubble while open, a filled check once
-resolved, and pressing it resolves (without a decision) or reopens, with
-Undo. A resolved thread is the same row, muted. The title carries the row; an
-unread one (a post from someone else since this person last read it, the
-server's `read_at`) is heavier and nothing else marks it. After the title, the
-last post, muted ("Bilal: How about Tuesday?", wide screens only); on the
-right, the last poster's face and when the thread last moved ("12 min"). No
-post counts (M4 §4.7).
+The list reads like an issues list: one bordered box, hairlines between rows.
+Each thread is one compact line with one leading mark: a thread about a task
+shows the task's state mark (linking to the task); any other shows an outline
+speech bubble while open, a filled check once resolved, and pressing it
+resolves (without a decision) or reopens, with Undo. Then the title, at
+medium weight and cut short before the meta; an unread one (a post from
+someone else since this person last read it, the server's `read_at`) is
+heavier and nothing else marks it. On the right, small muted meta: the last
+poster and when ("Lucía Ortega · 4 days ago"), or "Resolved · Sep 18" once
+resolved. A resolved thread is the same
+row, muted. No preview, no face, no post counts (M4 §4.7).
 
 The keyboard path is the task lists' (`row-keys.ts`): arrows move, Enter
 opens, Space resolves or reopens. An old `?threads=closed` link still loads;
@@ -35,9 +36,7 @@ import { DISCUSSION_TITLE_MAX } from '../../../shared/consultation.js'
 import { MessageCircle, Plus, ResolvedMark } from '../../lib/icons.js'
 import type { PersonResolver } from '../../lib/thread.js'
 import { formatAgo } from '../../parts/format-dates.js'
-import { initialsOf } from '../../parts/presenters.js'
 import { pushUndo, undoLabel } from '../../shell/undo.js'
-import { Face } from '../person-face.js'
 import { StateMark, taskState } from '../thread/timeline/state.js'
 import { paths } from '../../routes.js'
 import { useRowKeys } from '../row-keys.js'
@@ -57,9 +56,11 @@ export function isUnread(d: Discussion, viewerId: string | null): boolean {
   return Date.parse(last.created_at) > Date.parse(d.read_at)
 }
 
-/* The task row's grid: the mark sits where a task's checkbox does. */
+/* One compact line: mark, title (truncating), meta on the right. */
 const ROW =
-  'grid h-[var(--row-height)] w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center rounded-sm pr-1.5 text-sm transition-colors duration-[var(--duration-fast)]'
+  'grid h-9 w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-x-1 pr-3 pl-1.5 text-sm transition-colors duration-[var(--duration-fast)]'
+
+const MARK = 'flex size-[var(--control-height)] items-center justify-center rounded-sm'
 
 export function DiscussionList({
   folderId,
@@ -137,7 +138,7 @@ export function DiscussionList({
      attaches to it on the first render only. */
   if (list.isPending || list.isError) {
     return (
-      <div ref={keys} className="-mx-1.5 min-w-0">
+      <div ref={keys} className="min-w-0">
         {list.isPending ? <ListSkeleton /> : <InlineError onRetry={() => void list.refetch()} />}
       </div>
     )
@@ -159,8 +160,8 @@ export function DiscussionList({
   )
 
   return (
-    <div ref={keys} className="-mx-1.5 min-w-0">
-      <ul className="flex flex-col">
+    <div ref={keys} className="min-w-0">
+      <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-md border border-border">
         {discussions.map(row)}
         {mayStart ? (
           <li>
@@ -169,12 +170,12 @@ export function DiscussionList({
         ) : null}
       </ul>
       {discussions.length === 0 && !mayStart ? (
-        <p className="px-1.5 py-1 text-sm text-muted-foreground">No threads yet.</p>
+        <p className="py-1 text-sm text-muted-foreground">No threads yet.</p>
       ) : null}
       {list.hasNextPage ? (
         <button
           type="button"
-          className="h-[var(--control-height)] rounded-sm px-1.5 text-xs text-muted-foreground outline-none hover:text-foreground"
+          className="mt-1 h-[var(--control-height)] rounded-sm px-1.5 text-xs text-muted-foreground outline-none hover:text-foreground"
           disabled={list.isFetchingNextPage}
           onClick={() => void list.fetchNextPage()}
         >
@@ -206,8 +207,16 @@ function ThreadRow({
 }): React.JSX.Element {
   const isOpen = state === 'open'
   const fresh = isUnread(d, viewerId)
-  /* What was said last, so the list answers "does this need me?" unopened. */
-  const last = d.last_post !== null && d.last_post !== undefined && d.last_post.preview !== '' ? d.last_post : null
+  const last = d.last_post ?? null
+  /* "Lucía Ortega · 4 days ago", or "Resolved · Sep 18". */
+  const meta = isOpen
+    ? [
+        last === null ? '' : last.author_id === viewerId ? 'You' : personOf(last.author_id).name,
+        formatAgo(last?.created_at ?? d.last_activity_at, now),
+      ]
+        .filter((part) => part !== '')
+        .join(' · ')
+    : `Resolved · ${formatAgo(d.resolved_at ?? d.last_activity_at, now)}`
   const mark = isOpen ? (
     <MessageCircle className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
   ) : (
@@ -243,7 +252,7 @@ function ThreadRow({
           to={paths.task(d.task.id)}
           title={`Task: ${d.task.title}`}
           aria-label={`Task: ${d.task.title}`}
-          className="flex size-[var(--control-height)] items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground"
+          className={cn(MARK, 'text-muted-foreground outline-none hover:text-foreground')}
         >
           <StateMark state={taskState(d.task)} className="size-3.5" />
         </Link>
@@ -252,7 +261,7 @@ function ThreadRow({
           type="button"
           aria-label={isOpen ? 'Resolve thread' : 'Reopen thread'}
           title={isOpen ? 'Resolve' : 'Reopen'}
-          className="flex size-[var(--control-height)] items-center justify-center rounded-sm active:scale-90"
+          className={cn(MARK, 'active:scale-90')}
           onClick={(event) => {
             event.stopPropagation()
             onToggle()
@@ -261,47 +270,20 @@ function ThreadRow({
           {mark}
         </button>
       ) : (
-        <span className="flex size-[var(--control-height)] items-center justify-center">{mark}</span>
+        <span className={MARK}>{mark}</span>
       )}
-      <span className="flex min-w-0 items-baseline gap-2">
-        <span
-          title={d.title}
-          className={cn(
-            'min-w-0 truncate',
-            isOpen ? 'text-foreground' : 'text-muted-foreground',
-            fresh ? 'font-title' : 'font-normal',
-          )}
-        >
-          {d.title}
-        </span>
-        {last !== null ? (
-          <span className="min-w-0 flex-1 truncate text-muted-foreground max-md:hidden">
-            {last.author_id === viewerId ? 'You' : personOf(last.author_id).name}: {last.preview}
-          </span>
-        ) : null}
+      <span
+        title={d.title}
+        className={cn(
+          'min-w-0 truncate',
+          isOpen ? 'text-foreground' : 'text-muted-foreground',
+          fresh ? 'font-title' : 'font-section',
+        )}
+      >
+        {d.title}
       </span>
-      <span className="flex items-center gap-2 pl-3 text-xs whitespace-nowrap text-muted-foreground">
-        {last !== null ? <LastFace id={last.author_id} personOf={personOf} /> : null}
-        <span>{formatAgo(d.last_post?.created_at ?? d.last_activity_at, now)}</span>
-      </span>
+      <span className="pl-3 text-xs whitespace-nowrap text-muted-foreground">{meta}</span>
     </div>
-  )
-}
-
-/** Who posted last, as one small face. */
-function LastFace({
-  id,
-  personOf,
-}: {
-  readonly id: string
-  readonly personOf: PersonResolver
-}): React.JSX.Element {
-  const person = personOf(id)
-  return (
-    <Face
-      dense
-      person={{ id, initials: initialsOf(person.name), name: person.name, ...(person.image === undefined ? {} : { image: person.image }) }}
-    />
   )
 }
 
@@ -381,9 +363,13 @@ function NewThread({
 function ListSkeleton(): React.JSX.Element {
   /* The rows' own height, so the list does not jump when it lands. */
   return (
-    <div className="flex flex-col px-1.5" aria-label="Loading threads" aria-busy="true">
+    <div
+      className="flex flex-col divide-y divide-border rounded-md border border-border"
+      aria-label="Loading threads"
+      aria-busy="true"
+    >
       {[0, 1, 2].map((row) => (
-        <div key={row} className="flex h-[var(--row-height)] items-center">
+        <div key={row} className="flex h-9 items-center px-3">
           <Skeleton className={row === 1 ? 'h-3.5 w-2/5' : 'h-3.5 w-3/5'} />
         </div>
       ))}
