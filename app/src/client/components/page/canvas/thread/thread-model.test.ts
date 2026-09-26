@@ -13,7 +13,7 @@ function input(blocks: ThreadBlock[], open: Record<string, ThreadTask>, over: Pa
   return { blocks, open: new Map(Object.entries(open)), today: TODAY, viewerId: 'me', shared: false, folded: new Set(), ...over }
 }
 
-describe('AC-1430: the next ring is the first task the viewer can do now', () => {
+describe('AC-1501: the next ring is the first task the viewer can do now', () => {
   const blocks = [
     section('s1', [task('blocked'), task('later'), task('theirs'), task('mine')]),
     section('s2', [task('elsewhere')]),
@@ -48,7 +48,7 @@ describe('AC-1430: the next ring is the first task the viewer can do now', () =>
   })
 })
 
-describe('AC-1431: the line is solid up to the first open task and dashed after it', () => {
+describe('AC-1502: the line is solid up to the first open task and dashed after it', () => {
   test('within a section, and between sections', () => {
     const blocks = [
       section('s1', [task('d1'), note('n1'), task('d2')]),
@@ -86,7 +86,7 @@ describe('AC-1431: the line is solid up to the first open task and dashed after 
   })
 })
 
-describe('AC-1432: finished sections fold and long done stretches elide', () => {
+describe('AC-1502: finished sections fold and long done stretches elide', () => {
   test('only a section with tasks and none open is finished', () => {
     const blocks = [
       section('done', [task('d1'), section('inner', [task('d2')], 2)]),
@@ -132,7 +132,7 @@ describe('AC-1432: finished sections fold and long done stretches elide', () => 
   })
 })
 
-describe('AC-1433: auto-fold is never stored, a user close is, and ticks linger', () => {
+describe('AC-1502: auto-fold is never stored, a user close is, and ticks linger', () => {
   const memory = (): FoldStore & { readonly map: Map<string, string> } => {
     const map = new Map<string, string>()
     return { map, getItem: (key) => map.get(key) ?? null, setItem: (key, value) => { map.set(key, value) }, removeItem: (key) => { map.delete(key) } }

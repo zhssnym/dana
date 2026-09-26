@@ -97,7 +97,7 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
   })
 
   await test.step('a task typed in Work\'s last line is stored in the last Section', async () => {
-    // AC-1440: the heading written above ends the page, so it is the Section the Task lands in.
+    // AC-1509: the heading written above ends the page, so it is the Section the Task lands in.
     await page.goto(`/app/folders/${seedIds.groceries}`)
     const line = page.getByRole('textbox', { name: 'Add a task', exact: true })
     const task = `last line ${Date.now()}`

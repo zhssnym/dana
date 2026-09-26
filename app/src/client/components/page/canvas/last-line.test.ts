@@ -1,5 +1,5 @@
 /*
-AC-1440: a Task typed in Work's last line lands at the end of the page, in the
+AC-1509: a Task typed in Work's last line lands at the end of the page, in the
 innermost last Section, or, on a phone whose line is pinned, at the end of the
 Section in view; an empty last line is reused, never followed by another.
 */
@@ -16,7 +16,7 @@ const doc = (...blocks: Node[]): CanvasBlock[] => {
   return blocks.map(fill) as unknown as CanvasBlock[]
 }
 
-describe('AC-1440 where the last line writes', () => {
+describe('AC-1509 where the last line writes', () => {
   test('after the last block of the innermost last Section', () => {
     const page = doc(section('a', 1, [task('t1')]), section('b', 1, [text('p'), section('b2', 2, [task('t2'), task('t3')])]))
     expect(lastLinePlace(page)).toEqual({ after: 't3' })

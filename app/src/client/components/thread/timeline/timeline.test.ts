@@ -1,5 +1,5 @@
 /*
-AC-1460: a task's timeline says what happened in the order it happened, and a
+AC-1505: a task's timeline says what happened in the order it happened, and a
 dropped task is never read as done (M4, the one task page).
 
 The page draws its status mark, its Status row and each state event from
@@ -30,7 +30,7 @@ function line(id: number, verb: EventLine['verb'], at: string, detail: string | 
   }
 }
 
-describe('AC-1460 the task timeline', () => {
+describe('AC-1505 the task timeline', () => {
   test('a dropped task is dropped, never done', () => {
     expect(taskState({ status: 'abandoned' })).toBe('dropped')
     expect(taskState({ status: 'completed' })).toBe('done')
