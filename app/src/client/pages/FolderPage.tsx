@@ -437,12 +437,15 @@ function FolderPageBody({
   const purposeFacet = facetRows.find((facet) => facet.kind === 'purpose')
   /* A Discussion address (`?discussion=`, from ConsultationLinkPage) opens the
      Consultation facet even when it is hidden or not named: a link to a
-     Discussion must land on it. Never on Desk, which has no Consultation. */
+     Discussion must land on it. On Desk, which has no Discussion tab, only
+     a thread about one of its tasks has such an address (M5: "Discuss" on a
+     Desk task, and a Desk task's old comments), so it opens there too and
+     closing it goes back to Work. */
   /* `?conversation=open` is the address a notification about the folder's
      thread carries; that thread is the General discussion, so it lands here
-     too. */
+     too, never on Desk. */
   const linkedDiscussion =
-    (search.get('discussion') !== null || search.get('conversation') === 'open') && !isDefault
+    search.get('discussion') !== null || (search.get('conversation') === 'open' && !isDefault)
   const linkedConsultation = (facet: Facet): boolean => linkedDiscussion && facet.kind === 'consultation'
   const activeFacet = facetRows.find(
     (facet) => facet.id === requestedFacetId && (!facet.hidden || facet.kind === 'purpose' || facet.kind === 'results' || linkedConsultation(facet)),

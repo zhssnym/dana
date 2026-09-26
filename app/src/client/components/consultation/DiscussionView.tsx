@@ -209,9 +209,10 @@ function ThreadBody(props: {
   const resolvable = powers.resolve && d.state === 'open' && !trashed
   /* It writes three things, so it is drawn only for someone who may do all
      three: create a task here, link this thread to it, and resolve it. A
-     thread already about a task has its task and is not offered it. */
+     thread already linked to a task is not offered it, even while that task
+     is in Trash (the link is set once). */
   const convertible =
-    resolvable && powers.edit && !d.is_general && d.task === null && viewer !== null && mayDraw(viewer.facts, 'task.create')
+    resolvable && powers.edit && !d.is_general && d.task_id === null && viewer !== null && mayDraw(viewer.facts, 'task.create')
 
   useEffect(() => {
     if (!focusReopen || reopenButton.current === null) return
@@ -361,7 +362,9 @@ function ThreadBody(props: {
             className="inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-sm text-muted-foreground outline-none hover:text-foreground"
           >
             <StateMark state={taskState(d.task)} className="size-3.5 shrink-0" />
-            <span className="min-w-0 truncate">{d.task.title}</span>
+            {/* The thread is titled with its task, so the task's name is
+                repeated only once it has been renamed. */}
+            <span className="min-w-0 truncate">{d.task.title.trim() === d.title.trim() ? 'Open the task' : d.task.title}</span>
           </Link>
         </p>
       ) : null}

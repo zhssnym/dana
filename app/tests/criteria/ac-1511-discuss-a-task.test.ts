@@ -107,9 +107,20 @@ describe('AC-1511 Discuss finds or makes the task\'s one Discussion', () => {
     expectStatus(seen, 200, 'Can view is shown the one that exists')
     expect(await linked(taskId), 'still one row').toHaveLength(1)
 
-    const read = await owner.browser.json(`/tasks/${taskId}`, 'GET')
-    expectStatus(read, 200, 'GET /tasks/:id')
-    expect((read.json() as { discussion_id?: unknown }).discussion_id).toBe(made.id)
+    // Nobody has written in it yet: the task links nothing and the list
+    // skips it, so opening and leaving leaves no empty thread behind.
+    const listed = async (): Promise<string[]> => {
+      const list = await owner.browser.json(`/folders/${folderId}/discussions?state=all`, 'GET')
+      expectStatus(list, 200, 'the list')
+      return (list.json() as { discussions: { id: string }[] }).discussions.map((d) => d.id)
+    }
+    const linkOf = async (): Promise<unknown> => {
+      const read = await owner.browser.json(`/tasks/${taskId}`, 'GET')
+      expectStatus(read, 200, 'GET /tasks/:id')
+      return (read.json() as { discussion_id?: unknown }).discussion_id
+    }
+    expect(await linkOf()).toBeNull()
+    expect(await listed()).not.toContain(made.id)
 
     // A post there reaches the task's creator, who has not spoken yet.
     const posted = await talker.browser.json(`/discussions/${made.id}/comments`, 'POST', {
@@ -124,6 +135,15 @@ describe('AC-1511 Discuss finds or makes the task\'s one Discussion', () => {
              WHERE e.subject_kind = 'comment' AND e.subject_id = ${postId}::uuid`,
       ),
     ).toEqual([{ user_id: owner.id }])
+    expect(await linkOf()).toBe(made.id)
+    expect(await listed()).toContain(made.id)
+
+    // Its task in Trash, the thread still says it is linked, so "Turn into
+    // a task" is not offered; only the task itself is withheld.
+    expectStatus(await owner.browser.json(`/tasks/${taskId}`, 'DELETE'), 204, 'trash the linked task')
+    const orphan = await owner.browser.json(`/discussions/${made.id}`, 'GET')
+    expectStatus(orphan, 200, 'GET the thread')
+    expect(orphan.json()).toMatchObject({ task_id: taskId, task: null })
 
     // A trashed task is 404, and makes nothing.
     const other = await task(owner, folderId, 'ac1511 gone')

@@ -104,11 +104,24 @@ const DISCUSSION_COLUMNS = sql`
           'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS activity_key,
   o.id AS o_id, o.statement AS o_statement, o.actor_id AS o_actor_id,
   o.source_comment_id AS o_source_comment_id, o.created_at AS o_created_at,
-  lt.id AS lt_id, lt.title AS lt_title, lt.status AS lt_status`
+  d.task_id, lt.id AS lt_id, lt.title AS lt_title, lt.status AS lt_status`
 
 /* The linked task (M5) is shown only while it is live and in the
    Discussion's own Folder, so the link never names a task its readers
    cannot open. */
+/**
+ * A thread "Discuss" made on a task that nobody has written in yet (M5): no
+ * post, no context, no decision, and made after its task (a thread turned
+ * into a task is older than the task, so it never matches). The list and the
+ * task page's link skip it, and the next "Discuss" reuses it, so looking
+ * without talking leaves nothing behind. Reads `d`.
+ */
+export const UNSTARTED_TASK_THREAD = sql`(
+  d.task_id IS NOT NULL AND d.context IS NULL AND d.current_outcome_id IS NULL
+  AND NOT EXISTS (SELECT 1 FROM comments uc WHERE uc.discussion_id = d.id)
+  AND EXISTS (SELECT 1 FROM tasks ut
+               WHERE ut.id = d.task_id AND ut.created_at <= d.created_at))`
+
 const DISCUSSION_FROM = sql`
   discussions d
   LEFT JOIN discussion_outcomes o ON o.id = d.current_outcome_id
@@ -144,6 +157,7 @@ function discussionFromRow(row: Record<string, unknown>): Discussion {
     updated_at: toIso(row.updated_at),
     trashed_at: isoOrNull(row.trashed_at),
     is_general: row.is_general === true,
+    task_id: stringOrNull(row.task_id),
     task:
       row.lt_id === null || row.lt_id === undefined
         ? null
@@ -420,7 +434,8 @@ export async function listDiscussions(
             LEFT JOIN discussion_reads r
               ON r.discussion_id = d.id AND r.user_id = ${facts.actorId}::uuid
            WHERE d.folder_id = ${facts.folderId}::uuid
-             AND d.trashed_at IS NULL${state}${search}${after}
+             AND d.trashed_at IS NULL
+             AND NOT ${UNSTARTED_TASK_THREAD}${state}${search}${after}
            ORDER BY d.last_activity_at DESC, d.id DESC
            LIMIT ${query.limit + 1})
         SELECT page.*, pc.post_count,

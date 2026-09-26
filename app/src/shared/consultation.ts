@@ -99,6 +99,9 @@ export const discussionSchema = z.object({
    * title, so renaming it changes nothing. Resolving or trashing it needs
    * Full control. */
   is_general: z.boolean(),
+  /** The task this Discussion is linked to (M5, 4.31), whatever that task's
+   * state: set once, so "Turn into a task" is not offered again. */
+  task_id: z.uuid().nullable(),
   /** The task this Discussion is about (M5, 4.31): its live title and
    * status, for the small link under the title. Null when it is about no
    * task, or its task is trashed, purged, or no longer in this Folder. */

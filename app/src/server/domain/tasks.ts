@@ -61,6 +61,7 @@ import type { ObjectStore } from '../files/store.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import { UNSTARTED_TASK_THREAD } from './consultation.js'
 import { carryTaskFilesOnMove } from './files.js'
 import { mayPerform, presetOf } from './folder-access.js'
 import type {
@@ -376,7 +377,8 @@ export async function taskView(
                t.section_block_id,
                (SELECT d.id FROM discussions d
                  WHERE d.task_id = t.id AND d.folder_id = t.folder_id
-                   AND d.trashed_at IS NULL) AS discussion_id
+                   AND d.trashed_at IS NULL
+                   AND NOT ${UNSTARTED_TASK_THREAD}) AS discussion_id
         FROM tasks t
         JOIN folder_members m
           ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}

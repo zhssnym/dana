@@ -53,6 +53,15 @@ const ids = {
   file: '40000000-0000-4000-8000-000000000001',
   event: '50000000-0000-4000-8000-000000000001',
   generalDiscussion: '60000000-0000-4000-8000-000000000001',
+  desk: '10000000-0000-4000-8000-000000000002',
+  onDesk: '20000000-0000-4000-8000-000000000006',
+  done: '20000000-0000-4000-8000-000000000007',
+  converted: '20000000-0000-4000-8000-000000000008',
+  deskNote: '30000000-0000-4000-8000-000000000008',
+  onDone: '30000000-0000-4000-8000-000000000009',
+  convertedPost: '30000000-0000-4000-8000-00000000000a',
+  onConverted: '30000000-0000-4000-8000-00000000000b',
+  photographer: '60000000-0000-4000-8000-000000000002',
 }
 
 const longTitle = 'x'.repeat(300)
@@ -113,17 +122,31 @@ beforeAll(async () => {
       (${ids.owner}::uuid, 'Owner'), (${ids.member}::uuid, 'Member')`)
   await db.execute(sql`
     INSERT INTO folders (id, owner_id, name, is_default) VALUES
-      (${ids.folder}::uuid, ${ids.owner}::uuid, 'Trip', false)`)
+      (${ids.folder}::uuid, ${ids.owner}::uuid, 'Trip', false),
+      (${ids.desk}::uuid, ${ids.owner}::uuid, 'Desk', true)`)
+  await db.execute(sql`
+    INSERT INTO folder_members (folder_id, user_id) VALUES
+      (${ids.folder}::uuid, ${ids.owner}::uuid), (${ids.folder}::uuid, ${ids.member}::uuid),
+      (${ids.desk}::uuid, ${ids.owner}::uuid)`)
   await db.execute(sql`
     INSERT INTO tasks (id, folder_id, title, created_by, deleted_at) VALUES
       (${ids.live}::uuid, ${ids.folder}::uuid, '  Book the van ', ${ids.owner}::uuid, NULL),
       (${ids.trashed}::uuid, ${ids.folder}::uuid, 'Old idea', ${ids.owner}::uuid, '2026-06-01 00:00:00+00'),
       (${ids.quiet}::uuid, ${ids.folder}::uuid, 'Nobody spoke', ${ids.owner}::uuid, NULL),
       (${ids.blank}::uuid, ${ids.folder}::uuid, '   ', ${ids.owner}::uuid, NULL),
-      (${ids.long}::uuid, ${ids.folder}::uuid, ${longTitle}, ${ids.owner}::uuid, NULL)`)
+      (${ids.long}::uuid, ${ids.folder}::uuid, ${longTitle}, ${ids.owner}::uuid, NULL),
+      (${ids.onDesk}::uuid, ${ids.desk}::uuid, 'Call the dentist back', ${ids.owner}::uuid, NULL),
+      (${ids.converted}::uuid, ${ids.folder}::uuid, 'Photographer?', ${ids.owner}::uuid, NULL)`)
+  await db.execute(sql`
+    INSERT INTO tasks (id, folder_id, title, created_by, status, completed_at, completed_by) VALUES
+      (${ids.done}::uuid, ${ids.folder}::uuid, 'Pack', ${ids.owner}::uuid, 'completed', '2026-05-05 00:00:00+00', ${ids.owner}::uuid)`)
   await db.execute(sql`
     INSERT INTO discussions (id, folder_id, title, created_by, is_general) VALUES
       (${ids.generalDiscussion}::uuid, ${ids.folder}::uuid, 'General discussion', ${ids.owner}::uuid, true)`)
+  await db.execute(sql`
+    INSERT INTO discussions (id, folder_id, title, created_by, created_at, last_activity_at) VALUES
+      (${ids.photographer}::uuid, ${ids.folder}::uuid, 'Photographer?', ${ids.owner}::uuid,
+       '2026-03-04 00:00:00+00', '2026-03-05 00:00:00+00')`)
   await db.execute(sql`
     INSERT INTO comments (id, folder_id, task_id, discussion_id, parent_id, author_id, body, content, created_at, edited_at) VALUES
       (${ids.root}::uuid, ${ids.folder}::uuid, ${ids.live}::uuid, NULL, NULL, ${ids.member}::uuid,
@@ -140,7 +163,16 @@ beforeAll(async () => {
       (${ids.onLong}::uuid, ${ids.folder}::uuid, ${ids.long}::uuid, NULL, NULL, ${ids.member}::uuid,
        'long', NULL, '2026-04-03 00:00:00+00', NULL),
       (${ids.general}::uuid, ${ids.folder}::uuid, NULL, ${ids.generalDiscussion}::uuid, NULL, ${ids.owner}::uuid,
-       'page talk', NULL, '2026-03-01 00:00:00+00', NULL)`)
+       'page talk', NULL, '2026-03-01 00:00:00+00', NULL),
+      (${ids.deskNote}::uuid, ${ids.desk}::uuid, ${ids.onDesk}::uuid, NULL, NULL, ${ids.owner}::uuid,
+       'their number is on the card', NULL, '2026-04-04 00:00:00+00', NULL),
+      (${ids.onDone}::uuid, ${ids.folder}::uuid, ${ids.done}::uuid, NULL, NULL, ${ids.member}::uuid,
+       'packed', NULL, '2026-04-05 00:00:00+00', NULL),
+      (${ids.convertedPost}::uuid, ${ids.folder}::uuid, NULL, ${ids.photographer}::uuid, NULL, ${ids.owner}::uuid,
+       NULL, ${JSON.stringify({ version: 1, blocks: [{ kind: 'paragraph', rich_content: { version: 1, runs: [{ text: 'Turned into a task: ' }, { text: 'Photographer?', href: `/app/tasks/${ids.converted}` }] } }] })}::jsonb,
+       '2026-03-05 00:00:00+00', NULL),
+      (${ids.onConverted}::uuid, ${ids.folder}::uuid, ${ids.converted}::uuid, NULL, NULL, ${ids.member}::uuid,
+       'Ana can do it', NULL, '2026-03-06 00:00:00+00', NULL)`)
   await db.execute(sql`
     INSERT INTO comment_likes (comment_id, user_id) VALUES
       (${ids.root}::uuid, ${ids.owner}::uuid), (${ids.reply}::uuid, ${ids.member}::uuid)`)
@@ -196,6 +228,8 @@ describe('AC-1510 migration 0059 moves task threads into linked Discussions', ()
         trashed_at: null,
       },
       {
+        // A trashed task's talk is live, so it cannot be purged with the
+        // task or stranded beside a second thread after a restore.
         task_id: ids.trashed,
         folder_id: ids.folder,
         title: 'Old idea',
@@ -204,7 +238,7 @@ describe('AC-1510 migration 0059 moves task threads into linked Discussions', ()
         is_general: false,
         created_at: '2026-04-01 00:00:00',
         last_activity_at: '2026-04-01 00:00:00',
-        trashed_at: '2026-06-01 00:00:00',
+        trashed_at: null,
       },
       {
         task_id: ids.blank,
@@ -228,7 +262,51 @@ describe('AC-1510 migration 0059 moves task threads into linked Discussions', ()
         last_activity_at: '2026-04-03 00:00:00',
         trashed_at: null,
       },
+      {
+        task_id: ids.onDesk,
+        folder_id: ids.desk,
+        title: 'Call the dentist back',
+        created_by: ids.owner,
+        state: 'open',
+        is_general: false,
+        created_at: '2026-04-04 00:00:00',
+        last_activity_at: '2026-04-04 00:00:00',
+        trashed_at: null,
+      },
+      {
+        task_id: ids.done,
+        folder_id: ids.folder,
+        title: 'Pack',
+        created_by: ids.member,
+        state: 'resolved',
+        is_general: false,
+        created_at: '2026-04-05 00:00:00',
+        last_activity_at: '2026-04-05 00:00:00',
+        trashed_at: null,
+      },
+      {
+        // Converted before M5: the old thread is linked, not a new one made.
+        task_id: ids.converted,
+        folder_id: ids.folder,
+        title: 'Photographer?',
+        created_by: ids.owner,
+        state: 'open',
+        is_general: false,
+        created_at: '2026-03-04 00:00:00',
+        last_activity_at: '2026-03-06 00:00:00',
+        trashed_at: null,
+      },
     ])
+    expect(
+      await rows(db, sql`SELECT task_id FROM discussions WHERE id = ${ids.photographer}::uuid`),
+    ).toEqual([{ task_id: ids.converted }])
+    expect(
+      await rows(
+        db,
+        sql`SELECT (resolved_at AT TIME ZONE 'UTC')::text AS resolved_at, resolved_by, current_outcome_id
+              FROM discussions WHERE task_id = ${ids.done}::uuid`,
+      ),
+    ).toEqual([{ resolved_at: '2026-04-05 00:00:00', resolved_by: null, current_outcome_id: null }])
   })
 
   test('every task comment sits in its task\'s Discussion; the General one is untouched', async () => {
@@ -246,7 +324,14 @@ describe('AC-1510 migration 0059 moves task threads into linked Discussions', ()
       { id: ids.onBlank, task_id: null, discussion_task: ids.blank, is_general: false },
       { id: ids.onLong, task_id: null, discussion_task: ids.long, is_general: false },
       { id: ids.general, task_id: null, discussion_task: null, is_general: true },
+      { id: ids.deskNote, task_id: null, discussion_task: ids.onDesk, is_general: false },
+      { id: ids.onDone, task_id: null, discussion_task: ids.done, is_general: false },
+      { id: ids.convertedPost, task_id: null, discussion_task: ids.converted, is_general: false },
+      { id: ids.onConverted, task_id: null, discussion_task: ids.converted, is_general: false },
     ])
+    expect(
+      await rows(db, sql`SELECT discussion_id FROM comments WHERE id = ${ids.onConverted}::uuid`),
+    ).toEqual([{ discussion_id: ids.photographer }])
   })
 
   test('authors, words, times, replies, likes, files, mentions and notifications are unchanged', async () => {
@@ -268,14 +353,29 @@ describe('AC-1510 migration 0059 moves task threads into linked Discussions', ()
     ).toEqual([{ task_id: ids.live }])
   })
 
-  test('whoever had read the task thread has read its Discussion', async () => {
+  test('whoever had read the task thread keeps that read; every other member has read it to its last post', async () => {
     expect(
       await rows(
         db,
         sql`SELECT d.task_id, r.user_id, (r.read_at AT TIME ZONE 'UTC')::text AS read_at
-              FROM discussion_reads r JOIN discussions d ON d.id = r.discussion_id`,
+              FROM discussion_reads r JOIN discussions d ON d.id = r.discussion_id
+             ORDER BY d.task_id, r.user_id`,
       ),
-    ).toEqual([{ task_id: ids.live, user_id: ids.member, read_at: '2026-05-02 12:00:00' }])
+    ).toEqual([
+      { task_id: ids.live, user_id: ids.owner, read_at: '2026-05-03 09:30:00.654321' },
+      { task_id: ids.live, user_id: ids.member, read_at: '2026-05-02 12:00:00' },
+      { task_id: ids.trashed, user_id: ids.owner, read_at: '2026-04-01 00:00:00' },
+      { task_id: ids.trashed, user_id: ids.member, read_at: '2026-04-01 00:00:00' },
+      { task_id: ids.blank, user_id: ids.owner, read_at: '2026-04-02 00:00:00' },
+      { task_id: ids.blank, user_id: ids.member, read_at: '2026-04-02 00:00:00' },
+      { task_id: ids.long, user_id: ids.owner, read_at: '2026-04-03 00:00:00' },
+      { task_id: ids.long, user_id: ids.member, read_at: '2026-04-03 00:00:00' },
+      { task_id: ids.onDesk, user_id: ids.owner, read_at: '2026-04-04 00:00:00' },
+      { task_id: ids.done, user_id: ids.owner, read_at: '2026-04-05 00:00:00' },
+      { task_id: ids.done, user_id: ids.member, read_at: '2026-04-05 00:00:00' },
+      { task_id: ids.converted, user_id: ids.owner, read_at: '2026-03-06 00:00:00' },
+      { task_id: ids.converted, user_id: ids.member, read_at: '2026-03-06 00:00:00' },
+    ])
   })
 
   test('a task-scoped comment is refused, and a task has one live Discussion', async () => {

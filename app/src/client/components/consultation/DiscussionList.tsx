@@ -274,18 +274,10 @@ function ThreadRow({
         <span className="flex size-[var(--control-height)] items-center justify-center">{mark}</span>
       )}
       <span className="flex min-w-0 items-baseline gap-2">
-        <span
-          title={d.title}
-          className={cn(
-            'max-w-full min-w-0 shrink-0 truncate',
-            isOpen ? 'text-foreground' : 'text-muted-foreground',
-            fresh ? 'font-title' : 'font-normal',
-          )}
-        >
-          {d.title}
-        </span>
         {d.task !== null ? (
-          /* The task this thread is about (M5): its state, linking to it. */
+          /* The task this thread is about (M5), first so it reads as the
+             row's kind and is never pushed under the faces on a phone: its
+             state mark, linking to it. */
           <Link
             to={paths.task(d.task.id)}
             title={`Task: ${d.task.title}`}
@@ -295,6 +287,16 @@ function ThreadRow({
             <StateMark state={taskState(d.task)} className="size-3.5" />
           </Link>
         ) : null}
+        <span
+          title={d.title}
+          className={cn(
+            'min-w-0 truncate',
+            isOpen ? 'text-foreground' : 'text-muted-foreground',
+            fresh ? 'font-title' : 'font-normal',
+          )}
+        >
+          {d.title}
+        </span>
         {isOpen && last !== null ? (
           <span className="min-w-0 flex-1 truncate text-muted-foreground max-md:hidden">
             {last.author_id === viewerId ? 'You' : personOf(last.author_id).name}: {last.preview}
