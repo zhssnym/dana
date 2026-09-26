@@ -3,8 +3,21 @@ One thread, as its own page (W-C; #212, #320; r4, r9). The top bar's
 breadcrumb names it and its page crumb returns to the list, and the page's
 own head and tabs step aside. Its head is the page head's: the status (an
 outline bubble while open, the accent check once resolved) and the 28px
-title on the left; "Resolve" or "Reopen" and the "…" menu (Rename, Move to
-Trash) on the right. It says nothing the posts already show.
+title on the left; "Turn into a task", "Resolve" or "Reopen" and the "…"
+menu (Rename, Move to Trash) on the right. It says nothing the posts already
+show.
+
+"Turn into a task" is an open thread's main act (M4 §4.4): talk that has
+found its task ends there. One press creates the task, titled as the thread,
+at the foot of the page's Work (`POST /tasks` appends a folder's new task to
+its composed page), posts one line in the thread linking to it, and resolves
+the thread without a decision. The three are separate writes, in that order,
+because each has its own route: a failure stops the chain where it failed
+and the steps already taken stay (a task with no link post yet, or a linked
+thread still open), each visible where it landed. There is no Undo of the
+whole act: the thread's own Reopen and the task's own delete undo each half,
+and deleting the task later leaves the thread resolved with its link, which
+is intended: the talk did end in a task.
 
 The thread fills the window: the posts sit at the bottom just above the
 composer, the history scrolls in its own region, and the composer stays at
@@ -43,14 +56,17 @@ import {
   useTrashFromThread,
   useUpdateDiscussion,
 } from '../../api/consultation.js'
+import { useCreateTask } from '../../api/mutations.js'
 import { ApiError } from '../../api/http.js'
 import { formatDate } from '../../lib/dates.js'
-import { folderGates } from '../../lib/folder-authority.js'
+import { folderGates, mayDraw } from '../../lib/folder-authority.js'
 import { MoreHorizontal } from '../../lib/icons.js'
 import type { PersonResolver, ThreadAuthority } from '../../lib/thread.js'
 import { pushUndo, undoLabel } from '../../shell/undo.js'
 import { DISCUSSION_TITLE_MAX, OUTCOME_STATEMENT_MAX } from '../../../shared/consultation.js'
 import type { Discussion } from '../../../shared/consultation.js'
+import type { PostContent } from '../../../shared/comments.js'
+import { TASK_TITLE_LIMIT } from '../../../shared/tasks.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
 import { localDay } from '../thread/grouping.js'
 import { ThreadPosts } from '../thread/ThreadPosts.js'
@@ -107,6 +123,9 @@ function ThreadBody(props: {
   const restore = useRestoreDiscussion()
   const postComment = usePostDiscussionComment()
   const markRead = useMarkDiscussionRead()
+  const createTask = useCreateTask()
+  const resolve = useResolveDiscussion()
+  const [turning, setTurning] = useState(false)
   const [closing, setClosing] = useState(false)
   const [box, height] = useFillHeight()
   const [renaming, setRenaming] = useState(false)
@@ -166,9 +185,27 @@ function ThreadBody(props: {
   const trashed = d.trashed_at !== null
   const trashable = powers.trash && !d.is_general
   const resolvable = powers.resolve && d.state === 'open' && !trashed
+  /* It writes three things, so it is drawn only for someone who may write
+     all three: resolve this thread, post in it, and create a task here. */
+  const convertible =
+    resolvable && may.createComment && viewer !== null && mayDraw(viewer.facts, 'task.create')
 
   const refused = (error: unknown): void => {
     if (error instanceof ApiError && (error.status === 403 || error.status === 409)) onRefused()
+  }
+
+  const turnIntoTask = async (): Promise<void> => {
+    if (turning) return
+    setTurning(true)
+    try {
+      const task = await createTask.mutateAsync({ title: d.title.slice(0, TASK_TITLE_LIMIT), folder_id: folderId })
+      await postComment.mutateAsync({ discussionId: d.id, body: { content: taskLinkPost(task.id, task.title) } })
+      await resolve.mutateAsync({ id: d.id, body: {} })
+    } catch (error) {
+      refused(error)
+    } finally {
+      setTurning(false)
+    }
   }
 
   const moveToTrash = (): void => {
@@ -202,7 +239,7 @@ function ThreadBody(props: {
     >
       {/* The page head's geometry: the status where a page's mark sits, the
           28px title beside it, the acts on the right. */}
-      <header className="flex min-w-0 shrink-0 items-center gap-1 pt-4 max-md:pt-2">
+      <header className="flex min-w-0 shrink-0 items-center gap-1 pt-4 max-md:flex-wrap max-md:pt-2">
         <span role="img" aria-label={trashed ? 'In Trash' : resolved ? 'Resolved' : 'Open'} className="flex size-8 shrink-0 items-center justify-center">
           {resolved ? <ResolvedMark /> : <OpenMark />}
         </span>
@@ -211,9 +248,14 @@ function ThreadBody(props: {
         ) : (
           <h1 data-page-title="" className="min-w-0 flex-1 truncate text-[length:var(--text-title-size)] leading-8 font-title text-foreground max-md:line-clamp-2 max-md:whitespace-normal">{d.title}</h1>
         )}
-        <div className="ml-auto flex shrink-0 items-center gap-1">
+        {/* On a phone the acts take their own line under the title, so the
+            title is never squeezed to a few letters. */}
+        <div className="ml-auto flex shrink-0 items-center gap-1 max-md:ml-0 max-md:w-full max-md:pl-8">
+          {convertible && !closing ? (
+            <Button type="button" disabled={turning} onClick={() => void turnIntoTask()}>Turn into a task</Button>
+          ) : null}
           {resolvable && !closing ? (
-            <Button type="button" variant="ghost" onClick={() => { setClosing(true) }}>Resolve</Button>
+            <Button type="button" variant="ghost" disabled={turning} onClick={() => { setClosing(true) }}>Resolve</Button>
           ) : null}
           {resolved && powers.reopen && !trashed ? (
             <Button type="button" variant="ghost" disabled={reopen.isPending} onClick={() => { reopen.mutate(d.id) }}>Reopen</Button>
@@ -271,6 +313,18 @@ function ThreadBody(props: {
       />
     </div>
   )
+}
+
+/** The thread's last post once it becomes a task: one line, the task's
+ * title linking to its page. */
+function taskLinkPost(taskId: string, title: string): PostContent {
+  return {
+    version: 1,
+    blocks: [{
+      kind: 'paragraph',
+      rich_content: { version: 1, runs: [{ text: 'Turned into a task: ' }, { text: title, href: `/app/tasks/${taskId}` }] },
+    }],
+  }
 }
 
 /** Escape goes back to the list unless something nearer wants it: a field's
