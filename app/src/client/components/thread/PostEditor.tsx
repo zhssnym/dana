@@ -21,6 +21,8 @@ in a list item or a code block, when the key came from outside this editor
 device, where Enter is a newline and the Send button sends. Editing a post
 (`initial` given) keeps the editor's keys: Enter makes a new block and Esc
 cancels. Ctrl/Cmd+Enter always sends or saves.
+A new post with its own button row (`renderActions`, the issue page) keeps
+GitHub's keys instead: Enter is a new line and Ctrl/Cmd+Enter comments.
 
 Default export: `React.lazy` keeps BlockNote out of the page's own chunk.
 */
@@ -79,6 +81,13 @@ export interface PostEditorProps {
   readonly onSubmit: (content: PostContent) => Promise<unknown>
   readonly onCancel?: () => void
   readonly label?: string
+  /**
+   * A new post's own button row, drawn under the editor in place of the
+   * inline Send (the issue page's "Close issue" and "Comment"). `submit`
+   * is the one send path, and resolves once the post is on the server or
+   * refused.
+   */
+  readonly renderActions?: (api: { readonly submit: () => Promise<boolean>; readonly empty: boolean; readonly busy: boolean }) => React.ReactNode
 }
 
 export default function PostEditor({
@@ -91,6 +100,7 @@ export default function PostEditor({
   onSubmit,
   onCancel,
   label = 'Write a post',
+  renderActions,
 }: PostEditorProps): React.JSX.Element {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -149,12 +159,12 @@ export default function PostEditor({
     }
   }
 
-  async function submit(): Promise<void> {
+  async function submit(): Promise<boolean> {
     /* A second Enter while a post is on its way sends too (the first one's
        words have already left the editor); only an edit waits. */
-    if (busy && editing) return
+    if (busy && editing) return false
     const content = read()
-    if (content === null) return
+    if (content === null) return false
     setBusy(true)
     setError('')
     /* A new post leaves the composer the moment it is sent, as in Slack, so
@@ -167,6 +177,7 @@ export default function PostEditor({
     }
     try {
       await onSubmit(content)
+      return true
     } catch (failure) {
       if (sent !== null) {
         const first = editor.document[0]
@@ -175,6 +186,7 @@ export default function PostEditor({
         setEmpty(false)
       }
       setError(failure instanceof Error ? failure.message : 'Not posted. Try again.')
+      return false
     } finally {
       setBusy(false)
     }
@@ -182,7 +194,7 @@ export default function PostEditor({
 
   /** Enter on a new post sends, unless the editor needs that Enter. */
   function enterSends(event: React.KeyboardEvent<HTMLDivElement>): boolean {
-    if (editing || coarse) return false
+    if (editing || coarse || renderActions !== undefined) return false
     if (event.shiftKey || event.altKey || event.nativeEvent.isComposing || event.keyCode === 229) return false
     const own = host.current?.querySelector('.ProseMirror')
     if (!(event.target instanceof Node) || own == null || !own.contains(event.target)) return false
@@ -222,11 +234,23 @@ export default function PostEditor({
         className={cn(
           'min-w-0 rounded-lg border border-border bg-background focus-within:border-quiet-foreground',
           /* A new post's Send sits at the end of the writing, not on a row of its own. */
-          !editing && 'flex items-end gap-1 pr-1',
+          !editing && renderActions === undefined && 'flex items-end gap-1 pr-1',
         )}
       >
         {/* The padding lives here: canvas.css zeroes the canvas's own left padding on phones. */}
-        <div className={cn('min-w-0 px-3', editing ? 'pt-2' : 'flex-1 py-1.5')}>
+        <div
+          className={cn('min-w-0 px-3', editing ? 'pt-2' : renderActions === undefined ? 'flex-1 py-1.5' : 'min-h-24 cursor-text py-2')}
+          /* The issue composer's box is taller than its one line: a click anywhere in it writes. */
+          onMouseDown={
+            renderActions === undefined
+              ? undefined
+              : (event) => {
+                  if (event.target instanceof Element && event.target.closest('.ProseMirror') !== null) return
+                  event.preventDefault()
+                  editor.focus()
+                }
+          }
+        >
           <div
             className="dana-writing-canvas dana-post-editor max-h-[60vh] min-w-0 overflow-y-auto"
             /* BlockNote's placeholder never reaches the canvas paragraph; canvas.css draws this one. */
@@ -274,7 +298,7 @@ export default function PostEditor({
               {submitLabel}
             </Button>
           </div>
-        ) : (
+        ) : renderActions !== undefined ? null : (
           <div className="shrink-0 py-1">
             <Button
               type="button"
@@ -293,6 +317,7 @@ export default function PostEditor({
         )}
       </div>
       {!editing && error !== '' ? <p role="alert" className="mt-1 px-1 text-xs text-destructive">{error}</p> : null}
+      {!editing && renderActions !== undefined ? renderActions({ submit, empty, busy }) : null}
     </div>
   )
 }

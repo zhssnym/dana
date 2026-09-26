@@ -472,6 +472,9 @@ export function FolderPage({
       next.delete('discussion')
       next.delete('outcome')
       next.delete('result')
+      /* An open issue page too: the Work tab is GitHub's Issues tab, the way
+         back to the list from a shared or reloaded ?issue= link. */
+      next.delete('issue')
       return next
     }, { replace: true })
   }, [setSearch])

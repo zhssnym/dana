@@ -80,6 +80,7 @@ import type {
 } from '../../shared/labels.js'
 import { idSet, inTransaction, pairSet, rowsOf } from '../database.js'
 import type { Executor, IdPair } from '../database.js'
+import { recordEvent } from './events.js'
 import { folderActorFacts, mayPerform } from './folder-access.js'
 import type { FolderAction } from './folder-access.js'
 
@@ -853,11 +854,16 @@ export async function attachTaskLabel(
     if (Number(held[0]?.n ?? 0) >= TASK_FOLDER_LABEL_CAP) {
       return { kind: 'assignment_cap' }
     }
-    await tx.execute(
+    const added = await rowsOf(
+      tx,
       sql`INSERT INTO task_folder_labels (folder_id, task_id, label_id)
           VALUES (${taskFolderId}::uuid, ${taskId}::uuid, ${labelId}::uuid)
-          ON CONFLICT DO NOTHING`,
+          ON CONFLICT DO NOTHING
+          RETURNING label_id`,
     )
+    if (added.length > 0) {
+      await recordLabelEvent(tx, viewerId, taskId, taskFolderId, labelId, 'added')
+    }
     return { kind: 'attached' }
   })
 }
@@ -915,12 +921,57 @@ export async function detachTaskLabel(
               AND owner_user_id = ${viewerId}`,
       )
     } else {
-      await tx.execute(
+      const removed = await rowsOf(
+        tx,
         sql`DELETE FROM task_folder_labels
-            WHERE task_id = ${taskId} AND label_id = ${labelId}`,
+            WHERE task_id = ${taskId} AND label_id = ${labelId}
+            RETURNING label_id`,
       )
+      if (removed.length > 0) {
+        await recordLabelEvent(
+          tx,
+          viewerId,
+          taskId,
+          String(task.folder_id),
+          labelId,
+          'removed',
+        )
+      }
     }
     return { kind: 'detached' }
+  })
+}
+
+/*
+A Folder Label put on or taken off a Task is an event of that Task, so the
+issue timeline can say "added bug" (m3 issue page). Only Folder Labels: a
+Personal Label is its owner's private classification, and an event would show
+it to every member. Only a real change records, so a repeated PUT or DELETE
+adds no second row. The verb is 'edited' with the act in the detail, because
+4.13's verb list is a CHECK constraint.
+*/
+async function recordLabelEvent(
+  tx: Executor,
+  viewerId: string,
+  taskId: string,
+  folderId: string,
+  labelId: string,
+  act: 'added' | 'removed',
+): Promise<void> {
+  const names = await rowsOf(
+    tx,
+    sql`SELECT (SELECT title FROM tasks WHERE id = ${taskId}::uuid) AS task,
+               (SELECT name FROM labels WHERE id = ${labelId}::uuid) AS label`,
+  )
+  const row = names[0]
+  await recordEvent(tx, {
+    actorId: viewerId,
+    verb: 'edited',
+    subjectKind: 'task',
+    subjectId: taskId,
+    subjectName: String(row?.task ?? ''),
+    folderId,
+    detail: `${act} the label '${String(row?.label ?? '')}'`,
   })
 }
 

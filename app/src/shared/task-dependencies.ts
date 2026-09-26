@@ -96,6 +96,9 @@ export interface TaskDependencyEdge {
   task: DependencyTaskSummary | null
   state: DependencyState
   created_at: string
+  /** Who made the edge, for the issue timeline's "Maya marked this as
+   * blocked by"; null once that person's account is gone. */
+  created_by: string | null
 }
 
 /** What `GET /tasks/:id/dependencies` answers: the two projections of one
@@ -122,6 +125,7 @@ export const taskDependencyEdge = z.object({
     .nullable(),
   state: z.enum(['active', 'satisfied', 'unresolved', 'unknown']),
   created_at: z.string(),
+  created_by: z.string().nullable(),
 })
 
 export const getTaskDependenciesResponse = z.object({

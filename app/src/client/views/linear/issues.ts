@@ -4,7 +4,7 @@ issue page share. A task is an issue; pending is Open, completed is Closed as
 completed, abandoned is Closed as not planned. A section is a milestone.
 See scratchpad m2/ghissues/DESIGN.md.
 */
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { commentCountsResponse } from '../../../shared/comments.js'
@@ -122,5 +122,8 @@ export function usePeople(folderId: string | null): (id: string | null | undefin
     for (const connection of connections.data ?? []) add(connection.user)
     return map
   }, [connections.data, me.data?.user, members])
-  return (id) => (id == null ? undefined : people.get(id)) ?? personDisplay({ display_name: null })
+  return useCallback(
+    (id: string | null | undefined) => (id == null ? undefined : people.get(id)) ?? personDisplay({ display_name: null }),
+    [people],
+  )
 }

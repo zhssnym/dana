@@ -187,13 +187,6 @@ export function LinearView(props: {
       return next
     })
   }
-  const closeIssue = (): void => {
-    setSearch((current) => {
-      const next = new URLSearchParams(current)
-      next.delete('issue')
-      return next
-    })
-  }
 
   /* The scroll before the first paint; the focus after the row keys have
      attached to the list that just mounted (a child's effects run first), so
@@ -406,7 +399,6 @@ export function LinearView(props: {
         page={page}
         today={today}
         actions={actions}
-        onBack={closeIssue}
       />
     )
   }
