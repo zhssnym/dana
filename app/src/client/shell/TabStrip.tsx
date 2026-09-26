@@ -5,15 +5,16 @@ This is intentionally separate from a Folder's Purpose / Work / Results /
 Discussion tabs. Those change the view inside one page; these tabs remember
 which Dana places are open. The sidebar still answers where things live.
 
-The + is an open-place search, not a creation menu. It only adds a place to
-the working set; making folders, collections and tasks stays with the controls
-that already own those actions in the Quiet shell.
+The + is an open-place search, not a creation menu. It reuses Dana's search
+answer so a person can open a Page, Collection or Task without restoring the
+old New folder / New shelf / New task menu.
 */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 
 import { useBundle, useFolders, useShelves } from '../api/queries.js'
 import { Plus, Search, X } from '../lib/icons.js'
+import { SHORTCUTS_RESULT, useSearchAnswer, type SearchAnswer } from '../lib/search-items.js'
 import { useSortableList } from '../lib/use-sortable-list.js'
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover.js'
 import { navPages, paths } from '../routes.js'
@@ -33,6 +34,9 @@ import {
 
 const NO_FOLDERS: readonly Folder[] = []
 const NO_SHELVES: readonly Shelf[] = []
+const SEARCH_DEBOUNCE_MS = 150
+
+type SearchItem = SearchAnswer['results'][number]
 
 interface OpenPlace {
   readonly path: string
@@ -66,27 +70,69 @@ function titleFor(path: string, folders: readonly Folder[], shelves: readonly Sh
   return 'Dana'
 }
 
+function searchPlace(item: SearchItem): OpenPlace | null {
+  if (item.id === SHORTCUTS_RESULT) return null
+  switch (item.kind) {
+    case 'task':
+      return {
+        path: paths.task(item.id),
+        label: item.title,
+        hint: item.hint ? `Task · ${item.hint}` : 'Task',
+      }
+    case 'folder':
+      return { path: paths.folder(item.id), label: item.title, hint: 'Page' }
+    case 'shelf':
+      return { path: paths.shelf(item.id), label: item.title, hint: 'Collection' }
+    case 'page':
+      return { path: item.id, label: item.title, hint: item.passage ? item.hint ?? 'In page' : 'Place' }
+  }
+}
+
+function uniquePlaces(places: readonly OpenPlace[]): OpenPlace[] {
+  const seen = new Set<string>()
+  return places.filter((place) => {
+    if (seen.has(place.path)) return false
+    seen.add(place.path)
+    return true
+  })
+}
+
 function OpenPlacePicker({ places, onPick }: {
   readonly places: readonly OpenPlace[]
   readonly onPick: (path: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [active, setActive] = useState(0)
   const input = useRef<HTMLInputElement>(null)
+  const answer = useSearchAnswer(debouncedQuery, open)
+
+  useEffect(() => {
+    if (!open) return undefined
+    const trimmed = query.trim()
+    if (trimmed === debouncedQuery) return undefined
+    const timer = window.setTimeout(() => setDebouncedQuery(trimmed), SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timer)
+  }, [debouncedQuery, open, query])
 
   const shown = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    if (needle === '') return places
-    return places.filter((place) =>
-      `${place.label} ${place.hint}`.toLowerCase().includes(needle),
+    const needle = debouncedQuery.toLocaleLowerCase()
+    if (needle === '') return [...places]
+    const local = places.filter((place) =>
+      `${place.label} ${place.hint}`.toLocaleLowerCase().includes(needle),
     )
-  }, [places, query])
+    const searched = answer.results
+      .map(searchPlace)
+      .filter((place): place is OpenPlace => place !== null)
+    return uniquePlaces([...searched, ...local])
+  }, [answer.results, debouncedQuery, places])
 
   function changeOpen(next: boolean): void {
     setOpen(next)
     if (next) {
       setQuery('')
+      setDebouncedQuery('')
       setActive(0)
     }
   }
@@ -130,22 +176,18 @@ function OpenPlacePicker({ places, onPick }: {
       <PopoverTrigger
         aria-label="Open tab"
         title="Open tab"
-        className="flex h-full w-8 shrink-0 items-center justify-center text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className="flex h-full w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
         <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
       </PopoverTrigger>
-      <PopoverContent
-        initialFocus={input}
-        align="start"
-        className="flex w-72 flex-col p-1"
-      >
+      <PopoverContent initialFocus={input} align="start" className="flex w-80 flex-col p-1">
         <div className="flex items-center gap-2 border-b border-border px-2 pb-1">
           <Search className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
           <input
             ref={input}
             value={query}
             placeholder="Open a tab"
-            aria-label="Search places"
+            aria-label="Search Dana to open a tab"
             aria-controls="dana-open-tab-results"
             aria-activedescendant={shown[active] === undefined ? undefined : `dana-open-tab-${String(active)}`}
             autoComplete="off"
@@ -161,10 +203,14 @@ function OpenPlacePicker({ places, onPick }: {
         <div
           id="dana-open-tab-results"
           role="listbox"
-          aria-label="Places"
+          aria-label="Places to open"
           className="max-h-72 overflow-y-auto pt-1"
         >
-          {shown.length === 0 ? (
+          {answer.pending && shown.length === 0 ? (
+            <p className="px-2 py-1.5 text-sm text-muted-foreground">Searching…</p>
+          ) : answer.failed && shown.length === 0 ? (
+            <p className="px-2 py-1.5 text-sm text-muted-foreground">Search failed. Try again.</p>
+          ) : shown.length === 0 ? (
             <p className="px-2 py-1.5 text-sm text-muted-foreground">No places found</p>
           ) : (
             shown.map((place, index) => (
@@ -178,12 +224,12 @@ function OpenPlacePicker({ places, onPick }: {
                 onMouseDown={(event) => event.preventDefault()}
                 onMouseMove={() => setActive(index)}
                 onClick={() => pick(place)}
-                className={`flex h-[var(--control-height)] w-full items-center gap-2 rounded-md px-2 text-left text-sm font-normal text-foreground outline-none ${
+                className={`flex h-[var(--control-height)] w-full items-center gap-2 rounded-md px-2 text-left text-sm font-normal text-foreground ${
                   index === active ? 'bg-accent' : ''
                 }`}
               >
                 <span className="min-w-0 flex-1 truncate">{place.label}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">{place.hint}</span>
+                <span className="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground">{place.hint}</span>
               </button>
             ))
           )}
@@ -351,7 +397,7 @@ export function TabStrip() {
                       zIndex: state.isActive ? 30 : undefined,
                     }),
               }}
-              className={`group/tab relative flex w-52 min-w-32 max-w-52 cursor-default items-center self-stretch px-3 pr-7 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
+              className={`group/tab relative flex w-52 min-w-32 max-w-52 cursor-default items-center self-stretch px-3 pr-7 text-left text-sm transition-colors ${
                 active
                   ? 'bg-background font-medium text-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground'
@@ -363,7 +409,7 @@ export function TabStrip() {
                   type="button"
                   aria-label="Close tab"
                   onClick={() => close(tab.id)}
-                  className="absolute right-1 flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 outline-none transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/tab:opacity-100 group-focus-within/tab:opacity-100"
+                  className="absolute right-1 flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/tab:opacity-100 group-focus-within/tab:opacity-100"
                 >
                   <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
                 </button>
