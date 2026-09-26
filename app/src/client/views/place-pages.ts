@@ -23,7 +23,6 @@ export type PlaceKey =
   | 'today'
   | 'scheduled'
   | 'assignments'
-  | 'folder'
   | 'focus'
 
 /** Where a page's always-visible capture point is, or that it has none. */
@@ -112,28 +111,6 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     capture: 'inline',
     boardAxis: 'person',
     ownOrder: 'Default',
-  },
-  /*
-  The folder page. Its name, path and capture are placeholders: it draws its own
-  head, its address carries an id, and it supplies its own capture. It never
-  groups by folder, and its board's columns are its sections.
-  */
-  folder: {
-    key: 'folder',
-    name: 'Page',
-    path: '',
-    icon: Layers3,
-    /* A page picks Linear, Board or Freeform with its own switcher and its
-       own stored choice (`useFolderView`), never this layout (round 5). */
-    views: ['list'],
-    groups: [
-      { value: 'none', label: 'None' },
-      { value: 'person', label: 'Person' },
-      { value: 'date', label: 'Date' },
-    ],
-    completed: true,
-    capture: 'inline',
-    boardAxis: 'section',
   },
   /*
   A Focus list the viewer added (round 8). Its name and path are each list's
@@ -228,7 +205,6 @@ function placeDefaults(place: PlaceKey, today: string): CaptureDefaults {
       return { due_date: today, important: false, pullIntoToday: false }
     /* Assigned: 7.6 defaults `assignee_id` to the caller, so the task lands under "You". */
     case 'assignments':
-    case 'folder':
     case 'focus':
       return { due_date: null, important: false, pullIntoToday: false }
   }
