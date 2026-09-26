@@ -9,7 +9,8 @@ The viewer's choice and order live on the account (`focus_lists`, migration
 */
 import type { TaskCard } from '../../shared/tasks.js'
 import { DEFAULT_FOCUS_LISTS, FOCUS_LISTS } from '../../shared/bundle.js'
-import type { FocusListKey } from '../../shared/bundle.js'
+import type { FocusAppearance, FocusListKey } from '../../shared/bundle.js'
+import { markIcon } from '../components/page/icon-manifest.js'
 import type { LucideIcon } from '../lib/icons.js'
 import { CalendarDays, CalendarX, CircleAlert, ListTodo, Star, SunMedium, UserRoundCheck } from '../lib/icons.js'
 import { paths } from '../routes.js'
@@ -23,6 +24,11 @@ export interface FocusList {
   readonly icon: LucideIcon
   /** A default is hidden rather than removed: its page stays, only the row goes. */
   readonly isDefault: boolean
+}
+
+export interface FocusMark {
+  readonly icon: LucideIcon
+  readonly color?: string
 }
 
 /** A filtered list's rows out of every open task, given today's date. */
@@ -57,25 +63,41 @@ export function focusList(key: FocusListKey): FocusList {
 }
 
 /**
- * Existing 4.20 place rows that are semantically the same Focus destination.
- * `anytime` is the former No date page and `all` the former All open page, so
- * those durable per-viewer stores can keep serving the renamed Focus lists.
- * Overdue never had its own place row; returning undefined is the backend
- * boundary rather than inventing local-only identity state.
+ * The one resolver for a Focus destination's mark. An absent override keeps
+ * Dana's native icon and graphite colour; a stored icon is resolved through
+ * the same manifest Pages and Collections use. Every compact surface asks this
+ * function rather than inventing its own Focus icon map.
  */
-export function focusIdentityKey(key: FocusListKey): string | undefined {
+export function focusMark(
+  key: FocusListKey,
+  appearance: FocusAppearance | undefined,
+): FocusMark {
+  const list = focusList(key)
+  const override = appearance?.[key]
+  return {
+    icon: override?.icon == null ? list.icon : markIcon(override.icon),
+    ...(override?.color == null ? {} : { color: override.color }),
+  }
+}
+
+/**
+ * Durable native-place cover rows that represent each Focus destination.
+ * `anytime` is the former No date page and `all` the former All open page, so
+ * those existing per-viewer stores keep serving the renamed Focus lists.
+ * Issue #353 added `overdue`, so every Focus list now has the same cover path.
+ */
+export function focusIdentityKey(key: FocusListKey): string {
   switch (key) {
     case 'today':
     case 'scheduled':
     case 'assignments':
     case 'important':
+    case 'overdue':
       return key
     case 'undated':
       return 'anytime'
     case 'open':
       return 'all'
-    case 'overdue':
-      return undefined
   }
 }
 

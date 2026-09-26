@@ -62,7 +62,8 @@ function FocusList({ listKey }: { readonly listKey: FocusListKey }): React.JSX.E
       <PlaceHead
         place={place}
         bare={rows.length === 0}
-        {...(identityKey === undefined ? {} : { identityKey })}
+        identityKey={identityKey}
+        focusKey={listKey}
       />
       {place.mode === 'board' ? (
         <PageBody

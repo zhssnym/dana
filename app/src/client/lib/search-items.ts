@@ -33,12 +33,14 @@ stub and the identity rides the Folder object. It is not the response's
 */
 import { useMemo } from 'react'
 
-import { useFolders, useSearch, useShelves } from '../api/queries.js'
+import { useBundle, useFolders, useSearch, useShelves } from '../api/queries.js'
 import { folderMark, shelfMark } from '../parts/presenters.js'
 import { markIcon } from '../components/page/icon-manifest.js'
 import { AlignLeft } from './icons.js'
 import type { Folder } from '../../shared/folders.js'
+import type { FocusAppearance } from '../../shared/bundle.js'
 import { navPages, paths } from '../routes.js'
+import { focusMark } from '../shell/focus-lists.js'
 import type { SearchResultItem } from '../components/search-overlay.js'
 import { crumbTrail } from '../components/page-head.js'
 
@@ -132,9 +134,19 @@ export interface SearchAnswer {
     other door is `?`. Its id is not a path; the overlay's opener checks it. */
 export const SHORTCUTS_RESULT = '#keyboard-shortcuts'
 
-export function placeItems(): SearchResultItem[] {
+export function placeItems(appearance?: FocusAppearance): SearchResultItem[] {
   return [
-    ...navPages.map((place): SearchResultItem => ({ kind: 'page', id: place.path, title: place.name, hint: '' })),
+    ...navPages.map((place): SearchResultItem => {
+      const mark = focusMark(place.key, appearance)
+      return {
+        kind: 'page',
+        id: place.path,
+        title: place.name,
+        hint: '',
+        icon: mark.icon,
+        ...(mark.color === undefined ? {} : { color: mark.color }),
+      }
+    }),
     { kind: 'page', id: SHORTCUTS_RESULT, title: 'Keyboard shortcuts', hint: '' },
   ]
 }
@@ -143,14 +155,16 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
   const normalized = query.trim().toLocaleLowerCase()
   const asking = open && normalized.length >= MIN_QUERY
   const search = useSearch(normalized, asking)
+  const bundle = useBundle()
   const folders = useFolders()
   const shelves = useShelves(open)
   const data = search.data
   const folderList = folders.data
   const shelfList = shelves.data
+  const focusAppearance = bundle.data?.focus_appearance
 
   const results = useMemo((): SearchResultItem[] => {
-    if (normalized.length === 0) return placeItems()
+    if (normalized.length === 0) return placeItems(focusAppearance)
     if (normalized.length < MIN_QUERY) {
       const inHand = new Map((folderList ?? []).map((folder) => [folder.id, folder]))
       return [
@@ -167,7 +181,7 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
             title: shelf.name,
             color: shelfMark(shelf).color,
           })),
-        ...placeItems().filter((place) => startsAWord(place.title, normalized)),
+        ...placeItems(focusAppearance).filter((place) => startsAWord(place.title, normalized)),
       ]
         .map((item): SearchResultItem => ({ ...item, rank: nameRank(item.title, normalized) }))
         .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
@@ -222,7 +236,7 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
     /* The places are findable by typing too, not only offered before anything
        is typed: "sched" should reach Scheduled. A page matches on its name or
        on the question it answers. */
-    const places = placeItems().filter(
+    const places = placeItems(focusAppearance).filter(
       (place) =>
         place.title.toLocaleLowerCase().includes(normalized) ||
         (place.hint ?? '').toLocaleLowerCase().includes(normalized),
@@ -232,7 +246,7 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
     )
     /* Stable, so Q8's status order survives among tasks of one rank. */
     return [...named, ...pages].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
-  }, [normalized, data, folderList, shelfList])
+  }, [normalized, data, folderList, shelfList, focusAppearance])
 
   return {
     results,
