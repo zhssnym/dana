@@ -178,7 +178,10 @@ function TopTrail(): React.JSX.Element {
      names it, and the page's crumb leads back to the thread list. */
   const discussionId = pathname.startsWith(FOLDER_PREFIX) ? new URLSearchParams(search).get('discussion') : null
   const discussion = useDiscussion(discussionId ?? '', discussionId !== null)
-  const taskId = pathname.startsWith(TASK_PREFIX) ? pathname.slice(TASK_PREFIX.length) : null
+  /* An issue open in the Linear view is `?issue=<task id>` on its page: named
+     the same way, its page's crumb leading back to the issue list. */
+  const issueId = pathname.startsWith(FOLDER_PREFIX) && discussionId === null ? new URLSearchParams(search).get('issue') : null
+  const taskId = pathname.startsWith(TASK_PREFIX) ? pathname.slice(TASK_PREFIX.length) : issueId
   const task = useTask(taskId)
 
   let trail: React.JSX.Element | null = null
@@ -186,13 +189,17 @@ function TopTrail(): React.JSX.Element {
     const list = new URLSearchParams(search)
     list.delete('discussion')
     list.delete('outcome')
-    if (!list.has('facet')) list.set('conversation', 'open')
+    list.delete('issue')
+    if (discussionId !== null && !list.has('facet')) list.set('conversation', 'open')
+    const listTo = list.size === 0 ? pathname : `${pathname}?${list.toString()}`
     trail = (
       <BreadcrumbTrail
         folderId={pathname.slice(FOLDER_PREFIX.length)}
-        {...(discussionId === null
-          ? {}
-          : { current: discussion.data?.title ?? '', folderTo: `${pathname}?${list.toString()}` })}
+        {...(discussionId !== null
+          ? { current: discussion.data?.title ?? '', folderTo: listTo }
+          : issueId !== null
+            ? { current: task.data?.title ?? '', folderTo: listTo }
+            : {})}
       />
     )
   } else if (taskId !== null) {

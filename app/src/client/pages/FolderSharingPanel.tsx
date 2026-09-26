@@ -173,6 +173,7 @@ export function FolderSharingPanel({
     )
   }
   const mayShare = mayAdd || mayInvite
+  const sheetTitle = mayShare ? `Share ${folder.name}` : `Members of ${folder.name}`
 
   return (
     <>
@@ -199,8 +200,28 @@ export function FolderSharingPanel({
       >
         <section aria-label={SHARING_PANEL} className="flex min-h-0 flex-1 flex-col">
           <SheetHeader className="border-b border-border px-5 py-4 pr-16">
-            <SheetTitle className="text-sm font-title">
-              {mayShare ? `Share ${folder.name}` : `Members of ${folder.name}`}
+            <SheetTitle className="flex min-w-0 items-center gap-1 text-sm font-title">
+              {/* With a member open the title is a trail, its first crumb the
+                  way back to the lists, as the top bar's trail is for pages. */}
+              {openMember === null ? (
+                sheetTitle
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-sm text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setOpenMember(null)
+                    }}
+                  >
+                    {sheetTitle}
+                  </button>
+                  <span aria-hidden="true" className="text-quiet-foreground">/</span>
+                  <span className="min-w-0 truncate">
+                    {folder.members.find((member) => member.user.id === openMember)?.user.display_name ?? 'Someone'}
+                  </span>
+                </>
+              )}
             </SheetTitle>
           </SheetHeader>
 
@@ -220,9 +241,6 @@ export function FolderSharingPanel({
                       }
                     : undefined
                 }
-                onBack={() => {
-                  setOpenMember(null)
-                }}
               />
             ) : (
             <>
