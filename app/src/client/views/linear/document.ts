@@ -17,6 +17,10 @@ export type LineEdit =
      milestone, before the first. */
   | { op: 'add_step'; title: string; section: string | null; id?: string }
   | { op: 'add_milestone'; name: string }
+  /* An existing task moves: in front of `before` (and into its milestone), or
+     with `before` null to `section`'s end (null: outside every milestone,
+     before the first). The list's drag and its bulk Milestone. */
+  | { op: 'move_step'; id: string; section: string | null; before: string | null }
 
 function record(id: string, fields: Partial<CanvasRecord> & Pick<CanvasRecord, 'block_kind'>): CanvasRecord {
   return { id, text: null, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null, ...fields }
@@ -29,23 +33,40 @@ export function applyEdit(page: PageView, edit: LineEdit): { document: CanvasDoc
   const kindOf = new Map(blocks.map((block) => [block.id, block.block_kind]))
   const done = (createTask?: { id: string; title: string }) => ({ document: { blocks, items }, ...(createTask ? { createTask } : {}) })
 
+  const isSection = (item: CanvasPlacement): boolean =>
+    item.kind === 'block' && kindOf.get(item.id) === 'section' && item.section_block_id === null
+  /* Where a milestone's end is: in front of the next milestone, or the page's
+     end; outside every milestone is in front of the first one. */
+  const endOf = (section: string | null): number => {
+    if (section === null) {
+      const first = items.findIndex(isSection)
+      return first < 0 ? items.length : first
+    }
+    const start = items.findIndex((item) => item.kind === 'block' && item.id === section)
+    if (start < 0) throw new Error('That milestone is no longer on the page.')
+    let at = start + 1
+    while (at < items.length && !isSection(items[at]!)) at++
+    return at
+  }
+
   switch (edit.op) {
     case 'add_step': {
       const id = edit.id ?? crypto.randomUUID()
-      const isSection = (item: CanvasPlacement): boolean =>
-        item.kind === 'block' && kindOf.get(item.id) === 'section' && item.section_block_id === null
-      let at: number
-      if (edit.section === null) {
-        at = items.findIndex(isSection)
-        if (at < 0) at = items.length
-      } else {
-        const start = items.findIndex((item) => item.kind === 'block' && item.id === edit.section)
-        if (start < 0) throw new Error('That milestone is no longer on the page.')
-        at = start + 1
-        while (at < items.length && !isSection(items[at]!)) at++
-      }
-      items.splice(at, 0, { kind: 'task', id, section_block_id: edit.section, list_parent_block_id: null })
+      items.splice(endOf(edit.section), 0, { kind: 'task', id, section_block_id: edit.section, list_parent_block_id: null })
       return done({ id, title: edit.title })
+    }
+    case 'move_step': {
+      const from = items.findIndex((item) => item.kind === 'task' && item.id === edit.id)
+      if (from < 0) throw new Error('That task is no longer on the page.')
+      const [moving] = items.splice(from, 1)
+      const target = edit.before === null ? -1 : items.findIndex((item) => item.kind === 'task' && item.id === edit.before)
+      if (target >= 0) {
+        const next = items[target]!
+        items.splice(target, 0, { ...moving!, section_block_id: next.section_block_id, list_parent_block_id: next.list_parent_block_id })
+      } else {
+        items.splice(endOf(edit.section), 0, { ...moving!, section_block_id: edit.section, list_parent_block_id: null })
+      }
+      return done()
     }
     case 'add_milestone': {
       const id = crypto.randomUUID()

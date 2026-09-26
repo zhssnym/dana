@@ -7,16 +7,19 @@ import { cn } from '../../components/ui/utils.js'
 import { STATE_WORD } from './issues.js'
 import type { IssueState } from './issues.js'
 
-/** GitHub's state mark: a ringed dot (open), a ticked disc (completed), a struck ring (not planned). */
-export function StateMark(props: { readonly state: IssueState; readonly className?: string }): React.JSX.Element {
+/** GitHub's state mark: a ringed dot (open), a ringed half disc (in
+    progress, the list's fourth state), a ticked disc (completed), a struck
+    ring (not planned). */
+export function StateMark(props: { readonly state: IssueState | 'in-progress'; readonly className?: string }): React.JSX.Element {
   const { state } = props
+  const live = state === 'open' || state === 'in-progress'
   return (
     <svg
       viewBox="0 0 16 16"
       aria-hidden
       className={cn(
         'size-4 shrink-0',
-        state === 'open' ? 'text-primary' : 'text-muted-foreground',
+        live ? 'text-primary' : 'text-muted-foreground',
         props.className,
       )}
     >
@@ -30,6 +33,8 @@ export function StateMark(props: { readonly state: IssueState; readonly classNam
           <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
           {state === 'open' ? (
             <circle cx="8" cy="8" r="1.75" fill="currentColor" />
+          ) : state === 'in-progress' ? (
+            <path d="M8 4.25a3.75 3.75 0 0 1 0 7.5z" fill="currentColor" />
           ) : (
             <path d="M3.8 12.2 12.2 3.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           )}

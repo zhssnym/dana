@@ -42,3 +42,28 @@ describe('AC-1175 linear document', () => {
     expect(document.items.at(-1)).toMatchObject({ kind: 'task', id: createTask!.id, section_block_id: m3 })
   })
 })
+
+describe('AC-1390 linear list drag', () => {
+  const ids = (edit: Parameters<typeof applyEdit>[1]) => applyEdit(page, edit).document.items
+  it('moves a task in front of another, taking that one\'s milestone, and leaves its old slot', () => {
+    const items = ids({ op: 'move_step', id: 'A', section: null, before: 'C' })
+    expect(order(items)).toEqual(['intro', 'noteA', 'S', 'lead', 'B', 'noteB', 'T', 'A', 'C'])
+    expect(items.filter((item) => item.id === 'A')).toHaveLength(1)
+    expect(items[7]).toMatchObject({ kind: 'task', id: 'A', section_block_id: 'T' })
+  })
+
+  it('moves a task to a milestone\'s end, and out of every milestone', () => {
+    const into = ids({ op: 'move_step', id: 'C', section: 'S', before: null })
+    expect(order(into)).toEqual(['intro', 'A', 'noteA', 'S', 'lead', 'B', 'noteB', 'C', 'T'])
+    expect(into[7]).toMatchObject({ id: 'C', section_block_id: 'S' })
+    const loose = ids({ op: 'move_step', id: 'B', section: null, before: null })
+    expect(order(loose)).toEqual(['intro', 'A', 'noteA', 'B', 'S', 'lead', 'noteB', 'T', 'C'])
+    expect(loose[3]!.section_block_id).toBeNull()
+  })
+
+  it('reorders within one milestone', () => {
+    const next: PageView = { ...page, items: [...page.items, { kind: 'task', id: 'D' }] as PageView['items'], task_placements: [...page.task_placements!, { id: 'D', section_block_id: 'T' }] }
+    const items = applyEdit(next, { op: 'move_step', id: 'D', section: 'T', before: 'C' }).document.items
+    expect(order(items).slice(-3)).toEqual(['T', 'D', 'C'])
+  })
+})
