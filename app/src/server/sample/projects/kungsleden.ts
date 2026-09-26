@@ -24,16 +24,16 @@ const kungsleden: SampleFolder = {
     { kind: 'bullet', text: 'Seven walking days and one spare, inside nine days off.' },
     { kind: 'bullet', text: 'Huts every night, so no tent to carry. Pack under 11 kg with water.' },
     { kind: 'bullet', text: 'About 6,000 SEK each, travel included.' },
-  ],
-  doc: [
     {
-      kind: 'callout',
+      kind: 'bullet',
       text: [
         'Night train up, bus back. The stages are in ',
         { text: 'Day by day', page: 'Day by day' },
-        '; what goes in the pack is in the Gear list tab.',
+        '.',
       ],
     },
+  ],
+  doc: [
     { kind: 'section', text: 'Decide and book' },
     { task: 'Book the week off at work' },
     { task: 'Pick the route and direction' },

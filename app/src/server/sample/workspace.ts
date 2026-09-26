@@ -626,6 +626,17 @@ export async function createSampleWorkspace(
   )
   const deskId = String(desk[0]?.id)
   for (const task of SAMPLE_WORKSPACE.desk) await writeTask(ctx, deskId, task)
+  for (const folder of SAMPLE_WORKSPACE.folders) {
+    for (const task of folder.tasks ?? []) {
+      for (const blocker of task.waitsOn ?? []) {
+        await tx.execute(
+          sql`INSERT INTO task_dependencies (dependent_task_id, blocking_task_id, created_by)
+              VALUES (${ctx.tasks.get(task.title) ?? ''}::uuid,
+                      ${ctx.tasks.get(blocker) ?? ''}::uuid, ${userId}::uuid)`,
+        )
+      }
+    }
+  }
 
   // Then the writing and the conversations.
   for (const folder of SAMPLE_WORKSPACE.folders) {

@@ -27,4 +27,4 @@ export const DESK: readonly SampleTask[] = [
   { title: 'Call the dentist back', due: 3 },
 ]
 
-export const FOCUS_LISTS: readonly string[] = ['today', 'scheduled', 'assignments', 'important']
+export const FOCUS_LISTS: readonly string[] = ['today', 'scheduled', 'assignments']

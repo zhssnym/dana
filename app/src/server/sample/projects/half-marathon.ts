@@ -29,16 +29,16 @@ export const HALF_MARATHON: readonly SampleFolder[] = [
         kind: 'bullet',
         text: 'If the knee hurts for more than two runs in a row, I stop and see the physio before anything else.',
       },
-    ],
-    doc: [
       {
-        kind: 'callout',
+        kind: 'paragraph',
         text: [
-          'Race day is in 19 days. This week is about the long run and nothing else; the details for the last days are in ',
+          'The last days before the race are planned in ',
           { text: 'Race week', page: RACE_WEEK },
           '.',
         ],
       },
+    ],
+    doc: [
       { kind: 'section', text: 'Base: weeks 1–4' },
       { task: 'Register for the race' },
       { task: 'Get a gait analysis' },
@@ -187,6 +187,7 @@ export const HALF_MARATHON: readonly SampleFolder[] = [
       },
       {
         title: 'Run the race',
+        start: 19,
         due: 19,
         time: '11:30',
         important: true,

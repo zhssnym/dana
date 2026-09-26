@@ -131,6 +131,8 @@ export interface SampleTask {
   /** Pulled into Today. */
   readonly today?: boolean
   readonly thread?: readonly SamplePost[]
+  /** Blocked by these tasks, by title (4.23), so the sample shows waiting. */
+  readonly waitsOn?: readonly string[]
 }
 
 export interface SampleFolder {
