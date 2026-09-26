@@ -1374,13 +1374,39 @@ async function patchTaskIn(
             ? `assigned to ${await displayNameOf(tx, newAssignee)}`
             : reminder !== null && sets.length === 0
               ? 'set a reminder'
-              : undefined,
+              : await plainEditDetail(tx, patch, current, assigneeId),
         recipients: newAssignee === null ? undefined : [newAssignee],
       })
     }
 
     return { kind: 'patched', task: await viewOrFail(tx, viewerId, taskId) }
   })
+}
+
+/*
+The half a verb cannot carry for a PATCH with no assignment or reminder in it
+(m3 issue page): the issue timeline says "unassigned Sara" or "set the due
+date to 2026-10-20" rather than nothing, and "edited the description" is the
+one detail that marks the body as edited. The first change that applies names
+the act; anything else stays undescribed, as before.
+*/
+async function plainEditDetail(
+  tx: Executor,
+  patch: { readonly notes?: string | null; readonly due_date?: string | null; readonly start_date?: string | null },
+  current: { readonly assigneeId: string | null; readonly dueDate: string | null; readonly startDate: string | null },
+  assigneeId: string | null | undefined,
+): Promise<string | undefined> {
+  if (assigneeId === null && current.assigneeId !== null) {
+    return `unassigned ${await displayNameOf(tx, current.assigneeId)}`
+  }
+  if (patch.notes !== undefined) return 'edited the description'
+  if (patch.due_date !== undefined && patch.due_date !== current.dueDate) {
+    return patch.due_date === null ? 'removed the due date' : `set the due date to ${patch.due_date}`
+  }
+  if (patch.start_date !== undefined && patch.start_date !== current.startDate) {
+    return patch.start_date === null ? 'removed the start date' : `set the start date to ${patch.start_date}`
+  }
+  return undefined
 }
 
 /** HH:MM, the form to_char reads a 4.11 time column back in. The write form
@@ -2302,6 +2328,7 @@ export async function writeTaskDocument(
         subjectId: taskId,
         subjectName: current.title,
         folderId: current.folderId,
+        detail: 'edited the description',
       })
     }
     return result.view

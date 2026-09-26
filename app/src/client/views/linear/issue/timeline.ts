@@ -7,9 +7,9 @@ the event's verb and the server's detail wording.
 
 - `created` is the body box's own "opened", so it is not a row; an "assigned
   to" riding on it becomes the row right after.
-- An undetailed `edited` is a change to the body (or a PATCH the server does
-  not describe): GitHub keeps description edits out of the timeline, so it is
-  the body's "edited" mark, not a row.
+- `edited the description` is the body's "edited" mark, not a row: GitHub
+  keeps description edits out of the timeline. An undetailed `edited` is a
+  PATCH the server does not describe, and shows nothing.
 - Reordering steps and permanent deletion are left out: noise, and a task
   nobody can open.
 - A run of the same step act by one person within ten minutes is one row.
@@ -24,6 +24,8 @@ export type StepAction = 'added' | 'renamed' | 'completed' | 'reopened' | 'remov
 export type Act =
   | { readonly t: 'assigned'; readonly who: string }
   | { readonly t: 'self-assigned' }
+  | { readonly t: 'unassigned'; readonly who: string }
+  | { readonly t: 'date'; readonly field: 'due' | 'start'; readonly to: string | null }
   | { readonly t: 'from-step'; readonly parent: string }
   | { readonly t: 'duplicated'; readonly source: string }
   | { readonly t: 'renamed'; readonly from: string | null; readonly to: string }
@@ -61,6 +63,10 @@ export type Entry = EventEntry | CommentEntry
 const GROUP_MS = 10 * 60 * 1000
 
 const ASSIGNED = /^assigned to (.+)$/
+const UNASSIGNED = /^unassigned (.+)$/
+const DATE_SET = /^set the (due|start) date to (\d{4}-\d{2}-\d{2})$/
+const DATE_REMOVED = /^removed the (due|start) date$/
+export const DESCRIPTION_EDITED = 'edited the description'
 const STEP = /^(added|renamed|completed|reopened|moved|removed) (?:a |the )?step (?:to )?'(.+)'$/
 
 /** The acts one history line says, in order (a rename that also assigned is two). */
@@ -97,7 +103,13 @@ function actsOf(line: EventLine, previousName: string | null, actorName: string)
       return /^moved to Trash/.test(detail) ? [{ t: 'trashed' }] : []
     case 'edited': {
       if (assign.length > 0) return assign
-      if (detail === '') return []
+      if (detail === '' || detail === DESCRIPTION_EDITED) return []
+      const unassigned = UNASSIGNED.exec(detail)
+      if (unassigned !== null) return [{ t: 'unassigned', who: unassigned[1] ?? '' }]
+      const dateSet = DATE_SET.exec(detail)
+      if (dateSet !== null) return [{ t: 'date', field: dateSet[1] === 'start' ? 'start' : 'due', to: dateSet[2] ?? null }]
+      const dateRemoved = DATE_REMOVED.exec(detail)
+      if (dateRemoved !== null) return [{ t: 'date', field: dateRemoved[1] === 'start' ? 'start' : 'due', to: null }]
       if (detail === 'set a reminder') return [{ t: 'reminder', set: true }]
       if (detail === 'removed the reminder') return [{ t: 'reminder', set: false }]
       if (detail === 'promoted a step to a task') return [{ t: 'promoted' }]
@@ -113,11 +125,12 @@ function actsOf(line: EventLine, previousName: string | null, actorName: string)
   }
 }
 
-/** Whether the body was edited after it was opened, and when last. */
+/** Whether the body was edited after it was opened, and when last: only the
+ * server's document write says so, never an undescribed PATCH. */
 export function bodyEditedAt(events: readonly EventLine[]): number | null {
   let latest: number | null = null
   for (const line of events) {
-    if (line.verb !== 'edited' || (line.detail ?? '') !== '') continue
+    if (line.subject_kind !== 'task' || line.verb !== 'edited' || line.detail !== DESCRIPTION_EDITED) continue
     const at = Date.parse(line.created_at)
     if (latest === null || at > latest) latest = at
   }

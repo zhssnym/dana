@@ -72,13 +72,6 @@ export function LinearView(props: {
       return next
     })
   }
-  const closeIssue = (): void => {
-    setSearch((current) => {
-      const next = new URLSearchParams(current)
-      next.delete('issue')
-      return next
-    })
-  }
 
   /* Closed, newest first: finished work by the day it was finished, with not
      planned work (which has no finishing day) placed by its last change. The
@@ -116,7 +109,6 @@ export function LinearView(props: {
         page={page}
         today={today}
         actions={actions}
-        onBack={closeIssue}
       />
     )
   }

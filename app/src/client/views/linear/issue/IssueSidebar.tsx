@@ -1,8 +1,9 @@
 /*
 The issue page's sidebar, GitHub's sections in Dana's words (RESEARCH-ISSUE
 3.8): Assignee, Labels, Milestone, Dates, Relationships and Participants.
-Each section's gear opens the task, where that field is edited; an empty
-assignee offers "Assign yourself" to someone who may assign.
+Only Dates and Relationships have a gear, because the task peek it opens edits
+exactly those; an empty assignee offers "Assign yourself" to someone who may
+assign. A phone reads the sidebar after the thread, without Participants.
 */
 import type { TaskDependencies, TaskDependencyEdge } from '../../../../shared/task-dependencies.js'
 import type { TaskDetail } from '../../../../shared/tasks.js'
@@ -18,15 +19,17 @@ function Section(props: {
   readonly label: string
   readonly onEdit: (() => void) | null
   readonly wide?: boolean
+  readonly className?: string
   readonly children: React.ReactNode
 }): React.JSX.Element {
-  /* A phone reads the sidebar as a two-column grid above the thread, without rules. */
+  /* A phone reads the sidebar as a two-column grid below the thread, without rules. */
   return (
     <section
       aria-label={props.label}
       className={cn(
         'flex min-w-0 flex-col gap-1 py-1.5 text-sm md:gap-1.5 md:border-b md:border-border md:py-3 md:first:pt-0 md:last:border-b-0',
         props.wide === true && 'col-span-2',
+        props.className,
       )}
     >
       <header className="flex h-6 items-center justify-between text-xs text-muted-foreground">
@@ -115,7 +118,7 @@ export function IssueSidebar(props: {
 
   return (
     <div className="grid grid-cols-2 gap-x-4 md:flex md:flex-col">
-      <Section label="Assignee" onEdit={onEdit}>
+      <Section label="Assignee" onEdit={null}>
         {assignee === null ? (
           <p className={MUTED}>
             No one
@@ -139,7 +142,7 @@ export function IssueSidebar(props: {
           </p>
         )}
       </Section>
-      <Section label="Labels" onEdit={onEdit}>
+      <Section label="Labels" onEdit={null}>
         {labels.length === 0 ? (
           <p className={MUTED}>None</p>
         ) : (
@@ -150,7 +153,7 @@ export function IssueSidebar(props: {
           </p>
         )}
       </Section>
-      <Section label="Milestone" onEdit={onEdit}>
+      <Section label="Milestone" onEdit={null}>
         <p className={cn('min-w-0 truncate', props.milestone === null ? MUTED : 'text-foreground')}>
           {props.milestone ?? 'No milestone'}
         </p>
@@ -171,7 +174,7 @@ export function IssueSidebar(props: {
           <Relation label="Blocking" edges={blocks} folderId={props.folderId} onOpen={props.onOpenTask} />
         </Section>
       )}
-      <Section label="Participants" onEdit={null} wide>
+      <Section label="Participants" onEdit={null} wide className="hidden md:flex">
         <p className="flex flex-wrap -space-x-1">
           {props.participants.map((person, index) => (
             <span key={`${person.name}-${String(index)}`} title={person.name} className="rounded-full ring-2 ring-background">

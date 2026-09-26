@@ -5,7 +5,10 @@ or "Reopen issue", and "Comment". With words in the editor the state button
 reads "Close with comment" and posts before it closes. Dana's editor is
 WYSIWYG, so there are no Write and Preview tabs.
 
-Someone who may not comment still gets the state buttons.
+Someone who may not comment still gets the state buttons, but only the ones
+their access lets them press: closing as completed and reopening a completed
+issue need task.status.complete, not planned and its reopening need
+task.status.abandon.
 */
 import { Suspense, lazy } from 'react'
 
@@ -29,19 +32,35 @@ export function postBody(content: PostContent): { content: PostContent; file_ids
   return ids.length > 0 ? { content, file_ids: ids } : { content }
 }
 
+export interface StateMay {
+  readonly complete: boolean
+  readonly abandon: boolean
+}
+
 function StateButtons(props: {
   readonly state: IssueState
+  readonly may: StateMay
   readonly withComment: boolean
   readonly busy: boolean
   readonly onClose: (reason: 'completed' | 'not-planned') => void
   readonly onReopen: () => void
-}): React.JSX.Element {
-  const { state, withComment } = props
+}): React.JSX.Element | null {
+  const { state, withComment, may } = props
   if (state !== 'open') {
+    if (!(state === 'completed' ? may.complete : may.abandon)) return null
     return (
       <Button variant="outline" disabled={props.busy} onClick={props.onReopen}>
         <StateMark state="open" className="size-3.5" />
         {withComment ? 'Reopen with comment' : 'Reopen issue'}
+      </Button>
+    )
+  }
+  if (!may.complete) return null
+  if (!may.abandon) {
+    return (
+      <Button variant="outline" disabled={props.busy} onClick={() => props.onClose('completed')}>
+        <StateMark state="completed" className="size-3.5" />
+        {withComment ? 'Close with comment' : 'Close issue'}
       </Button>
     )
   }
@@ -95,15 +114,18 @@ export function IssueComposer(props: {
   readonly folderId: string
   readonly state: IssueState
   readonly canComment: boolean
+  readonly may: StateMay
   readonly onPost: (content: PostContent) => Promise<unknown>
   readonly onClose: (reason: 'completed' | 'not-planned') => void
   readonly onReopen: () => void
-}): React.JSX.Element {
-  const { state } = props
+}): React.JSX.Element | null {
+  const { state, may } = props
   if (!props.canComment) {
+    const allowed = state === 'open' ? may.complete : state === 'completed' ? may.complete : may.abandon
+    if (!allowed) return null
     return (
       <div className="flex justify-end pt-4">
-        <StateButtons state={state} withComment={false} busy={false} onClose={props.onClose} onReopen={props.onReopen} />
+        <StateButtons state={state} may={may} withComment={false} busy={false} onClose={props.onClose} onReopen={props.onReopen} />
       </div>
     )
   }
@@ -121,6 +143,7 @@ export function IssueComposer(props: {
             <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
               <StateButtons
                 state={state}
+                may={may}
                 withComment={!empty}
                 busy={busy}
                 onClose={(reason) => {

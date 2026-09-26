@@ -8,10 +8,12 @@ accent.
 import type { TaskDependencyEdge } from '../../../../shared/task-dependencies.js'
 import { Face } from '../../../components/person-face.js'
 import type { Person } from '../../../components/person-face.js'
+import { formatDate } from '../../../lib/dates.js'
 import { agoFor } from '../../../lib/history.js'
 import {
   ArrowUpRight,
   Bell,
+  CalendarDays,
   Check,
   Copy,
   FolderInput,
@@ -42,7 +44,10 @@ function badgeOf(act: Act): React.JSX.Element {
   switch (act.t) {
     case 'assigned':
     case 'self-assigned':
+    case 'unassigned':
       return <UserRound {...lucide} />
+    case 'date':
+      return <CalendarDays {...lucide} />
     case 'from-step':
     case 'promoted':
       return <ArrowUpRight {...lucide} />
@@ -98,6 +103,20 @@ function phraseOf(act: Act): React.ReactNode {
       )
     case 'self-assigned':
       return 'self-assigned this'
+    case 'unassigned':
+      return (
+        <>
+          unassigned <span className={INK}>{act.who}</span>
+        </>
+      )
+    case 'date':
+      return act.to === null ? (
+        `removed the ${act.field} date`
+      ) : (
+        <>
+          set the {act.field} date to <span className={INK}>{formatDate(act.to, new Date().toISOString().slice(0, 10))}</span>
+        </>
+      )
     case 'from-step':
       return (
         <>

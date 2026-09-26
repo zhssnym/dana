@@ -238,7 +238,19 @@ export default function PostEditor({
         )}
       >
         {/* The padding lives here: canvas.css zeroes the canvas's own left padding on phones. */}
-        <div className={cn('min-w-0 px-3', editing ? 'pt-2' : renderActions === undefined ? 'flex-1 py-1.5' : 'min-h-24 py-2')}>
+        <div
+          className={cn('min-w-0 px-3', editing ? 'pt-2' : renderActions === undefined ? 'flex-1 py-1.5' : 'min-h-24 cursor-text py-2')}
+          /* The issue composer's box is taller than its one line: a click anywhere in it writes. */
+          onMouseDown={
+            renderActions === undefined
+              ? undefined
+              : (event) => {
+                  if (event.target instanceof Element && event.target.closest('.ProseMirror') !== null) return
+                  event.preventDefault()
+                  editor.focus()
+                }
+          }
+        >
           <div
             className="dana-writing-canvas dana-post-editor max-h-[60vh] min-w-0 overflow-y-auto"
             /* BlockNote's placeholder never reaches the canvas paragraph; canvas.css draws this one. */

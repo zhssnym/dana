@@ -4,8 +4,9 @@ scratchpad m3/RESEARCH-ISSUE.md). The peek and the task page stay the task
 surface's; this is the Linear view's reading of the same task.
 
 - The header: the title (the one bold thing, renamed in place with the
-  pencil), the state pill and "Maya opened this 3 days ago · 4 comments".
-  No back link: the view's own navigation does that.
+  pencil) and the state pill. Who opened it and when is the body box's own
+  header, so it is not said twice. No back link: the view's own navigation
+  does that.
 - One timeline on a vertical line, oldest first: the body box (the task's own
   document, editable in place as a GitHub description is, with its steps),
   then comment boxes and event rows, each event with a round badge for its
@@ -13,9 +14,9 @@ surface's; this is the Linear view's reading of the same task.
 - "Add a comment", with "Close issue ▾" (completed, or not planned, which
   is abandoned) or "Reopen issue", and "Comment" (`issue/IssueComposer.tsx`).
 - The sidebar: Assignee, Labels, Milestone, Dates, Relationships and
-  Participants (`issue/IssueSidebar.tsx`).
+  Participants (`issue/IssueSidebar.tsx`); after the thread on a phone.
 */
-import { Suspense, lazy, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import type { PageView } from '../../../shared/pages.js'
@@ -27,7 +28,6 @@ import type { Person } from '../../components/person-face.js'
 import { openTask } from '../../components/task-open.js'
 import { cn } from '../../components/ui/utils.js'
 import { folderGates, mayDraw } from '../../lib/folder-authority.js'
-import { agoFor } from '../../lib/history.js'
 import { Pencil } from '../../lib/icons.js'
 import type { RowActions } from '../../parts/useRowActions.js'
 import { Subtasks } from './Subtasks.js'
@@ -36,6 +36,7 @@ import { issueState, sectionReader, usePeople } from './issues.js'
 import { CommentBox, IssueBox } from './issue/CommentBox.js'
 import { EventRow } from './issue/EventRow.js'
 import { IssueComposer, postBody } from './issue/IssueComposer.js'
+import type { StateMay } from './issue/IssueComposer.js'
 import { IssueSidebar } from './issue/IssueSidebar.js'
 import { bodyEditedAt, buildTimeline } from './issue/timeline.js'
 
@@ -49,6 +50,16 @@ function TitleEditor(props: {
   readonly onRename: (title: string) => void
 }): React.JSX.Element {
   const [draft, setDraft] = useState<string | null>(null)
+  /* Leaving the input hands focus back to the pencil, not to <body>. */
+  const pencil = useRef<HTMLButtonElement>(null)
+  const wasEditing = useRef(false)
+  useEffect(() => {
+    if (draft !== null) wasEditing.current = true
+    else if (wasEditing.current) {
+      wasEditing.current = false
+      pencil.current?.focus()
+    }
+  }, [draft])
   const heading = 'text-[length:var(--text-h1-size)] leading-[var(--text-h1-line)] font-title text-foreground'
   if (draft !== null) {
     const save = (): void => {
@@ -64,7 +75,12 @@ function TitleEditor(props: {
         onChange={(event) => setDraft(event.target.value)}
         onBlur={save}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') save()
+          if (event.nativeEvent.isComposing) return
+          /* Prevented, so the Enter does not go on to press the pencil that takes focus back. */
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            save()
+          }
           else if (event.key === 'Escape') setDraft(null)
         }}
         className={cn(
@@ -79,6 +95,7 @@ function TitleEditor(props: {
       <h2 className={cn(heading, 'min-w-0 [overflow-wrap:anywhere]')}>{props.title}</h2>
       {props.canRename && (
         <button
+          ref={pencil}
           type="button"
           aria-label="Rename"
           title="Rename"
@@ -98,8 +115,6 @@ export function IssuePage(props: {
   readonly page: PageView
   readonly today: string
   readonly actions: RowActions
-  /** Kept for the caller; the page has no back link (the view's navigation is it). */
-  readonly onBack?: () => void
 }): React.JSX.Element {
   const { taskId, folderId, page, today, actions } = props
   const task = useTask(taskId)
@@ -142,7 +157,6 @@ export function IssuePage(props: {
 
   const card: TaskCard = detail
   const state = issueState(detail)
-  const count = comments?.length ?? 0
   const author = person(detail.created_by?.id ?? null)
   const { sectionOf, sections } = sectionReader(page)
   const milestone = sections.find((section) => section.id === sectionOf(detail))?.name ?? null
@@ -151,6 +165,27 @@ export function IssuePage(props: {
   const canAssign = facts !== null && mayDraw(facts, 'task.assign')
   const viewerId = me?.id ?? null
   const edited = bodyEditedAt(events)
+  /* The state buttons follow the server's gates. mayDraw cannot project an
+     assignment, so an assignee's own reach is added here (folder-actions.ts's
+     whenAssignedToActor); the server stays the authority. */
+  const mine = viewerId !== null && detail.assignee?.id === viewerId
+  const stateMay: StateMay = {
+    complete:
+      facts !== null &&
+      (mayDraw(facts, 'task.status.complete') || (mine && (facts.access === 'can_contribute' || facts.access === 'assigned_work'))),
+    abandon: facts !== null && (mayDraw(facts, 'task.status.abandon') || (mine && facts.access === 'can_contribute')),
+  }
+  /* The box's padding writes too: a click there puts the caret at the end. */
+  const writeInBox = (event: React.MouseEvent<HTMLDivElement>): void => {
+    if (!canEdit || !(event.target instanceof Element) || event.target.closest('.ProseMirror, button, a') !== null) return
+    const editable = event.currentTarget.querySelector<HTMLElement>('.ProseMirror')
+    if (editable === null) return
+    event.preventDefault()
+    editable.focus()
+    const selection = window.getSelection()
+    selection?.selectAllChildren(editable)
+    selection?.collapseToEnd()
+  }
 
   const close = (reason: 'completed' | 'not-planned'): void => {
     if (reason === 'completed') actions.onToggleComplete(card)
@@ -192,25 +227,20 @@ export function IssuePage(props: {
     <article aria-label={detail.title} className="flex flex-col gap-4 pb-2">
       <header className="flex flex-col gap-2 border-b border-border pb-3">
         <TitleEditor
-          key={detail.title}
           title={detail.title}
           canRename={canEdit}
           onRename={(title) => update.mutate({ id: taskId, body: { title } })}
         />
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex">
           <StatePill state={state} />
-          <p className="text-sm text-muted-foreground">
-            <span className="font-section text-foreground">{author.name}</span> opened this{' '}
-            {agoFor(Date.parse(detail.created_at))} · {count} comment{count === 1 ? '' : 's'}
-          </p>
         </div>
       </header>
 
       <div className="flex flex-col gap-6 md:flex-row md:items-start">
-        <div className="order-2 flex min-w-0 flex-1 flex-col md:order-1">
+        <div className="flex min-w-0 flex-1 flex-col">
           {/* The timeline: one rule down the left, behind every box and badge. */}
           <div className="relative flex flex-col">
-            <span aria-hidden className="absolute top-0 bottom-0 left-[15px] w-0.5 bg-border" />
+            <span aria-hidden className="absolute top-0 bottom-0 left-4 w-0.5 -translate-x-1/2 bg-border" />
             <IssueBox
               label="Description"
               person={author}
@@ -224,9 +254,20 @@ export function IssuePage(props: {
               ]}
               className="mb-2"
             >
-              {/* The writer's tail (a tall click-to-write area on a page) is gone here: the
-                  editor's own trailing line is the place to click. */}
-              <div className="px-4 py-3 [&_.dana-canvas-tail]:hidden">
+              {/* The writer's tail (a tall click-to-write area on a page) is gone here; the
+                  whole box writes instead. An empty body says so, GitHub's words. */}
+              <div
+                onMouseDown={writeInBox}
+                className={cn(
+                  'px-4 py-3 [&_.dana-canvas-tail]:hidden',
+                  canEdit && 'cursor-text',
+                  /* canvas.css draws --dana-hint before an empty line; the page's own
+                     unfocused rule does not reach a task body's plain paragraph. */
+                  canEdit
+                    ? '[&_.bn-editor:not(.ProseMirror-focused)_[data-is-only-empty-block]]:[--dana-hint:"Add_a_description"]'
+                    : '[&_.bn-editor:not(.ProseMirror-focused)_[data-is-only-empty-block]]:[--dana-hint:"No_description_provided."]',
+                )}
+              >
                 <Suspense
                   fallback={
                     detail.notes ? <p className="whitespace-pre-wrap text-sm text-foreground">{detail.notes}</p> : null
@@ -283,6 +324,7 @@ export function IssuePage(props: {
               folderId={folderId}
               state={state}
               canComment={canComment}
+              may={stateMay}
               onPost={(content) => post.mutateAsync({ folderId, taskId, body: postBody(content) })}
               onClose={close}
               onReopen={reopen}
@@ -290,7 +332,7 @@ export function IssuePage(props: {
           </div>
         </div>
 
-        <aside aria-label="Details" className="order-1 md:order-2 md:w-64 md:shrink-0">
+        <aside aria-label="Details" className="md:w-64 md:shrink-0">
           <IssueSidebar
             detail={detail}
             folderId={folderId}
@@ -302,7 +344,7 @@ export function IssuePage(props: {
             onAssignMe={
               canAssign && viewerId !== null ? () => update.mutate({ id: taskId, body: { assignee_id: viewerId } }) : null
             }
-            onEdit={() => actions.onOpenTask(card)}
+            onEdit={canEdit ? () => actions.onOpenTask(card) : null}
             onOpenTask={openLinked}
           />
         </aside>
