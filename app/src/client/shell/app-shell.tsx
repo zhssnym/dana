@@ -8,8 +8,8 @@ offline"), the toast region, and 10.6's update
 affordance. A page renders inside the outlet and adds none of them.
 
 **The top bar is a `div` inside `main`, never a `header`** (AC-174: no banner
-landmark). It holds the history arrows, the trail and the page's controls; on a
-phone the same bar also holds Menu and Search.
+landmark). It holds the trail and the page's controls; on a phone the same bar
+also holds Menu and Search. Back/Forward now live with the workspace tabs.
 
 **There is no viewport floor on the root element.** A minimum viewport width is
 forbidden anywhere in the client, and it is checked by grepping the built
@@ -90,7 +90,7 @@ import { mirroredTheme } from '../lib/theme.js'
 import { openSearch } from './overlays.js'
 import { useModalOpen, useRightEdge } from '../components/right-edge.js'
 import { WindowBar, WindowBarActions, WindowBarLead } from '../components/window-bar.js'
-import { BreadcrumbTrail, HistoryArrows } from '../components/breadcrumb-trail.js'
+import { BreadcrumbTrail } from '../components/breadcrumb-trail.js'
 import {
   clampSidebarWidth,
   clearSidebarWidth,
@@ -125,7 +125,7 @@ const UPDATE_AVAILABLE = 'Update available, reload'
 
 /*
 The one top bar. On a laptop: the show-sidebar control when the sidebar is
-hidden, then the window bar (arrows, trail, page controls). Below 768px the
+hidden, then the window bar (trail and page controls). Below 768px the
 same window bar sits between Menu and Search, so a phone has one bar.
 */
 function TopBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): React.JSX.Element {
@@ -167,10 +167,10 @@ function TopBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): React.
 const TASK_PREFIX = '/app/tasks/'
 
 /*
-The window bar's left end: the history arrows, then where this route sits.
-A page is its trail; a task is its page's trail and its title; a collection
-and the fixed places are their names. Nothing is drawn for a route with no
-name of its own (a redirect on its way somewhere).
+The window bar's left end: where this route sits. A page is its trail; a task
+is its page's trail and its title; a collection and the fixed places are their
+names. Nothing is drawn for a route with no name of its own (a redirect on its
+way somewhere). Back/Forward are grouped with the workspace tabs above.
 */
 function TopTrail(): React.JSX.Element {
   const { pathname, search } = useLocation()
@@ -203,7 +203,7 @@ function TopTrail(): React.JSX.Element {
   /* A top-level place (Today, Settings, Trash, a collection) has no crumb:
      its title already says where you are, and saying it twice is noise. */
   /* With the sidebar hidden on a laptop, the one control that brings it back
-     leads the bar, spaced and drawn like the arrows beside it. */
+     leads the bar, spaced like the trail beside it. */
   const { isMobile, state } = useSidebar()
   return (
     <WindowBarLead>
@@ -215,7 +215,6 @@ function TopTrail(): React.JSX.Element {
           <TooltipContent side="bottom">Expand sidebar</TooltipContent>
         </Tooltip>
       )}
-      <HistoryArrows />
       {trail}
     </WindowBarLead>
   )
