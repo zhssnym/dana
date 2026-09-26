@@ -1,13 +1,13 @@
 /*
-The task page's body: everything a task is, in one quiet column, the same in
-the side peek, the center peek and the full page.
+The task page's body: everything a task is, in one quiet column (M4: one
+task page, no peek).
 
-The order is the page's (ROUND2-SPEC "Task"): one properties block (Status
-first, then the fixed set, Steps, Dependencies and Attachments only where there
-are some), then the page's two tabs, **Work** (the task's document) and
-**Discussion** (its comments, never on the body). Nothing here can be
-dragged or collapsed; a task is not a form somebody arranges. Every edit commits as it is made, so there is no Save
-and no footer of actions: the task's own acts live in the panel's one "…".
+The order is the page's: one properties block (Status first, then only what
+is set, and "Add property"), a rule, the task's own document, then Subtasks,
+Dependencies and Attachments where there are some, a rule, and one timeline:
+its posts and its events together, ending in "Write a post" with "Mark done ▾"
+(Drop in its menu). Nothing here can be dragged or collapsed; a task is not a
+form somebody arranges. Every edit commits as it is made, so there is no Save.
 
 **The properties block shows only what is set.** A task with no date draws no
 Date row; "Add property" offers it, and choosing it reveals the row already
@@ -34,7 +34,6 @@ import {
   Play,
   Plus,
   Repeat2,
-  Tag,
   UserRound,
   Video,
   Workflow,
@@ -62,10 +61,8 @@ import {
 } from "./task-pickers.js"
 import { TaskThread } from "./thread/TaskThread.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
-import { useMultiMemberFolderIds, useTask, useTaskDependencies } from "../api/queries.js"
-import { useUpdateTask } from "../api/mutations.js"
+import { useMultiMemberFolderIds, useTaskDependencies } from "../api/queries.js"
 import { presenterToday } from "../parts/presenters.js"
-import { boardStatusOf, type BoardStatus } from "../views/BoardView.js"
 import {
   CHIP_ASSIGNEE,
   CHIP_REMINDER,
@@ -73,7 +70,6 @@ import {
   UNASSIGNED,
 } from "./task-card-copy.js"
 import { TaskAssigneeInvite } from "./task-assignee-invite.js"
-import { TaskLabelsRow } from "./task-labels.js"
 import { INVITE_BY_EMAIL, STEP_CAP_NOTICE } from "./task-copy.js"
 /* 10.3's cap for the field. Restated rather than imported because
    `shared/tasks.ts` spends it inline in a zod `max`. */
@@ -92,7 +88,7 @@ import { formatDate, formatDay, formatDayInline } from "../lib/dates.js"
 import { useSortableList } from "../lib/use-sortable-list.js"
 import { cn } from "./ui/utils.js"
 import { Checkbox } from "./ui/checkbox.js"
-import { Tab, TabList } from "./ui/tabs.js"
+import { StateMark, STATE_WORD, type TaskState } from "./thread/timeline/state.js"
 
 const TaskComposer = lazy(() => import("./page/canvas/TaskComposer.js"))
 
@@ -605,7 +601,7 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
 
 /* ------------------------------------------------------------- properties */
 
-type AddableProperty = "date" | "reminder" | "repeat" | "assignee" | "labels" | "steps"
+type AddableProperty = "date" | "reminder" | "repeat" | "assignee" | "steps"
 
 /* The Schedule in one line (#215): "Starts Mon", "21 Sep – 30 Sep", or the
    due date alone, which a same-day pair also is. A range names both ends as
@@ -682,66 +678,20 @@ function MenuRow({
 
 /* ----------------------------------------------------------------- status */
 
-type StatusKey = BoardStatus
-
-const STATUS_LABEL: Record<StatusKey | "abandoned", string> = {
-  not_started: "Not started",
-  in_progress: "In progress",
-  done: "Done",
-  abandoned: "Abandoned",
-}
-
-/* The three states as one small mark: a dashed ring, a half-filled ring, a
-   filled check. Abandoned is a ring with a stroke through it. */
-export function StatusMark({ status, className }: { status: StatusKey | "abandoned"; className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      aria-hidden="true"
-      className={cn(
-        "size-3.5 shrink-0",
-        status === "not_started" || status === "abandoned" ? "text-muted-foreground" : "text-primary",
-        className,
-      )}
-    >
-      {status === "done" ? (
-        <>
-          <circle cx="8" cy="8" r="7" fill="currentColor" />
-          <path d="M5 8.3 7.1 10.3 11 6" fill="none" stroke="var(--background)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        </>
-      ) : (
-        <>
-          <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray={status === "not_started" ? "2.4 1.8" : undefined} />
-          {status === "in_progress" ? <path d="M8 3.5a4.5 4.5 0 0 1 0 9z" fill="currentColor" /> : null}
-          {status === "abandoned" ? <path d="M4.5 11.5 11.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /> : null}
-        </>
-      )}
-    </svg>
-  )
-}
-
 /*
-Status, the first property: Not started, In progress, Done. The Board's own
-rule (`boardStatusOf` in `views/BoardView.tsx`), so the page and the Board can
-never disagree: a pending task whose start date is today or earlier is In
-progress. Choosing In progress starts it today (or on its due day when that is
-earlier, since the server holds start <= due); Not started clears the start;
-Done is the completion verb, so a series still generates its next occurrence
-exactly once. Abandoned is the fourth choice; an abandoned task says so, and
-any other choice restores it first.
+Status, the first property: To do, Done, Dropped (M4; the stored value for
+Dropped stays `abandoned`). Done is the completion verb, so a series still
+generates its next occurrence exactly once. Dropped to Done is two verbs in
+order (restore, then complete); the second waits for the first to land.
 */
-function StatusRow({
-  task,
-  patch,
-}: {
-  task: ConceptTask
-  patch: (id: string, fields: Partial<ConceptTask>) => void
-}) {
-  const card = useTask(task.id).data
-  const update = useUpdateTask()
-  const today = presenterToday()
-  /* Abandoned to Done is two verbs in order (restore, then complete); the
-     second waits for the first to land. */
+export function stateOf(task: ConceptTask): TaskState {
+  return task.abandoned ? "dropped" : task.done ? "done" : "open"
+}
+
+export function useStateMoves(
+  task: ConceptTask,
+  patch: (id: string, fields: Partial<ConceptTask>) => void,
+): (next: TaskState) => void {
   const [completeAfterRestore, setCompleteAfterRestore] = useState(false)
   useEffect(() => {
     if (!completeAfterRestore || task.abandoned) return
@@ -749,14 +699,13 @@ function StatusRow({
     patch(task.id, { done: true })
   }, [completeAfterRestore, task.abandoned, task.id, patch])
 
-  if (card === undefined) return null
-  const current: StatusKey | "abandoned" = task.abandoned ? "abandoned" : boardStatusOf(card, today)
-  const started = card.start_date !== null && card.start_date <= today
-
-  function choose(next: StatusKey | "abandoned") {
-    if (card === undefined || next === current) return
-    // Abandon lives here, with the other states, not in the "…".
-    if (next === "abandoned") { patch(task.id, { abandoned: true }); return }
+  return (next) => {
+    const current = stateOf(task)
+    if (next === current) return
+    if (next === "dropped") {
+      patch(task.id, { abandoned: true })
+      return
+    }
     if (next === "done") {
       if (task.abandoned) {
         setCompleteAfterRestore(true)
@@ -764,31 +713,27 @@ function StatusRow({
       } else patch(task.id, { done: true })
       return
     }
-    /* Out of Done first: an abandoned task is restored, a completed one
-       uncompleted, as a Board drop does. */
     if (task.abandoned) patch(task.id, { abandoned: false })
     else if (task.done) patch(task.id, { done: false })
-    if (next === "in_progress" && !started) {
-      const day = card.due_date !== null && card.due_date < today ? card.due_date : today
-      update.mutate({ id: task.id, body: { start_date: day } })
-    }
-    if (next === "not_started" && started) update.mutate({ id: task.id, body: { start_date: null } })
   }
+}
 
+function StatusRow({ task, move }: { task: ConceptTask; move: (next: TaskState) => void }) {
+  const current = stateOf(task)
   return (
     <MenuRow
       label="Status"
       value={
         <>
-          <StatusMark status={current} />
-          <span className="truncate">{STATUS_LABEL[current]}</span>
+          <StateMark state={current} className="size-3.5" />
+          <span className="truncate">{STATE_WORD[current]}</span>
         </>
       }
     >
-      {(["not_started", "in_progress", "done", "abandoned"] as const).map((key) => (
-        <DropdownMenuItem key={key} onClick={() => choose(key)}>
-          <StatusMark status={key} />
-          <span className="flex-1">{STATUS_LABEL[key]}</span>
+      {(["open", "done", "dropped"] as const).map((key) => (
+        <DropdownMenuItem key={key} onClick={() => move(key)}>
+          <StateMark state={key} className="size-3.5" />
+          <span className="flex-1">{STATE_WORD[key]}</span>
           {/* The current state takes the tick every picker uses. */}
           <Check
             className={cn("size-3.5 shrink-0", key === current ? "opacity-100" : "opacity-0")}
@@ -844,14 +789,8 @@ export function TaskCard({
   const hasDeps =
     (deps.data?.depends_on.length ?? 0) > 0 || (deps.data?.blocks.length ?? 0) > 0
   const attachments = task.attachments ?? []
-  const labels = task.labels ?? []
   const steps = task.steps ?? []
-  /* `?tab=discussion` (a notification or a Dana Link to a post) opens on the
-     Discussion tab. /app/tasks/:id is always the full page, and the router has
-     already pushed the address when this first renders. */
-  const [tab, setTab] = useState<"notes" | "discussion">(() =>
-    new URLSearchParams(globalThis.location?.search ?? "").get("tab") === "discussion" ? "discussion" : "notes",
-  )
+  const move = useStateMoves(task, patch)
 
   const showDate = Boolean(task.due) || task.start !== undefined || adding === "date"
   const showReminder = Boolean(task.reminder) || adding === "reminder"
@@ -880,14 +819,11 @@ export function TaskCard({
     ...(assignable && !task.assignee
       ? [{ key: "assignee", label: CHIP_ASSIGNEE, icon: UserRound, onSelect: () => setAdding("assignee") }]
       : []),
-    ...(task.folder?.id !== undefined && labels.length === 0
-      ? [{ key: "labels", label: "Labels", icon: Tag, onSelect: () => setAdding("labels") }]
-      : []),
     ...(steps.length === 0 && adding !== "steps"
       ? [{ key: "steps", label: "Subtasks", icon: ListPlus, onSelect: () => setAdding("steps") }]
       : []),
     ...(relatable && deps.data !== undefined && !hasDeps && !depOpening
-      ? [{ key: "dependency", label: "Dependency", icon: Workflow, onSelect: () => setDepOpening(true) }]
+      ? [{ key: "dependency", label: "Waits on", icon: Workflow, onSelect: () => setDepOpening(true) }]
       : []),
     ...(attachments.length === 0 && !attaching
       ? [{ key: "attachment", label: "Attachment", icon: Paperclip, onSelect: () => setAttaching(true) }]
@@ -898,7 +834,7 @@ export function TaskCard({
     <div className="flex flex-col gap-6">
       {/* The properties block: quiet rows, only what is set. */}
       <div className="-mx-2 flex flex-col">
-        <StatusRow task={task} patch={patch} />
+        <StatusRow task={task} move={move} />
         {showDate ? (
           <PropertyPicker
             label={DATE_LABEL}
@@ -974,30 +910,6 @@ export function TaskCard({
           </MenuRow>
         ) : null}
 
-        {/* #208: the task's Labels, and the picker that changes them. */}
-        {task.folder?.id !== undefined && (labels.length > 0 || adding === "labels") ? (
-          <TaskLabelsRow
-            task={task}
-            defaultOpen={adding === "labels"}
-            /* Held open while the picker is: taking off the last label must not
-               pull the row, and the picker with it, out from under the pointer. */
-            onOpenChange={(open) => {
-              if (open) {
-                setAdding("labels")
-                return
-              }
-              settle("labels")(false)
-              /* With no label left the row goes, and the focus with it: hand
-                 it to "Add property", where Labels is offered again. */
-              if (labels.length === 0)
-                requestAnimationFrame(() => {
-                  if (document.activeElement === null || document.activeElement === document.body)
-                    addProperty.current?.focus()
-                })
-            }}
-          />
-        ) : null}
-
         {addable.length > 0 ? (
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -1034,6 +946,37 @@ export function TaskCard({
         />
       ) : null}
 
+      <hr className="border-border" />
+
+      {/* #221: the task's own document, in the folder canvas's writer. The
+          plain-text notes stand in while the writer loads. */}
+      {/* The writer's tall click-to-write tail is a page's; here it is a line.
+          An empty body says what it is for, as the retired issue page did. */}
+      <div
+        aria-label="Notes"
+        role="region"
+        className='[&_.dana-canvas-tail]:min-h-8! [&_.bn-editor:not(.ProseMirror-focused)_[data-is-only-empty-block]]:[--dana-hint:"Add_notes"]'
+      >
+        <Suspense
+          fallback={task.notes ? <p className="whitespace-pre-wrap px-1 text-sm text-foreground">{task.notes}</p> : null}
+        >
+          <TaskComposer
+            taskId={task.id}
+            folderId={task.folder?.id ?? null}
+            notes={task.notes ?? null}
+            addSubtasks={(added) => {
+              if (added.length === 0) {
+                setAdding("steps")
+                return true
+              }
+              if (steps.length + added.length > STEP_CAP) return false
+              patch(task.id, { steps: [...steps, ...added] })
+              return true
+            }}
+          />
+        </Suspense>
+      </div>
+
       {steps.length > 0 || adding === "steps" ? (
         <Section title="Subtasks" {...(counts ? { badge: `${counts.done}/${counts.total}` } : {})}>
           <StepList
@@ -1059,15 +1002,12 @@ export function TaskCard({
         folderId={task.folder?.id}
         opening={depOpening}
         onIdle={() => setDepOpening(false)}
-        section={(badge, body) => (
-          <Section title="Dependencies" {...(badge === undefined ? {} : { badge })}>
-            {body}
-          </Section>
-        )}
+        /* The blocker count it offers is not drawn: counts go (M4). */
+        section={(_badge, body) => <Section title="Dependencies">{body}</Section>}
       />
 
       {attachments.length > 0 || attaching ? (
-        <Section title="Attachments" {...(attachments.length > 0 ? { badge: String(attachments.length) } : {})}>
+        <Section title="Attachments">
           {attachments.length > 0 ? <AttachmentList files={attachments} /> : null}
           <AttachmentPicker
             pickOnMount={attaching && attachments.length === 0}
@@ -1079,65 +1019,17 @@ export function TaskCard({
         </Section>
       ) : null}
 
-      {/* The page's two tabs, drawn as the folder page draws its own:
-          Work is the task's document, Discussion its comments. */}
-      <div className="flex flex-col gap-4">
-        <TabList label="Task tabs">
-          {(
-            [
-              ["notes", "Work"],
-              ["discussion", "Discussion"],
-            ] as const
-          ).map(([key, name]) => (
-            <Tab
-              key={key}
-              id={`task-tab-${key}`}
-              aria-controls={`task-tabpanel-${key}`}
-              selected={tab === key}
-              onClick={() => setTab(key)}
-              onKeyDown={(event) => {
-                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
-                event.preventDefault()
-                const next = key === "notes" ? "discussion" : "notes"
-                setTab(next)
-                globalThis.requestAnimationFrame(() => document.getElementById(`task-tab-${next}`)?.focus())
-              }}
-            >
-              {name}
-            </Tab>
-          ))}
-        </TabList>
+      <hr className="border-border" />
 
-        {tab === "notes" ? (
-          /* #221: the Task's own document, in the Folder canvas's writer. The
-             plain-text notes stand in while the writer loads. */
-          <div role="tabpanel" id="task-tabpanel-notes" aria-labelledby="task-tab-notes">
-            <Suspense
-              fallback={
-                task.notes ? <p className="whitespace-pre-wrap px-1 text-sm text-foreground">{task.notes}</p> : null
-              }
-            >
-              <TaskComposer
-                taskId={task.id}
-                folderId={task.folder?.id ?? null}
-                notes={task.notes ?? null}
-                addSubtasks={(added) => {
-                  if (added.length === 0) {
-                    setAdding("steps")
-                    return true
-                  }
-                  if (steps.length + added.length > STEP_CAP) return false
-                  patch(task.id, { steps: [...steps, ...added] })
-                  return true
-                }}
-              />
-            </Suspense>
-          </div>
-        ) : (
-          <div role="tabpanel" id="task-tabpanel-discussion" aria-labelledby="task-tab-discussion">
-            <TaskThread taskId={task.id} folderId={task.folder?.id ?? null} />
-          </div>
-        )}
+      {/* One timeline: posts and events together, then "Write a post". */}
+      <div>
+        <TaskThread
+          taskId={task.id}
+          folderId={task.folder?.id ?? null}
+          state={stateOf(task)}
+          onFinish={(how) => move(how)}
+          onReopen={() => move("open")}
+        />
       </div>
     </div>
   )

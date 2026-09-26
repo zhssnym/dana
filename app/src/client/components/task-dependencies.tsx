@@ -238,7 +238,7 @@ function stateWord(edge: TaskDependencyEdge, direction: Mode): string | null {
     case "satisfied":
       return "Done"
     case "unresolved":
-      return "Abandoned, still blocking"
+      return "Dropped, still blocking"
     default:
       return null
   }

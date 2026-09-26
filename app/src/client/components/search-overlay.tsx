@@ -118,9 +118,9 @@ function resultGlyph(item: SearchResultItem): LucideIcon {
 }
 
 const statusLabels: Record<SearchResultStatus, string> = {
-  pending: "Pending",
-  abandoned: "Abandoned",
-  completed: "Completed",
+  pending: "To do",
+  abandoned: "Dropped",
+  completed: "Done",
 }
 
 function StatusBadge({ status }: { status: SearchResultStatus }) {
