@@ -5,7 +5,9 @@ duplicating anything, and the new schema refuses the states #320 forbids.
 
 The database is built through 0028 first, from a copy of the journal cut at
 0028, so that the rows exist **before** 0029 runs exactly as they do in
-production; then the real migrations folder is applied on top. It runs on
+production; then the real migrations are applied on top, through 0058. 0059
+(M5) moves task threads into Discussions, which is AC-1510's to test; stopping
+before it keeps these criteria about 0029's schema. It runs on
 PGlite whichever leg is selected: what is under test is the migration SQL,
 which is the same text on both.
 */
@@ -132,8 +134,22 @@ beforeAll(async () => {
 
   before = await commentsSnapshot()
 
-  // Now 0029, from the real folder, over the populated database.
-  await migrate(db, { migrationsFolder })
+  // Now 0029 to 0058, from the real files, over the populated database.
+  const upTo0058 = path.join(scratch, 'through-0058')
+  mkdirSync(path.join(upTo0058, 'meta'), { recursive: true })
+  const stop = journal.entries.findIndex((entry) => entry.tag.startsWith('0059_'))
+  const through0058All = stop === -1 ? journal.entries : journal.entries.slice(0, stop)
+  for (const entry of through0058All) {
+    copyFileSync(
+      path.join(migrationsFolder, `${entry.tag}.sql`),
+      path.join(upTo0058, `${entry.tag}.sql`),
+    )
+  }
+  writeFileSync(
+    path.join(upTo0058, 'meta', '_journal.json'),
+    JSON.stringify({ ...journal, entries: through0058All }),
+  )
+  await migrate(db, { migrationsFolder: upTo0058 })
   /* Building PGlite through 29 migrations takes seconds on its own, and the
      parallel suite on the CI runner pushes it past vitest's 10 s default. */
 }, 60_000)

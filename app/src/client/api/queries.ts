@@ -25,8 +25,6 @@ import { discussionSchema } from '../../shared/consultation.js'
 import type { Discussion } from '../../shared/consultation.js'
 import { getEventsResponse, getNotificationsResponse } from '../../shared/events.js'
 import type { GetEventsResponse, GetNotificationsResponse } from '../../shared/events.js'
-import { getThreadResponse } from '../../shared/comments.js'
-import type { GetThreadResponse } from '../../shared/comments.js'
 import { getPlaceCoversResponse } from '../../shared/covers.js'
 import type { GetPlaceCoversResponse } from '../../shared/covers.js'
 import { getPlaceDescriptionsResponse } from '../../shared/place-descriptions.js'
@@ -568,32 +566,6 @@ export function useNotifications(poll: boolean): UseQueryResult<GetNotifications
     queryKey: queryKeys.notifications(),
     queryFn: () => getPlain(getNotificationsResponse, '/notifications'),
     refetchInterval: poll ? 20_000 : false,
-  })
-}
-
-/**
- * One conversation (7.14): the folder's own thread, or a task's.
- *
- * `open` gates the fetch the way the Completed section's does, because both
- * homes of 9.6's conversation start closed; while the surface is open the
- * same flag runs D3's polite poll, which is the whole of the liveness the
- * pricing session bought (no sockets, no SSE).
- */
-export function useThread(
-  folderId: string,
-  taskId: string | null,
-  open: boolean,
-): UseQueryResult<GetThreadResponse> {
-  return useQuery({
-    queryKey: queryKeys.thread(folderId, taskId),
-    queryFn: () =>
-      getPlain(
-        getThreadResponse,
-        `/folders/${folderId}/comments`,
-        taskId === null ? undefined : { task: taskId },
-      ),
-    enabled: open,
-    refetchInterval: open ? 30_000 : false,
   })
 }
 

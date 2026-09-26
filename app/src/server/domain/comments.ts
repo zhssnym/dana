@@ -105,17 +105,18 @@ export function postContentOrNull(value: unknown): PostContent | null {
  * ------------------------------------------------------------------ */
 
 /**
- * The three threads a comment can be written to.
+ * The two threads a comment can be written to. A task has no thread of its
+ * own since M5 (migration 0059): its conversation is the Discussion linked to
+ * it (`discussions.task_id`), and `comments_no_task_scope_check` refuses a
+ * task-scoped row.
  *
- * - `task`: a Task's thread, exactly as before #320 (`discussion_id` null).
  * - `discussion`: one Discussion's conversation, `POST /discussions/:id/comments`.
  * - `folder`: the legacy Folder thread the deployed client still posts to
- *   and reads (`/folders/:id/comments` without `task`). It is the Folder's
+ *   and reads (`/folders/:id/comments`). It is the Folder's
  *   "General discussion" -- migration 0029's backfill target -- and a write
  *   there lands in the open one, created if missing.
  */
 export type CommentThread =
-  | { kind: 'task'; taskId: string }
   | { kind: 'discussion'; discussionId: string }
   | { kind: 'folder' }
 
@@ -216,7 +217,6 @@ function inLegacyThread(folderId: string): ReturnType<typeof sql> {
 
 export type CreateCommentResult =
   | { kind: 'created'; comment: CommentLine }
-  | { kind: 'task_not_here' }
   | { kind: 'discussion_not_here' }
   | { kind: 'frozen' }
   | { kind: 'parent_not_here' }
@@ -248,31 +248,8 @@ export async function createComment(
     }
   }
   return inTransaction(db, async (tx) => {
-    const taskId = thread.kind === 'task' ? thread.taskId : null
-    /* The task's own people, read here so the fan-out
-       below can reach them: a comment on a task concerns its assignee and
-       its creator whether or not either has spoken yet (4.14, "the people
-       it concerns"), which is what 9.12's empty state promises. The title is
-       read too, so the sentence the bell draws can say which task. */
-    let taskPeople: string[] = []
-    let taskTitle: string | null = null
-    if (taskId !== null) {
-      const task = await rowsOf(
-        tx,
-        sql`SELECT title, assignee_id, created_by FROM tasks
-            WHERE id = ${taskId} AND folder_id = ${folderId}
-              AND deleted_at IS NULL`,
-      )
-      const row = task[0]
-      if (row === undefined) return { kind: 'task_not_here' } as const
-      taskTitle = String(row.title)
-      taskPeople = [row.assignee_id, row.created_by].filter(
-        (id): id is string => typeof id === 'string' && id.length > 0,
-      )
-    }
-
     /*
-    The Discussion this comment lands in (issue #320), null on a Task thread.
+    The Discussion this comment lands in (issue #320).
 
     A legacy reply goes where its parent is, because a reply and its parent
     are one conversation: if the parent sits in a General discussion that has
@@ -280,10 +257,10 @@ export async function createComment(
     somewhere else. A legacy top-level post goes to the open General
     discussion, made if missing.
     */
-    let discussionId: string | null = null
+    let discussionId: string
     if (thread.kind === 'discussion') {
       discussionId = thread.discussionId
-    } else if (thread.kind === 'folder') {
+    } else {
       if (body.parent_id !== undefined) {
         const parent = await rowsOf(
           tx,
@@ -304,27 +281,36 @@ export async function createComment(
 
     /* The Discussion's row, locked for the rest of the transaction so a
        resolve or a trash racing this post waits for it or is waited on,
-       and never lets a comment land after the Outcome was recorded. */
-    let discussionTitle: string | null = null
-    if (discussionId !== null) {
-      const found = await rowsOf(
-        tx,
-        sql`SELECT title, state, trashed_at FROM discussions
-            WHERE id = ${discussionId}::uuid AND folder_id = ${folderId}::uuid
-            FOR NO KEY UPDATE`,
-      )
-      const row = found[0]
-      if (row === undefined) return { kind: 'discussion_not_here' } as const
-      if (isFrozen(row)) return { kind: 'frozen' } as const
-      discussionTitle = String(row.title)
-    }
+       and never lets a comment land after the Outcome was recorded.
+
+       A Discussion about a live task (M5) also reaches the task's own
+       people: a post about a task concerns its assignee and its creator
+       whether or not either has spoken yet (4.14, "the people it
+       concerns"), as the task's own thread did before 0059. */
+    const found = await rowsOf(
+      tx,
+      sql`SELECT d.title, d.state, d.trashed_at,
+                 t.assignee_id AS task_assignee, t.created_by AS task_creator
+            FROM discussions d
+            LEFT JOIN tasks t
+              ON t.id = d.task_id AND t.folder_id = d.folder_id
+             AND t.deleted_at IS NULL
+           WHERE d.id = ${discussionId}::uuid AND d.folder_id = ${folderId}::uuid
+           FOR NO KEY UPDATE OF d`,
+    )
+    const discussionRow = found[0]
+    if (discussionRow === undefined) return { kind: 'discussion_not_here' } as const
+    if (isFrozen(discussionRow)) return { kind: 'frozen' } as const
+    const discussionTitle = String(discussionRow.title)
+    const taskPeople = [discussionRow.task_assignee, discussionRow.task_creator].filter(
+      (id): id is string => typeof id === 'string' && id.length > 0,
+    )
 
     if (body.parent_id !== undefined) {
       const parent = await rowsOf(
         tx,
         sql`SELECT parent_id,
-                   (task_id IS NOT DISTINCT FROM ${taskId}
-                    AND discussion_id IS NOT DISTINCT FROM ${discussionId}::uuid)
+                   (discussion_id IS NOT DISTINCT FROM ${discussionId}::uuid)
                      AS same_thread
             FROM comments
             WHERE id = ${body.parent_id} AND folder_id = ${folderId}`,
@@ -383,9 +369,9 @@ export async function createComment(
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO comments
-            (folder_id, task_id, discussion_id, parent_id, author_id, body,
+            (folder_id, discussion_id, parent_id, author_id, body,
              content)
-          VALUES (${folderId}::uuid, ${taskId}, ${discussionId}::uuid,
+          VALUES (${folderId}::uuid, ${discussionId}::uuid,
                   ${body.parent_id ?? null}, ${viewerId}::uuid,
                   ${words},
                   ${body.content === undefined ? null : JSON.stringify(body.content)}::jsonb)
@@ -394,12 +380,10 @@ export async function createComment(
     const commentId = String(inserted[0]?.id)
     /* The Consultation list orders by this (issue #320), and it moves with
        the comment, in the comment's transaction. */
-    if (discussionId !== null) {
-      await tx.execute(
-        sql`UPDATE discussions SET last_activity_at = now()
-            WHERE id = ${discussionId}::uuid`,
-      )
-    }
+    await tx.execute(
+      sql`UPDATE discussions SET last_activity_at = now()
+          WHERE id = ${discussionId}::uuid`,
+    )
     /*
     One row per attachment, stamped in order.
 
@@ -432,8 +416,7 @@ export async function createComment(
       tx,
       sql`SELECT DISTINCT author_id FROM comments
           WHERE folder_id = ${folderId}
-            AND task_id IS NOT DISTINCT FROM ${taskId}
-            AND discussion_id IS NOT DISTINCT FROM ${discussionId}::uuid
+            AND discussion_id = ${discussionId}::uuid
             AND id <> ${commentId}::uuid`,
     )
     const folderRow = await rowsOf(
@@ -443,9 +426,9 @@ export async function createComment(
     /* A Discussion's own route names the Discussion; the legacy Folder
        thread keeps naming the Folder, as it always has. */
     const placeName =
-      taskTitle ??
-      (thread.kind === 'discussion' ? discussionTitle : null) ??
-      String(folderRow[0]?.name ?? 'a folder')
+      thread.kind === 'discussion'
+        ? discussionTitle
+        : String(folderRow[0]?.name ?? 'a folder')
     await recordEvent(tx, {
       actorId: viewerId,
       verb: 'created',
@@ -466,7 +449,7 @@ export async function createComment(
       comment: {
         id: commentId,
         folder_id: folderId,
-        task_id: taskId,
+        task_id: null,
         discussion_id: discussionId,
         parent_id: body.parent_id ?? null,
         author_id: viewerId,
@@ -531,8 +514,7 @@ function lineFrom(row: Record<string, unknown>): CommentLine {
 }
 
 /**
- * One thread, whole and in order. A Task thread is its `task_id`; a
- * Discussion's is its `discussion_id`; the legacy Folder thread is every
+ * One thread, whole and in order. A Discussion's is its `discussion_id`; the legacy Folder thread is every
  * General discussion of the Folder that is not in Trash (a resolved one
  * included, so the deployed client keeps reading one continuous history)
  * plus any stray Folder-level comment no Discussion holds yet. Comments of
@@ -545,11 +527,9 @@ export async function threadView(
   thread: CommentThread,
 ): Promise<ThreadView> {
   const scope =
-    thread.kind === 'task'
-      ? sql`c.task_id = ${thread.taskId}::uuid`
-      : thread.kind === 'discussion'
-        ? sql`c.discussion_id = ${thread.discussionId}::uuid`
-        : inLegacyThread(folderId)
+    thread.kind === 'discussion'
+      ? sql`c.discussion_id = ${thread.discussionId}::uuid`
+      : inLegacyThread(folderId)
   const rows = await rowsOf(
     db,
     sql`${commentSelect(viewerId)}
@@ -557,24 +537,6 @@ export async function threadView(
         ORDER BY c.created_at ASC, c.id ASC`,
   )
   return { comments: rows.map(lineFrom) }
-}
-
-/* The comment count of every task thread in a folder (m2 ghissues). The
-   caller has resolved the viewer's access to the folder, and every member
-   reads every task thread in it, so there is no further clause. */
-export async function taskCommentCounts(
-  db: Db,
-  folderId: string,
-): Promise<{ task_id: string; comments: number }[]> {
-  const rows = await rowsOf(
-    db,
-    sql`SELECT c.task_id, count(*)::int AS comments
-          FROM comments c
-         WHERE c.folder_id = ${folderId} AND c.task_id IS NOT NULL
-         GROUP BY c.task_id
-         ORDER BY c.task_id`,
-  )
-  return rows.map((row) => ({ task_id: String(row.task_id), comments: Number(row.comments) }))
 }
 
 /* One comment as the thread would read it. The caller has already resolved

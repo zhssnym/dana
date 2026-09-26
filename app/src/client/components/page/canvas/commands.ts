@@ -15,6 +15,14 @@ export function createTaskAtCursor(editor: CanvasEditor): boolean {
   return true
 }
 
+/**
+ * Lines the Work thread's last line ("Add a task…") wrote into the page to
+ * become a Task, by block id: if the page refuses the Task (its writing has
+ * not saved), the title goes back to that line rather than staying on the
+ * page as text. The page's Task act takes the entry when it refuses.
+ */
+export const lineTitles = new Map<string, { readonly reused: boolean; readonly giveBack: (title: string) => void }>()
+
 /** A Task made from this line through the page's own Task act (the same one `[] ` and `/task` use). */
 export function createTaskFrom(editor: CanvasEditor, block: CanvasBlock): boolean {
   const command = taskCommands.get(editor)

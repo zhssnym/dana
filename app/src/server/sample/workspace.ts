@@ -313,12 +313,11 @@ function postColumns(ctx: SampleContext, value: SampleText): { body: string; con
   return { body: text, content }
 }
 
-/** Writes one post, its likes and its replies into a Discussion or a task's
- * thread. */
+/** Writes one post, its likes and its replies into a Discussion. */
 async function writePost(
   ctx: SampleContext,
   folderId: string,
-  scope: { discussionId: string } | { taskId: string },
+  discussionId: string,
   post: SamplePost,
   parentId: string | null = null,
 ): Promise<void> {
@@ -327,10 +326,8 @@ async function writePost(
   const made = await rowsOf(
     tx,
     sql`INSERT INTO comments
-          (folder_id, discussion_id, task_id, parent_id, author_id, body, content, created_at)
-        VALUES (${folderId}::uuid,
-                ${'discussionId' in scope ? scope.discussionId : null}::uuid,
-                ${'taskId' in scope ? scope.taskId : null}::uuid,
+          (folder_id, discussion_id, parent_id, author_id, body, content, created_at)
+        VALUES (${folderId}::uuid, ${discussionId}::uuid,
                 ${parentId}::uuid, ${personId(ctx, post.by)}::uuid, ${body},
                 ${content}::jsonb, ${ago(post.daysAgo, post.hoursAgo ?? 0)})
         RETURNING id`,
@@ -344,7 +341,7 @@ async function writePost(
     )
   }
   for (const reply of post.replies ?? []) {
-    await writePost(ctx, folderId, scope, reply, commentId)
+    await writePost(ctx, folderId, discussionId, reply, commentId)
   }
 }
 
@@ -353,20 +350,27 @@ function hoursAgo(post: { daysAgo: number; hoursAgo?: number }): number {
   return post.daysAgo * 24 + (post.hoursAgo ?? 0)
 }
 
-async function writeThread(ctx: SampleContext, folderId: string, thread: SampleThread): Promise<void> {
+/** A Discussion and its posts; `taskId` links it to the task it is about
+ * (M5: a sample task's conversation is its Discussion, as a real one is). */
+async function writeThread(
+  ctx: SampleContext,
+  folderId: string,
+  thread: SampleThread,
+  taskId: string | null = null,
+): Promise<void> {
   const { tx } = ctx
   const all = thread.posts.flatMap((post) => [post, ...(post.replies ?? [])])
   const first = Math.max(...all.map(hoursAgo))
   const last = Math.min(...all.map(hoursAgo))
   const made = await rowsOf(
     tx,
-    sql`INSERT INTO discussions (folder_id, title, created_by, last_activity_at, created_at, updated_at)
-        VALUES (${folderId}::uuid, ${thread.title}, ${personId(ctx, thread.by)}::uuid,
+    sql`INSERT INTO discussions (folder_id, task_id, title, created_by, last_activity_at, created_at, updated_at)
+        VALUES (${folderId}::uuid, ${taskId}::uuid, ${thread.title}, ${personId(ctx, thread.by)}::uuid,
                 ${ago(0, last)}, ${ago(0, first)}, ${ago(0, last)})
         RETURNING id`,
   )
   const discussionId = String(made[0]?.id)
-  for (const post of thread.posts) await writePost(ctx, folderId, { discussionId }, post)
+  for (const post of thread.posts) await writePost(ctx, folderId, discussionId, post)
   if (thread.resolved !== undefined) {
     const { by, daysAgo, decision } = thread.resolved
     const outcome = await rowsOf(
@@ -465,6 +469,21 @@ async function writeMainDocument(
     if ('task' in item) {
       const id = ownTasks.get(item.task)
       if (id === undefined || id === '') continue
+      /* A repeating task's history stands just above its live occurrence,
+         oldest first: done work reads as progress above what is next. */
+      if ((folder.tasks ?? []).some((task) => task.title === item.task && (task.history ?? []).length > 0)) {
+        const earlier = await rowsOf(
+          tx,
+          sql`SELECT id FROM tasks
+               WHERE folder_id = ${folderId}::uuid AND title = ${item.task}
+                 AND status = 'completed' AND id <> ${id}::uuid
+               ORDER BY due_date ASC, id ASC`,
+        )
+        for (const row of earlier) {
+          placed.add(String(row.id))
+          outline.push({ kind: 'task', id: String(row.id), section_block_id: section, list_parent_block_id: null })
+        }
+      }
       placed.add(id)
       outline.push({ kind: 'task', id, section_block_id: section, list_parent_block_id: null })
     } else if ('page' in item) {
@@ -476,7 +495,7 @@ async function writeMainDocument(
       putBlock(item, null)
     }
   }
-  // Whatever the document did not name (a repeating task's history) goes last.
+  // Whatever the document did not name goes last.
   for (const item of await positionedItems(tx, folderId)) {
     if (placed.has(item.id)) continue
     outline.push({ kind: item.kind, id: item.id, section_block_id: section, list_parent_block_id: null })
@@ -650,9 +669,15 @@ export async function createSampleWorkspace(
     await writeMainDocument(ctx, folder, folderId)
     await writeFacets(ctx, folder, folderId)
     for (const task of folder.tasks ?? []) {
-      for (const post of task.thread ?? []) {
-        await writePost(ctx, folderId, { taskId: ctx.tasks.get(task.title) ?? '' }, post)
-      }
+      const posts = task.thread ?? []
+      const opener = [...posts].sort((a, b) => hoursAgo(b) - hoursAgo(a))[0]
+      if (opener === undefined) continue
+      await writeThread(
+        ctx,
+        folderId,
+        { title: task.title, by: opener.by, posts },
+        ctx.tasks.get(task.title) ?? null,
+      )
     }
     for (const thread of folder.threads ?? []) await writeThread(ctx, folderId, thread)
   }
@@ -833,9 +858,13 @@ export async function removeSampleWorkspace(
       JOIN folders f ON f.id = t.folder_id
       WHERE s.user_id = ${userId}::uuid AND s.kind = 'task'
         AND ((f.is_default AND f.owner_id = ${userId}::uuid
-              AND NOT EXISTS (SELECT 1 FROM comments c
-                               WHERE c.task_id = t.id AND c.author_id = ${userId}::uuid
-                                 AND c.created_at > s.created_at)
+              AND NOT EXISTS (SELECT 1 FROM discussions d
+                               WHERE d.task_id = t.id
+                                 AND ((d.created_by = ${userId}::uuid AND d.created_at > s.created_at)
+                                      OR EXISTS (SELECT 1 FROM comments c
+                                                  WHERE c.discussion_id = d.id
+                                                    AND c.author_id = ${userId}::uuid
+                                                    AND c.created_at > s.created_at)))
               AND NOT EXISTS (SELECT 1 FROM page_blocks b
                                WHERE b.task_id = t.id AND b.updated_at > s.created_at))
              ${doomedFolders.length === 0 ? sql`` : sql`OR f.id IN (${idList(doomedFolders)})`})`

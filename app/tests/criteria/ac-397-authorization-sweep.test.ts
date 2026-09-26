@@ -961,16 +961,6 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
-    'GET /api/v1/folders/:id/comment-counts',
-    {
-      attempt: (fx) => ({ path: `/folders/${fx.folderId}/comment-counts` }),
-      stranger: {
-        expected: 404,
-        rule: "7.14: a task thread's count is the thread's, member-only, and a folder outside the viewer's membership is 404",
-      },
-    },
-  ],
-  [
     'POST /api/v1/folders/:id/comments',
     {
       attempt: (fx) => ({
@@ -2140,12 +2130,12 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
-    'PUT /api/v1/tasks/:id/thread/read',
+    'POST /api/v1/tasks/:id/discussion',
     {
-      attempt: (fx) => ({ path: `/tasks/${fx.taskId}/thread/read` }),
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}/discussion` }),
       stranger: {
         expected: 404,
-        rule: "7.14: a task thread's read marker is a member's own state on a thread they can read, so a non-member is 404, as on every /tasks/:id route, and no row is written",
+        rule: "7.28 (M5): a task's Discussion is found or made in the task's Folder, so a non-member is 404, as on every /tasks/:id route, and no Discussion is made",
       },
     },
   ],

@@ -17,7 +17,7 @@ per page and picked up by the next mount. Held in memory only, never storage.
 */
 import { useEffect, useRef, useState } from 'react'
 import { SuggestionMenu } from '@blocknote/core/extensions'
-import { createTaskFrom, hasTaskCommand, lastLinePlace, openLineAt } from './commands.js'
+import { createTaskFrom, hasTaskCommand, lastLinePlace, lineTitles, openLineAt } from './commands.js'
 import { headingLine } from './markdown.js'
 import { enterFromBelow } from './block-selection.js'
 import { isSectionHeading } from './outline.js'
@@ -33,6 +33,13 @@ interface Held {
   resume: number
   /** Lets go of the page's held scroll, while one is held. */
   release: (() => void) | null
+  /**
+   * A title was handed back (refused, or nowhere to write it): the queue waits
+   * for the next Enter. 'line' when the line shows it (that Enter sends it
+   * first), 'queue' when it went back to the queue's front because the line
+   * held other typing.
+   */
+  paused: 'line' | 'queue' | null
 }
 const held = new Map<string, Held>()
 
@@ -136,7 +143,7 @@ export function AddTaskLine({ editor, page, editable }: {
   /** False while the page is saving a Task; an Enter then waits for the next mount. */
   readonly editable: boolean
 }): React.JSX.Element {
-  const state = held.get(page) ?? { text: '', focused: false, queue: [], mountedAt: 0, resume: 0, release: null }
+  const state = held.get(page) ?? { text: '', focused: false, queue: [], mountedAt: 0, resume: 0, release: null, paused: null }
   held.set(page, state)
   const [text, setText] = useState(state.text)
   const [, poke] = useState(0)
@@ -153,8 +160,12 @@ export function AddTaskLine({ editor, page, editable }: {
   /** Enter: the title joins the queue and the line empties for the next one. */
   function submit(): void {
     const title = state.text.trim()
-    if (title === '') return
-    state.queue.push(title)
+    // An Enter on an empty line lets what waits go on.
+    if (title === '') { if (state.paused !== null) { state.paused = null; poke((n) => n + 1) } return }
+    // A handed-back title on the line goes first, before what still waits behind it.
+    if (state.paused === 'line') state.queue.unshift(title)
+    else state.queue.push(title)
+    state.paused = null
     keep('')
   }
 
@@ -168,8 +179,19 @@ export function AddTaskLine({ editor, page, editable }: {
     const id = where === null ? null : openLineAt(editor, where, title)
     const block = id === null ? undefined : editor.getBlock(id)
     // Nowhere to write it: the title goes back on the line, never lost.
-    if (block === undefined) { state.queue.length = 0; keep(title); return }
+    if (block === undefined) { giveBack(title); return }
+    /* A refused Task (the page's writing has not saved) hands its title back
+       here instead of leaving it on the page. */
+    lineTitles.set(block.id, { reused: where !== null && 'reuse' in where, giveBack })
+    window.setTimeout(() => { lineTitles.delete(block.id) }, 15_000)
     createTaskFrom(editor, block)
+  }
+
+  /* One title back on the line, alone: what is still queued stays queued, in
+     order, and waits for the next Enter, so two titles never become one. */
+  function giveBack(back: string): void {
+    if (state.text.trim() === '') { keep(back); state.paused = 'line' }
+    else { state.queue.unshift(back); state.paused = 'queue' }
   }
 
   function writeOther(then: (id: string) => void): void {
@@ -196,7 +218,7 @@ export function AddTaskLine({ editor, page, editable }: {
     return () => { if (performance.now() >= state.resume) state.focused = false }
   }, [state])
   useEffect(() => {
-    if (!editable || state.queue.length === 0) return
+    if (!editable || state.queue.length === 0 || state.paused !== null) return
     const timer = window.setTimeout(() => {
       if (hasTaskCommand(editor)) send()
       else poke((n) => n + 1)

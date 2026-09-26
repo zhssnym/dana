@@ -1,11 +1,11 @@
-import { createContext, useContext, useMemo } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { createReactBlockSpec } from '@blocknote/react'
 
 import type { TaskRows } from '../../../pages/task-rows.js'
 import { useTask, useTaskDependencies } from '../../../api/queries.js'
 import { DELETED_USER, taskRowDisplay } from '../../../parts/presenters.js'
-import { formatDate } from '../../../lib/dates.js'
+import { formatDay } from '../../../lib/dates.js'
 import { Hourglass } from '../../../lib/icons.js'
 import { isWaiting } from './thread/thread-model.js'
 import { cn } from '../../ui/utils.js'
@@ -22,7 +22,16 @@ export interface ThreadFacts {
   readonly shared: boolean
   /** A finished task's completion day, from the completed pages the page already read. */
   readonly completedOn: ReadonlyMap<string, string>
+  /** The viewer is ticking this task done: the thread may answer with its one motion. */
+  readonly onTick?: (taskId: string) => void
 }
+
+/* The viewer ticked the ringed task: when the ring moves on, focus follows
+   it, so Space ticks the next one. Only the glyph that was pressed sets
+   this, and only for a moment. */
+let focusFollowsRingUntil = 0
+/** How long after a tick the ring's move still counts as that tick's (ms). */
+const FOCUS_FOLLOWS_WITHIN = 4000
 
 const noThread: ThreadFacts = { next: null, shared: false, completedOn: new Map() }
 const ThreadContext = createContext<ThreadFacts>(noThread)
@@ -162,13 +171,14 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
 
 /** The node's glyph: a ring, the accent ring, the check, the crossed ring. */
 function Glyph({ state }: { readonly state: NodeState }): React.JSX.Element {
-  if (state === 'waiting') return <Hourglass className="size-4" strokeWidth={1.75} />
+  // 2.25 on Lucide's 24-unit box is 1.5px at 16px: the ring's own weight.
+  if (state === 'waiting') return <Hourglass className="size-4" strokeWidth={2.25} />
   return (
     <svg viewBox="0 0 16 16" aria-hidden className="size-4">
       {state === 'done' ? (
         <>
           <circle cx="8" cy="8" r="7" fill="currentColor" />
-          <path d="M5 8.2 7.1 10.3 11 6" fill="none" stroke="var(--background)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M5 8.2 7.1 10.3 11 6" fill="none" stroke="var(--background)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </>
       ) : (
         <>
@@ -194,27 +204,49 @@ function ThreadRow({ task, state, bridge, thread }: { readonly task: TaskCard; r
   const blockers = useTaskDependencies(state === 'waiting' && (task.blocked_by_count ?? 0) > 0 ? task.id : null)
   const waitsOn = blockers.data?.depends_on.find((edge) => edge.task !== null && edge.task.status !== 'completed')?.task?.title
   const doneOn = state === 'done' ? thread.completedOn.get(task.id) : undefined
-  const day = display?.due?.label ?? display?.starts ?? (doneOn === undefined ? undefined : formatDate(doneOn, bridge.context.today))
+  const day = display?.due?.label ?? display?.starts ?? (doneOn === undefined ? undefined : formatDay(doneOn, bridge.context.today))
   const face = !finished && thread.shared && task.assignee !== null ? task.assignee : null
-  /* On a shared page a done task says who and when ("Maya · 12 Sep", §2.2).
-     The card carries no completer, so the person is the assignee. */
-  const by = state === 'done' && thread.shared && task.assignee !== null ? task.assignee.display_name ?? DELETED_USER : undefined
-  const when = by === undefined ? day : day === undefined ? by : `${by} · ${day}`
+  /* A done task says when it was done. The card carries no completer, so it
+     names nobody: the assignee is not always who finished it. A dropped one
+     says nothing. */
+  const when = state === 'dropped' ? undefined : day
+  const glyph = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (state !== 'next' || performance.now() > focusFollowsRingUntil) return
+    /* Only while focus is still on a glyph, or was lost with a remount (a
+       repeating task's tick rewrites the page and the ring may land twice):
+       never taken from wherever the viewer went meanwhile. */
+    const active = document.activeElement
+    if (active !== null && active !== document.body && !active.classList.contains('dana-thread-glyph')) return
+    glyph.current?.focus({ preventScroll: true })
+    glyph.current?.scrollIntoView({ block: 'nearest' })
+  }, [state])
   return (
     <div data-row-key="" className="dana-thread-row flex min-h-[var(--row-height)] min-w-0 items-center gap-x-3">
       <button
+        ref={glyph}
         type="button"
         role="checkbox"
         aria-checked={state === 'done'}
         aria-label={GLYPH_LABEL[state]}
         className={cn(
           'dana-thread-glyph',
-          state === 'done' ? 'text-[var(--color-success-600)]' : state === 'next' ? 'text-primary' : 'text-muted-foreground',
+          state === 'done' ? 'text-[var(--color-success-600)]' : state === 'next' ? 'text-primary' : state === 'dropped' ? 'text-quiet-foreground' : 'text-muted-foreground',
         )}
+        /* A tick is not an edit: the press must not pick the row as a node
+           (which tints it and puts it in the editor's undo). */
+        onMouseDown={(event) => { event.preventDefault() }}
         onClick={(event) => {
           event.stopPropagation()
-          if (state === 'dropped') bridge.actions.onRestore(task)
-          else bridge.actions.onToggleComplete(task)
+          if (state === 'dropped') { bridge.actions.onRestore(task); return }
+          if (state !== 'done') {
+            thread.onTick?.(task.id)
+            // From the keyboard (the glyph holds focus): a pointer's tick leaves focus alone.
+            if (state === 'next' && document.activeElement === event.currentTarget) {
+              focusFollowsRingUntil = performance.now() + FOCUS_FOLLOWS_WITHIN
+            }
+          }
+          bridge.actions.onToggleComplete(task)
         }}
       >
         <Glyph state={state} />
@@ -222,8 +254,7 @@ function ThreadRow({ task, state, bridge, thread }: { readonly task: TaskCard; r
       <span
         className={cn(
           'min-w-0 flex-1 truncate',
-          finished ? 'text-muted-foreground' : 'text-foreground',
-          state === 'dropped' && 'line-through',
+          state === 'dropped' ? 'dana-thread-dropped text-quiet-foreground line-through' : finished ? 'text-muted-foreground' : 'text-foreground',
           state === 'next' && 'font-section',
         )}
         title={task.title}
@@ -236,7 +267,10 @@ function ThreadRow({ task, state, bridge, thread }: { readonly task: TaskCard; r
         <span className="dana-thread-meta flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
           {waitsOn !== undefined ? <span className="truncate">waits on {waitsOn}</span> : null}
           {when !== undefined ? <span>{when}</span> : null}
-          {face !== null ? <PersonFace id={face.id} name={face.display_name ?? DELETED_USER} image={face.avatar_url} dense /> : null}
+          {/* On a shared page every row keeps the face's place, so the dates share one right edge. */}
+          {face !== null
+            ? <PersonFace id={face.id} name={face.display_name ?? DELETED_USER} image={face.avatar_url} dense />
+            : thread.shared ? <span aria-hidden className="size-[var(--icon-size-compact)] shrink-0" /> : null}
         </span>
       ) : null}
     </div>

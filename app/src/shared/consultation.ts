@@ -23,6 +23,8 @@ Storage is migration 0029: `discussions`, `discussion_outcomes`, and
 */
 import { z } from 'zod'
 
+import { taskStatus } from './tasks.js'
+
 export const DISCUSSION_STATES = ['open', 'resolved'] as const
 export type DiscussionState = (typeof DISCUSSION_STATES)[number]
 
@@ -97,6 +99,15 @@ export const discussionSchema = z.object({
    * title, so renaming it changes nothing. Resolving or trashing it needs
    * Full control. */
   is_general: z.boolean(),
+  /** The task this Discussion is linked to (M5, 4.31), whatever that task's
+   * state: set once, so "Turn into a task" is not offered again. */
+  task_id: z.uuid().nullable(),
+  /** The task this Discussion is about (M5, 4.31): its live title and
+   * status, for the small link under the title. Null when it is about no
+   * task, or its task is trashed, purged, or no longer in this Folder. */
+  task: z
+    .object({ id: z.uuid(), title: z.string(), status: taskStatus })
+    .nullable(),
 })
 export type Discussion = z.infer<typeof discussionSchema>
 
@@ -132,10 +143,18 @@ export const updateDiscussionBody = z
     title: title.optional(),
     /** null or '' clears the context. */
     context: context.nullable().optional(),
+    /** Links the Discussion to a live task of its own Folder ("Turn into a
+     * task", M5). Set once: a Discussion already linked, or a task that
+     * already has a live Discussion, is 409. Nothing unlinks. */
+    task_id: z.uuid().optional(),
   })
-  .refine((body) => body.title !== undefined || body.context !== undefined, {
-    error: 'must change title or context',
-  })
+  .refine(
+    (body) =>
+      body.title !== undefined ||
+      body.context !== undefined ||
+      body.task_id !== undefined,
+    { error: 'must change title, context or task_id' },
+  )
 export type UpdateDiscussionBody = z.infer<typeof updateDiscussionBody>
 
 /**

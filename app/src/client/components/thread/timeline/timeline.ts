@@ -1,7 +1,7 @@
 /*
 The task page's one timeline as data (M4, copied from the retired Linear
 issue page): the task's history events and its dependency edges, oldest
-first, which the post list interleaves with the task's posts. Each history
+first, drawn by `TaskHistory`. Each history
 line becomes one act ("Maya marked this done", "Maya added the subtask
 Plates"), matched on the event's verb and the server's detail wording.
 
@@ -16,7 +16,6 @@ Plates"), matched on the event's verb and the server's detail wording.
 - Labels are no longer drawn anywhere (their data is kept), so a label
   event shows nothing.
 */
-import type { CommentLine } from '../../../../shared/comments.js'
 import type { EventLine } from '../../../../shared/events.js'
 import type { TaskDependencyEdge } from '../../../../shared/task-dependencies.js'
 import type { TaskState } from './state.js'
@@ -52,16 +51,7 @@ export interface EventEntry {
   readonly act: Act
 }
 
-export interface CommentEntry {
-  readonly kind: 'comment'
-  readonly key: string
-  readonly at: number
-  readonly comment: CommentLine
-  /** Its replies, oldest first: GitHub has none, so they hang under it. */
-  readonly replies: readonly CommentLine[]
-}
-
-export type Entry = EventEntry | CommentEntry
+export type Entry = EventEntry
 
 const GROUP_MS = 10 * 60 * 1000
 
@@ -168,32 +158,11 @@ function dependencyEntries(edges: readonly TaskDependencyEdge[], t: 'blocked-by'
 
 export function buildTimeline(input: {
   readonly events: readonly EventLine[]
-  readonly comments: readonly CommentLine[]
   readonly dependsOn: readonly TaskDependencyEdge[]
   readonly blocks: readonly TaskDependencyEdge[]
   readonly nameOf: (id: string) => string
 }): Entry[] {
   const entries: Entry[] = []
-
-  /* Comments: a reply joins its parent; a reply whose parent is gone reads as a comment. */
-  const ids = new Set(input.comments.map((comment) => comment.id))
-  const replies = new Map<string, CommentLine[]>()
-  for (const comment of input.comments) {
-    if (comment.parent_id === null || !ids.has(comment.parent_id)) continue
-    const list = replies.get(comment.parent_id) ?? []
-    list.push(comment)
-    replies.set(comment.parent_id, list)
-  }
-  for (const comment of input.comments) {
-    if (comment.parent_id !== null && ids.has(comment.parent_id)) continue
-    entries.push({
-      kind: 'comment',
-      key: comment.id,
-      at: Date.parse(comment.created_at),
-      comment,
-      replies: (replies.get(comment.id) ?? []).sort((a, b) => a.created_at.localeCompare(b.created_at)),
-    })
-  }
 
   /* History, oldest first; the title before each line is the line before's name. */
   const history = input.events
@@ -216,7 +185,7 @@ export function buildTimeline(input: {
   const merged: Entry[] = []
   for (const entry of entries) {
     const last = merged.at(-1)
-    if (entry.kind === 'event' && last?.kind === 'event' && last.actorId === entry.actorId) {
+    if (last !== undefined && last.actorId === entry.actorId) {
       if (sameAct(last.act, entry.act)) {
         merged[merged.length - 1] = { ...entry, key: last.key }
         continue

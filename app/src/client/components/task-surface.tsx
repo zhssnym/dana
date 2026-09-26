@@ -1,8 +1,8 @@
 /*
 A task's one page (M4): /app/tasks/:id, in the app's shell, on every screen.
 There is no peek. One column: the title with its state mark and the task's
-one "…", then `TaskCard` (properties, the task's document, and one timeline
-of posts and events ending in "Mark done ▾").
+one "…", then `TaskCard` (four properties, the task's document, and its
+history).
 */
 
 import { InlineTextarea } from "./ui/inline-field.js"

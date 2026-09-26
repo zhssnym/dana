@@ -148,118 +148,6 @@ export interface ConceptStep {
   id?: string
 }
 
-/*
-Something attached to a task or hung on a comment.
-
-One declaration for a task's attachments and a comment's files, so a `link` kind
-cannot be added to one and not the other.
-
-**`link` is a kind, not a file with an address.** A link stored as a file would
-land in the file list wearing a paperclip and a row that said **"Download"**,
-and be neither downloadable nor openable.
-
-A link has a `url` and is rendered as an anchor. A file does not and is not.
-
-`kind` stays a small closed set rather than a MIME type: a server has to decide
-this by sniffing the bytes anyway, because a browser will happily run a script a
-client labelled image/png, so the client never sees a type it might be tempted
-to trust.
-
-**Nothing fills this today and `tasks/task-concept.ts` says so where it maps.**
-Attachments need storage, permissions and a virus story; the type is here so the
-card can be built with a third block in it rather than two.
-*/
-export interface Attachment {
-  name: string
-  meta: string
-  kind: 'image' | 'video' | 'document' | 'file' | 'link'
-  /* A thumbnail, where there is something to see. */
-  preview?: string
-  /*
-  Width over height for the picture `preview` points at, so a surface that
-  draws it at its own size can hold the space before the bytes land (issue
-  #108).
-
-  Absent means the file was never measured, which is every attachment stored
-  before migration 0009 and every kind that is not a picture; a surface reads
-  it through `lib/page-images.ts`'s `reservedRatio`, which turns absent into
-  the same 16 by 9 those surfaces already drew. It is a number rather than the
-  pair 4.16 carries because that is what CSS takes and because a ratio is the
-  only thing any of these surfaces wants from the pair.
-  */
-  ratio?: number
-  /* Where the link goes. Set only on `kind: "link"`; a file has no address
-     that outlives the session. */
-  url?: string
-  /*
-  **The `File` itself, optional.** The conversation posts a real file through
-  7.15 and then names its id on the comment (7.14), so the bytes have to survive
-  the trip from the picker to `lib/thread.ts`'s `applyThreadChange`. Optional,
-  so every surface that never has one still typechecks and still behaves.
-  */
-  file?: File
-}
-
-/*
-A comment: who said it, when, and one of three kinds of what, words, a voice
-note, or files riding along. Replies are the same shape one level down, and one
-level is deliberate: a task's conversation is a short thread, not a forum, and
-unbounded nesting is how a card grows a scrollbar inside a scrollbar.
-
-**The conversation is 9.6's**, at `GET /folders/:id/thread` with
-`queryKeys.thread()`. `tasks/task-concept.ts` leaves `comments` undefined; the
-type is here because `ConceptTask` refers to it.
-*/
-export interface ConceptComment {
-  id: string
-  author: { initials: string; name: string; image?: string; id?: string }
-  at: string
-  body?: string
-  /* Reactions: the lightest way a team says "seen and agreed" without a
-     message. A small closed set, no picker dependency. */
-  reactions?: { emoji: string; count: number; mine?: boolean }[]
-  /* Whether the body was changed after posting; drawn as a quiet "(edited)"
-     because silent edits are how threads stop being trusted. */
-  edited?: boolean
-  /* A voice note: how long it runs and the waveform to draw. */
-  voice?: { seconds: number; bars: number[]; url?: string }
-  files?: Attachment[]
-  /* Mine, so a surface knows which comments offer Delete. */
-  mine?: boolean
-  /*
-  **Whether this viewer may delete this comment.**
-
-  7.14 gives a comment's deletion to its author **or** to a member who may
-  moderate the folder (`comment.moderate`, Full control's; ownership is custody,
-  AC-790), and `routes/conversation.ts` resolves exactly those two. This carries
-  that answer per comment rather than per thread, so that the card mount and the
-  folder page cannot disagree about the same comment. Absent falls back to
-  `mine`, so a surface that has no standing in hand behaves as the lab does.
-  */
-  deletable?: boolean
-  /**
-   * Whether this viewer may edit **this** comment (issue #268):
-   * `comment.mutate.own` is authorship **and** currently holding Can comment or
-   * better, so a member downgraded to Can view keeps their words and loses the
-   * pencil. Absent falls back to `mine`, the lab's answer (AC-790).
-   */
-  editable?: boolean
-  /**
-   * Whether this viewer may like or unlike at all. #228's Can-comment list
-   * carries the pair and Can view leaves no mark on a thread; the lab has no
-   * such concept and offered it to everyone. Absent falls back to true
-   * (AC-790).
-   */
-  likeable?: boolean
-  /**
-   * Whether this viewer may reply to this comment. `comment.create`, Can
-   * comment's, the same act as a first comment; the lab offers Reply to
-   * everybody. Absent falls back to true (AC-790).
-   */
-  replyable?: boolean
-  replies?: ConceptComment[]
-}
-
 /** A Label as a row or the panel draws it (#208). */
 export interface ConceptLabel {
   id: string
@@ -318,7 +206,6 @@ export interface ConceptTask {
      derived and ticking one in an expanded card moves the number in the row
      behind it. A count that cannot be wrong is better than a count. */
   steps?: ConceptStep[]
-  attachments?: Attachment[]
   /* The Labels the viewer can see on this task (#226), personal then folder,
      archived ones left out. */
   labels?: ConceptLabel[]
@@ -329,20 +216,6 @@ export interface ConceptTask {
   important?: boolean
   abandoned?: boolean
   notes?: string
-  /* The conversation about the task, pinned after the content blocks and
-     outside their order: commentary is not content. */
-  comments?: ConceptComment[]
-  /**
-   * Whether this viewer may write into that conversation at all
-   * (`comment.create`, Can comment's).
-   *
-   * It rides the task rather than a comment because **a thread with nothing in
-   * it still has a composer**, and no per-comment field can answer for one. The
-   * card hands it straight to `CommentsThread`, which renders the composer
-   * disabled rather than hiding it. Absent falls back to true, the lab's answer
-   * (#268; AC-790).
-   */
-  canComment?: boolean
 }
 
 export function stepCount(task: ConceptTask): { done: number; total: number } | null {

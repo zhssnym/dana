@@ -118,6 +118,15 @@
   color: var(--foreground);
   text-decoration: none;
 }
+/* A link in the writing is the text's own ink, underlined quietly; the same
+   in both themes, visited or not (upstream leaves the browser's blue). */
+.dana-writing-canvas .bn-inline-content a[href]:not([data-referenced-from] *) {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-color: var(--muted-foreground);
+  text-underline-offset: calc(var(--spacing) * 0.75);
+}
+.dana-writing-canvas .bn-inline-content a[href]:hover { text-decoration-color: currentColor; }
 .dana-writing-canvas [data-content-type='codeBlock'] {
   font-size: var(--text-sm);
 }
@@ -210,6 +219,9 @@
    run of blocks is one rounded shape, fading in as it is picked. */
 .dana-writing-canvas {
   --dana-block-selection: color-mix(in srgb, var(--accent-color) 14%, transparent);
+  /* The same tint laid over the page, opaque: a rail badge's halo on a
+     picked row, which must still cut the line (thread.css). */
+  --dana-block-selection-surface: color-mix(in srgb, var(--accent-color) 14%, var(--background));
   --dana-block-selection-inset-x: calc(var(--spacing) * 1.5);
   --dana-block-selection-inset-y: calc(var(--spacing) * 0.5);
   --dana-block-selection-radius: var(--radius-lg);
@@ -220,7 +232,10 @@
 /* Phone: the ▸ sits inline (above), inside the block. */
 @media (max-width: 480px) { .dana-writing-canvas { --dana-block-selection-hang: 0px; } }
 .dark .dana-writing-canvas,
-[data-theme="dark"] .dana-writing-canvas { --dana-block-selection: color-mix(in srgb, var(--accent-color) 24%, transparent); }
+[data-theme="dark"] .dana-writing-canvas {
+  --dana-block-selection: color-mix(in srgb, var(--accent-color) 24%, transparent);
+  --dana-block-selection-surface: color-mix(in srgb, var(--accent-color) 24%, var(--background));
+}
 /* The gutter: "+" and ⋮⋮ fade in on hover, 24px targets, quiet until pointed at. */
 .dana-writing-canvas .bn-side-menu { animation: dana-gutter-in 120ms ease-out; }
 @keyframes dana-gutter-in { from { opacity: 0; } to { opacity: 1; } }
@@ -324,6 +339,9 @@
    could never be let go. */
 .dana-writing-canvas .bn-block-content.ProseMirror-selectednode > ::after,
 .dana-writing-canvas .ProseMirror-selectednode > .bn-block-content > ::after { content: none; }
+/* That ::after was the only thing BlockNote's `position: relative` on the
+   selected block's child anchored; on the Work thread it would also anchor
+   the rail's glyph and icons, so thread.css sets it back to static. */
 .dana-writing-canvas .bn-block-content.ProseMirror-selectednode,
 .dana-writing-canvas .ProseMirror-selectednode > .bn-block-content { position: relative; }
 .dana-writing-canvas .ProseMirror-focused .bn-block-content.ProseMirror-selectednode::after,
@@ -439,6 +457,20 @@
   .dana-writing-canvas .bn-block-content:has(.bn-file-name-with-icon:hover)::before {
     background: var(--muted);
   }
+  /* A rail halo on a tinted row is the tint (thread.css); not while a node
+     selection holds the hover back (below). */
+  .dana-writing-canvas:not(:has(.ProseMirror-focused .ProseMirror-selectednode)) :is(
+    .bn-block-content[data-content-type='danaTask']:has([data-row-key]:hover),
+    .bn-block-content[data-content-type='danaPage']:has(a[data-canvas-page-id]:hover),
+    .bn-block-content[data-content-type='danaFolder']:has(a[data-canvas-folder-id]:hover)
+  ) {
+    --dana-thread-surface: var(--muted);
+  }
+}
+.dana-writing-canvas .ProseMirror-focused :is(.bn-block-content.ProseMirror-selectednode, .ProseMirror-selectednode > .bn-block-content),
+.dana-writing-canvas .ProseMirror-focused .bn-block:is(.ProseMirror-selectednode, :has(> .bn-block-content.ProseMirror-selectednode)),
+.dana-writing-canvas .bn-block-content[data-content-type='danaTask']:has([data-canvas-task-id]:focus-visible) {
+  --dana-thread-surface: var(--dana-block-selection-surface);
 }
 .dana-writing-canvas [data-canvas-task-id] [data-row-key]:hover,
 .dana-writing-canvas a[data-canvas-page-id]:hover,

@@ -20,7 +20,6 @@ export function isPost(row: NotificationLine): boolean {
 
 function threadOf(row: NotificationLine): string | null {
   if (row.discussion_id !== undefined && row.discussion_id !== null) return `discussion:${row.discussion_id}`
-  if (row.task_id !== null) return `task:${row.task_id}`
   if (row.event.folder_id !== null) return `folder:${row.event.folder_id}`
   return null
 }
