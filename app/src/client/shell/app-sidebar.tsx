@@ -62,14 +62,14 @@ import {
   useCreateFolder,
   useDeleteFolder,
   useDuplicateFolder,
+  useDuplicateShelf,
   useLeaveFolder,
   useMoveFolder,
   useRenameFolder,
   useRestoreFolder,
 } from '../api/mutations.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
-import { leaveFolderConfirm } from '../lib/object-acts.js'
-import { showToast } from '../state/toasts.js'
+import { copyLink, leaveFolderConfirm } from '../lib/object-acts.js'
 import { pushUndo, undoLabel } from './undo.js'
 import { folderGates } from '../lib/folder-authority.js'
 import { folderRowDisplay, shelfMark } from '../parts/presenters.js'
@@ -378,16 +378,6 @@ interface PageTreeValue {
   readonly cancelLeave: () => void
 }
 
-/** Copy an address, then say so once. */
-function copyLink(url: string): void {
-  void navigator.clipboard?.writeText(url).then(
-    () => {
-      showToast('Link copied')
-    },
-    () => {},
-  )
-}
-
 const PageTreeContext = createContext<PageTreeValue | null>(null)
 
 function usePageTree(): PageTreeValue {
@@ -423,16 +413,13 @@ function usePageTreeValue({
 }): PageTreeValue {
   const navigate = useNavigate()
   const move = useMoveFolder()
-  const create = useCreateFolder()
+  const addPageInside = useAddPageInside()
   const remove = useDeleteFolder()
   const restore = useRestoreFolder()
   const leaveFolder = useLeaveFolder()
   const renameFolder = useRenameFolder()
   const [renaming, setRenaming] = useState<string | null>(null)
   const [leaving, setLeaving] = useState<Folder | null>(null)
-  /* Set on the press, before the mutation's own pending state has rendered:
-     a double click lands both clicks in the same frame. */
-  const creating = useRef(false)
   const tree = useMemo(() => buildTree(folders), [folders])
   const [folded, setFolded] = useState(readPageFolds)
   const [mark, setMark] = useState<TreeDrop['mark'] | null>(null)
@@ -451,6 +438,18 @@ function usePageTreeValue({
   const clearMark = useCallback((): void => {
     setMark(null)
   }, [])
+
+  /* The page on screen is never hidden under a folded parent: a page made
+     from its parent's own "…" opens with its row showing. Once per page
+     opened, so folding the parent afterwards stays folded. */
+  const revealed = useRef<string | null>(null)
+  useEffect(() => {
+    if (activeId === null || revealed.current === activeId || !tree.byId.has(activeId)) return
+    revealed.current = activeId
+    for (let at = tree.parent.get(activeId) ?? null; at !== null; at = tree.parent.get(at) ?? null) {
+      setFold(at, false)
+    }
+  }, [activeId, tree, setFold])
 
   /* Only when the page on screen, or one under it, goes: to Today, replacing
      the entry so Back does not land on a page that is gone. */
@@ -519,24 +518,9 @@ function usePageTreeValue({
     clearMark,
     commit,
     addInside: (parent) => {
-      /* One page per press: a held key or a double click must not stack
-         Untitled pages while the first create is in flight. */
-      if (creating.current) return
-      creating.current = true
-      create.mutate(
-        { name: 'Untitled', parent_folder_id: parent.id },
-        {
-          onSettled: () => {
-            creating.current = false
-          },
-          onSuccess: (made) => {
-            setFold(parent.id, false)
-            /* Opened with its name field focused and selected, so typing
-               replaces "Untitled" (the folder page's rename act). */
-            void navigate(folderActionPath(made.id, 'rename'))
-          },
-        },
-      )
+      addPageInside(parent.id, () => {
+        setFold(parent.id, false)
+      })
     },
     mayEdit: mayEditPage,
     renaming,
@@ -664,18 +648,51 @@ function inboxOf(folders: readonly Folder[]): Folder | null {
 }
 
 /*
-The acts a Library row can perform on its page, all run in place (the page
-keeps History, Tabs…, Import… and Export). `?folder-action=` remains for a new
-page's name field and an owner's delete question, which live on the page.
-`folderGates` decides which a viewer gets, the same call the page makes.
+The acts a Library row runs by asking the page: `?folder-action=` opens a new
+page's name field, an owner's delete question and the page's History, which
+all live on the page. `folderGates` decides which a viewer gets, the same call
+the page makes.
 */
-export type FolderAction = 'rename' | 'leave' | 'delete'
+export type FolderAction = 'rename' | 'leave' | 'delete' | 'history'
 
 /** The query the folder page reads to run an act the Library asked for. */
 export const FOLDER_ACTION_PARAM = 'folder-action'
 
+/** The query the collection page reads to open its History from the Library. */
+export const SHELF_ACTION_PARAM = 'shelf-action'
+
 function folderActionPath(id: string, action: FolderAction): string {
   return `${paths.folder(id)}?${FOLDER_ACTION_PARAM}=${action}`
+}
+
+/**
+ * The folder menu's "Add a page inside", wherever the menu opens (the row and
+ * the page's own "…"): an Untitled sub-page, opened with its name field
+ * focused and selected, so typing replaces "Untitled".
+ */
+export function useAddPageInside(): (parentId: string, onMade?: () => void) => void {
+  const navigate = useNavigate()
+  const create = useCreateFolder()
+  /* One page per press: a held key or a double click must not stack Untitled
+     pages while the first create is in flight. Set on the press, before the
+     mutation's own pending state has rendered. */
+  const creating = useRef(false)
+  return (parentId, onMade) => {
+    if (creating.current) return
+    creating.current = true
+    create.mutate(
+      { name: 'Untitled', parent_folder_id: parentId },
+      {
+        onSettled: () => {
+          creating.current = false
+        },
+        onSuccess: (made) => {
+          onMade?.()
+          void navigate(folderActionPath(made.id, 'rename'))
+        },
+      },
+    )
+  }
 }
 
 function SidebarFolderRow({
@@ -704,6 +721,7 @@ function SidebarFolderRow({
   const display = folderRowDisplay(folder)
   const navigate = useNavigate()
   const duplicate = useDuplicateFolder()
+  const importPage = usePageImport()
   const gates = folderGates({
     access: folder.my_access,
     isOwner: folder.is_owner,
@@ -756,10 +774,12 @@ function SidebarFolderRow({
       onRename={(name) => {
         pages.rename(folder, name)
       }}
-      /* The row's menu: Rename, Copy link, Duplicate, then Leave or Delete
-         by role, each run here. The page's own "…" keeps History, Tabs…,
-         Import… and Export. */
+      /* The row's menu is the page's own "…" (`lib/object-acts.ts`), with
+         this row's plumbing: History opens on the page, the rest run here. */
       acts={{
+        history: () => {
+          void navigate(folderActionPath(folder.id, 'history'))
+        },
         /* In the menu as well as on the hover "+", which is out of the Tab
            order: this is the keyboard's way to it (Shift+F10). */
         'add-page':
@@ -783,6 +803,13 @@ function SidebarFolderRow({
             },
           })
         },
+        /* Into this page, which needs edit rights here; never the Desk. */
+        import:
+          gates.identity && !folder.is_default
+            ? () => {
+                importPage(folder.id)
+              }
+            : undefined,
         leave: gates.leave
           ? () => {
               pages.leave(folder)
@@ -841,6 +868,8 @@ function FolderGroupBlock({
   const self = groupKey(group.label)
   const menuTrigger = useRef<HTMLButtonElement>(null)
   const shelfId = group.shelf?.id ?? null
+  const navigate = useNavigate()
+  const duplicateShelf = useDuplicateShelf()
   const mark = group.shelf === null ? null : shelfMark(group.shelf)
   const Glyph = mark?.icon ?? Folders
 
@@ -966,7 +995,17 @@ function FolderGroupBlock({
               kind="shelf"
               name={group.label}
               width="w-44"
+              /* The collection page's own "…" (M4: one menu per object), plus
+                 Rename for a bare label, whose title is not a field anywhere. */
               handlers={{
+                history:
+                  shelfId === null
+                    ? undefined
+                    : () => {
+                        /* Asks the page, as a folder row does: a sheet
+                           here would unmount when the phone sidebar closes. */
+                        void navigate(`${paths.shelf(shelfId)}?${SHELF_ACTION_PARAM}=history`)
+                      },
                 /* A shelf with a page renames in its page title (the one home);
                    only a bare label, which has no page, renames here. */
                 rename:
@@ -980,6 +1019,16 @@ function FolderGroupBlock({
                     ? undefined
                     : () => {
                         copyLink(shelfLink(shelfId))
+                      },
+                duplicate:
+                  shelfId === null
+                    ? undefined
+                    : () => {
+                        duplicateShelf.mutate(shelfId, {
+                          onSuccess: (made) => {
+                            void navigate(paths.shelf(made.id))
+                          },
+                        })
                       },
                 delete: () => {
                   groups.onDeleteGroup(group.label)

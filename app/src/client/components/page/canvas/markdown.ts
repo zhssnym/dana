@@ -81,6 +81,24 @@ function stepsOut(editor: CanvasEditor, block: CanvasBlock, level: 1 | 2 | 3): b
 }
 
 /**
+ * `#`, `##` or `###` typed into Work's last line: the empty line just opened
+ * there becomes the heading the same keys make in the page (the rule below),
+ * a Section where one of that level stands, stepping out of the one it is in
+ * when it must. The caret goes into it.
+ */
+export function headingLine(editor: CanvasEditor, blockId: string, level: 1 | 2 | 3): boolean {
+  const block = editor.getBlock(blockId)
+  if (block === undefined) return false
+  if (stepsOut(editor, block, level)) return placeSection(editor, block, level, true, [] as CanvasBlock['content'])
+  const heading = headingFor(editor, block, level)
+  if (heading === null) return false
+  editor.updateBlock(block, { type: 'heading', props: heading } as never)
+  editor.setTextCursorPosition(blockId, 'end')
+  editor.focus()
+  return true
+}
+
+/**
  * Notion's markdown shortcuts, by surface: `#`/`##`/`###` + space headings,
  * `>` + space a toggle (a quote where no toggle list is offered), `"` + space a quote
  * (upstream's rule, kept), `---` a divider, ``` a code block. `-`/`*`/`+`,

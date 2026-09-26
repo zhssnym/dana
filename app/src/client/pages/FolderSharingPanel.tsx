@@ -21,7 +21,8 @@ in the same sheet (`MemberDetails`, #209), which reads that one member itself.
 The region "Sharing panel" (9.1) sits inside the sheet, because a dialog cannot
 also be the region its controls are addressed within.
 */
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router'
 
 import type { GetConnectionsResponse } from '../../shared/connections.js'
 import { FOLDER_ACCESS_LABELS } from '../../shared/folder-access.js'
@@ -72,6 +73,16 @@ function removeMemberConfirm(who: string, folder: string): string {
   )
 }
 
+/** The address parameter naming the member whose details are open. */
+export const MEMBER_PARAM = 'member'
+
+/** Whether a dismissing event came from the top bar's back arrow: a press
+ * on it, or focus moving to it (the sheet closes on focus-out). */
+function pressedHistoryBack(event: Event): boolean {
+  const target = event instanceof FocusEvent ? event.relatedTarget : event.target
+  return target instanceof Element && target.closest('[data-history-back]') !== null
+}
+
 const ROW =
   'flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)] rounded-md px-2 py-1'
 
@@ -81,6 +92,8 @@ export function FolderSharingPanel({
   viewer,
   viewerId,
   onClose,
+  onExport,
+  onTransfer,
 }: {
   readonly folder: GetFolderResponse
   /** 7.3's roster, which the suggestions are built from. Absent while it loads. */
@@ -92,6 +105,10 @@ export function FolderSharingPanel({
    * (leaving is the page menu's Leave page…). */
   readonly viewerId: string | null
   readonly onClose: () => void
+  /** Writes this page to a Dana file (M4: moved here from the page's "…"). */
+  readonly onExport?: () => void
+  /** The owner's hand-on, offered only where the viewer may (M4: from the "…"). */
+  readonly onTransfer?: () => void
 }): React.JSX.Element {
   const mayRemove = viewer !== null && mayDraw(viewer, 'member.remove')
   /* The server's own rule for its viewer_may_change_access, minus the owner
@@ -110,8 +127,49 @@ export function FolderSharingPanel({
   const [pickedEmail, setPickedEmail] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
-  /* The member whose details replace the lists (#209), or null for the lists. */
-  const [openMember, setOpenMember] = useState<string | null>(null)
+  /* The member whose details replace the lists (#209), or null for the lists.
+     It lives in the address (?member=) and opening one pushes an entry, so
+     the top bar's back arrow returns to the lists rather than leaving the page. */
+  const [search, setSearch] = useSearchParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const openMember = search.get(MEMBER_PARAM)
+  const memberPushed = (location.state as { memberPushed?: boolean } | null)?.memberPushed === true
+  const setOpenMember = (id: string | null): void => {
+    if (id !== null) {
+      setSearch(
+        (current) => {
+          const next = new URLSearchParams(current)
+          next.set(MEMBER_PARAM, id)
+          return next
+        },
+        { state: { memberPushed: true } },
+      )
+    } else if (memberPushed) {
+      void navigate(-1)
+    } else {
+      setSearch(
+        (current) => {
+          const next = new URLSearchParams(current)
+          next.delete(MEMBER_PARAM)
+          return next
+        },
+        { replace: true },
+      )
+    }
+  }
+  /* Leaving a member's details puts focus back on that member's row. */
+  const lastMember = useRef<string | null>(null)
+  useEffect(() => {
+    if (openMember !== null) {
+      lastMember.current = openMember
+      return
+    }
+    const id = lastMember.current
+    lastMember.current = null
+    if (id === null) return
+    document.querySelector<HTMLElement>(`[data-member-row="${CSS.escape(id)}"]`)?.focus()
+  }, [openMember])
 
   const memberIds = new Set(folder.members.map((member) => member.user.id))
   const invitable = (connections ?? []).filter((entry) => !memberIds.has(entry.user.id))
@@ -173,15 +231,29 @@ export function FolderSharingPanel({
     )
   }
   const mayShare = mayAdd || mayInvite
+  const sheetTitle = mayShare ? `Share ${folder.name}` : `Members of ${folder.name}`
 
   return (
     <>
     <Sheet
       open
-      onOpenChange={(next) => {
+      onOpenChange={(next, details) => {
         /* A press inside the confirm reads as outside this non-modal sheet;
            Share stays open under it, whichever the answer. */
-        if (!next && confirm.pending === null) onClose()
+        /* The top bar's back arrow, pressed with a member open, pops that
+           member's entry: the sheet stays, showing the lists again. */
+        if (
+          !next &&
+          openMember !== null &&
+          pressedHistoryBack(details.event)
+        ) {
+          details.cancel()
+          return
+        }
+        if (!next && confirm.pending === null) {
+          if (openMember !== null) setOpenMember(null)
+          onClose()
+        }
       }}
       /* Non-modal (DES-154, DES-186): the page stays usable beside it. */
       modal={false}
@@ -199,8 +271,28 @@ export function FolderSharingPanel({
       >
         <section aria-label={SHARING_PANEL} className="flex min-h-0 flex-1 flex-col">
           <SheetHeader className="border-b border-border px-5 py-4 pr-16">
-            <SheetTitle className="text-sm font-title">
-              {mayShare ? `Share ${folder.name}` : `Members of ${folder.name}`}
+            <SheetTitle className="flex min-w-0 items-center gap-1 text-sm font-title">
+              {/* With a member open the title is a trail, its first crumb the
+                  way back to the lists, as the top bar's trail is for pages. */}
+              {openMember === null ? (
+                sheetTitle
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="min-w-0 max-w-[60%] truncate rounded-sm text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setOpenMember(null)
+                    }}
+                  >
+                    Members
+                  </button>
+                  <span aria-hidden="true" className="shrink-0 text-quiet-foreground">/</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {folder.members.find((member) => member.user.id === openMember)?.user.display_name ?? 'Someone'}
+                  </span>
+                </>
+              )}
             </SheetTitle>
           </SheetHeader>
 
@@ -220,9 +312,6 @@ export function FolderSharingPanel({
                       }
                     : undefined
                 }
-                onBack={() => {
-                  setOpenMember(null)
-                }}
               />
             ) : (
             <>
@@ -349,6 +438,7 @@ export function FolderSharingPanel({
                         Responsibilities and their history (#209). */}
                     <button
                       type="button"
+                      data-member-row={member.user.id}
                       className="min-w-0 flex-1 truncate rounded-sm text-left text-sm text-foreground hover:underline underline-offset-2"
                       onClick={() => {
                         setOpenMember(member.user.id)
@@ -433,6 +523,23 @@ export function FolderSharingPanel({
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {/* Who else gets this page, beyond its members: a copy as a
+                template, or the page itself. */}
+            {onExport === undefined && onTransfer === undefined ? null : (
+              <div className="mt-[var(--space-group)] flex flex-col items-start">
+                {onExport === undefined ? null : (
+                  <Button variant="ghost" size="sm" className="font-normal text-muted-foreground" onClick={onExport}>
+                    Export as template
+                  </Button>
+                )}
+                {onTransfer === undefined ? null : (
+                  <Button variant="ghost" size="sm" className="font-normal text-muted-foreground" onClick={onTransfer}>
+                    Transfer ownership…
+                  </Button>
+                )}
               </div>
             )}
             </>

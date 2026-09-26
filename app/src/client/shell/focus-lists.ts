@@ -1,12 +1,17 @@
 /*
-The Focus lists (round 8): the cross-project lists under the sidebar's Focus
-heading. Today, Upcoming and Assigned are the defaults and keep their own
-pages; the rest are saved filters over the open tasks of every page, drawn by
+The Focus lists under the sidebar's Focus heading. Today and Upcoming for
+everyone, and Assigned only for a viewer on a page that has another member,
+because for someone alone it is every task they have (M4). The rest (Important,
+Overdue, No date, All open) are lists a viewer adds from the heading's "+":
+saved filters over the open tasks of every page, drawn by
 `pages/FocusListPage.tsx` at `/app/lists/<key>`.
 
 The viewer's choice and order live on the account (`focus_lists`, migration
-0050). A key left out is a hidden list, and the heading's "+" offers it back.
+0050). A key left out is a hidden list, and the "+" offers it back. Each list
+also carries its own identity, an icon, colour and cover (#353, #355).
 */
+import { useEffect } from 'react'
+
 import type { TaskCard } from '../../shared/tasks.js'
 import { DEFAULT_FOCUS_LISTS, FOCUS_LISTS } from '../../shared/bundle.js'
 import type { FocusAppearance, FocusListKey } from '../../shared/bundle.js'
@@ -14,6 +19,8 @@ import { markIcon } from '../components/page/icon-manifest.js'
 import type { LucideIcon } from '../lib/icons.js'
 import { CalendarDays, CalendarX, CircleAlert, ListTodo, Star, SunMedium, UserRoundCheck } from '../lib/icons.js'
 import { paths } from '../routes.js'
+import { rungForTask } from '../views/ladder.js'
+import type { Place } from '../views/usePlace.js'
 
 export type { FocusListKey }
 
@@ -108,4 +115,50 @@ export function focusOffers(shown: readonly FocusListKey[]): readonly FocusList[
 
 export function isFocusKey(value: string | undefined): value is FocusListKey {
   return (FOCUS_LISTS as readonly string[]).includes(value ?? '')
+}
+
+/**
+ * Which of the viewer's stored lists the sidebar draws: all of them, less
+ * Assigned for a viewer with no page shared with anyone (M4).
+ */
+export function focusRows(lists: readonly FocusListKey[], shared: boolean): readonly FocusList[] {
+  return lists.filter((key) => shared || key !== 'assignments').map(focusList)
+}
+
+/**
+ * Upcoming's rows: from tomorrow on, for what Today already lists. Today (Q1)
+ * holds the viewer's own late, started and due-today work, and any task the
+ * viewer pulled in, so those are said once, there. A teammate's or an
+ * unassigned task that is late, started or due today is on no Today, so it
+ * stays here under its own heading rather than vanishing from both lists.
+ */
+export function upcomingRows(
+  rows: readonly TaskCard[],
+  today: string,
+  viewerId: string | null,
+): readonly TaskCard[] {
+  return rows.filter((task) => {
+    if (task.pulled) return false
+    const rung = rungForTask(task, today).key
+    if (rung === 'undated') return false
+    const onToday = viewerId !== null && task.assignee?.id === viewerId
+    return !onToday || (rung !== 'overdue' && rung !== 'started' && rung !== 'today')
+  })
+}
+
+/** An open list's rows: a dropped task leaves the list; a done one lingers until the list refreshes. */
+export function withoutDropped(rows: readonly TaskCard[]): readonly TaskCard[] {
+  return rows.filter((task) => task.status !== 'abandoned')
+}
+
+/**
+ * The Focus pages keep no View settings (M4: no Group by, Sort, Label or
+ * Show completed). A Label narrowing stored by an older client would still
+ * put that Label on every task made here, unseen, so it is cleared.
+ */
+export function useNoStoredLabel(place: Pick<Place, 'filter' | 'setFilter'>): void {
+  const { filter, setFilter } = place
+  useEffect(() => {
+    if (filter.label !== null) setFilter({ ...filter, label: null })
+  }, [filter, setFilter])
 }

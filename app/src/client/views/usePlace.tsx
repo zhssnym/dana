@@ -21,7 +21,6 @@ import { Image as ImageIcon } from '../lib/icons.js'
 import { useWearFilterLabel } from '../api/labels.js'
 import { focusMark } from '../shell/focus-lists.js'
 import type { FocusMark } from '../shell/focus-lists.js'
-import { LabelFilterClear, ViewMenu } from './FilterControl.js'
 import { labelsWorn, sortRows, wearsLabel } from './filter.js'
 import type { GroupBy, PageFilter } from './filter.js'
 import { usePageFilter } from './filter-store.js'
@@ -97,8 +96,7 @@ export function usePlace(
 
   const seedMode = modeFromSearch(search.toString())
   useEffect(() => {
-    /* Only a layout this page offers is seeded here; a folder page seeds its
-       own view (`useFolderView`). */
+    /* Only a layout this page offers is seeded here. */
     if (seedMode === null || !spine.views.includes(seedMode)) return
     if (modeFromSearch(liveSearch().toString()) !== seedMode) return
     writeViewMode(seedMode)
@@ -156,47 +154,9 @@ export function usePlace(
   }
 }
 
-/** Filter chips are gone; the one narrowing (Label) is said by PlaceControls. Kept for the folder page's import. */
+/** Filter chips are gone. Kept for the folder page's import. */
 export function PlaceFilterChips(_props: { readonly place: Place }): null {
   return null
-}
-
-/** The View menu: layout (where the page has more than one), grouping, sort, Show completed. */
-export function PlaceControls({
-  place,
-  bare = false,
-}: {
-  readonly place: Place
-  /** Nothing to group or sort: the View menu is left out. */
-  readonly bare?: boolean
-}): React.JSX.Element | null {
-  if (bare && place.filter.label === null) return null
-  /* The calendar draws its own grid and honours none of grouping, sort, Label
-     or Show completed, so there its View menu is Layout alone. */
-  const calendar = place.mode === 'calendar'
-  return (
-    <>
-      {calendar ? null : <LabelFilterClear
-        filter={place.filter}
-        labels={place.labels}
-        onChange={place.setFilter}
-      />}
-      {bare ? null : (
-    <ViewMenu
-      layouts={place.spine.views}
-      layout={place.mode}
-      onLayout={place.setMode}
-      groups={place.spine.groups}
-      completed={place.spine.completed}
-      filter={place.filter}
-      labels={place.labels}
-      onChange={place.setFilter}
-      {...(place.spine.ownOrder === undefined ? {} : { ownOrder: place.spine.ownOrder })}
-      layoutOnly={calendar}
-    />
-      )}
-    </>
-  )
 }
 
 /**
@@ -245,19 +205,17 @@ export function ScreenHead({
  * A Focus page's head uses the same mark-and-cover composition as every other
  * first-class Dana page. Its mark reads and writes #353's account-level Focus
  * appearance, while its cover stays on the existing native-place cover path.
+ * It keeps no View menu and no count (M4); a page passes its own controls.
  */
 export function PlaceHead({
   place,
-  fact,
-  bare = false,
+  controls,
   identityKey,
   focusKey,
 }: {
   readonly place: Place
-  /** Today's "N of M done". */
-  readonly fact?: string
-  /** An empty list has nothing to group or sort: no View menu. */
-  readonly bare?: boolean
+  /** The page's own controls, if any. Focus pages keep no View menu (M4). */
+  readonly controls?: ReactNode
   /** Durable place-cover key for an added Focus list. */
   readonly identityKey?: string
   /** Added Focus lists use a generic spine, so their account identity key is explicit. */
@@ -371,14 +329,9 @@ export function PlaceHead({
           <h1 data-page-title="" className="min-w-0 max-w-full truncate text-[length:var(--text-title-size)] leading-8 font-title text-foreground max-md:whitespace-normal">
             {place.spine.name}
           </h1>
-          {fact === undefined ? null : (
-            <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">
-              {fact}
-            </span>
-          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <PlaceControls place={place} bare={bare} />
+          {controls}
         </div>
       </div>
     </header>

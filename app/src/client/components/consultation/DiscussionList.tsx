@@ -11,8 +11,9 @@ reopens the thread, with Undo. The title carries the row; an unread one (a
 post from someone else since this person last read it, the server's
 `read_at`) is heavier and nothing else marks it. On the right: an open
 thread's last post ("Bilal: How about Tuesday?", wide screens only) after its
-title, its other participants and "4 posts · 12 min"; a resolved one's
-"Resolved 15 Sep".
+title, its other participants and when it last moved ("12 min"); a resolved
+one's "Resolved 15 Sep". No post counts (M4 §4.7): the last post and its
+time already say whether a thread is alive.
 
 The keyboard path is the task lists' (`row-keys.ts`): arrows move, Enter
 opens, Space resolves or reopens. An old `?threads=closed` link still loads;
@@ -290,7 +291,7 @@ function ThreadRow({
         {isOpen ? (
           <>
             <Faces ids={(d.participant_ids ?? []).filter((id) => id !== viewerId).slice(0, 3)} personOf={personOf} />
-            <span>{postsAndWhen(d, now)}</span>
+            <span>{formatAgo(d.last_post?.created_at ?? d.last_activity_at, now)}</span>
           </>
         ) : d.resolved_at === null ? null : (
           <span>Resolved {formatCompactDate(d.resolved_at.slice(0, 10), today)}</span>
@@ -298,12 +299,6 @@ function ThreadRow({
       </span>
     </div>
   )
-}
-
-function postsAndWhen(d: Discussion, now: number): string {
-  const count = d.post_count ?? 0
-  const posts = `${String(count)} post${count === 1 ? '' : 's'}`
-  return `${posts} · ${formatAgo(d.last_post?.created_at ?? d.last_activity_at, now)}`
 }
 
 /** Who else is talking, as small overlapping faces; the reader never shows. */

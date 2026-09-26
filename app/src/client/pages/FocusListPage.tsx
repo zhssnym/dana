@@ -2,8 +2,10 @@
 A Focus list the viewer added, at /app/lists/<key> (round 8): Important,
 Overdue, No date or All open. Each is a saved filter over the open tasks of
 every page (GET /views/all), drawn with the place-page parts every list uses:
-the same rows, keyboard path and View menu. No "New task" row: a filter such
-as Overdue has no value a new task could carry to land in it.
+the same rows and keyboard path. Its head carries the list's own identity,
+mark and cover (#353, #355). No View menu (M4): no board, grouping, sort or
+"Show completed". No "New task" row: a filter such as Overdue has no value a
+new task could carry to land in it.
 */
 import { Navigate, useParams } from 'react-router'
 
@@ -12,11 +14,17 @@ import { PageBody } from '../components/page/PageStates.js'
 import { useRowKeys } from '../components/row-keys.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { paths } from '../routes.js'
-import { FOCUS_EMPTY, FOCUS_FILTERS, focusIdentityKey, focusList, isFocusKey } from '../shell/focus-lists.js'
+import {
+  FOCUS_EMPTY,
+  FOCUS_FILTERS,
+  focusIdentityKey,
+  focusList,
+  isFocusKey,
+  useNoStoredLabel,
+  withoutDropped,
+} from '../shell/focus-lists.js'
 import type { FocusListKey } from '../shell/focus-lists.js'
-import { groupRows } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
-import { TaskBoard } from '../views/TaskBoard.js'
 import { PlaceGroup, PlaceHead, usePlace } from '../views/usePlace.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 
@@ -46,63 +54,32 @@ function FocusList({ listKey }: { readonly listKey: FocusListKey }): React.JSX.E
     ...(data?.tasks_groups ?? []).flatMap((group) => group.rows),
   ]
   const place = usePlace(spine, all, { filterKey: `focus-${listKey}` })
+  useNoStoredLabel(place)
   const keep = FOCUS_FILTERS[listKey] ?? (() => true)
-  const rows = all.filter((task) => keep(task, place.today))
+  const rows = withoutDropped(all.filter((task) => keep(task, place.today)))
   const context = { ...basis, multiMemberFolderIds }
-  const narrowed = place.narrow(rows)
-  const groups =
-    place.groupBy === 'none'
-      ? [{ key: 'all', name: list.name, rows: narrowed }]
-      : groupRows(narrowed, place.groupBy, place.today, place.viewerId)
-  const emptyCopy = FOCUS_EMPTY[listKey] ?? ''
-  const identityKey = focusIdentityKey(listKey)
 
   return (
     <div ref={keys} className="space-y-6">
       <PlaceHead
         place={place}
-        bare={rows.length === 0}
-        identityKey={identityKey}
+        controls={null}
+        identityKey={focusIdentityKey(listKey)}
         focusKey={listKey}
       />
-      {place.mode === 'board' ? (
+      <div className="-mx-1.5">
         <PageBody
           query={view}
           isEmpty={rows.length === 0}
-          emptyCopy={emptyCopy}
+          emptyCopy={FOCUS_EMPTY[listKey] ?? ''}
           emptyIcon={list.icon}
           truncated={data?.truncated ?? false}
         >
-          <TaskBoard
-            place={place}
-            columns={groupRows(narrowed, place.groupBy === 'none' ? 'folder' : place.groupBy, place.today, place.viewerId)}
-            context={context}
-            actions={actions}
-          />
+          <PlaceGroup name={list.name}>
+            <TaskRows tasks={rows} context={context} actions={actions} onAsk={confirm.ask} />
+          </PlaceGroup>
         </PageBody>
-      ) : (
-        <div className="-mx-1.5">
-          <PageBody
-            query={view}
-            isEmpty={rows.length === 0}
-            emptyCopy={emptyCopy}
-            emptyIcon={list.icon}
-            truncated={data?.truncated ?? false}
-          >
-            <div className="space-y-6">
-              {groups.map((group) => (
-                <PlaceGroup
-                  key={group.key}
-                  name={group.name}
-                  {...(place.groupBy === 'none' ? {} : { heading: group.name })}
-                >
-                  <TaskRows tasks={group.rows} context={context} actions={actions} onAsk={confirm.ask} />
-                </PlaceGroup>
-              ))}
-            </div>
-          </PageBody>
-        </div>
-      )}
+      </div>
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />
     </div>
   )

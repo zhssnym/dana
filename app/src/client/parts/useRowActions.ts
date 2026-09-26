@@ -129,7 +129,7 @@ export function useRowActions(): RowActions {
     },
     onAbandon: (task) => {
       transition.mutate({ id: task.id, event: 'abandon' })
-      pushUndo(undoLabel('Abandoned', task.title), () => {
+      pushUndo(undoLabel('Dropped', task.title), () => {
         transition.mutate({ id: task.id, event: 'restore' })
       })
     },

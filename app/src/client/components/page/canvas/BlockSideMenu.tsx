@@ -1,9 +1,10 @@
 /*
 The block gutter every Dana canvas shares (Folder Work, Purpose, Results, the
-Shelf, a Task's body): "+" and ⋮⋮ on hover, level with the block's first line
+Shelf, a Task's body): ⋮⋮ on hover, level with the block's first line
 of text; clicking ⋮⋮ selects the block (the tint of `block-selection.ts`) and
 opens its menu: Turn into ›, Duplicate, Copy link to block, Delete. Moving is
-by dragging the handle, or Tab / Shift-Tab.
+by dragging the handle, or Tab / Shift-Tab. There is no "+": Enter
+makes the next line, and Work ends in its own last line (`AddTaskLine`).
 
 What each surface allows (which kinds, what Delete means for a Task or a
 Shelf's Folder row) comes in through `BlockMenuModel`.
@@ -11,12 +12,12 @@ Shelf's Folder row) comes in through `BlockMenuModel`.
 import { createContext, useContext } from 'react'
 import { offset } from '@floating-ui/react'
 import type { BlockNoteEditor } from '@blocknote/core'
-import { SideMenuExtension, SuggestionMenu } from '@blocknote/core/extensions'
+import { SideMenuExtension } from '@blocknote/core/extensions'
 import { useBlockNoteEditor, useComponentsContext, useExtension, useExtensionState } from '@blocknote/react'
 import { blockLink, blockSelection, setBlockSelection } from './block-selection.js'
 import { conversionOf, isCurrent, withoutIds } from './turn-into.js'
 import type { TreeBlock, TurnTarget } from './turn-into.js'
-import { Check, CheckCircle2, Copy, GripVertical, Link2, Plus, Repeat2, Trash2 } from '../../../lib/icons.js'
+import { Check, CheckCircle2, Copy, GripVertical, Link2, Repeat2, Trash2 } from '../../../lib/icons.js'
 import type { LucideIcon } from '../../../lib/icons.js'
 import { kindIconOf } from './slash-items.js'
 
@@ -110,27 +111,6 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
   )
 }
 
-function AddButton(): React.JSX.Element | null {
-  const Components = useComponentsContext()!
-  const editor = useBlockNoteEditor() as AnyEditor
-  const suggestions = useExtension(SuggestionMenu)
-  const block = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block })
-  if (block === undefined) return null
-  return (
-    <Components.SideMenu.Button
-      className="bn-button"
-      label="Add a block below"
-      icon={<Plus size={16} />}
-      onClick={() => {
-        const empty = Array.isArray(block.content) && block.content.length === 0
-        const target = empty ? block : editor.insertBlocks([{ type: 'paragraph' }], block, 'after')[0]!
-        editor.setTextCursorPosition(target)
-        suggestions.openSuggestionMenu('/')
-      }}
-    />
-  )
-}
-
 function DragHandle(): React.JSX.Element | null {
   const Components = useComponentsContext()!
   const editor = useBlockNoteEditor() as AnyEditor
@@ -167,7 +147,6 @@ export function BlockSideMenu(): React.JSX.Element {
   const Components = useComponentsContext()!
   return (
     <Components.SideMenu.Root className="bn-side-menu">
-      <AddButton />
       <DragHandle />
     </Components.SideMenu.Root>
   )

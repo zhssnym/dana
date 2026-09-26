@@ -4,10 +4,10 @@
 finite work, and no description line -- Purpose holds that), a row of plain
 text tabs in intro-to-conclusion order (Purpose · Work · Results · Discussion,
 then custom tabs), and the tab's body. The page opens on Work (`main`), whose
-body is the canvas, where a finished Task stays in place, checked and muted.
-The view icons at the end of Work's tab row draw the page's tasks as Freeform
-(the canvas), Linear (the same document as a timeline of steps) or Board (Not
-started · In progress · Done); the "…" menu shows or hides completed Tasks.
+body is the canvas drawn as the thread (M4), where a finished Task stays in
+place, checked and muted. It is Work's one rendering: there is no view switch
+and no "Show completed". Linear, Board and the issue page are gone; an old
+`?issue=<id>` address lands on `/app/tasks/<id>`, the one task page.
 
 What is deliberate rather than transcription:
 
@@ -30,15 +30,8 @@ a heading, a band and a paragraph to read; the heading is always drawn (AC-226).
 `section_block_id` on the folder read, each section carries its own rows and its own quick-add, and the loose
 list holds exactly the tasks under no section.
 
-**This page is a place-page** (`views/place-pages.ts`). 9.6 asks for the filter
-in terms, "the filter of 9.1 narrows the page without touching its arrangement",
-and the view strip and the board come with it because `usePlace` and
-`PlaceChrome` are where every other page gets all three. One filter per page:
-AC-176's "a filter offers all open tasks, only those with a due date and only
-those without" is exactly 9.1's due-presence axis.
-
-**The board never groups by folder**: a folder page has pinned the folder, so
-grouping by it gives one column, which is a list wearing a different control.
+**No filter, no view strip, no board** (M4). The thread is a document and never
+hides a block, so nothing on this page narrows it.
 
 **Delete asks nothing and the undo bar answers** (9.6: "with the undo bar and no
 confirmation: two ways back is why the question left"). The inverse is 7.13's
@@ -70,16 +63,13 @@ gone; a notification arriving with `?conversation=open` lands on Consultation.
 **The "…" is the folder menu, the one list** (`lib/object-acts.ts`): History,
 Rename, Move to…, Move to collection, Cover…, Tabs…, Copy link, Duplicate, Save as workflow,
 then Transfer/Leave/Delete by role, exactly what the Library row's "…" and its
-right-click draw, with this page's own "View ›" above them (through `extra`),
-less Rename, whose home here is the title.
+right-click draw, less Rename, whose home here is the title.
 */
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams, useSearchParams } from 'react-router'
+import { Navigate, useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router'
 
 import {
-  useCreateTask,
-  useCreateFacet,
   useDeleteFacet,
   useRestoreFacet,
   useDeleteFolder,
@@ -126,12 +116,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog.js'
-import {
-  DropdownMenuCheckboxItem,
-} from '../components/ui/dropdown-menu.js'
 /* The empty-state icon goes to `PageBody`, whose `StateIcon` is typed on the
    raw lucide component. */
-import { Folder as FolderIcon, GitCommitVertical, List as ListIcon, SquareKanban } from '../lib/icons.js'
+import { Folder as FolderIcon } from '../lib/icons.js'
 
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -149,26 +136,17 @@ import { mayPerform, ruleFor } from '../../shared/folder-actions.js'
    against #228's closed vocabulary of every Folder action there is. */
 import type { FolderAction as FolderActionName } from '../../shared/folder-actions.js'
 import { paths } from '../routes.js'
-import { FOLDER_ACTION_PARAM } from '../shell/app-sidebar.js'
+import { FOLDER_ACTION_PARAM, useAddPageInside } from '../shell/app-sidebar.js'
+import { copyLink } from '../lib/object-acts.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { usePageImport } from '../shell/workflow-import.js'
 import { FolderTabs } from '../components/folder-facets.js'
-import type { CreateFacetInput, FacetCapabilities } from '../components/folder-facets.js'
+import type { FacetCapabilities } from '../components/folder-facets.js'
 import { PageSection } from '../components/page/PageSection.js'
-import { labelsWorn } from '../views/filter.js'
-import { useWearFilterLabel } from '../api/labels.js'
-import { PLACES } from '../views/place-pages.js'
-import { BoardView } from '../views/BoardView.js'
-import { LinearView } from '../views/LinearView.js'
-import { PlaceFilterChips, usePlace } from '../views/usePlace.js'
-import { folderViewOf, modeFromSearch, useFolderView, writeFolderView } from '../views/view-mode.js'
-import type { FolderView } from '../views/view-mode.js'
-import { VIEW_LABELS } from '../views/ViewSwitch.js'
-import { LabelChoice, LabelFilterClear } from '../views/FilterControl.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
-import { FolderSharingPanel } from './FolderSharingPanel.js'
+import { FolderSharingPanel, MEMBER_PARAM } from './FolderSharingPanel.js'
 import { PersonFace } from '../components/person-face.js'
 import { cn } from '../components/ui/utils.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
@@ -183,7 +161,6 @@ import type { Facet, GetFacetsResponse } from '../../shared/facets.js'
 import { getPageResponse } from '../../shared/pages.js'
 import type { PageView } from '../../shared/pages.js'
 import { workPageOf } from '../components/page/canvas/adapters.js'
-import { ReferencedFrom } from '../components/links/referenced-from.js'
 
 /*
 The width the sharing panel reserves at the right edge, restated from its
@@ -192,10 +169,6 @@ shell computes has to be a number JavaScript holds. Named so a reader looking
 for the duplicate finds it named as one.
 */
 const SHARING_PANEL_WIDTH = 440
-
-/* A page's three views, in the tab row's toggle order. */
-const FOLDER_VIEWS: readonly FolderView[] = ['freeform', 'linear', 'board']
-const VIEW_ICONS = { freeform: ListIcon, linear: GitCommitVertical, board: SquareKanban } as const
 
 /**
  * 9.6's leave confirm, verbatim and one sentence (AC-183 turns on both).
@@ -207,14 +180,81 @@ function leaveFolderConfirm(name: string): string {
   )
 }
 
-/** The View menu's "Show completed", on by default. */
-const SHOW_COMPLETED_KEY = 'dana.folder.show-completed'
-function readShowCompleted(): boolean {
-  try {
-    return globalThis.localStorage.getItem(SHOW_COMPLETED_KEY) !== '0'
-  } catch {
-    return true
-  }
+/*
+Retired storage keys (M4), never to be read, renamed or reused:
+`dana.folder.show-completed` was this page's "Show completed", gone with the
+control; `dana.folder-view` and `dana.linear.*` are retired in
+`views/view-mode.ts`. A stored value simply stops mattering.
+*/
+
+/*
+Where the thread was when a task was opened from it, so Back lands there.
+
+The shell's one scroll region (`[data-shell-scroll]`) outlives the route, so the
+browser restores nothing; this page does. Held in memory for the session, per
+page, and only read on a Back (a POP) onto the very history entry the task was
+opened from, never on a fresh visit or on a Back into a later visit of the page.
+*/
+const threadScroll = new Map<
+  string,
+  { readonly top: number; readonly taskId: string; readonly entry: string }
+>()
+const TASK_PATH = '/app/tasks/'
+
+function useThreadScroll(folderId: string, ready: boolean): void {
+  const navigationType = useNavigationType()
+  const { key } = useLocation()
+  const restoredFor = useRef<string | null>(null)
+  /* Kept on the way out: at unmount the address is already the next one, so a
+     task page's path names the task that was opened. A layout effect, because
+     its cleanup runs before the thread leaves the DOM; a passive one would read
+     a scroll position already clamped to the next page's height. */
+  useLayoutEffect(() => {
+    const scroller = document.querySelector<HTMLElement>('[data-shell-scroll]')
+    return () => {
+      /* Only a task opened from the thread is a trip Back returns from; a
+         remount on this same page must not overwrite the kept place. */
+      const next = window.location.pathname
+      if (scroller === null || !next.startsWith(TASK_PATH)) return
+      threadScroll.set(folderId, {
+        top: scroller.scrollTop,
+        taskId: decodeURIComponent(next.slice(TASK_PATH.length)),
+        entry: key,
+      })
+    }
+  }, [folderId, key])
+  useEffect(() => {
+    if (!ready || navigationType !== 'POP' || restoredFor.current === key) return
+    const saved = threadScroll.get(folderId)
+    const scroller = document.querySelector<HTMLElement>('[data-shell-scroll]')
+    /* Keyed to the history entry: coming back by the sidebar and later
+       pressing Back into that newer visit must not replay an old position. */
+    if (saved === undefined || saved.entry !== key || scroller === null) return
+    /* The canvas measures and lays out after its data arrives, so the height
+       the position needs may come late: try until the opened task is drawn and
+       the position fits, or about two seconds have gone. */
+    let frames = 0
+    let handle = 0
+    const settle = (): void => {
+      frames += 1
+      const task = document.querySelector(`[data-canvas-task-id="${CSS.escape(saved.taskId)}"]`)
+      const fits = scroller.scrollHeight - scroller.clientHeight >= saved.top
+      if ((!fits || task === null) && frames < 120) {
+        handle = requestAnimationFrame(settle)
+        return
+      }
+      /* Marked done only here: an effect cancelled mid-wait (a re-run, or
+         React's development double mount) tries again. */
+      restoredFor.current = key
+      /* Used once: a later Back into this page, after leaving it some other
+         way, keeps wherever the reader had scrolled to since. */
+      threadScroll.delete(folderId)
+      scroller.scrollTop = saved.top
+      task?.scrollIntoView({ block: 'nearest' })
+    }
+    handle = requestAnimationFrame(settle)
+    return () => cancelAnimationFrame(handle)
+  }, [folderId, ready, key, navigationType])
 }
 
 /*
@@ -244,18 +284,25 @@ export function FolderPage({
 }: {
   readonly folderId?: string
 } = {}): React.JSX.Element {
+  const [search] = useSearchParams()
+  /* An old Linear issue address (`?issue=<task id>`) is the one task page now.
+     Answered before any of the page's reads start, and only for a real id. */
+  const issueId = search.get('issue') ?? ''
+  if (issueId !== '') return <Navigate to={paths.task(encodeURIComponent(issueId))} replace />
+  return <FolderPageBody folderId={folderId} />
+}
+
+function FolderPageBody({
+  folderId,
+}: {
+  readonly folderId?: string
+}): React.JSX.Element {
   const { id: routeId = '' } = useParams<{ id: string }>()
   const id = folderId ?? routeId
   const navigate = useNavigate()
   const importFile = usePageImport()
+  const addPageInside = useAddPageInside()
   const [search, setSearch] = useSearchParams()
-  /* Linear, Board or Freeform: this device's choice for every page, kept apart
-     from the place pages' layout. `?mode=` seeds it, as it seeds theirs. */
-  const [folderView, setFolderView] = useFolderView()
-  const seededView = modeFromSearch(search.toString())
-  useEffect(() => {
-    if (seededView !== null) writeFolderView(folderViewOf(seededView))
-  }, [seededView])
   /* Set as this page is trashed: its reads stop, so the delete's
      invalidation refetches none of them against a 404 while the page is
      still mounted, the navigation away not yet committed. */
@@ -277,14 +324,11 @@ export function FolderPage({
   const basis = useRowBasis()
   const actions = useRowActions()
   const confirm = useConfirm()
-  const create = useCreateTask()
-  const wearFilterLabel = useWearFilterLabel(id)
   const remove = useDeleteFolder()
   const restore = useRestoreFolder()
   const patch = useRenameFolder()
   const leave = useLeaveFolder()
   const transfer = useTransferOwnership()
-  const createFacet = useCreateFacet()
   const patchFacet = usePatchFacet()
   const deleteFacet = useDeleteFacet()
   const restoreFacet = useRestoreFacet()
@@ -301,17 +345,6 @@ export function FolderPage({
   // 9.6's inline rename: the title is a heading until this is true.
   const [renaming, setRenaming] = useState(false)
   const [coverOpen, setCoverOpen] = useState(false)
-  /* The View menu's "Show completed", remembered on this device for every
-     folder. A new key, so no existing preference moves. */
-  const [showCompleted, setShowCompleted] = useState(readShowCompleted)
-  const changeShowCompleted = (next: boolean): void => {
-    setShowCompleted(next)
-    try {
-      globalThis.localStorage.setItem(SHOW_COMPLETED_KEY, next ? '1' : '0')
-    } catch {
-      /* A preference that cannot persist is still this session's. */
-    }
-  }
 
   const connections = useConnections()
   /*
@@ -328,11 +361,9 @@ export function FolderPage({
   Q7's two arrays.
 
   4.17's durable mixed order is the one the page stores (AC-176). The canvas
-  draws from the document, and everything else on the page draws from this: the
-  Task view the filter switches to, the board's columns, the ladder's keyboard
-  order. Q7's arrays would answer a narrowing question such as *With a due date*
-  with a date-sorted list, Q3 ordering `scheduled` by due date; the filtered
-  view orders by the composed sequence (#234).
+  draws from the document, and these rows are what it looks tasks up in. Q7's
+  arrays would order `scheduled` by due date; this orders by the composed
+  sequence (#234).
 
   A row the page has not composed yet keeps Q7's order behind the composed ones,
   which is what a task created a moment ago looks like until the page read
@@ -351,61 +382,16 @@ export function FolderPage({
       .map((entry) => entry.row)
   }, [scheduled, unscheduled, page.data?.items])
 
-  /*
-  The folder page is a place-page (9.6).
-
-  What that buys is one filter, one view strip and one board, the same three
-  every other page draws, rather than three more written here. Two things are
-  this page's own and arrive as options, each because it needs the folder's id:
-  the filter is remembered per folder, since 9.1 keeps a filter "on return to
-  that page, never carried to another" and two folders are two pages; and the
-  capture writes this folder, which is 9.3's sixth entry-point row.
-  */
-  const place = usePlace(PLACES.folder, openRows, {
-    filterKey: `folder:${id}`,
-    showCompleted,
-    capture: (title, column) => {
-      create.mutate({
-        title,
-        folder_id: id,
-        ...(column?.due_date === undefined ? {} : { due_date: column.due_date }),
-        ...(column?.assignee_id === undefined ? {} : { assignee_id: column.assignee_id }),
-      }, {
-        /* Under a Label filter a new task wears that label, or it would
-           vanish the moment it was made. */
-        onSuccess: (made) => {
-          wearFilterLabel(made.id, place.filter.label)
-        },
-      })
-    },
-  })
-  /* Always read: the canvas draws each finished Task in place from these
-     cards (and hides them with a class when "Show completed" is off), and the
-     board's Done column is the same pages. One request for the first 50,
-     where a by-id read per finished placement is what #312 removed. */
+  /* Always read: the thread draws each finished Task in place from these
+     cards. One request for the first 50, where a by-id read per finished
+     placement is what #312 removed. */
   const completed = useFolderCompletedTasks(id, folderOk)
   /* The canvas waits for them, so no finished placement is read by id while
      the list is still on its way. */
   const completedReady = completed.data !== undefined || completed.isError
-  const visible = place.narrow(openRows)
   const completedDays = mergeCompletedDays(completed.data?.pages)
   /* The finished Tasks the canvas draws in place, checked and muted. */
   const completedRows = useMemo(() => completedDays.flatMap((day) => day.rows), [completedDays])
-  /* Board and Linear narrow their finished work to the Label filter
-     themselves; the canvas keeps every block, as the Label item says. */
-  const labelFilterId = place.filter.label
-  /* With finished work shown, a Label only it wears is offered as well; and
-     the chosen Label keeps its name when hiding finished work leaves no open
-     row wearing it. */
-  const wornLabels = useMemo(
-    () =>
-      labelsWorn([...openRows, ...completedRows]).filter(
-        (label) =>
-          showCompleted || label.id === labelFilterId || place.labels.some((open) => open.id === label.id),
-      ),
-    [showCompleted, openRows, completedRows, place.labels, labelFilterId],
-  )
-
   const context: RowContext = {
     ...basis,
     showFolder: false,
@@ -463,6 +449,7 @@ export function FolderPage({
   ) ?? facetRows.find(linkedConsultation) ?? mainFacet
 
   const threadOpen = activeFacet?.kind === 'consultation' && search.get('discussion') !== null
+  useThreadScroll(id, activeFacet?.kind === 'main' && page.data !== undefined && completedReady)
 
   const selectFacet = useCallback((facet: Facet): void => {
     setSearch((current) => {
@@ -472,6 +459,17 @@ export function FolderPage({
       next.delete('discussion')
       next.delete('outcome')
       next.delete('result')
+      return next
+    }, { replace: true })
+  }, [setSearch])
+
+  /* Drops one parameter in place: a stale ?member= would reopen that member
+     later without being asked. */
+  const dropParam = useCallback((name: string): void => {
+    setSearch((current) => {
+      if (!current.has(name)) return current
+      const next = new URLSearchParams(current)
+      next.delete(name)
       return next
     }, { replace: true })
   }, [setSearch])
@@ -582,15 +580,6 @@ export function FolderPage({
       },
       () => {},
     )
-  }
-
-  function createFolderFacet(input: CreateFacetInput): void {
-    createFacet.mutate({
-      folderId: id,
-      body: input.kind === 'work'
-        ? { kind: 'work', h1_block_id: input.h1BlockId, after_facet_id: activeFacet?.id }
-        : { kind: input.kind, display_name: input.name, after_facet_id: activeFacet?.id },
-    }, { onSuccess: selectFacet })
   }
 
   function renameFolderFacet(facet: Facet, name: string | null): void {
@@ -907,10 +896,7 @@ export function FolderPage({
     } else if (action === 'cover') {
       if (gates?.identity === true) setCoverOpen(true)
       else refuse('folder.profile.edit')
-    } else if (action === 'transfer') {
-      if (gates?.transferOwnership === true) setTransferOpen(true)
     } else if (action === 'history') setHistoryOpen(true)
-    else if (action === 'workflow') void saveAsWorkflow()
     /* Leave is the exception and asks anyway. The two rules that refuse it
        are state rather than preset — the owner's transfer-first rule and the
        continuity invariant — so `ruleFor('member.leave').why` would answer
@@ -936,28 +922,8 @@ export function FolderPage({
     [authorPeople],
   )
 
-  /* Work and a section's tab are lists; "Show completed" belongs to them. */
-  const listFacet = activeFacet?.kind === 'main' || activeFacet?.kind === 'work'
-  /* #208: Board and Linear narrow to one Label; Freeform is a document and
-     never hides a block. */
-  const labelFilter = activeFacet?.kind === 'main' && folderView !== 'freeform'
-  const viewMenu = listFacet ? (
-    <>
-      <FolderViewMenu
-        showCompleted={showCompleted}
-        onShowCompleted={changeShowCompleted}
-      />
-      {labelFilter ? (
-        <LabelChoice filter={place.filter} labels={wornLabels} onChange={place.setFilter} />
-      ) : null}
-    </>
-  ) : undefined
-
   const headerActions = (
     <>
-      {labelFilter ? (
-        <LabelFilterClear filter={place.filter} labels={wornLabels} onChange={place.setFilter} />
-      ) : null}
       {/* 9.6's Share control, a word rather than a glyph. Withheld on a
           default folder, which INV-2 makes single-member and 5.3 refuses an
           add on. AC-162 and AC-183 reach the sharing panel through it. */}
@@ -968,6 +934,7 @@ export function FolderPage({
           className="text-muted-foreground"
           onClick={() => {
             setSharing(!sharing)
+            dropParam(MEMBER_PARAM)
           }}
         >
           {/* The word matches the panel's title: a member who can add
@@ -986,13 +953,15 @@ export function FolderPage({
         kind="folder"
         name={detail?.name ?? ''}
         align="end"
-        extra={viewMenu}
         handlers={{
           history: () => {
             setHistoryOpen(true)
           },
+          /* The Library row's pair (M4: one menu, the same items everywhere). */
+          rename: gates?.identity === true ? () => setRenaming(true) : undefined,
+          'add-page': gates?.identity === true && !isDefault ? () => addPageInside(id) : undefined,
           'copy-link': () => {
-            void navigator.clipboard.writeText(folderLink(id))
+            copyLink(folderLink(id))
           },
           duplicate: () => {
             /* Duplicated server-side; the copy is the duplicator's own private
@@ -1010,16 +979,6 @@ export function FolderPage({
               ? () => {
                   importFile(id)
                 }
-              : undefined,
-          workflow: () => {
-            void saveAsWorkflow()
-          },
-          /* Offered whenever the folder is shared and the viewer owns it,
-             rather than only when somebody is eligible: the dialog says what
-             to do when nobody is. */
-          transfer:
-            gates?.transferOwnership === true && others.length > 0
-              ? () => setTransferOpen(true)
               : undefined,
           /* Any member's, refused to the owner until they transfer and to the
              last Full-control member; `folderGates` reads both off the roster. */
@@ -1040,14 +999,10 @@ export function FolderPage({
       {/* The header is the folder read, so a folder the viewer cannot see
           renders 10.2's answer here: nonexistent, never forbidden. */}
       <PageBody query={folder} isEmpty={false} emptyCopy="">
-        {/* The filter's chips stay in the window bar's lead, so a narrowing
-            remembered for this folder can always be seen and cleared. */}
-        <PlaceFilterChips place={place} />
-
         {/* An open thread is its own page (r9): the breadcrumb names it and
             its head is the thread's, so the page's head and tabs step aside. */}
         <div className={threadOpen ? 'hidden' : 'space-y-4'}>
-          {hasCover ? (
+          {hasCover && !isDefault ? (
             <div className="-mt-4 md:-mt-6">
               {/* A viewer below Can edit reads the band and is offered nothing
                   on it (AC-011, AC-193). */}
@@ -1074,7 +1029,8 @@ export function FolderPage({
                 patch.mutate({ id, body: { icon: null } })
               }}
               actions={headerActions}
-              coverKey={coverKey}
+              /* Covers are for projects; the Desk is not one (M4). */
+              coverKey={isDefault ? undefined : coverKey}
             />
           </PageSection>
 
@@ -1090,12 +1046,10 @@ export function FolderPage({
               }}
               onReorder={reorderFolderFacets}
               capabilities={facetCapabilities}
-              onAdd={(name) => createFolderFacet({ kind: 'shared_blank', name })}
               onRename={renameFolderFacet}
               onHide={hideFolderFacet}
               onDelete={removeFolderFacet}
               onShare={exposeFolderFacet}
-              trailing={activeFacet?.kind === 'main' ? <FolderViewToggle view={folderView} onView={setFolderView} /> : undefined}
             />
           ) : facets.isError ? (
             <p role="alert" className="text-sm text-muted-foreground">
@@ -1106,64 +1060,32 @@ export function FolderPage({
 
         {activeFacet?.kind === 'main' ? (
           <div className="space-y-2">
-            <PageSection name="All open tasks">
+            <PageSection name="Work">
               <PageBody
                 query={open}
-                /* No view here draws the generic empty state: Linear and Board
-                   each end with their own add row, which an empty page needs. */
+                /* The thread ends in its own add line, which an empty page
+                   needs, so the generic empty state is never drawn. */
                 isEmpty={false}
                 emptyCopy={FOLDER_EMPTY}
                 emptyIcon={FolderIcon}
                 truncated={open.data?.truncated ?? false}
               >
-                {folderView === 'board' ? (
-                  /* A page's Board is by status, Not started · In progress ·
-                     Done, and a drop changes it (round 2). */
-                  <BoardView
-                    folderId={id}
-                    page={page.data}
-                    tasks={visible}
-                    completed={completedRows}
-                    label={labelFilterId}
-                    showCompleted={showCompleted}
-                    today={place.today}
-                    context={context}
-                    actions={actions}
-                  />
-                ) : folderView === 'linear' ? (
-                  page.data ? (
-                    <LinearView
-                      folderId={id}
-                      page={page.data}
-                      tasks={visible}
-                      completed={completedRows}
-                      label={labelFilterId}
-                      showCompleted={showCompleted}
-                      today={place.today}
-                      context={context}
-                      actions={actions}
-                    />
-                  ) : null
-                ) : (
-                  <Suspense fallback={null}>
+                <Suspense fallback={null}>
                   {page.data && completedReady ? <FolderCanvas
                     key={id}
                     page={page.data}
                     tasks={openRows}
                     completed={completedRows}
-                    showCompleted={showCompleted}
                     folderId={id}
                     context={context}
                     actions={actions}
                     onAsk={confirm.ask}
                     arrangeable
+                    resultsWritable={sharedPageEditable}
                   /> : page.isError ? <p role="alert" className="text-sm text-muted-foreground">Could not load writing. Reload to try again.</p> : null}
-                  </Suspense>
-                )}
+                </Suspense>
               </PageBody>
             </PageSection>
-            {/* #214: the documents that link to this Folder. Absent while none do. */}
-            <ReferencedFrom kind="folder" id={id} className="mt-2" />
           </div>
         ) : activeFacet ? (
           <FacetContent
@@ -1173,7 +1095,6 @@ export function FolderPage({
             tasks={openRows}
             completed={completedRows}
             completedReady={completedReady}
-            showCompleted={showCompleted}
             context={context}
             actions={actions}
             onAsk={confirm.ask}
@@ -1201,6 +1122,25 @@ export function FolderPage({
           onClose={() => {
             setSharing(false)
           }}
+          /* Export and Transfer are Share's (M4), no longer the "…"'s. */
+          onExport={() => {
+            void saveAsWorkflow()
+          }}
+          /* Offered whenever the folder is shared and the viewer owns it,
+             rather than only when somebody is eligible: the dialog says what
+             to do when nobody is. */
+          onTransfer={
+            gates?.transferOwnership === true && others.length > 0
+              ? () => {
+                  /* After Share has closed and handed focus back to its
+                     button, so the dialog keeps focus (Escape closes it). */
+                  setSharing(false)
+                  window.setTimeout(() => {
+                    setTransferOpen(true)
+                  }, 0)
+                }
+              : undefined
+          }
         />
       ) : null}
 
@@ -1338,7 +1278,6 @@ function FacetContent({
   tasks,
   completed,
   completedReady,
-  showCompleted,
   context,
   actions,
   onAsk,
@@ -1352,7 +1291,6 @@ function FacetContent({
   readonly tasks: readonly Parameters<typeof TaskRows>[0]['tasks'][number][]
   readonly completed: readonly Parameters<typeof TaskRows>[0]['tasks'][number][]
   readonly completedReady: boolean
-  readonly showCompleted: boolean
   readonly context: RowContext
   readonly actions: ReturnType<typeof useRowActions>
   readonly onAsk: (message: string, action: () => void) => void
@@ -1394,7 +1332,7 @@ function FacetContent({
         </p>
         {focused && completedReady ? (
           <Suspense fallback={<p role="status" className="sr-only">Loading section…</p>}>
-            <FolderCanvas key={`${folderId}:${facet.id}`} page={folderPage!} tasks={focusedTasks} completed={completed} showCompleted={showCompleted} folderId={folderId} workRootId={facet.h1_block_id ?? undefined} context={context} actions={actions} onAsk={onAsk} arrangeable />
+            <FolderCanvas key={`${folderId}:${facet.id}`} page={folderPage!} tasks={focusedTasks} completed={completed} folderId={folderId} workRootId={facet.h1_block_id ?? undefined} context={context} actions={actions} onAsk={onAsk} arrangeable />
           </Suspense>
         ) : <p role="status" className="sr-only">Loading section…</p>}
       </div>
@@ -1408,76 +1346,5 @@ function FacetContent({
         </Suspense>
       ) : <p role={document.isError ? 'alert' : 'status'} className={document.isError ? undefined : 'sr-only'}>{document.isError ? 'Could not load this facet. Reload to try again.' : 'Loading writing…'}</p>}
     </div>
-  )
-}
-
-/**
- * Work's view, as icon toggles at the far right of the tab row: one Tab stop,
- * arrow keys move and choose (a radio group). Stored as `dana.folder-view`
- * through `useFolderView`.
- */
-function FolderViewToggle({
-  view,
-  onView,
-}: {
-  readonly view: FolderView
-  readonly onView: (next: FolderView) => void
-}): React.JSX.Element {
-  const move = (event: React.KeyboardEvent<HTMLDivElement>): void => {
-    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key]
-    if (step === undefined) return
-    event.preventDefault()
-    const next = FOLDER_VIEWS[(FOLDER_VIEWS.indexOf(view) + step + FOLDER_VIEWS.length) % FOLDER_VIEWS.length]
-    if (next !== undefined) onView(next)
-    event.currentTarget.querySelector<HTMLElement>(`[data-view="${next}"]`)?.focus()
-  }
-  return (
-    <div role="radiogroup" aria-label="View" className="flex items-center gap-0.5" onKeyDown={move}>
-      {FOLDER_VIEWS.map((choice) => {
-        const Icon = VIEW_ICONS[choice]
-        const current = choice === view
-        return (
-          <button
-            key={choice}
-            type="button"
-            role="radio"
-            data-view={choice}
-            aria-checked={current}
-            aria-label={VIEW_LABELS[choice]}
-            title={VIEW_LABELS[choice]}
-            tabIndex={current ? 0 : -1}
-            onClick={() => {
-              onView(choice)
-            }}
-            className={`inline-flex size-7 items-center justify-center rounded-md ${current ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-/**
- * The page's "…" "Show completed" item; the view itself is the tab row's
- * toggles.
- */
-function FolderViewMenu({
-  showCompleted,
-  onShowCompleted,
-}: {
-  readonly showCompleted: boolean
-  readonly onShowCompleted: (next: boolean) => void
-}): React.JSX.Element {
-  return (
-    <DropdownMenuCheckboxItem
-      checked={showCompleted}
-      onCheckedChange={(checked) => {
-        onShowCompleted(checked)
-      }}
-    >
-      Show completed
-    </DropdownMenuCheckboxItem>
   )
 }

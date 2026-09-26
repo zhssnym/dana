@@ -21,7 +21,7 @@ import { installCanvasGuard, removingPages } from './guard.js'
 import { pendingPages } from './adapters.js'
 import { publishedFolders } from '../../../lib/folder-library.js'
 import { pushUndo, undoLabel } from '../../../shell/undo.js'
-import { bindTaskCommand, removeCanvasBlocks } from './commands.js'
+import { bindTaskCommand, dropEmptyLine, moveBlocksBy, removeCanvasBlocks } from './commands.js'
 import { CanvasSlashMenu, blockMenuTargets, headingTogglesFor } from './slash-items.js'
 import { isSectionHeading, shelfOutlineFailure, validateCanvasOutline } from './outline.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
@@ -31,6 +31,7 @@ import { backspaceToText, contains, simulateNest, TEXT_TYPES, TURN_TARGETS } fro
 import type { TreeBlock } from './turn-into.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { MentionSuggestions } from './mentions.js'
+import { AddTaskLine } from './AddTaskLine.js'
 import { useCanvasTaskDelete } from './CanvasTask.js'
 import './canvas.css'
 
@@ -181,10 +182,12 @@ export function CanvasSurface({
       return { label: 'Delete', run: () => { remove(ids) } }
     },
   }), [editor, headingMode, onCreateTask, requestTask, duplicate, onRemoveFolder, remove, deleteTask, trashPage])
-  const selectionActions = useMemo(() => ({ remove, duplicate, admits }), [remove, duplicate, admits])
+  const move = useCallback((ids: readonly string[], direction: -1 | 1): boolean => moveBlocksBy(editor, ids, direction), [editor])
+  const selectionActions = useMemo(() => ({ remove, duplicate, admits, move }), [remove, duplicate, admits, move])
   useBlockSelectionKeys(editor, selectionActions)
   useBlockAnchor(editor, true)
   const scope = `dana-canvas-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const lastLine = onCreateTask !== undefined && headingMode === 'section' && !flatGroups && placeholder !== undefined
 
   // Tab nests any block under the block above it (0038), only where the
   // result is a shape this canvas can keep; elsewhere it does nothing rather
@@ -241,7 +244,11 @@ export function CanvasSurface({
       const next = simulateNest(editor.document as unknown as TreeBlock[], block.id)
       if (next === null || !admits(next)) stop()
     } else if (event.key === 'Enter' && !event.shiftKey) {
-      if (inList && Array.isArray(block.content) && block.content.length === 0) { stop(); editor.unnestBlock() }
+      if (inList && Array.isArray(block.content) && block.content.length === 0) { stop(); editor.unnestBlock(); return }
+      // Work: a second Enter on an empty line removes it (M4 §2.5, `dropEmptyLine`).
+      const host = event.currentTarget
+      const toLast = (): boolean => { const line = host.querySelector<HTMLInputElement>('.dana-add-task-line input'); line?.focus(); return line !== null }
+      if (lastLine && dropEmptyLine(editor, toLast)) stop()
     } else if (event.key === 'Backspace' && !event.shiftKey && selection.$from.parentOffset === 0) {
       if (inList) { stop(); editor.unnestBlock(); return }
       if (block.type === 'paragraph' || !TEXT_TYPES.has(block.type)) return
@@ -271,6 +278,8 @@ export function CanvasSurface({
   const writeBelow = (event: React.MouseEvent): void => {
     if (!editable || event.button !== 0) return
     event.preventDefault()
+    // Work's thread ends in its one last line: a click below it lands there (M4 §2.5).
+    if (lastLine) { event.currentTarget.parentElement?.querySelector<HTMLInputElement>('.dana-add-task-line input')?.focus(); return }
     let last = editor.document.at(-1)
     if (last === undefined) return
     let section: typeof last | undefined
@@ -297,8 +306,8 @@ export function CanvasSurface({
       onKeyDown={linkKey}
       onFocusCapture={onFocusCapture}
       onMouseDownCapture={() => { writing.current = true }}
-      className={`dana-writing-canvas ${scope} min-w-0`}
-      style={placeholder === undefined ? undefined : ({ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties)}
+      className={`dana-writing-canvas ${scope} min-w-0${lastLine ? ' dana-last-line' : ''}`}
+      style={placeholder === undefined || lastLine ? undefined : ({ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties)}
     >
       <BlockNoteView
         editor={editor}
@@ -322,6 +331,8 @@ export function CanvasSurface({
         {editable ? <MentionSuggestions editor={editor} folderId={peopleFolderId} /> : null}
         <CanvasMarquee />
       </BlockNoteView>
+      {/* Work's last line, for a reader who can write (the one asked to, `placeholder`). */}
+      {lastLine ? <AddTaskLine editor={editor} page={peopleFolderId ?? ''} editable={editable} /> : null}
       {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}
     </div>
     <AlertDialog open={referenceToConvert !== null} onOpenChange={(open) => { if (!open) setReferenceToConvert(null) }}>

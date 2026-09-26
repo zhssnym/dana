@@ -9,10 +9,10 @@ today, and every line can be pressed. Each line names the module that binds it:
 - N (or C) puts the cursor in the page's "New task" row, `components/quick-add.tsx`.
 - Ctrl+Z takes back the last act inside the undo window, `shell/app-shell.tsx`
   under 9.1's undo bar.
-- In a task list (Today, Upcoming, Assigned, a page's Linear and Board) the
+- In a task list (Today, Upcoming, Assigned) the
   arrows move between tasks, Enter opens the focused task and Space completes
-  it; on Linear, Enter opens the task as an issue and Space closes or reopens it (`components/row-keys.ts`, the rows in `task-row.tsx`, `task-board.tsx`
-  and `views/LinearView.tsx`). Enter also commits a "New task" row
+  it (`components/row-keys.ts`, the rows in `task-row.tsx` and
+  `task-board.tsx`). Enter also commits a "New task" row
   (`components/quick-add.tsx`).
 - Escape closes the open thing: a "New task" row, a dialog through the
   primitive, and a held drag row through `lib/use-sortable-list.ts`.

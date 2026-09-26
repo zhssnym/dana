@@ -5,7 +5,7 @@ The card's Dependencies block (#225), over 7.25's three endpoints.
 panel's "Add property" menu offers "Dependency", which opens this block on its
 picker (`opening`). Once an edge exists it is an ordinary panel section.
 
-**One relation, two doors.** "Depends on…" posts to this task naming the pick;
+**One relation, two doors.** "Waits on…" posts to this task naming the pick;
 "Blocks…" posts to the pick naming this task, which is 7.25's own reversal.
 
 **The picker is contextual.** Empty, it offers a handful of open tasks from this
@@ -29,9 +29,9 @@ type Mode = "depends_on" | "blocks"
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export const DEPENDS_ON_ACTION = "Depends on…"
+export const DEPENDS_ON_ACTION = "Waits on…"
 export const BLOCKS_ACTION = "Blocks…"
-export const BLOCKED_BY_HEADING = "Blocked by"
+export const BLOCKED_BY_HEADING = "Waits on"
 export const BLOCKS_HEADING = "Blocks"
 
 const QUIET_BUTTON =
@@ -56,7 +56,8 @@ interface DependenciesProps {
   folderId: string | undefined
   /* The card's own block chrome, handed in so this file needs nothing from
      `task-card.tsx` and the two never import each other. */
-  section: (badge: string | undefined, body: ReactNode) => ReactNode
+  /** `title` names the relation the block leads with: "Waits on", or "Blocks" when it only blocks. */
+  section: (badge: string | undefined, body: ReactNode, title: string) => ReactNode
   /** "Add property → Dependency" was chosen: open on the picker. */
   opening?: boolean
   /** The block went back to having nothing to show. */
@@ -167,12 +168,19 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
     (edge) => edge.state === "active" || edge.state === "unresolved",
   ).length
 
+  const title =
+    dependsOn.length > 0 || (blocks.length === 0 && mode !== "blocks")
+      ? BLOCKED_BY_HEADING
+      : BLOCKS_HEADING
+
   return section(
     activeBlockers > 0 ? `Blocked · ${activeBlockers}` : undefined,
     <div className="flex flex-col gap-2 pt-1">
       {dependsOn.length > 0 ? (
         <EdgeList
           heading={BLOCKED_BY_HEADING}
+          /* The section is titled "Waits on" already. */
+          showHeading={false}
           edges={dependsOn}
           folderId={folderId}
           direction="depends_on"
@@ -182,6 +190,8 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
       {blocks.length > 0 ? (
         <EdgeList
           heading={BLOCKS_HEADING}
+          /* Its own line only under a "Waits on" title; alone, the section is titled "Blocks". */
+          showHeading={dependsOn.length > 0}
           edges={blocks}
           folderId={folderId}
           direction="blocks"
@@ -191,17 +201,20 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
       <div className="-ml-1.5">{actions}</div>
       {picker}
     </div>,
+    title,
   )
 }
 
 function EdgeList({
   heading,
+  showHeading = true,
   edges,
   folderId,
   direction,
   onRemove,
 }: {
   heading: string
+  showHeading?: boolean
   edges: TaskDependencyEdge[]
   folderId: string | undefined
   direction: Mode
@@ -209,9 +222,11 @@ function EdgeList({
 }) {
   return (
     <div>
-      <div className="pb-0.5 text-xs leading-4 font-medium text-muted-foreground">
-        {heading}
-      </div>
+      {showHeading ? (
+        <div className="pb-0.5 text-xs leading-4 font-medium text-muted-foreground">
+          {heading}
+        </div>
+      ) : null}
       <ul className="flex flex-col" aria-label={heading}>
         {edges.map((edge) => (
           <EdgeRow
@@ -238,7 +253,7 @@ function stateWord(edge: TaskDependencyEdge, direction: Mode): string | null {
     case "satisfied":
       return "Done"
     case "unresolved":
-      return "Abandoned, still blocking"
+      return "Dropped, still blocking"
     default:
       return null
   }

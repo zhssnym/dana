@@ -1,0 +1,38 @@
+/* ---- m4-u2: Work's last line, "Add a task…" (AddTaskLine.tsx). */
+
+/* On an empty page the editor's one empty line is not drawn above the last
+   line, so the page shows that one line. It comes back as soon as the editor
+   has the caret (a "/" or "# " from the line). */
+.dana-writing-canvas.dana-last-line .bn-container:not(:focus-within):has([data-is-only-empty-block="true"]) { height: 0; overflow: hidden; }
+/* Nor is BlockNote's trailing line, a second click target below the thread. */
+.dana-writing-canvas.dana-last-line .bn-trailing-block { display: none; }
+
+/* The dashed square stands where a Task row's checkbox stands: its control
+   box, hung into the gutter as the row's is. */
+.dana-add-task-line > .dana-add-task-glyph { margin-inline-start: calc((var(--control-height) - var(--checkbox-size)) / -2); }
+
+/* On the thread (m4-u1 thread.css, `.dana-thread`) the line is the rail's
+   last node: the glyph sits on the rail where a Task's badge does, the rail
+   runs down to it (dashed: what is not done yet), and the title starts in the
+   content column. It reads only the thread's own variables
+   (--dana-thread-x, --dana-thread-inset, --dana-thread-hairline,
+   --dana-thread-half, --dana-thread-dashed); U1 draws nothing for it. */
+.dana-thread .dana-add-task-line { position: relative; padding-inline-start: var(--dana-thread-inset); }
+.dana-thread .dana-add-task-line::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: calc(var(--dana-thread-x) - var(--dana-thread-hairline) / 2);
+  top: 0;
+  height: 50%;
+  width: var(--dana-thread-hairline);
+  background: var(--dana-thread-dashed);
+  pointer-events: none;
+}
+.dana-thread .dana-add-task-line > .dana-add-task-glyph {
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: calc(var(--dana-thread-x) - var(--control-height) / 2);
+  top: calc(50% - var(--control-height) / 2);
+  margin: 0;
+}
+.dana-thread .dana-add-task-line > .dana-add-task-glyph > span { background: var(--background); }

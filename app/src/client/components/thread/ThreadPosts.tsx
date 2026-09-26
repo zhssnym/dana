@@ -24,7 +24,8 @@ top right, shown on hover or focus. A like that someone pressed stays as a
 chip under the text. Edit opens the editor in place; Delete asks first. The
 composer is always at the bottom; Reply moves the cursor there.
 */
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 
 import { postFileIds, postPlainText } from '../../../shared/comments.js'
 import type { CommentFile, CommentLine, PostCommentBody, PostContent } from '../../../shared/comments.js'
@@ -38,9 +39,11 @@ import { Face } from '../person-face.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
 import { ConfirmDialog } from '../ui/ConfirmDialog.js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu.js'
+import { TRY_AGAIN } from '../ui/copy.js'
 import { cn } from '../ui/utils.js'
 import { localClock, localDay, placePosts } from './grouping.js'
 import { PostView } from './PostView.js'
+import type { PostEditorProps } from './PostEditor.js'
 
 const PostEditor = lazy(() => import('./PostEditor.js'))
 
@@ -75,6 +78,15 @@ function gist(line: CommentLine): string {
   return line.files.length > 0 ? 'an attachment' : ''
 }
 
+/** One drawn event in a task's timeline, and when it happened (epoch ms). */
+export interface TimelineItem {
+  readonly key: string
+  readonly at: number
+  readonly node: ReactNode
+}
+
+const NO_EVENTS: readonly TimelineItem[] = []
+
 export function ThreadPosts({
   folderId,
   comments,
@@ -90,6 +102,9 @@ export function ThreadPosts({
   openAt,
   post,
   onRefused,
+  events,
+  renderActions,
+  placeholder,
 }: {
   readonly folderId: string | null
   readonly comments: readonly CommentLine[] | undefined
@@ -113,6 +128,11 @@ export function ThreadPosts({
   readonly post: (body: PostCommentBody) => Promise<unknown>
   /** A write the server refused (403/409): the thread changed under us. */
   readonly onRefused?: (error: unknown) => void
+  /** Timeline events, drawn by the caller, placed between posts by time. */
+  readonly events?: readonly TimelineItem[]
+  /** The composer's own button row (a task's "Mark done ▾" and "Post"). */
+  readonly renderActions?: PostEditorProps['renderActions']
+  readonly placeholder?: string
 }): React.JSX.Element {
   const patch = usePatchComment()
   const remove = useDeleteComment()
@@ -143,10 +163,59 @@ export function ThreadPosts({
   const shown = useMemo(() => (pending.length === 0 ? posts : [...posts, ...pending]), [posts, pending])
   const placed = useMemo(() => placePosts(shown), [shown])
   const byId = useMemo(() => new Map(posts.map((line) => [line.id, line])), [posts])
+  const timeline = events ?? NO_EVENTS
+  /* Each post with the events that happened before it; the rest go last. */
+  const { before, after } = useMemo(() => {
+    const sorted = [...timeline].sort((a, b) => a.at - b.at)
+    const map = new Map<string, TimelineItem[]>()
+    let next = 0
+    for (const { line } of placed) {
+      const at = Date.parse(line.created_at)
+      const run: TimelineItem[] = []
+      while (next < sorted.length && (sorted[next]?.at ?? 0) <= at) {
+        const item = sorted[next]
+        if (item !== undefined) run.push(item)
+        next += 1
+      }
+      if (run.length > 0) map.set(line.id, run)
+    }
+    return { before: map, after: sorted.slice(next) }
+  }, [timeline, placed])
+  /* Day dividers over posts and events together, so an event sits under its
+     own day's heading; a thread on one day needs no dates (r4). Keyed by the
+     post id or event key the divider goes above. */
+  const dividers = useMemo(() => {
+    const order: { key: string; day: string }[] = []
+    const eventDay = (item: TimelineItem): string => localDay(new Date(item.at).toISOString())
+    for (const { line } of placed) {
+      for (const item of before.get(line.id) ?? []) order.push({ key: item.key, day: eventDay(item) })
+      order.push({ key: line.id, day: localDay(line.created_at) })
+    }
+    for (const item of after) order.push({ key: item.key, day: eventDay(item) })
+    const map = new Map<string, string>()
+    if (new Set(order.map((entry) => entry.day)).size < 2) return map
+    let previous: string | null = null
+    for (const { key, day } of order) {
+      if (day !== previous) map.set(key, day)
+      previous = day
+    }
+    return map
+  }, [placed, before, after])
   const today = localDay(new Date().toISOString())
   /* The post clicked, whose words the banner quotes; the reply joins its
      thread's one level (7.14), so it is sent under that post's parent. */
   const replyTarget = replyTo === null ? undefined : byId.get(replyTo)
+
+  const dayDivider = (day: string | undefined): React.ReactNode =>
+    day === undefined ? null : (
+      <div className="flex items-center gap-3 px-2 pt-3 pb-1" role="separator" aria-label={formatDayHeading(day, today)}>
+        <span className="h-px flex-1 bg-border" aria-hidden="true" />
+        <span className="text-xs font-medium text-muted-foreground" aria-hidden="true">
+          {formatDayHeading(day, today)}
+        </span>
+        <span className="h-px flex-1 bg-border" aria-hidden="true" />
+      </div>
+    )
 
   const timeOf = (instant: string): string => formatTime(localClock(instant), clock) ?? ''
   /* The gutter's time: Slack drops the AM/PM there. */
@@ -252,8 +321,12 @@ export function ThreadPosts({
     })
   }
 
-  if (failed) return <InlineError onRetry={onRetry} />
-  if (loading) return <SkeletonList />
+  /* Only a first read that fails or waits replaces the thread. A later poll
+     that fails keeps what was read, the draft and the composer's actions,
+     and says so in one line above the composer. */
+  if (comments === undefined && failed) return <InlineError onRetry={onRetry} />
+  if (comments === undefined && loading) return <SkeletonList />
+  const stale = failed
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -262,9 +335,11 @@ export function ThreadPosts({
           the bottom, just above the composer, as Slack's do. */}
       <div data-thread-history className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
       <div className="flex min-h-full flex-col justify-end pt-3">
-      {posts.length > 0 ? (
-        <ol className="-mx-2 min-w-0" aria-label="Posts">
-          {placed.map(({ line, head, day, quote }) => {
+      {posts.length > 0 || timeline.length > 0 ? (
+        <ol className="-mx-2 min-w-0" aria-label={timeline.length > 0 ? 'Timeline' : 'Posts'}>
+          {placed.map(({ line, head: grouped, quote }) => {
+            const earlier = before.get(line.id)
+            const head = grouped || earlier !== undefined
             const author = personOf(line.author_id)
             const mine = line.author_id === viewerId
             const sent = line.id.startsWith('pending-')
@@ -274,16 +349,15 @@ export function ThreadPosts({
             const fullDate = new Date(line.created_at).toLocaleString()
             const hasBar = !sent && (may.likeComment || may.createComment || editable || deletable)
             return (
-              <li key={line.id} className="min-w-0 list-none">
-                {day !== null ? (
-                  <div className="flex items-center gap-3 px-2 pt-3 pb-1" role="separator" aria-label={formatDayHeading(day, today)}>
-                    <span className="h-px flex-1 bg-border" aria-hidden="true" />
-                    <span className="text-xs font-medium text-muted-foreground" aria-hidden="true">
-                      {formatDayHeading(day, today)}
-                    </span>
-                    <span className="h-px flex-1 bg-border" aria-hidden="true" />
-                  </div>
-                ) : null}
+              <Fragment key={line.id}>
+              {earlier?.map((item) => (
+                <li key={item.key} className="min-w-0 list-none">
+                  {dayDivider(dividers.get(item.key))}
+                  {item.node}
+                </li>
+              ))}
+              <li className="min-w-0 list-none">
+                {dayDivider(dividers.get(line.id))}
                 {newFrom === line.id ? (
                   <div className="flex items-center gap-3 px-2 pt-2 pb-1" role="separator" aria-label="New">
                     <span className="h-px flex-1 bg-border" aria-hidden="true" />
@@ -434,8 +508,15 @@ export function ThreadPosts({
                   </div>
                 </article>
               </li>
+              </Fragment>
             )
           })}
+          {after.map((item) => (
+            <li key={item.key} className="min-w-0 list-none">
+              {dayDivider(dividers.get(item.key))}
+              {item.node}
+            </li>
+          ))}
         </ol>
       ) : null}
       <div ref={end} aria-hidden="true" className="h-px scroll-mb-24" />
@@ -459,6 +540,15 @@ export function ThreadPosts({
         </button>
       ) : null}
 
+      {stale ? (
+        <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
+          Couldn't refresh the timeline.
+          <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={onRetry}>
+            {TRY_AGAIN}
+          </button>
+        </p>
+      ) : null}
+
       {closed !== undefined ? (
         closed
       ) : may.createComment && folderId !== null ? (
@@ -480,7 +570,8 @@ export function ThreadPosts({
           <Suspense fallback={<EditorFallback />}>
             <PostEditor
               folderId={folderId}
-              placeholder={posts.length === 0 ? 'Write the first post…' : 'Write a reply…'}
+              placeholder={placeholder ?? (posts.length === 0 ? 'Write the first post…' : 'Write a reply…')}
+              {...(renderActions === undefined ? {} : { renderActions })}
               autoFocus={autoFocus}
               focusSignal={focus}
               onSubmit={(content) => {

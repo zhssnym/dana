@@ -1,7 +1,0 @@
-# Every issue uses a template (issue #5): Bug, or Feature or change.
-# Ideas and open questions go to Discussions.
-blank_issues_enabled: false
-contact_links:
-  - name: An idea, a question, or something not yet decided
-    url: https://github.com/zhssnym/dana/discussions
-    about: Discussions are for thinking. Issues are for work. A discussion that reaches a conclusion becomes an issue.

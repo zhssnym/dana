@@ -178,6 +178,7 @@ function TopTrail(): React.JSX.Element {
      names it, and the page's crumb leads back to the thread list. */
   const discussionId = pathname.startsWith(FOLDER_PREFIX) ? new URLSearchParams(search).get('discussion') : null
   const discussion = useDiscussion(discussionId ?? '', discussionId !== null)
+  /* A task is its own route (`?issue=` on a page redirects there, M4). */
   const taskId = pathname.startsWith(TASK_PREFIX) ? pathname.slice(TASK_PREFIX.length) : null
   const task = useTask(taskId)
 
@@ -186,13 +187,12 @@ function TopTrail(): React.JSX.Element {
     const list = new URLSearchParams(search)
     list.delete('discussion')
     list.delete('outcome')
-    if (!list.has('facet')) list.set('conversation', 'open')
+    if (discussionId !== null && !list.has('facet')) list.set('conversation', 'open')
+    const listTo = list.size === 0 ? pathname : `${pathname}?${list.toString()}`
     trail = (
       <BreadcrumbTrail
         folderId={pathname.slice(FOLDER_PREFIX.length)}
-        {...(discussionId === null
-          ? {}
-          : { current: discussion.data?.title ?? '', folderTo: `${pathname}?${list.toString()}` })}
+        {...(discussionId !== null ? { current: discussion.data?.title ?? '', folderTo: listTo } : {})}
       />
     )
   } else if (taskId !== null) {
