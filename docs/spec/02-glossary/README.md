@@ -85,9 +85,10 @@ second one.
   never ids, people, dates, or states, importable to create new folders.
 - **Saved view**: a named, pinnable filter definition of the viewer's (4.19), serialized
   by ids.
-- **Board**: a page's grouped columns rendered as cards; dropping a card into a column
-  writes that column's value. Offered wherever the page has a grouping; Done's column
-  completes.
+- **Thread**: a page's Work document drawn on a rail, the one rendering of a page's tasks
+  (9.6). **The next task** is the one task on it that is ringed.
+- **Dropped**: what a person is shown for an abandoned task. The words for a task's state
+  are To do, Done and Dropped.
 
 A term here is what a person is shown; an identifier in sections 4, 6 and 7 is what the
 machine is told, and the two may differ. The table `my_day_entries` and the addresses

@@ -31,14 +31,6 @@ export const SOURDOUGH: readonly SampleFolder[] = [
       { kind: 'bullet', text: 'Change one thing per bake, or I learn nothing from it.' },
     ],
     doc: [
-      {
-        kind: 'callout',
-        text: [
-          'Finished. What I learned is in Results, and every loaf is in the ',
-          { text: 'Bake log', bold: true },
-          ' tab.',
-        ],
-      },
       { kind: 'section', text: 'Get a starter going' },
       {
         kind: 'paragraph',

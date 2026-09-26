@@ -28,16 +28,9 @@ export const BUDGET_APP: readonly SampleFolder[] = [
         kind: 'paragraph',
         text: 'Evenings and Sundays only. Everything stays on the phone: no accounts, no server, no bank login. We spend under 2 000 SEK in total.',
       },
+      { kind: 'paragraph', text: 'The beta starts on the 1st, so v0.1 is finished before then.' },
     ],
     doc: [
-      {
-        kind: 'callout',
-        text: [
-          'Now: finish v0.1 so the beta can start on the 1st. The launch steps live in ',
-          { text: 'Launch checklist', page: 'Launch checklist' },
-          '.',
-        ],
-      },
       { kind: 'section', text: 'Prototype' },
       { task: 'Interview five friends about how they budget' },
       { task: 'Sketch the three screens' },
@@ -199,6 +192,7 @@ export const BUDGET_APP: readonly SampleFolder[] = [
       {
         title: 'Invite ten testers on TestFlight',
         due: 9,
+        waitsOn: ['Write the beta welcome note'],
         steps: [
           { title: 'Five from the interviews' },
           { title: 'Five who have never budgeted' },
