@@ -14,12 +14,16 @@ its composed page), posts one line in the thread linking to it, and resolves
 the thread without a decision. The three are separate writes, in that order,
 because each has its own route: a failure stops the chain where it failed
 and the steps already taken stay (a task with no link post yet, or a linked
-thread still open), each visible where it landed. There is no Undo of the
+thread still open), each visible where it landed; a failure after the task
+exists says so ("The task was made. The thread was not closed."), never the
+generic "Nothing was saved". The task is filed into the section the foot of
+Work belongs to, so it folds and moves with the heading it sits under. There is no Undo of the
 whole act: the thread's own Reopen and the task's own delete undo each half,
 and deleting the task later leaves the thread resolved with its link, which
 is intended: the talk did end in a task. A retry after a failed step goes on
 from that step (the view remembers the task it made), so it never makes a
-second task. The General discussion is never converted: it is the page's
+second task; once a conversion completes that memory is cleared, so a
+Reopen and a second press make a second task, as the button says. The General discussion is never converted: it is the page's
 catch-all, not one subject.
 
 The thread fills the window: the posts sit at the bottom just above the
@@ -47,6 +51,8 @@ Which acts are drawn is `discussionPowers`; none of it is authorization. The
 General discussion is never offered Move to Trash here (the route decides).
 */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 
 import {
   useDiscussionThread,
@@ -60,15 +66,20 @@ import {
   useUpdateDiscussion,
 } from '../../api/consultation.js'
 import { useCreateTask } from '../../api/mutations.js'
-import { ApiError } from '../../api/http.js'
+import { ApiError, getPlain, mutateApi, OfflineError } from '../../api/http.js'
+import { queryKeys } from '../../api/keys.js'
+import { writeFailureMessage } from '../../api/queryClient.js'
+import { showToast } from '../../state/toasts.js'
 import { formatDate } from '../../lib/dates.js'
 import { folderGates, mayDraw } from '../../lib/folder-authority.js'
 import { MoreHorizontal } from '../../lib/icons.js'
 import type { PersonResolver, ThreadAuthority } from '../../lib/thread.js'
 import { pushUndo, undoLabel } from '../../shell/undo.js'
-import { DISCUSSION_TITLE_MAX, OUTCOME_STATEMENT_MAX } from '../../../shared/consultation.js'
+import { DISCUSSION_TITLE_MAX, discussionSchema, OUTCOME_STATEMENT_MAX } from '../../../shared/consultation.js'
 import type { Discussion } from '../../../shared/consultation.js'
+import { commentLine } from '../../../shared/comments.js'
 import type { PostContent } from '../../../shared/comments.js'
+import { getPageResponse } from '../../../shared/pages.js'
 import { TASK_TITLE_LIMIT } from '../../../shared/tasks.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
 import { localDay } from '../thread/grouping.js'
@@ -127,7 +138,7 @@ function ThreadBody(props: {
   const postComment = usePostDiscussionComment()
   const markRead = useMarkDiscussionRead()
   const createTask = useCreateTask()
-  const resolve = useResolveDiscussion()
+  const client = useQueryClient()
   const [turning, setTurning] = useState(false)
   /* What a conversion has already done in this view, so a retry after a
      failed step goes on from that step instead of making a second task. */
@@ -215,18 +226,48 @@ function ThreadBody(props: {
     setTurning(true)
     try {
       if (made.current === null) {
-        const task = await createTask.mutateAsync({ title: d.title.slice(0, TASK_TITLE_LIMIT), folder_id: folderId })
+        const section = await footSection(client, folderId)
+        const task = await createTask.mutateAsync({
+          title: d.title.slice(0, TASK_TITLE_LIMIT),
+          folder_id: folderId,
+          ...(section === null ? {} : { section_block_id: section }),
+        })
         made.current = { taskId: task.id, title: task.title, linked: false }
       }
+    } catch (error) {
+      /* Nothing was made: the mutation cache's own toast says so, truly. */
+      refused(error)
+      setTurning(false)
+      return
+    }
+    /* A task now exists, so the generic "Nothing was saved" would be false:
+       the link post and the resolve are plain writes that speak for
+       themselves when they fail. */
+    try {
       if (!made.current.linked) {
-        await postComment.mutateAsync({ discussionId: d.id, body: { content: taskLinkPost(made.current.taskId, made.current.title) } })
+        await mutateApi(commentLine, {
+          method: 'POST',
+          path: `/discussions/${d.id}/comments`,
+          body: { content: taskLinkPost(made.current.taskId, made.current.title) },
+        })
         made.current.linked = true
       }
-      await resolve.mutateAsync({ id: d.id, body: {} })
+      await mutateApi(discussionSchema, { method: 'POST', path: `/discussions/${d.id}/resolve`, body: {} })
+      /* Done: the memory is for a failed chain only, so a Reopen and a second
+         press make a second task, as the button says. */
+      made.current = null
       setFocusReopen(true)
     } catch (error) {
       refused(error)
+      showToast(
+        error instanceof ApiError && (error.status === 403 || error.status === 409)
+          ? writeFailureMessage(error)
+          : error instanceof OfflineError
+            ? "The task was made. The thread was not closed: you're offline."
+            : 'The task was made. The thread was not closed. Try again.',
+      )
     } finally {
+      void client.invalidateQueries()
       setTurning(false)
     }
   }
@@ -342,6 +383,23 @@ function ThreadBody(props: {
  * the task. A post draws a Dana link as a chip carrying the task's live
  * name (thread/PostView.tsx), so a renamed task reads renamed here; the
  * stored title is only the offline fallback. */
+/* The section the foot of Work belongs to, so a task added there is filed
+   into it (as a task typed at the end of a section is) rather than drawn
+   under the last heading while belonging to none: the last item's own
+   section, or the last item itself when it is a section heading. */
+async function footSection(client: QueryClient, folderId: string): Promise<string | null> {
+  const page = await client.fetchQuery({
+    queryKey: queryKeys.folderPage(folderId),
+    queryFn: () => getPlain(getPageResponse, `/folders/${folderId}/page`),
+  })
+  const last = page.items.at(-1)
+  if (last === undefined) return null
+  if (last.kind === 'task') return page.task_placements?.find((t) => t.id === last.id)?.section_block_id ?? null
+  const block = page.blocks.find((b) => b.id === last.id)
+  if (block === undefined) return null
+  return block.kind === 'section' ? block.id : block.section_block_id
+}
+
 function taskLinkPost(taskId: string, title: string): PostContent {
   return {
     version: 1,
