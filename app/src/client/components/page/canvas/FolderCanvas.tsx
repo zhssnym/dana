@@ -20,7 +20,7 @@ import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider, ThreadFactsProvider } from './CanvasTask.js'
 import type { ThreadFacts } from './CanvasTask.js'
 import { foldableSections, foldedNow, freezeFolds, threadModel, threadStyle, toggleFold } from './thread/thread-model.js'
-import type { FoldStore, FrozenFolds, ThreadBlock } from './thread/thread-model.js'
+import type { FoldStore, FrozenFolds, ProgressState, ThreadBlock } from './thread/thread-model.js'
 import './thread/thread.css'
 import { SavedResults } from './CanvasResult.js'
 import { CanvasSurface } from './CanvasSurface.js'
@@ -77,11 +77,16 @@ export default function FolderCanvas(props: Props): React.JSX.Element {
      repeating task (the server rewrites the document) threw the reader to
      the top. The page keeps its height until the new editor has drawn. */
   const shell = useRef<HTMLDivElement>(null)
+  /* One hold at a time: a second checkpoint restarts it, so the first one's
+     timer cannot let go of the height the second still needs. */
+  const hold = useRef<number | undefined>(undefined)
+  useEffect(() => () => { window.clearTimeout(hold.current) }, [])
   const onCheckpoint = useCallback((page: PageView): void => {
     const box = shell.current
     if (box !== null) {
-      box.style.minHeight = `${box.offsetHeight}px`
-      window.setTimeout(() => { box.style.minHeight = '' }, HOLD_HEIGHT_FOR)
+      window.clearTimeout(hold.current)
+      box.style.minHeight = `${Math.max(box.offsetHeight, parseFloat(box.style.minHeight) || 0)}px`
+      hold.current = window.setTimeout(() => { box.style.minHeight = '' }, HOLD_HEIGHT_FOR)
     }
     setCheckpoint((old) => ({ page, epoch: old.epoch + 1 }))
   }, [])
@@ -701,8 +706,20 @@ type Card = Rows['tasks'][number]
 const noFacts: ThreadFacts = { next: null, shared: false, completedOn: new Map() }
 /** How long after a tick the lists' answer still counts as that tick's (ms). */
 const TICK_ANSWERS_WITHIN = 4000
-/** How long the done stretch may grow for: --duration-slow, and a frame to spare (ms). */
-const FILL_FOR = 400
+/* Per page: where the done stretch last stopped and what it covered, and
+   when this viewer last ticked there. Held outside ThreadLayer, because a
+   repeating task's tick rewrites the document and remounts the editor (and
+   ThreadLayer with it) between the tick and the stretch's move. */
+const threadMotion = new Map<string, {
+  readonly stop: string | null
+  readonly progress: ReadonlyMap<string, ProgressState>
+  /** When this viewer last ticked, and the stretch as it stood then; cleared once the growth has played. */
+  readonly tick: { readonly at: number; readonly before: ReadonlyMap<string, ProgressState> } | null
+}>()
+/* How long the growth is held at most (ms). It ends when its animation does;
+   this covers reduced motion, where none plays, and an editor a remount has
+   not drawn yet (the animation starts when the blocks appear). */
+const FILL_FOR = 2000
 
 /**
  * The Work thread (M4 §2): the same document, drawn on a rail. It reads the
@@ -749,25 +766,40 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
   const breaks = new Set<string>()
   for (const [id, at] of still?.elision.elided ?? []) if (!session.expanded.has(at)) { elided.set(id, at); breaks.add(at) }
   const model = threadModel({ blocks: enabled ? blocks : [], open, today: context.today, viewerId: context.viewerId, shared, folded, elided })
-  const css = enabled ? threadStyle(model, folded, new Set(elided.keys()), breaks) : ''
   /* The one motion (AC-1510): a tick by this viewer grows the done stretch
      down to the new frontier. The tick is heard first (`onTick`); the stretch
-     moves when the page's lists answer, which may be a moment later, and
-     only a move that follows the viewer's own tick is animated. */
-  const tickedAt = useRef(0)
-  const lastStop = useRef<string | null>(null)
-  const [filling, setFilling] = useState(0)
+     moves when the page's lists answer, which may be a moment later (after a
+     remount, for a repeating task), and only a move that follows the viewer's
+     own tick is animated. Compared after commit, so a render React throws
+     away changes nothing. */
+  const [grown, setGrown] = useState<{ readonly from: ReadonlyMap<string, ProgressState>; readonly at: number } | null>(null)
+  const css = enabled ? threadStyle(model, folded, new Set(elided.keys()), breaks, grown?.from ?? null) : ''
   const stop = [...model.progress].find(([, state]) => state === 'done-frontier')?.[0] ?? null
-  if (stop !== lastStop.current) {
-    lastStop.current = stop
-    if (performance.now() - tickedAt.current < TICK_ANSWERS_WITHIN) { tickedAt.current = 0; setFilling((value) => value + 1) }
-  }
+  useLayoutEffect(() => {
+    if (!enabled) return
+    const seen = threadMotion.get(folderId)
+    const tick = seen?.tick ?? null
+    threadMotion.set(folderId, { stop, progress: model.progress, tick })
+    if (seen === undefined || seen.stop === stop || tick === null || performance.now() - tick.at >= TICK_ANSWERS_WITHIN) return
+    /* Always from the stretch as it stood at the tick: a repeating task's
+       tick moves the stop twice (the lists answer before the rewritten
+       document does), and the second move lands on a freshly drawn editor. */
+    setGrown({ from: tick.before, at: performance.now() })
+  })
   useEffect(() => {
-    if (filling === 0) return undefined
-    const timer = window.setTimeout(() => { setFilling(0) }, FILL_FOR)
+    if (grown === null) return undefined
+    const timer = window.setTimeout(() => { setGrown(null) }, FILL_FOR)
     return () => { window.clearTimeout(timer) }
-  }, [filling])
-  const onTick = useCallback((): void => { tickedAt.current = performance.now() }, [])
+  }, [grown])
+  const onTick = useCallback((): void => {
+    const seen = threadMotion.get(folderId)
+    if (seen !== undefined) threadMotion.set(folderId, { ...seen, tick: { at: performance.now(), before: seen.progress } })
+  }, [folderId])
+  const grew = useCallback((): void => {
+    const seen = threadMotion.get(folderId)
+    if (seen !== undefined) threadMotion.set(folderId, { ...seen, tick: null })
+    setGrown(null)
+  }, [folderId])
   const facts = useMemo<ThreadFacts>(() => ({ next: model.next, shared, completedOn, onTick }), [model.next, shared, completedOn, onTick])
   const results = facets.data?.facets.find((facet) => facet.kind === 'results')
   const toggle = useCallback((id: string, isFolded: boolean): void => {
@@ -856,7 +888,7 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
       <div
         ref={host}
         className="dana-thread min-w-0"
-        {...(filling > 0 ? { 'data-thread-filling': '' } : {})}
+        onAnimationEnd={(event) => { if (event.animationName === 'dana-thread-grow') grew() }}
         onKeyDownCapture={(event) => {
           /* Enter in a folded heading writes its first child: open the
              section first, so the new line is not hidden. */

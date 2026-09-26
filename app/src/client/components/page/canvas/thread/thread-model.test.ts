@@ -215,6 +215,13 @@ describe('AC-1510: the rail is drawn in the done colour from the first completed
     expect(progressOf(blocks, {})).toEqual([['d1', 'done-start'], ['n1', 'done'], ['d2', 'done-frontier']])
   })
 
+  test('everything done inside sections: what follows the last task in a green section covers its green', () => {
+    const blocks = [section('s1', [task('d1')]), section('s2', [task('d2'), note('after')]), note('outside')]
+    const model = threadModel(input(blocks, {}))
+    expect([...model.progress]).toEqual([['d1', 'done-start'], ['s2', 'done'], ['d2', 'done-frontier']])
+    expect([...model.line]).toEqual([['d2', 'covered'], ['after', 'covered']])
+  })
+
   test('a folded section is one item: the stop while it holds the frontier, done while it is finished', () => {
     const blocks = [section('s1', [task('d1')]), section('s2', [task('d2'), task('o1')]), task('o2')]
     expect(progressOf(blocks, { o1: card(), o2: card() }, { folded: new Set(['s1', 's2']) })).toEqual([['s1', 'done-start'], ['s2', 'done-frontier']])
@@ -225,6 +232,9 @@ describe('AC-1510: the rail is drawn in the done colour from the first completed
     const blocks = [task('d1'), task('d2'), task('d3'), task('d4'), task('d5'), task('o1')]
     const elided = new Map([['d1', 'd3'], ['d2', 'd3']])
     expect(progressOf(blocks, { o1: card() }, { elided })).toEqual([['d3', 'done'], ['d4', 'done'], ['d5', 'done'], ['o1', 'done-frontier']])
+    // The green runs past the label: only a break off the stretch cuts its line.
+    const css = threadStyle(threadModel(input(blocks, { o1: card() }, { elided })), new Set(), new Set(['d1', 'd2']), new Set(['d3']))
+    expect(css).toContain('[data-id="d3"]{padding-block-start:var(--row-height);--dana-thread-knee:calc(var(--row-height) + var(--dana-thread-center))}')
   })
 
   test('the style draws the stretch over each block’s own grey line, and the stop only to its badge', () => {

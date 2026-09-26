@@ -5,7 +5,7 @@ import { createReactBlockSpec } from '@blocknote/react'
 import type { TaskRows } from '../../../pages/task-rows.js'
 import { useTask, useTaskDependencies } from '../../../api/queries.js'
 import { DELETED_USER, taskRowDisplay } from '../../../parts/presenters.js'
-import { formatDate } from '../../../lib/dates.js'
+import { formatDay } from '../../../lib/dates.js'
 import { Hourglass } from '../../../lib/icons.js'
 import { isWaiting } from './thread/thread-model.js'
 import { cn } from '../../ui/utils.js'
@@ -204,7 +204,7 @@ function ThreadRow({ task, state, bridge, thread }: { readonly task: TaskCard; r
   const blockers = useTaskDependencies(state === 'waiting' && (task.blocked_by_count ?? 0) > 0 ? task.id : null)
   const waitsOn = blockers.data?.depends_on.find((edge) => edge.task !== null && edge.task.status !== 'completed')?.task?.title
   const doneOn = state === 'done' ? thread.completedOn.get(task.id) : undefined
-  const day = display?.due?.label ?? display?.starts ?? (doneOn === undefined ? undefined : formatDate(doneOn, bridge.context.today))
+  const day = display?.due?.label ?? display?.starts ?? (doneOn === undefined ? undefined : formatDay(doneOn, bridge.context.today))
   const face = !finished && thread.shared && task.assignee !== null ? task.assignee : null
   /* A done task says when it was done. The card carries no completer, so it
      names nobody: the assignee is not always who finished it. A dropped one

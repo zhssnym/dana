@@ -118,6 +118,15 @@
   color: var(--foreground);
   text-decoration: none;
 }
+/* A link in the writing is the text's own ink, underlined quietly; the same
+   in both themes, visited or not (upstream leaves the browser's blue). */
+.dana-writing-canvas .bn-inline-content a[href]:not([data-referenced-from] *) {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-color: var(--muted-foreground);
+  text-underline-offset: calc(var(--spacing) * 0.75);
+}
+.dana-writing-canvas .bn-inline-content a[href]:hover { text-decoration-color: currentColor; }
 .dana-writing-canvas [data-content-type='codeBlock'] {
   font-size: var(--text-sm);
 }

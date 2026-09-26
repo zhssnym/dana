@@ -32,7 +32,11 @@ export interface ThreadTask {
   readonly status?: string | undefined
 }
 
-export type LineStyle = 'solid' | 'frontier' | 'dashed'
+/**
+ * 'covered' is solid on an opaque ground: a block after the done stretch's
+ * end, inside a section the stretch runs through, hides that section's green.
+ */
+export type LineStyle = 'solid' | 'frontier' | 'dashed' | 'covered'
 
 /**
  * The done stretch of the rail (AC-1510): drawn in the done colour from the
@@ -169,37 +173,47 @@ function drawLine(list: readonly ThreadBlock[], input: ThreadInput, line: Map<st
  * the start is hidden behind "Earlier work", the break block starts it
  * instead, green over its whole length.
  */
-function drawProgress(input: ThreadInput): Map<string, ProgressState> {
+function drawProgress(input: ThreadInput): { progress: Map<string, ProgressState>; covered: Set<string> } {
   type Kind = 'open' | 'done' | 'closed' | 'other'
-  const items: { readonly id: string; readonly kind: Kind }[] = []
+  /* `within`: the unfolded sections the item sits in, outermost first. */
+  const items: { readonly id: string; readonly kind: Kind; readonly within: readonly string[] }[] = []
   const kindOf = (block: ThreadBlock, folded: boolean): Kind => {
     if (folded) return holdsOpen(block, input.open) ? 'open' : holdsCompleted(block, input.open) ? 'done' : holdsTask(block) ? 'closed' : 'other'
     if (!isTask(block)) return 'other'
     return isOpenTask(block, input.open) ? 'open' : isCompletedTask(block, input.open) ? 'done' : 'closed'
   }
-  const walk = (list: readonly ThreadBlock[]): void => {
+  const walk = (list: readonly ThreadBlock[], within: readonly string[]): void => {
     for (const block of list) {
       const folded = isSection(block) && input.folded.has(block.id)
-      items.push({ id: block.id, kind: kindOf(block, folded) })
-      if (!folded) walk(ownList(block))
+      items.push({ id: block.id, kind: kindOf(block, folded), within })
+      if (!folded) walk(ownList(block), [...within, block.id])
     }
   }
-  walk(input.blocks)
+  walk(input.blocks, [])
   const progress = new Map<string, ProgressState>()
+  const covered = new Set<string>()
+  const none = { progress, covered }
   const start = items.findIndex((item) => item.kind === 'done')
-  if (start === -1) return progress
+  if (start === -1) return none
   const frontier = items.findIndex((item) => item.kind === 'open')
-  if (frontier !== -1 && frontier < start) return progress
+  if (frontier !== -1 && frontier < start) return none
   let end = frontier
   for (let at = items.length - 1; end === -1 && at >= 0; at -= 1) if (items[at]!.kind !== 'other') end = at
-  if (end <= start) return progress
+  if (end <= start) return none
   for (let at = start; at <= end; at += 1) progress.set(items[at]!.id, at === start ? 'done-start' : at === end ? 'done-frontier' : 'done')
+  /* With nothing open the stretch ends on the last task, and a section it
+     runs through is green over its whole height: the end's own line below its
+     badge, and every item after it in that section, cover it. (With an open
+     task they are dashed, which already does.) */
+  if (frontier === -1) {
+    for (let at = end; at < items.length; at += 1) if (items[at]!.within.some((id) => progress.has(id))) covered.add(items[at]!.id)
+  }
   const breakId = input.elided?.get(items[start]!.id)
   if (breakId !== undefined) {
     for (const id of [...progress.keys()]) if (input.elided?.has(id) === true) progress.delete(id)
     if (progress.get(breakId) !== 'done-frontier') progress.set(breakId, 'done')
   }
-  return progress
+  return { progress, covered }
 }
 
 /**
@@ -235,12 +249,14 @@ export function threadModel(input: ThreadInput): ThreadModel {
     }
   }
   walk(input.blocks)
+  const { progress, covered } = drawProgress(input)
+  for (const id of covered) if (!line.has(id)) line.set(id, 'covered')
   return {
     line,
     next: findNext(input.blocks, input),
     hasTasks: input.blocks.some(holdsTask),
     anyOpen: input.blocks.some((block) => holdsOpen(block, input.open)),
-    progress: drawProgress(input),
+    progress,
     foldedOpen,
   }
 }
@@ -312,28 +328,49 @@ export function foldableSections(blocks: readonly ThreadBlock[]): string[] {
 const quoteId = (id: string): string => id.replace(/["\\]/g, '')
 const outer = (id: string): string => `.dana-thread .bn-block-outer[data-id="${quoteId(id)}"]`
 
+/** How far the done colour reaches down a block in `state`; `now` says where a block new to the stretch grows from. */
+function fillOf(state: ProgressState | undefined, now: ProgressState): string {
+  if (state === undefined) return now === 'done-start' ? 'var(--dana-thread-knee)' : '0px'
+  return state === 'done-frontier' ? 'var(--dana-thread-knee)' : '100%'
+}
+
 /**
  * The model as one style element's text: per-block rules by `data-id`, so
  * nothing is written into ProseMirror's DOM. Folded sections hide their
  * children, elided blocks are not drawn, a break block makes room above it
  * for the "Earlier work" button ThreadLayer places there.
+ *
+ * `grownFrom` is the done stretch before this viewer's tick, while the one
+ * motion plays (AC-1510): each block whose fill changed grows from where it
+ * was. An animation, not a transition, so it plays on blocks the editor has
+ * only just drawn (a repeating task's tick remounts it).
  */
-export function threadStyle(model: ThreadModel, folded: ReadonlySet<string>, elided: ReadonlySet<string>, breaks: ReadonlySet<string>): string {
+export function threadStyle(model: ThreadModel, folded: ReadonlySet<string>, elided: ReadonlySet<string>, breaks: ReadonlySet<string>, grownFrom: ReadonlyMap<string, ProgressState> | null = null): string {
   const rules: string[] = []
+  const grow: string[] = []
   for (const [id, style] of model.line) if (!model.progress.has(id)) rules.push(`${outer(id)}{--dana-thread-line:var(--dana-thread-${style})}`)
   /* The done stretch: the done colour down to the badge ('done-start' from
      it, 'done-frontier' to it), over the block's own grey line. */
   for (const [id, state] of model.progress) {
-    const fill = state === 'done-frontier' ? 'var(--dana-thread-knee)' : '100%'
+    const fill = fillOf(state, state)
     rules.push(`${outer(id)}{--dana-thread-line:var(--dana-thread-${state});--dana-thread-under:var(--dana-thread-${model.line.get(id) ?? 'solid'});--dana-thread-fill:${fill}}`)
+    const from = grownFrom === null ? fill : fillOf(grownFrom.get(id), state)
+    if (from !== fill) grow.push(`${outer(id)}{--dana-thread-from:${from};animation:dana-thread-grow var(--duration-slow) var(--ease-standard) both}`)
   }
+  if (grow.length > 0) rules.push(`@media (prefers-reduced-motion: no-preference){${grow.join('')}}`)
   for (const id of folded) {
     rules.push(`${outer(id)}>.bn-block>.bn-block-group{display:none}${outer(id)}>.bn-block{--dana-thread-caret:var(--dana-icon-chevron-right)}`)
     // A finished section folds grey; one that still holds open work keeps its ink.
     if (!model.foldedOpen.has(id)) rules.push(`${outer(id)}>.bn-block{--dana-badge-ink:var(--muted-foreground)}${outer(id)}>.bn-block>.bn-block-content{color:var(--muted-foreground)}`)
   }
   if (elided.size > 0) rules.push(`${[...elided].map(outer).join(',')}{display:none}`)
-  for (const id of breaks) rules.push(`${outer(id)}{padding-block-start:var(--row-height);--dana-thread-line-top:var(--row-height)}`)
+  /* The break's line is cut where its label sits, unless the done stretch
+     runs through it: then the green runs past the label, as it does through
+     what the label hides. */
+  for (const id of breaks) {
+    const cut = model.progress.has(id) ? '' : ';--dana-thread-line-top:var(--row-height)'
+    rules.push(`${outer(id)}{padding-block-start:var(--row-height);--dana-thread-knee:calc(var(--row-height) + var(--dana-thread-center))${cut}}`)
+  }
   return rules.join('\n')
 }
 

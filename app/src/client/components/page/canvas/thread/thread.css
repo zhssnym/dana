@@ -43,6 +43,9 @@
   /* Opaque gaps, the line's full width: a dashed stretch hides the section
      line drawn beneath it, done or not. */
   --dana-thread-dashed: repeating-linear-gradient(to bottom, var(--dana-thread-ink) 0 var(--spacing), transparent var(--spacing) calc(var(--spacing) * 2)) 50% 0 / var(--dana-thread-hairline) 100% no-repeat, linear-gradient(var(--background), var(--background));
+  /* Solid on the same opaque ground: past the done stretch's end, inside a
+     section it runs through, the section's green stays hidden. */
+  --dana-thread-covered: var(--dana-thread-solid), linear-gradient(var(--background), var(--background));
 }
 
 /* How far the done colour reaches down an item's line: 0 when it is off
@@ -119,11 +122,10 @@
 :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer:has(> .bn-block > .bn-block-content[data-content-type='divider'])::before { background: linear-gradient(var(--background), var(--background)); }
 
 /* The one motion (AC-1510): when this viewer ticks a task, the done colour
-   grows down to the new frontier. Only while ThreadLayer marks the tick:
-   nothing moves on load, on someone else's tick, or on an untick. */
-@media (prefers-reduced-motion: no-preference) {
-  .dana-thread[data-thread-filling] .bn-block-outer { transition: --dana-thread-fill var(--duration-slow) var(--ease-standard); }
-}
+   grows down to the new frontier. `threadStyle` names the blocks that grow,
+   and from where, only while ThreadLayer holds the tick: nothing moves on
+   load, on someone else's tick, or on an untick. */
+@keyframes dana-thread-grow { from { --dana-thread-fill: var(--dana-thread-from); } }
 
 /* The content column starts past the rail. */
 :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block > .bn-block-content,
@@ -189,7 +191,11 @@
    node, moved onto the rail below, and it wears no second badge. */
 .dana-thread .bn-block:has(> .bn-block-content[data-content-type] .bn-toggle-wrapper) { --dana-badge-on: none; }
 :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block > .bn-block-content .bn-toggle-wrapper > .bn-toggle-button {
+  /* Absolute at every width: canvas.css puts the triangle inline on a phone,
+     which would take it off the rail. */
+  position: absolute;
   right: calc(100% + var(--dana-thread-gap) + var(--dana-thread-x) - var(--control-height) / 2);
+  margin-inline-end: 0;
   display: flex;
   width: var(--control-height);
   height: var(--control-height);
