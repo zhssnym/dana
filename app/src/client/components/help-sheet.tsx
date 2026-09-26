@@ -9,15 +9,11 @@ today, and every line can be pressed. Each line names the module that binds it:
 - N (or C) puts the cursor in the page's "New task" row, `components/quick-add.tsx`.
 - Ctrl+Z takes back the last act inside the undo window, `shell/app-shell.tsx`
   under 9.1's undo bar.
-- In a task list (Today, Upcoming, Assigned, a page's Linear and Board) the
+- In a task list (Today, Upcoming, Assigned) the
   arrows move between tasks, Enter opens the focused task and Space completes
   it (`components/row-keys.ts`, the rows in `task-row.tsx` and
   `task-board.tsx`). Enter also commits a "New task" row
   (`components/quick-add.tsx`).
-- In a page's Linear list, `views/LinearView.tsx` binds its keys: C or N
-  for New task, Enter or O to open, Space to mark done or reopen, X to select,
-  Shift+arrows to extend, Alt+arrows to move the task, M, A and L for the
-  Section, Assignee and Label menus, Esc to clear the selection.
 - Escape closes the open thing: a "New task" row, a dialog through the
   primitive, and a held drag row through `lib/use-sortable-list.ts`.
 - The arrows move the cursor through search's results,
@@ -86,21 +82,6 @@ const GROUPS: readonly { readonly title: string; readonly rows: readonly Shortcu
       { keys: ['↑', '↓'], what: 'Move between tasks' },
       { keys: ['Enter'], what: 'Open the task' },
       { keys: ['Space'], what: 'Complete the task' },
-    ],
-  },
-  {
-    title: 'In a Linear list',
-    rows: [
-      { keys: ['C'], also: ['N'], what: 'New task' },
-      { keys: ['Enter'], also: ['O'], what: 'Open the task' },
-      { keys: ['Space'], what: 'Mark done or reopen' },
-      { keys: ['J'], also: ['K'], what: 'Next or previous task' },
-      { keys: ['X'], what: 'Select the task' },
-      { keys: ['Shift', '↑'], also: ['Shift', '↓'], what: 'Select the next one too' },
-      { keys: ['Alt', '↑'], also: ['Alt', '↓'], what: 'Move the task' },
-      { keys: ['M'], what: 'Section' },
-      { keys: ['A'], what: 'Assignee' },
-      { keys: ['L'], what: 'Label' },
     ],
   },
   {

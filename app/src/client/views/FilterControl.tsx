@@ -22,7 +22,15 @@ import { X } from '../lib/icons.js'
 import type { PageFilter, SortBy } from './filter.js'
 import type { GroupChoice } from './place-pages.js'
 import type { ViewMode } from './view-mode.js'
-import { VIEW_LABELS } from './ViewSwitch.js'
+
+/* A place page's layout names, one per layout. A page's own Work has one
+   rendering (the thread) and no name to choose. */
+const VIEW_LABELS: Record<ViewMode, string> = {
+  list: 'List',
+  linear: 'Linear',
+  board: 'Board',
+  calendar: 'Calendar',
+}
 
 const SORTS: readonly { readonly value: SortBy; readonly label: string }[] = [
   { value: 'manual', label: 'Manual' },
