@@ -57,19 +57,20 @@ import {
 } from '../components/ui/sidebar.js'
 import { MORE_ACTIONS } from '../components/ui/copy.js'
 import { ObjectMenu } from '../components/object-menu.js'
+import { HistorySheet } from '../components/history-sheet.js'
 import { cn } from '../components/ui/utils.js'
 import {
   useCreateFolder,
   useDeleteFolder,
   useDuplicateFolder,
+  useDuplicateShelf,
   useLeaveFolder,
   useMoveFolder,
   useRenameFolder,
   useRestoreFolder,
 } from '../api/mutations.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
-import { leaveFolderConfirm } from '../lib/object-acts.js'
-import { showToast } from '../state/toasts.js'
+import { copyLink, leaveFolderConfirm } from '../lib/object-acts.js'
 import { pushUndo, undoLabel } from './undo.js'
 import { folderGates } from '../lib/folder-authority.js'
 import { folderRowDisplay, shelfMark } from '../parts/presenters.js'
@@ -378,16 +379,6 @@ interface PageTreeValue {
   readonly cancelLeave: () => void
 }
 
-/** Copy an address, then say so once. */
-function copyLink(url: string): void {
-  void navigator.clipboard?.writeText(url).then(
-    () => {
-      showToast('Link copied')
-    },
-    () => {},
-  )
-}
-
 const PageTreeContext = createContext<PageTreeValue | null>(null)
 
 function usePageTree(): PageTreeValue {
@@ -448,6 +439,18 @@ function usePageTreeValue({
   const clearMark = useCallback((): void => {
     setMark(null)
   }, [])
+
+  /* The page on screen is never hidden under a folded parent: a page made
+     from its parent's own "…" opens with its row showing. Once per page
+     opened, so folding the parent afterwards stays folded. */
+  const revealed = useRef<string | null>(null)
+  useEffect(() => {
+    if (activeId === null || revealed.current === activeId || !tree.byId.has(activeId)) return
+    revealed.current = activeId
+    for (let at = tree.parent.get(activeId) ?? null; at !== null; at = tree.parent.get(at) ?? null) {
+      setFold(at, false)
+    }
+  }, [activeId, tree, setFold])
 
   /* Only when the page on screen, or one under it, goes: to Today, replacing
      the entry so Back does not land on a page that is gone. */
@@ -863,6 +866,9 @@ function FolderGroupBlock({
   const self = groupKey(group.label)
   const menuTrigger = useRef<HTMLButtonElement>(null)
   const shelfId = group.shelf?.id ?? null
+  const navigate = useNavigate()
+  const duplicateShelf = useDuplicateShelf()
+  const [historyOpen, setHistoryOpen] = useState(false)
   const mark = group.shelf === null ? null : shelfMark(group.shelf)
   const Glyph = mark?.icon ?? Folders
 
@@ -988,7 +994,16 @@ function FolderGroupBlock({
               kind="shelf"
               name={group.label}
               width="w-44"
+              /* The collection page's own "…" (M4: one menu per object), plus
+                 Rename for a bare label, whose title is not a field anywhere. */
               handlers={{
+                history:
+                  shelfId === null
+                    ? undefined
+                    : () => {
+                        void navigate(paths.shelf(shelfId))
+                        setHistoryOpen(true)
+                      },
                 /* A shelf with a page renames in its page title (the one home);
                    only a bare label, which has no page, renames here. */
                 rename:
@@ -1002,6 +1017,16 @@ function FolderGroupBlock({
                     ? undefined
                     : () => {
                         copyLink(shelfLink(shelfId))
+                      },
+                duplicate:
+                  shelfId === null
+                    ? undefined
+                    : () => {
+                        duplicateShelf.mutate(shelfId, {
+                          onSuccess: (made) => {
+                            void navigate(paths.shelf(made.id))
+                          },
+                        })
                       },
                 delete: () => {
                   groups.onDeleteGroup(group.label)
@@ -1022,6 +1047,15 @@ function FolderGroupBlock({
             />
           </div>
         </div>
+        {shelfId === null ? null : (
+          <HistorySheet
+            kind="shelf"
+            subject={shelfId}
+            name={group.label}
+            open={historyOpen}
+            onOpenChange={setHistoryOpen}
+          />
+        )}
         <CollapsibleContent>
           <SidebarMenu>
             {group.folders.map((folder, index) => {

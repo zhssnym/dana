@@ -29,15 +29,6 @@ import { cn } from '../ui/utils.js'
 /** The one spelling of an emoji key, so nothing else builds one by hand. */
 export const EMOJI_KEY_PREFIX = 'emoji-'
 
-/** The stored key for a character, or null where it is not one codepoint. */
-export function emojiKeyOf(character: string): string | null {
-  const code = character.codePointAt(0)
-  if (code === undefined) return null
-  /* Two codepoints is a variation selector or a joiner; see the header. */
-  if (String.fromCodePoint(code) !== character) return null
-  return `${EMOJI_KEY_PREFIX}${code.toString(16)}`
-}
-
 /** The character a stored key names, or null where the key is not one. */
 export function emojiOf(key: string): string | null {
   if (!key.startsWith(EMOJI_KEY_PREFIX)) return null
@@ -107,52 +98,3 @@ export function emojiMark(key: string): LucideIcon | null {
   drawn.set(key, EmojiMark)
   return EmojiMark
 }
-
-/*
-The ninety-six the picker offers, in eight columns, sections in multiples of
-eight so no row is left with a hole in it. The rule is the glyph grid's: the gap at the right of an
-unfinished row reads as a missing choice rather than as the end of a list.
-*/
-export interface EmojiSection {
-  readonly label: string
-  readonly emoji: readonly string[]
-}
-
-export const EMOJI_SECTIONS: readonly EmojiSection[] = [
-  {
-    label: 'Smileys',
-    emoji: ['😀', '😄', '😅', '😂', '🙂', '😉', '😊', '😍',
-            '😎', '🤔', '😴', '🤩', '🥳', '😇', '🤗', '🙃'],
-  },
-  {
-    label: 'People',
-    emoji: ['👋', '👍', '🙌', '💪', '🧠', '👀', '🧑', '👶'],
-  },
-  {
-    label: 'Nature',
-    emoji: ['🌱', '🌳', '🌴', '🌵', '🌸', '🌻', '🍀', '🍁',
-            '🐝', '🔥', '💧', '🌊', '🌙', '🌞', '🌈', '⭐'],
-  },
-  {
-    label: 'Food and drink',
-    emoji: ['🍎', '🍊', '🍋', '🍓', '🍇', '🥑', '🍞', '🧀',
-            '🍕', '🍔', '🍟', '🍣', '🍜', '🍰', '🍪', '☕'],
-  },
-  {
-    label: 'Activity',
-    emoji: ['⚽', '🏀', '🎾', '🏃', '🚴', '🧘', '🎯', '🏆'],
-  },
-  {
-    label: 'Places',
-    emoji: ['🚗', '🚌', '🚲', '🚀', '🏠', '🏢', '🌍', '🚇'],
-  },
-  {
-    label: 'Objects',
-    emoji: ['💡', '📚', '📝', '📅', '📌', '🔑', '🔒', '💰',
-            '💳', '🎁', '🎵', '🎸', '📷', '💻', '📱', '🔧'],
-  },
-  {
-    label: 'Symbols',
-    emoji: ['💜', '💙', '💚', '🧡', '⚡', '✨', '🎉', '💯'],
-  },
-]

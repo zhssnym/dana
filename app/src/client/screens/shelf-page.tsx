@@ -10,7 +10,7 @@ The shelf page, bound through the adapter seam. What is worth knowing:
   this client's `IconPicker`: 4.3 and 4.18 store a key and `icon-manifest.ts` is
   the one place a key becomes a glyph, so `folderPageMark` is `markIcon` here.
 - **The header is the page head** (round 3): `FolderHeader`, the same mark,
-  title, hover "Add cover" and "…" every page wears, so a collection does not
+  title and "…" every page wears (covers are a project's alone, M4), so a collection does not
   read as a different kind of screen. No description line, the rule for every
   page since round 2; a stored description stays in the data, undrawn.
 - **Rename lives in the title only**: click it, Enter or blur commits,
@@ -22,7 +22,6 @@ import type { ReactNode } from "react"
 
 import { FolderHeader } from "../components/folder-head.js"
 import { markIcon } from "../components/page/icon-manifest.js"
-import { PageCover } from "../components/page-cover.js"
 import { ObjectMenu } from "../components/object-menu.js"
 import { HistorySheet } from "../components/history-sheet.js"
 import { IDENTITY_COLOR_FALLBACK } from "../parts/identity-colors.js"
@@ -64,8 +63,6 @@ export function ShelfPage({
 
   return (
     <div className="flex min-h-full w-full flex-col space-y-4">
-      <PageCover storageName={key} />
-
       <FolderHeader
         name={name}
         icon={Mark}
@@ -82,7 +79,6 @@ export function ShelfPage({
             ...(next.color === undefined ? {} : { color: next.color }),
           })
         }
-        coverKey={key}
         actions={
           <ObjectMenu
             kind="shelf"

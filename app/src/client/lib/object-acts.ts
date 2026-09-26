@@ -49,7 +49,6 @@ import type { ReactNode } from 'react'
 import {
   Ban,
   Copy,
-  Download,
   FolderInput,
   Fullscreen,
   History,
@@ -63,6 +62,7 @@ import {
   Trash2,
 } from './icons.js'
 import type { LucideIcon } from './icons.js'
+import { showToast } from '../state/toasts.js'
 
 /*
 The three things a person makes and owns.
@@ -99,7 +99,6 @@ export type ActKey =
   | 'make-folder'
   | 'copy-link'
   | 'duplicate'
-  | 'workflow'
   /* Import a Dana file under this page (round 3). */
   | 'import'
   | 'abandon'
@@ -190,7 +189,6 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
        people copy links for most. */
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
-    { key: 'workflow', label: 'Export', icon: Download, group: 3 },
     { key: 'delete', label: 'Delete collection…', icon: Trash2, group: 5, destructive: true },
   ],
 }
@@ -241,4 +239,14 @@ export function actsFor(kind: ObjectKind, handlers: ActHandlers): DrawnAct[] {
       startsGroup: previous !== undefined && spec.group !== previous.group,
     }
   })
+}
+
+/** Copy link's one behaviour, wherever the menu opens: copy, then say so once. */
+export function copyLink(url: string): void {
+  void navigator.clipboard?.writeText(url).then(
+    () => {
+      showToast('Link copied')
+    },
+    () => {},
+  )
 }

@@ -52,12 +52,6 @@ export interface FacetCapabilities {
   readonly share: boolean
 }
 
-export interface CreateFacetInput {
-  readonly kind: Extract<FacetKind, 'work' | 'shared_blank' | 'private_blank'>
-  readonly name?: string
-  readonly h1BlockId?: string
-}
-
 /**
  * True while a page's tabs are still in the order it was made with: the
  * built-ins at their creation keys (`createNativeFacets`: Main `a0`, Purpose
@@ -156,9 +150,6 @@ export function FolderTabs({
   readonly onReorder?: (dragged: Facet, orderedVisible: readonly Facet[]) => void
   /** The gate for every act; absent offers no add, rename, hide or delete. */
   readonly capabilities?: (facet: Facet | null) => FacetCapabilities
-  /** Retired in M4 ("Add tab" went) and never read; kept so a caller that
-      still passes it compiles. */
-  readonly onAdd?: (name: string) => void
   /** Rename in place; null gives a built-in tab its own name back. */
   readonly onRename?: (facet: Facet, name: string | null) => void
   /** Hide a built-in tab, or show it again from the "+". */
