@@ -53,8 +53,6 @@ export const queryKeys = {
     ['folders', folderId, 'facets', facetId, 'page'] as const,
   shelfPage: (id: string) => ['shelves', id, 'page'] as const,
   notifications: () => ['notifications'] as const,
-  thread: (folderId: string, taskId: string | null) =>
-    ['folders', folderId, 'thread', taskId ?? 'folder'] as const,
 
   /* 7.19's place covers. One key for
      the whole set rather than one per place: 4.20's only read is "one

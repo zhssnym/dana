@@ -1,5 +1,5 @@
 /*
-The 7.14 surface: the thread on a folder or a task, member-only
+The 7.14 surface: the thread on a folder or a Discussion, member-only
 throughout, one reply level enforced, likes as one idempotent bit.
 
 Status grammar (7.0, 10.2, DES-225): a folder or comment out of the
@@ -21,9 +21,15 @@ something the caller cannot compute from what it sent.
 Since issue #320 a Folder-level comment belongs to a Discussion.
 `/discussions/:id/comments` is that Discussion's conversation, the same
 comment in every other respect (body, files, replies, likes, fan-out).
-`/folders/:id/comments` without `task` stays exactly as the deployed client
-uses it and is the Folder's "General discussion": the read answers it, and a
-write lands in the open one, made if missing. A resolved or trashed
+`/folders/:id/comments` stays exactly as the deployed client uses it and is
+the Folder's "General discussion": the read answers it, and a write lands in
+the open one, made if missing.
+
+Since M5 (migration 0059) a task has no thread of its own: its conversation
+is the Discussion linked to it (`POST /tasks/:id/discussion`). `?task=` on
+either verb is answered 410 `task_thread_moved`, never ignored, so a cached
+client that still sends it is told rather than having its post filed in the
+General discussion or shown the wrong thread. A resolved or trashed
 Discussion refuses every write to its conversation with 409
 `discussion_frozen`, after the 404 and the 403 have had their say.
 */
@@ -44,7 +50,6 @@ import {
   discussionScope,
   editComment,
   likeComment,
-  taskCommentCounts,
   threadView,
   unlikeComment,
 } from '../domain/comments.js'
@@ -65,10 +70,21 @@ export interface ConversationRouterOptions {
   securityLog?: SecurityLogger
 }
 
-const threadQuery = z.object({ task: z.uuid().optional() })
+/* `task` is read only to refuse it (M5): see the header. */
+const threadQuery = z.object({ task: z.string().optional() })
 
-function folderThread(task: string | undefined): CommentThread {
-  return task === undefined ? { kind: 'folder' } : { kind: 'task', taskId: task }
+const FOLDER_THREAD: CommentThread = { kind: 'folder' }
+
+/** `true` when `?task=` was sent and has been answered 410. */
+function sentTaskThread(res: Response, task: string | undefined): boolean {
+  if (task === undefined) return false
+  sendError(
+    res,
+    410,
+    'task_thread_moved',
+    "A task's conversation is its discussion now: POST /api/v1/tasks/:id/discussion.",
+  )
+  return true
 }
 
 const FROZEN_MESSAGE =
@@ -86,14 +102,6 @@ function sendCreateOutcome(
   sentFileIds: boolean,
 ): void {
   switch (outcome.kind) {
-    case 'task_not_here':
-      sendError(
-        res,
-        422,
-        'validation_failed',
-        'task: must name a task of this folder.',
-      )
-      return
     case 'discussion_not_here':
       // Purged between the route's read and the write: gone, as 10.2 says.
       sendError(res, 404, 'not_found', 'Not found.')
@@ -197,34 +205,10 @@ export function createConversationRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
+      if (sentTaskThread(res, query.data.task)) return
       res
         .status(200)
-        .json(
-          await threadView(
-            db,
-            viewer(req),
-            folderId,
-            folderThread(query.data.task),
-          ),
-        )
-    },
-  )
-
-  /* m2 ghissues: each task thread's comment count, for the issue list. A
-     folder outside the viewer's membership is 404, as the thread read is. */
-  router.get(
-    '/folders/:id/comment-counts',
-    requireSession,
-    async (req: Request, res: Response) => {
-      const db = database(res)
-      if (db === null) return
-      const folderId = parsedId(res, req.params.id)
-      if (folderId === null) return
-      if ((await accessOf(db, viewer(req), folderId)) === null) {
-        sendError(res, 404, 'not_found', 'Not found.')
-        return
-      }
-      res.status(200).json({ counts: await taskCommentCounts(db, folderId) })
+        .json(await threadView(db, viewer(req), folderId, FOLDER_THREAD))
     },
   )
 
@@ -250,6 +234,7 @@ export function createConversationRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
+      if (sentTaskThread(res, query.data.task)) return
       /* Accepted R8A: Consultation is participation, and Can comment is the
          preset that names it. Can view reads the thread and does not write to
          it, which is the whole of the distinction between the two lowest
@@ -267,7 +252,7 @@ export function createConversationRouter(
         db,
         viewer(req),
         folderId,
-        folderThread(query.data.task),
+        FOLDER_THREAD,
         parsed,
       )
       sendCreateOutcome(res, outcome, parsed.file_ids !== undefined)

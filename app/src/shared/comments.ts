@@ -183,11 +183,11 @@ export const postCommentBody = z
       })
       .optional(),
     /* r5 discuss: where a post goes is its address, never its body -- a
-       task's thread is `?task=` on the folder route, a Discussion's is
-       `/discussions/:id/comments`. Sent here they were parsed and dropped,
+       Discussion's is `/discussions/:id/comments`, a task's talk is its
+       Discussion's (M5). Sent here they were parsed and dropped,
        so the post landed somewhere the caller did not ask for with a 201;
        they are refused by name instead (11.14's `z.never`). */
-    task_id: z.never({ error: 'is not read here: a task comment names its task as ?task= on the address' }).optional(),
+    task_id: z.never({ error: 'is not read here: a task is discussed in its Discussion' }).optional(),
     discussion_id: z.never({ error: 'is not read here: a Discussion post goes to /discussions/:id/comments' }).optional(),
   })
   .refine(
@@ -426,23 +426,3 @@ export type PatchCommentResponse = z.infer<typeof patchCommentResponse>
  * (moderation included) and likes.
  */
 export const DISCUSSION_FROZEN = 'discussion_frozen'
-
-/**
- * PUT /tasks/:id/thread/read answers the viewer's previous read of the task's
- * thread: an ISO time, or null when they had never opened it. The caller can
- * then tell which posts arrived since.
- */
-export const taskThreadReadResponse = z.object({
-  read_at: z.string().nullable(),
-})
-export type TaskThreadReadResponse = z.infer<typeof taskThreadReadResponse>
-
-/**
- * GET /folders/:id/comment-counts (m2 ghissues): how many comments each task
- * on the page carries, replies included, so an issue row can say "3" without
- * one thread read per row. A task with none is absent rather than zero.
- */
-export const commentCountsResponse = z.object({
-  counts: z.array(z.object({ task_id: z.uuid(), comments: z.number().int().positive() })),
-})
-export type CommentCountsResponse = z.infer<typeof commentCountsResponse>

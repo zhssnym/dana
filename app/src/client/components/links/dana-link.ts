@@ -123,11 +123,8 @@ export function backlinkPath(row: LooseBacklink): string | null {
     if (row.home === 'shelf') return `/app/shelves/${row.home_id}`
     if (row.home === 'facet' && row.folder_id !== null) return `/app/folders/${row.folder_id}?facet=${row.home_id}`
   }
-  /* A post in a thread (W-C): the thread opens, or the task on its Discussion tab. */
-  if (row.surface === 'post') {
-    if (row.home === 'discussion') return `/app/discussions/${row.home_id}`
-    if (row.home === 'task') return `/app/tasks/${row.home_id}?tab=discussion`
-  }
+  /* A post in a thread (W-C): its Discussion opens. */
+  if (row.surface === 'post' && row.home === 'discussion') return `/app/discussions/${row.home_id}`
   return row.folder_id === null ? null : `/app/folders/${row.folder_id}`
 }
 

@@ -980,7 +980,11 @@ export async function carryTaskFilesOnMove(
   toFolderId: string,
   copied: string[],
 ): Promise<'carried' | 'quota_exceeded'> {
-  const taskComments = sql`SELECT id FROM comments WHERE task_id = ${taskId}::uuid`
+  /* M5: a task's conversation is its Discussions (`discussions.task_id`),
+     which move with it. */
+  const taskComments = sql`SELECT c.id FROM comments c
+    JOIN discussions d ON d.id = c.discussion_id
+    WHERE d.task_id = ${taskId}::uuid`
   const named = await rowsOf(
     tx,
     sql`SELECT f.id FROM files f

@@ -33,12 +33,12 @@ import {
 import { requireCsrf, requireSession } from '../auth/index.js'
 import {
   createDiscussion,
+  discussTask,
   folderOfDiscussion,
   folderOfTask,
   listDiscussions,
   listOutcomes,
   markDiscussionRead,
-  markTaskThreadRead,
   purgeDiscussion,
   readDiscussion,
   readOutcome,
@@ -291,12 +291,14 @@ export function createConsultationRouter(
     },
   )
 
-  /** The task-thread twin (round 7): the viewer opened a task's thread.
-   * The task is resolved to its live Folder and `accessOf` decides, so a
-   * stranger is 404 like on every other `/tasks/:id` route; the domain
-   * re-resolves both in its transaction. Answers the previous `read_at`. */
-  router.put(
-    '/tasks/:id/thread/read',
+  /** "Discuss" on a task (M5): the task's one live Discussion, made on first
+   * use. 201 when this call made it, 200 when it already existed, so the call
+   * is safe to repeat. The task is resolved to its live Folder and `accessOf`
+   * decides first, so a stranger, a trashed task or a trashed Folder is 404
+   * like on every other `/tasks/:id` route; the domain re-resolves both under
+   * the task row's lock. No body. */
+  router.post(
+    '/tasks/:id/discussion',
     requireSession,
     requireCsrf,
     mutationLimit,
@@ -310,7 +312,12 @@ export function createConsultationRouter(
         notFound(res)
         return
       }
-      answer(res, 200, await markTaskThreadRead(db, viewer(req), taskId))
+      const outcome = await discussTask(db, viewer(req), taskId)
+      if (refused(res, outcome)) return
+      const { created, discussion } = (
+        outcome as { kind: 'ok'; value: { created: boolean; discussion: unknown } }
+      ).value
+      res.status(created ? 201 : 200).json({ discussion })
     },
   )
 

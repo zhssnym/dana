@@ -952,6 +952,9 @@ export const taskDetail = taskCard.extend({
   steps: z.array(taskStep),
   completed_at: z.iso.datetime().nullable(),
   completed_by: z.uuid().nullable(),
+  /** The task's live Discussion (M5), null when it has none: the task page's
+   * one quiet link to it. `POST /tasks/:id/discussion` makes one. */
+  discussion_id: z.uuid().nullable(),
 })
 export type TaskDetail = z.infer<typeof taskDetail>
 

@@ -79,10 +79,12 @@ export const TASK_CARD_KEYS = [
   'updated_at',
 ] as const
 
-/** What TaskDetail adds to TaskCard, spec 7.0: six keys. */
+/** What TaskDetail adds to TaskCard, spec 7.0: seven keys. */
 export const TASK_DETAIL_EXTRA_KEYS = [
   'completed_at',
   'completed_by',
+  /* M5: the task's live Discussion, the task page's one link to it. */
+  'discussion_id',
   'notes',
   'reminder',
   'series_id',

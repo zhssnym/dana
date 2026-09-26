@@ -5,7 +5,7 @@ The card's Dependencies block (#225), over 7.25's three endpoints.
 panel's "Add property" menu offers "Dependency", which opens this block on its
 picker (`opening`). Once an edge exists it is an ordinary panel section.
 
-**One relation, two doors.** "Waits on…" posts to this task naming the pick;
+**One relation, two doors.** "Blocked by…" posts to this task naming the pick;
 "Blocks…" posts to the pick naming this task, which is 7.25's own reversal.
 
 **The picker is contextual.** Empty, it offers a handful of open tasks from this
@@ -21,7 +21,7 @@ import { useFolderOpenTasks, useReferenceSearch, useTaskDependencies } from "../
 import { useAddTaskDependency, useRemoveTaskDependency } from "../api/mutations.js"
 import { ApiError } from "../api/http.js"
 import type { TaskDependencyEdge } from "../../shared/task-dependencies.js"
-import { CheckCircle2, Plus, X } from "../lib/icons.js"
+import { CheckCircle2, X } from "../lib/icons.js"
 import { openTask } from "./task-open.js"
 import { cn } from "./ui/utils.js"
 
@@ -29,13 +29,10 @@ type Mode = "depends_on" | "blocks"
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export const DEPENDS_ON_ACTION = "Waits on…"
+export const DEPENDS_ON_ACTION = "Blocked by…"
 export const BLOCKS_ACTION = "Blocks…"
-export const BLOCKED_BY_HEADING = "Waits on"
+export const BLOCKED_BY_HEADING = "Blocked by"
 export const BLOCKS_HEADING = "Blocks"
-
-const QUIET_BUTTON =
-  "inline-flex h-[var(--control-height)] items-center gap-2 rounded-sm px-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 
 /** Why an add was refused, in words for the person rather than the field. */
 function refusalOf(error: unknown, mode: Mode): string {
@@ -56,7 +53,7 @@ interface DependenciesProps {
   folderId: string | undefined
   /* The card's own block chrome, handed in so this file needs nothing from
      `task-card.tsx` and the two never import each other. */
-  /** `title` names the relation the block leads with: "Waits on", or "Blocks" when it only blocks. */
+  /** `title` names the relation the block leads with: "Blocked by", or "Blocks" when it only blocks. */
   section: (badge: string | undefined, body: ReactNode, title: string) => ReactNode
   /** "Add property → Dependency" was chosen: open on the picker. */
   opening?: boolean
@@ -95,11 +92,6 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
     [dependsOn, blocks],
   )
 
-  function open(next: Mode) {
-    setRefusal(null)
-    setMode((current) => (current === next ? null : next))
-  }
-
   function pick(otherId: string) {
     if (mode === null) return
     const current = mode
@@ -114,29 +106,6 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
       },
     )
   }
-
-  const actions = (
-    <div className="flex flex-wrap items-center gap-0.5">
-      <button
-        type="button"
-        className={cn(QUIET_BUTTON, mode === "depends_on" && "bg-muted text-foreground")}
-        aria-expanded={mode === "depends_on"}
-        onClick={() => open("depends_on")}
-      >
-        <Plus className="size-3.5" strokeWidth={2} aria-hidden="true" />
-        {DEPENDS_ON_ACTION}
-      </button>
-      <button
-        type="button"
-        className={cn(QUIET_BUTTON, mode === "blocks" && "bg-muted text-foreground")}
-        aria-expanded={mode === "blocks"}
-        onClick={() => open("blocks")}
-      >
-        <Plus className="size-3.5" strokeWidth={2} aria-hidden="true" />
-        {BLOCKS_ACTION}
-      </button>
-    </div>
-  )
 
   const picker =
     mode === null ? null : (
@@ -179,8 +148,8 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
       {dependsOn.length > 0 ? (
         <EdgeList
           heading={BLOCKED_BY_HEADING}
-          /* The section is titled "Waits on" already. */
-          showHeading={false}
+          /* The list carries its own "Blocked by" label; the caller draws no section heading. */
+          showHeading
           edges={dependsOn}
           folderId={folderId}
           direction="depends_on"
@@ -190,15 +159,14 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
       {blocks.length > 0 ? (
         <EdgeList
           heading={BLOCKS_HEADING}
-          /* Its own line only under a "Waits on" title; alone, the section is titled "Blocks". */
-          showHeading={dependsOn.length > 0}
+          /* Its own label, as the "Blocked by" list has. */
+          showHeading
           edges={blocks}
           folderId={folderId}
           direction="blocks"
           onRemove={(edge) => remove.mutate({ taskId, dependencyId: edge.id })}
         />
       ) : null}
-      <div className="-ml-1.5">{actions}</div>
       {picker}
     </div>,
     title,

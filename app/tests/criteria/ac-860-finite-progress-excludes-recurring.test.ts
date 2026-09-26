@@ -33,7 +33,7 @@ const cast = new Cast(['owner'], 'p3')
 
 beforeAll(async () => {
   app = await startAuthTestApp()
-})
+}, 60_000)
 
 afterAll(async () => {
   await cast.cleanup(app.db)

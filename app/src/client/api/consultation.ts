@@ -24,7 +24,7 @@ import type {
 } from '@tanstack/react-query'
 import { z } from 'zod'
 
-import { commentLine, getThreadResponse, taskThreadReadResponse } from '../../shared/comments.js'
+import { commentLine, getThreadResponse } from '../../shared/comments.js'
 import type { CommentLine, GetThreadResponse, PostCommentBody } from '../../shared/comments.js'
 import { discussionSchema, outcomeSchema } from '../../shared/consultation.js'
 import type {
@@ -95,17 +95,6 @@ export function useOpenDiscussion(id: string): UseQueryResult<Discussion> {
     queryKey: queryKeys.discussion(id),
     queryFn: () => getPlain(discussionSchema, `/discussions/${id}`),
     refetchInterval: DISCUSSION_POLL_MS,
-  })
-}
-
-/** A task's conversation while its Discussion tab is open: `useThread`'s key
- * and read (queries.ts), polled as a Discussion's is. */
-export function useTaskThreadLive(folderId: string | null, taskId: string): UseQueryResult<GetThreadResponse> {
-  return useQuery({
-    queryKey: queryKeys.thread(folderId ?? '', taskId),
-    queryFn: () => getPlain(getThreadResponse, `/folders/${folderId ?? ''}/comments`, { task: taskId }),
-    enabled: folderId !== null,
-    refetchInterval: THREAD_POLL_MS,
   })
 }
 
@@ -261,13 +250,16 @@ export function useDestroyTrashedDiscussion(): UseMutationResult<void, Error, st
 export function usePostDiscussionComment(): UseMutationResult<
   CommentLine,
   Error,
-  { readonly discussionId: string; readonly body: PostCommentBody }
+  { readonly discussionId: string; readonly body: PostCommentBody; readonly taskId?: string | null }
 > {
   const client = useQueryClient()
   return useMutation({
     meta: CHAT_WRITE,
-    onSuccess: (line, { discussionId }) => {
+    onSuccess: (line, { discussionId, taskId }) => {
       client.setQueryData<GetThreadResponse>(queryKeys.discussionThread(discussionId), (thread) => withPost(thread, line))
+      /* A task's thread is linked from the task page once someone has
+         written in it (M5), so its first post changes that page. */
+      if (taskId != null) void client.invalidateQueries({ queryKey: queryKeys.task(taskId) })
     },
     mutationFn: ({ discussionId, body }) =>
       mutateApi(commentLine, {
@@ -279,23 +271,19 @@ export function usePostDiscussionComment(): UseMutationResult<
 }
 
 /**
- * PUT /tasks/:id/thread/read: the viewer opened a task's thread. Plain
- * `mutateApi` rather than `useMutation`, for `useMarkDiscussionRead`'s
- * reason: the global invalidation would refetch everything on every open.
- * Only the bell is refreshed. Resolves to the previous `read_at`, or null
- * when there was none or the call failed.
+ * POST /tasks/:id/discussion (M5): the task's one Discussion, made on first
+ * use and found after that (201, then 200). The caller goes to it.
  */
-export function useMarkTaskThreadRead(): (taskId: string) => Promise<string | null> {
+export function useDiscussTask(): UseMutationResult<Discussion, Error, string> {
   const client = useQueryClient()
-  return useCallback(
-    (taskId: string) =>
-      mutateApi(taskThreadReadResponse, { method: 'PUT', path: `/tasks/${taskId}/thread/read` }).then(
-        (answer) => {
-          void client.invalidateQueries({ queryKey: queryKeys.notifications() })
-          return answer.read_at
-        },
-        () => null,
-      ),
-    [client],
-  )
+  return useMutation({
+    onSuccess: (_thread, taskId) => {
+      void client.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+    },
+    mutationFn: (taskId: string) =>
+      mutateApi(z.object({ discussion: discussionSchema }), {
+        method: 'POST',
+        path: `/tasks/${taskId}/discussion`,
+      }).then((answer) => answer.discussion),
+  })
 }

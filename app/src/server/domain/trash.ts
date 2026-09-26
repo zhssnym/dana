@@ -382,15 +382,11 @@ export async function destroyFolders(
 
 /**
  * Deletes the tasks `doomed` selects. A task carries no files row of its
- * own (4.16 scopes files to folders), but its conversation may: 4.15's
- * comment_files hang uploads on comments, and the task's cascade takes the
- * comments and with them the only reference anyone had to those rows. So
- * the statement collects the files that hung on the doomed tasks'
- * conversations and on nothing else, and a second statement deletes those
- * rows; a file also placed on a page, a cover, or another task's
- * conversation stays, its other reference being a live one. The second
- * statement runs only when the first collected something, so a purge with
- * nothing to collect is still the single statement it has always been.
+ * own (4.16 scopes files to folders), and since M5 (migration 0059) no
+ * comments either: its conversation is its Discussion, which a purge leaves
+ * standing, unlinked (`discussions_task_id_fkey` SET NULL), with its files.
+ * So there is nothing to collect, and `fileIds` is always empty; the field
+ * stays so every caller keeps one shape.
  */
 export async function destroyTasks(
   executor: Executor,
@@ -398,48 +394,11 @@ export async function destroyTasks(
 ): Promise<DestroyedTasks> {
   const rows = await rowsOf(
     executor,
-    sql`WITH doomed AS (${doomed}),
-        victims AS (
-          SELECT DISTINCT cf.file_id
-            FROM comment_files cf
-            JOIN comments c ON c.id = cf.comment_id
-            JOIN doomed d ON d.id = c.task_id
-           WHERE NOT EXISTS (
-                   SELECT 1 FROM comment_files o
-                   JOIN comments oc ON oc.id = o.comment_id
-                   WHERE o.file_id = cf.file_id
-                     AND (oc.task_id IS NULL
-                          OR oc.task_id NOT IN (SELECT id FROM doomed)))
-             AND NOT EXISTS (SELECT 1 FROM page_blocks b WHERE b.file_id = cf.file_id)
-             AND NOT EXISTS (SELECT 1 FROM folders fo WHERE fo.cover_file_id = cf.file_id)
-             AND NOT EXISTS (SELECT 1 FROM shelves s WHERE s.cover_file_id = cf.file_id)
-             AND NOT EXISTS (SELECT 1 FROM user_page_covers u WHERE u.file_id = cf.file_id)),
-        removed AS (
-          DELETE FROM tasks WHERE id IN (SELECT id FROM doomed)
-          RETURNING id)
-        SELECT r.id AS task_id, NULL::uuid AS file_id FROM removed r
-        UNION ALL
-        SELECT NULL::uuid AS task_id, v.file_id FROM victims v`,
+    sql`WITH doomed AS (${doomed})
+        DELETE FROM tasks WHERE id IN (SELECT id FROM doomed)
+        RETURNING id`,
   )
-  const taskIds: string[] = []
-  const fileIds: string[] = []
-  for (const row of rows) {
-    if (row.task_id !== null && row.task_id !== undefined) {
-      taskIds.push(String(row.task_id))
-    }
-    if (row.file_id !== null && row.file_id !== undefined) {
-      fileIds.push(String(row.file_id))
-    }
-  }
-  if (fileIds.length > 0) {
-    await executor.execute(
-      sql`DELETE FROM files WHERE id IN (${sql.join(
-        fileIds.map((id) => sql`${id}::uuid`),
-        sql`, `,
-      )})`,
-    )
-  }
-  return { taskIds, fileIds }
+  return { taskIds: rows.map((row) => String(row.id)), fileIds: [] }
 }
 
 /** The after-commit half, shared by the purge and the endpoint: every row

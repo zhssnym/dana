@@ -702,10 +702,14 @@ export async function exportForViewer(
 
   const commentRows = await rowsOf(
     db,
-    sql`SELECT c.id, c.folder_id, c.task_id, c.discussion_id, c.parent_id,
+    /* Since M5 a task's comments live in its Discussion; `task_id` keeps
+       naming the task a comment is about, through the Discussion's link. */
+    sql`SELECT c.id, c.folder_id, COALESCE(c.task_id, d.task_id) AS task_id,
+               c.discussion_id, c.parent_id,
                c.body, c.content,
                c.created_at, c.edited_at
         FROM comments c
+        LEFT JOIN discussions d ON d.id = c.discussion_id
         WHERE c.author_id = ${viewerId}
         ORDER BY c.created_at ASC, c.id ASC
         LIMIT ${FETCH}`,

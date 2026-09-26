@@ -5,8 +5,7 @@ The accessible name is the record: "Notifications", suffixed ", N unread"
 while any are (9.1, AC-218). The trigger shows only a dot; no count is drawn.
 
 A row is a pointer (9.12): pressing it marks it read and opens its subject. A
-post opens its thread at the post: a task on its Discussion tab
-(`?tab=discussion`), a Discussion by id, otherwise the folder. Posts in one
+post opens its thread at the post: a Discussion by id, otherwise the folder. Posts in one
 thread and one read state fold into one row (`notifications-grouping.ts`);
 mentions never fold. "Mark all read" is the only other verb.
 
@@ -80,10 +79,6 @@ function subjectPath(row: NotificationLine): string {
     case 'shelf':
       return paths.shelf(event.subject_id)
     case 'comment':
-      /* The same parameter a Dana Link to a task's post uses (`dana-link.ts`). */
-      if (row.task_id !== null) {
-        return `${paths.task(row.task_id)}?tab=discussion#post-${event.subject_id}`
-      }
       if (event.folder_id === null) return paths.today
       if (row.discussion_id !== undefined && row.discussion_id !== null) {
         return `${paths.folder(event.folder_id)}?discussion=${row.discussion_id}#post-${event.subject_id}`

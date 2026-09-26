@@ -36,7 +36,6 @@ import { useTaskWriter } from "../tasks/task-writer.js"
 import {
   repeatShort,
   stepCount,
-  type ConceptComment,
   type ConceptLabel,
   type ConceptStep,
   type ConceptTask,
@@ -774,9 +773,6 @@ export interface TaskRowProps {
   steps?: { complete: number; total: number }
   recurrence?: string
   notes?: string
-  /* The conversation the card shows, passed through untouched. Fixtures only,
-     the screen has no message model behind this. */
-  comments?: ConceptComment[]
   /*
   The parts of a task only its card shows: the steps themselves, the files, and
   anything the card learns to edit next.
@@ -897,7 +893,6 @@ function toConceptTask(props: TaskRowProps): ConceptTask {
        through `detail` below and wins, so a real task keeps its real steps. */
     steps,
     ...(props.labels === undefined ? {} : { labels: props.labels }),
-    comments: props.comments,
     recurrence: Boolean(props.recurrence),
     ...(REPEAT_UNIT_OF[props.recurrence ?? ""] === undefined
       ? {}

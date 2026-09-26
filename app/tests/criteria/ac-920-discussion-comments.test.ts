@@ -369,24 +369,36 @@ describe('AC-923 the legacy Folder thread is the General discussion', () => {
       'a legacy reply to another Discussion',
     )
 
-    // A Task thread is untouched by all of it.
+    // M5: a task has no thread of its own. `?task=` is refused, never
+    // filed in the General discussion, and nothing is stored.
     const task = await owner.browser.json('/tasks', 'POST', {
       title: 'ac923 task',
       folder_id: folderId,
     })
     expectStatus(task, 201, 'a task')
     const taskId = String((task.json() as { id?: unknown }).id)
-    const onTask = await post(owner, `/folders/${folderId}/comments?task=${taskId}`, {
-      body: 'ac923 on the task',
-    })
-    const storedTask = await storedComment(onTask)
-    expect(storedTask?.discussion_id).toBeNull()
-    expect(storedTask?.task_id).toBe(taskId)
-    const taskRead = await owner.browser.json(
-      `/folders/${folderId}/comments?task=${taskId}`,
-      'GET',
+    const countBefore = await rows(
+      app.db,
+      sql`SELECT count(*)::int AS n FROM comments WHERE folder_id = ${folderId}::uuid`,
     )
-    expect(idsOf(taskRead)).toEqual([onTask])
+    expectStatus(
+      await owner.browser.json(`/folders/${folderId}/comments?task=${taskId}`, 'POST', {
+        body: 'ac923 on the task',
+      }),
+      410,
+      'a post to a task thread',
+    )
+    expectStatus(
+      await owner.browser.json(`/folders/${folderId}/comments?task=${taskId}`, 'GET'),
+      410,
+      'a read of a task thread',
+    )
+    expect(
+      await rows(
+        app.db,
+        sql`SELECT count(*)::int AS n FROM comments WHERE folder_id = ${folderId}::uuid`,
+      ),
+    ).toEqual(countBefore)
   })
 })
 

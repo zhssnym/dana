@@ -36,3 +36,11 @@
   margin: 0;
 }
 .dana-thread .dana-add-task-line > .dana-add-task-glyph > span { background: var(--background); }
+/* On the thread the line reads as a row of the document it ends: the
+   editor's text size, and a dashed circle where a Task's ring will be. The
+   Task page's own composer keeps its square. */
+.dana-thread .dana-add-task-line > .dana-add-task-glyph > span { border-radius: var(--radius-full); }
+.dana-thread .dana-add-task-line input {
+  font-size: var(--text-editor-size);
+  line-height: var(--text-editor-line);
+}
