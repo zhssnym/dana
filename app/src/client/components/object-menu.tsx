@@ -53,8 +53,8 @@ import {
 function taskDestination(pathname: string, search: string): string | null {
   const prefix = '/app/tasks/'
   if (pathname.startsWith(prefix)) {
-    const id = pathname.slice(prefix.length).split('/')[0]
-    return id === '' ? null : paths.task(id)
+    const [id] = pathname.slice(prefix.length).split('/')
+    return id === undefined || id === '' ? null : paths.task(id)
   }
   const id = new URLSearchParams(search).get('task')
   return id === null || id === '' ? null : paths.task(id)
