@@ -24,7 +24,10 @@ import { sql } from 'drizzle-orm'
 import type { Db } from '../../../db/client.js'
 import type {
   CalendarZoom,
+  FocusAppearance,
+  FocusAppearanceOverride,
   FocusListKey,
+  PatchFocusAppearance,
   PatchSettingsBody,
   PatchViewBody,
   PostViewBody,
@@ -93,6 +96,70 @@ function zoomFrom(value: unknown): CalendarZoom {
     : DEFAULT_CALENDAR_ZOOM
 }
 
+const ICON_KEY = /^[a-z0-9-]{1,40}$/
+const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
+
+/**
+ * Issue #353's sparse Focus identity map. The request schema guards every new
+ * write; this read is defensive because the column is JSONB rather than a set
+ * of scalar CHECKed columns. A malformed nested value must not make the whole
+ * settings bundle unreadable. Invalid fields fall back independently, and an
+ * entry with neither valid field disappears — exactly the native-default
+ * state.
+ */
+function focusAppearanceFrom(value: unknown): FocusAppearance {
+  const stored = jsonOf(value)
+  if (stored === null || typeof stored !== 'object' || Array.isArray(stored)) {
+    return {}
+  }
+
+  const source = stored as Record<string, unknown>
+  const result: FocusAppearance = {}
+  for (const key of FOCUS_LISTS) {
+    const candidate = source[key]
+    if (candidate === null || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      continue
+    }
+    const fields = candidate as Record<string, unknown>
+    const icon =
+      typeof fields.icon === 'string' && ICON_KEY.test(fields.icon)
+        ? fields.icon
+        : null
+    const color =
+      typeof fields.color === 'string' && HEX_COLOR.test(fields.color)
+        ? fields.color
+        : null
+    if (icon !== null || color !== null) result[key] = { icon, color }
+  }
+  return result
+}
+
+/** Merge one sparse PATCH into the stored map. Null is whole-key reset; an
+ * omitted nested field is left alone; and the all-null state is canonicalized
+ * away so there is only one spelling of "use the native identity". */
+function mergeFocusAppearance(
+  current: FocusAppearance,
+  patch: PatchFocusAppearance,
+): FocusAppearance {
+  const next: FocusAppearance = { ...current }
+  for (const key of FOCUS_LISTS) {
+    if (!(key in patch)) continue
+    const change = patch[key]
+    if (change === null || change === undefined) {
+      delete next[key]
+      continue
+    }
+    const before: FocusAppearanceOverride = next[key] ?? { icon: null, color: null }
+    const merged: FocusAppearanceOverride = {
+      icon: change.icon === undefined ? before.icon : change.icon,
+      color: change.color === undefined ? before.color : change.color,
+    }
+    if (merged.icon === null && merged.color === null) delete next[key]
+    else next[key] = merged
+  }
+  return next
+}
+
 function bundleFrom(row: Record<string, unknown>): SettingsBundle {
   const order = jsonOf(row.sidebar_order)
   const arrangements = jsonOf(row.arrangements)
@@ -111,6 +178,7 @@ function bundleFrom(row: Record<string, unknown>): SettingsBundle {
         ? (arrangements as Record<string, string>)
         : {},
     focus_lists: focusFrom(row.focus_lists),
+    focus_appearance: focusAppearanceFrom(row.focus_appearance),
   }
 }
 
@@ -125,7 +193,7 @@ function focusFrom(value: unknown): FocusListKey[] {
 }
 
 const BUNDLE_COLUMNS = sql`theme, row_density, clock, task_open, calendar_zoom,
-  pinned_views, sidebar_order, arrangements, focus_lists,
+  pinned_views, sidebar_order, arrangements, focus_lists, focus_appearance,
   show_important, show_all, show_done`
 
 export async function readBundle(
@@ -149,51 +217,72 @@ export async function writeBundle(
   userId: string,
   patch: PatchSettingsBody,
 ): Promise<SettingsBundle> {
-  const sets = []
-  if (patch.theme !== undefined) sets.push(sql`theme = ${patch.theme}`)
-  if (patch.row_density !== undefined) {
-    sets.push(sql`row_density = ${patch.row_density}`)
-  }
-  if (patch.clock !== undefined) sets.push(sql`clock = ${patch.clock}`)
-  if (patch.task_open !== undefined) {
-    sets.push(sql`task_open = ${patch.task_open}`)
-  }
-  /* The reader above and this writer landed with the field itself (issues
-     #140, #142). A declared request field with no writer is the four-package
-     reminder loss `shared/tasks.ts` records: it parses, it is dropped, and
-     the caller is answered 200. */
-  if (patch.calendar_zoom !== undefined) {
-    sets.push(sql`calendar_zoom = ${patch.calendar_zoom}`)
-  }
-  if (patch.pinned_views !== undefined) {
-    const pins = patch.pinned_views.includes('desk')
-      ? patch.pinned_views
-      : ['desk', ...patch.pinned_views]
-    sets.push(sql`pinned_views = ${JSON.stringify(pins)}::jsonb`)
-  }
-  if (patch.sidebar_order !== undefined) {
-    sets.push(sql`sidebar_order = ${JSON.stringify(patch.sidebar_order)}::jsonb`)
-  }
-  if (patch.arrangements !== undefined) {
-    sets.push(sql`arrangements = ${JSON.stringify(patch.arrangements)}::jsonb`)
-  }
-  if (patch.focus_lists !== undefined) {
-    const unique = [...new Set(patch.focus_lists)]
-    sets.push(sql`focus_lists = ${JSON.stringify(unique)}::jsonb`)
-  }
-  if (sets.length === 0) return readBundle(db, userId)
-  sets.push(sql`updated_at = now()`)
-  const updated = await rowsOf(
-    db,
-    sql`UPDATE user_settings SET ${sql.join(sets, sql`, `)}
-        WHERE user_id = ${userId}
-        RETURNING ${BUNDLE_COLUMNS}`,
-  )
-  const row = updated[0]
-  if (row === undefined) {
-    throw new Error(`user ${userId} has no settings row (INV-14)`)
-  }
-  return bundleFrom(row)
+  return inTransaction(db, async (tx) => {
+    const sets = []
+    if (patch.theme !== undefined) sets.push(sql`theme = ${patch.theme}`)
+    if (patch.row_density !== undefined) {
+      sets.push(sql`row_density = ${patch.row_density}`)
+    }
+    if (patch.clock !== undefined) sets.push(sql`clock = ${patch.clock}`)
+    if (patch.task_open !== undefined) {
+      sets.push(sql`task_open = ${patch.task_open}`)
+    }
+    /* The reader above and this writer landed with the field itself (issues
+       #140, #142). A declared request field with no writer is the four-package
+       reminder loss `shared/tasks.ts` records: it parses, it is dropped, and
+       the caller is answered 200. */
+    if (patch.calendar_zoom !== undefined) {
+      sets.push(sql`calendar_zoom = ${patch.calendar_zoom}`)
+    }
+    if (patch.pinned_views !== undefined) {
+      const pins = patch.pinned_views.includes('desk')
+        ? patch.pinned_views
+        : ['desk', ...patch.pinned_views]
+      sets.push(sql`pinned_views = ${JSON.stringify(pins)}::jsonb`)
+    }
+    if (patch.sidebar_order !== undefined) {
+      sets.push(sql`sidebar_order = ${JSON.stringify(patch.sidebar_order)}::jsonb`)
+    }
+    if (patch.arrangements !== undefined) {
+      sets.push(sql`arrangements = ${JSON.stringify(patch.arrangements)}::jsonb`)
+    }
+    if (patch.focus_lists !== undefined) {
+      const unique = [...new Set(patch.focus_lists)]
+      sets.push(sql`focus_lists = ${JSON.stringify(unique)}::jsonb`)
+    }
+    if (patch.focus_appearance !== undefined) {
+      /* A row lock makes nested partial updates composable: an icon write and
+         a colour write cannot both read the same stale map and overwrite one
+         another. The outer settings UPDATE stays in this transaction too. */
+      const stored = await rowsOf(
+        tx,
+        sql`SELECT focus_appearance FROM user_settings
+            WHERE user_id = ${userId} FOR UPDATE`,
+      )
+      const row = stored[0]
+      if (row === undefined) {
+        throw new Error(`user ${userId} has no settings row (INV-14)`)
+      }
+      const appearance = mergeFocusAppearance(
+        focusAppearanceFrom(row.focus_appearance),
+        patch.focus_appearance,
+      )
+      sets.push(sql`focus_appearance = ${JSON.stringify(appearance)}::jsonb`)
+    }
+    if (sets.length === 0) return readBundle(tx, userId)
+    sets.push(sql`updated_at = now()`)
+    const updated = await rowsOf(
+      tx,
+      sql`UPDATE user_settings SET ${sql.join(sets, sql`, `)}
+          WHERE user_id = ${userId}
+          RETURNING ${BUNDLE_COLUMNS}`,
+    )
+    const row = updated[0]
+    if (row === undefined) {
+      throw new Error(`user ${userId} has no settings row (INV-14)`)
+    }
+    return bundleFrom(row)
+  })
 }
 
 /* ------------------------------------------------------------------ *
