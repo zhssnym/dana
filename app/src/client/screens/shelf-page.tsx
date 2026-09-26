@@ -17,7 +17,8 @@ The shelf page, bound through the adapter seam. What is worth knowing:
   Escape puts the name back (AC-203).
 */
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useSearchParams } from "react-router"
 import type { ReactNode } from "react"
 
 import { FolderHeader } from "../components/folder-head.js"
@@ -30,6 +31,7 @@ import {
   usePageIdentity as useFolderIdentity,
 } from "../lib/page-identity.js"
 import { shelfKey } from "../lib/shelf-acts.js"
+import { SHELF_ACTION_PARAM } from "../shell/app-sidebar.js"
 
 export function ShelfPage({
   id,
@@ -60,6 +62,24 @@ export function ShelfPage({
 
   const [historyOpen, setHistoryOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
+
+  /* History asked for by the Library row's "…" (`?shelf-action=history`):
+     opened here and the act dropped from the address, so Back does not
+     reopen it. */
+  const [search, setSearch] = useSearchParams()
+  const action = search.get(SHELF_ACTION_PARAM)
+  useEffect(() => {
+    if (action === null) return
+    if (action === "history") setHistoryOpen(true)
+    setSearch(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete(SHELF_ACTION_PARAM)
+        return next
+      },
+      { replace: true },
+    )
+  }, [action, setSearch])
 
   return (
     <div className="flex min-h-full w-full flex-col space-y-4">

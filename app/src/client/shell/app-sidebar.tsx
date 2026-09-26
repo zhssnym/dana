@@ -57,7 +57,6 @@ import {
 } from '../components/ui/sidebar.js'
 import { MORE_ACTIONS } from '../components/ui/copy.js'
 import { ObjectMenu } from '../components/object-menu.js'
-import { HistorySheet } from '../components/history-sheet.js'
 import { cn } from '../components/ui/utils.js'
 import {
   useCreateFolder,
@@ -659,6 +658,9 @@ export type FolderAction = 'rename' | 'leave' | 'delete' | 'history'
 /** The query the folder page reads to run an act the Library asked for. */
 export const FOLDER_ACTION_PARAM = 'folder-action'
 
+/** The query the collection page reads to open its History from the Library. */
+export const SHELF_ACTION_PARAM = 'shelf-action'
+
 function folderActionPath(id: string, action: FolderAction): string {
   return `${paths.folder(id)}?${FOLDER_ACTION_PARAM}=${action}`
 }
@@ -868,7 +870,6 @@ function FolderGroupBlock({
   const shelfId = group.shelf?.id ?? null
   const navigate = useNavigate()
   const duplicateShelf = useDuplicateShelf()
-  const [historyOpen, setHistoryOpen] = useState(false)
   const mark = group.shelf === null ? null : shelfMark(group.shelf)
   const Glyph = mark?.icon ?? Folders
 
@@ -1001,8 +1002,9 @@ function FolderGroupBlock({
                   shelfId === null
                     ? undefined
                     : () => {
-                        void navigate(paths.shelf(shelfId))
-                        setHistoryOpen(true)
+                        /* Asks the page, as a folder row does: a sheet
+                           here would unmount when the phone sidebar closes. */
+                        void navigate(`${paths.shelf(shelfId)}?${SHELF_ACTION_PARAM}=history`)
                       },
                 /* A shelf with a page renames in its page title (the one home);
                    only a bare label, which has no page, renames here. */
@@ -1047,15 +1049,6 @@ function FolderGroupBlock({
             />
           </div>
         </div>
-        {shelfId === null ? null : (
-          <HistorySheet
-            kind="shelf"
-            subject={shelfId}
-            name={group.label}
-            open={historyOpen}
-            onOpenChange={setHistoryOpen}
-          />
-        )}
         <CollapsibleContent>
           <SidebarMenu>
             {group.folders.map((folder, index) => {
