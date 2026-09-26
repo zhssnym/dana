@@ -37,8 +37,13 @@
   --dana-thread-ink: var(--line);
   --dana-thread-done-ink: var(--color-success-600);
   --dana-thread-weight: calc(var(--spacing) / 2);
-  /* Every line is --dana-thread-weight wide; a grey one is a hairline down
-     its middle. */
+  /* A grey line is a hairline-wide box, drawn by the box itself: at 125% or
+     150% zoom a hairline placed half a pixel inside a wider box rasterises
+     across two device pixels, and the rail drew as a doubled ladder. Only a
+     line on the done stretch is --dana-thread-weight wide (`threadStyle`
+     sets --dana-thread-width), its grey a hairline down its middle; and a
+     section heading's green stays beside its own row (--dana-thread-own),
+     so no grey line below it has a wider green to hide. */
   --dana-thread-solid: linear-gradient(var(--dana-thread-ink), var(--dana-thread-ink)) 50% 0 / var(--dana-thread-hairline) 100% no-repeat;
   /* Opaque gaps, the line's full width: a dashed stretch hides the section
      line drawn beneath it, done or not. */
@@ -64,17 +69,23 @@
 .dana-thread .bn-block-outer {
   --dana-thread-line: var(--dana-thread-solid);
   --dana-thread-under: var(--dana-thread-solid);
+  --dana-thread-width: var(--dana-thread-hairline);
+  --dana-thread-own: 100%;
   --dana-thread-line-top: calc(var(--spacing) * 0);
   --dana-thread-center: var(--dana-thread-half);
   --dana-thread-knee: var(--dana-thread-center);
   --dana-thread-frontier: linear-gradient(var(--dana-thread-ink), var(--dana-thread-ink)) 50% 0 / var(--dana-thread-hairline) var(--dana-thread-knee) no-repeat, var(--dana-thread-dashed);
   /* The done stretch: the done colour down to --dana-thread-fill, over the
      item's own grey line (`--dana-thread-under`, which threadStyle sets). */
-  --dana-thread-done: linear-gradient(var(--dana-thread-done-ink), var(--dana-thread-done-ink)) 50% 0 / 100% var(--dana-thread-fill) no-repeat, var(--dana-thread-under);
+  --dana-thread-done: linear-gradient(var(--dana-thread-done-ink), var(--dana-thread-done-ink)) 50% 0 / 100% min(var(--dana-thread-fill), var(--dana-thread-own)) no-repeat, var(--dana-thread-under);
   --dana-thread-done-frontier: var(--dana-thread-done);
   --dana-thread-done-start: linear-gradient(var(--dana-thread-done-ink), var(--dana-thread-done-ink)) 50% var(--dana-thread-knee) / 100% calc(var(--dana-thread-fill) - var(--dana-thread-knee)) no-repeat, var(--dana-thread-under);
 }
-/* A section heading's badge is its heading's centre, not a row's. */
+/* A section heading's badge is its heading's centre, not a row's. Its
+   green reaches only past its own row (twice the centre; the first block
+   it holds is on the stretch too and draws its own), never down behind
+   what it holds. */
+.dana-thread .bn-block-outer:has(> .bn-block > .bn-block-content[data-dana-section]) { --dana-thread-own: calc(var(--dana-thread-center) * 2); }
 .dana-thread .bn-block-outer:has(> .bn-block > .bn-block-content[data-dana-section]) { --dana-thread-center: calc(var(--text-h1-line) / 2 + var(--dana-thread-heading-pad)); }
 .dana-thread .bn-block-outer:has(> .bn-block > .bn-block-content[data-dana-section][data-level='2']) { --dana-thread-center: calc(var(--text-h2-line) / 2 + var(--dana-thread-heading-pad)); }
 .dana-thread .bn-block-outer:has(> .bn-block > .bn-block-content[data-dana-section][data-level='3']) { --dana-thread-center: calc(var(--text-h3-line) / 2 + var(--dana-thread-heading-pad)); }
@@ -98,10 +109,10 @@
   content: '';
   display: block;
   position: absolute;
-  inset-inline-start: calc(var(--dana-thread-x) - var(--dana-thread-weight) / 2);
+  inset-inline-start: calc(var(--dana-thread-x) - var(--dana-thread-width) / 2);
   top: var(--dana-thread-line-top);
   bottom: 0;
-  width: var(--dana-thread-weight);
+  width: var(--dana-thread-width);
   height: auto;
   border: 0;
   transition: none;
@@ -117,9 +128,8 @@
    (0,6,1) that outranks the rules above: repeated classes outrank it, so no
    block on the thread shows a guide beside the rail, at any depth. */
 .dana-thread .bn-block-group .bn-block-group > .bn-block-outer.bn-block-outer.bn-block-outer.bn-block-outer::before { border: 0; }
-/* A divider is a break in the line: opaque, so a section's line beneath it
-   breaks too. */
-:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer:has(> .bn-block > .bn-block-content[data-content-type='divider'])::before { background: linear-gradient(var(--background), var(--background)); }
+/* A divider keeps the rail: the thread is one line, and the rule is drawn
+   beside it, in the content column. */
 
 /* The one motion (AC-1510): when this viewer ticks a task, the done colour
    grows down to the new frontier. `threadStyle` names the blocks that grow,

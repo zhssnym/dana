@@ -704,6 +704,16 @@ interface RailMark { readonly id: string; readonly kind: 'fold' | 'break'; reado
 
 type Card = Rows['tasks'][number]
 const noFacts: ThreadFacts = { next: null, shared: false, completedOn: new Map() }
+/** Block `id` anywhere in the document, or undefined. */
+function findBlock(blocks: readonly ThreadBlock[], id: string): ThreadBlock | undefined {
+  for (const block of blocks) {
+    if (block.id === id) return block
+    const inner = findBlock(block.children ?? [], id)
+    if (inner !== undefined) return inner
+  }
+  return undefined
+}
+
 /** How long after a tick the lists' answer still counts as that tick's (ms). */
 const TICK_ANSWERS_WITHIN = 4000
 /* Per page: where the done stretch last stopped and what it covered, and
@@ -791,7 +801,15 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
     const timer = window.setTimeout(() => { setGrown(null) }, FILL_FOR)
     return () => { window.clearTimeout(timer) }
   }, [grown])
-  const onTick = useCallback((): void => {
+  /* Only a tick of the task the stretch stops at moves it: any other tick
+     arms nothing, so a collaborator's tick of that task a moment later does
+     not play the motion here. */
+  const frontierBlock = [...model.line].find(([, style]) => style === 'frontier')?.[0]
+  const frontierTask = useRef<string | null>(null)
+  const frontierProps = frontierBlock === undefined ? undefined : findBlock(blocks, frontierBlock)?.props
+  frontierTask.current = typeof frontierProps?.['taskId'] === 'string' ? frontierProps['taskId'] : null
+  const onTick = useCallback((taskId: string): void => {
+    if (taskId !== frontierTask.current) return
     const seen = threadMotion.get(folderId)
     if (seen !== undefined) threadMotion.set(folderId, { ...seen, tick: { at: performance.now(), before: seen.progress } })
   }, [folderId])

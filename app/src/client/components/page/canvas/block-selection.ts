@@ -193,12 +193,28 @@ const rowSteps = new WeakMap<object, string>()
  * back at the next key, and the caret landed at the page's first line.
  * Read in the window's capture phase, before ProseMirror sees the key.
  */
-function stepFromRow(editor: AnyEditor, view: EditorView, id: string, direction: -1 | 1): void {
+function stepFromRow(editor: AnyEditor, view: EditorView, id: string, direction: -1 | 1): boolean {
   const next = neighbour(view, id, direction, false)?.getAttribute('data-id')
-  if ((next === null || next === undefined) && direction === 1 && toLineBelow(editor, view)) return
-  if (next === null || next === undefined) return
-  if (caretInto(view, next, direction === 1 ? 'start' : 'end')) { rowSteps.delete(editor); return }
+  if ((next === null || next === undefined) && direction === 1 && toLineBelow(editor, view)) return true
+  if (next === null || next === undefined) return false
+  if (caretInto(view, next, direction === 1 ? 'start' : 'end')) { rowSteps.delete(editor); return true }
   pickRow(editor, view, next)
+  return true
+}
+
+/**
+ * Whether ↑/↓ off the edge of block `id`'s text is ours rather than
+ * ProseMirror's: the visible block beside it is a row, or there is none
+ * (↓ goes on to the last line), or blocks nobody can see lie between.
+ */
+function takesStep(view: EditorView, id: string, direction: -1 | 1): boolean {
+  const next = neighbour(view, id, direction, false)
+  if (next === null) return direction === 1
+  const nextId = next.getAttribute('data-id')
+  if (nextId !== null && isRow(view, nextId)) return true
+  const all = [...view.dom.querySelectorAll<HTMLElement>('.bn-block-outer[data-id]')]
+  const own = outerOf(view, id)
+  return own !== null && Math.abs(all.indexOf(next) - all.indexOf(own)) > 1
 }
 
 /** Pick one row out of the text, as the arrow keys reach it; ↑/↓ then step on from it (`stepFromRow`). */
@@ -468,9 +484,18 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
         }
         // Only keys typed into the text itself (a field inside a block keeps its own).
         if (!onHost) return
-        // ↓ on the last line of the page's last block goes on into Work's last line.
-        if (key === 'ArrowDown' && !mod && !event.shiftKey && !event.altKey && view.state.selection.empty && editor.getExtension(SuggestionMenu)?.shown() !== true
-          && view.endOfTextblock('down') && visibleBlocks(view).at(-1)?.getAttribute('data-id') === currentBlockId(view) && toLineBelow(editor, view)) { stop(); return }
+        /* ↑/↓ off the edge of a block's text go to the visible block beside it,
+           as from a row (`stepFromRow`): a row is picked, never ProseMirror's
+           node selection, and blocks hidden behind a fold or "Earlier work"
+           are passed over (ProseMirror would select one nobody can see). ↓
+           from the page's last visible block goes on into Work's last line.
+           Plain text-to-text moves stay ProseMirror's, which keeps the column. */
+        if ((key === 'ArrowDown' || key === 'ArrowUp') && !mod && !event.shiftKey && !event.altKey && view.state.selection.empty && editor.getExtension(SuggestionMenu)?.shown() !== true
+          && view.endOfTextblock(key === 'ArrowDown' ? 'down' : 'up')) {
+          const direction = key === 'ArrowDown' ? 1 : -1
+          const own = currentBlockId(view)
+          if (own !== null && takesStep(view, own, direction) && stepFromRow(editor, view, own, direction)) { stop(); return }
+        }
         if (mod && key.toLowerCase() === 'a' && !event.shiftKey && !event.altKey) {
           const { selection, doc } = view.state
           const $from = selection.$from

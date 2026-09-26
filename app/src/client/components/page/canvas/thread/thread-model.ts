@@ -199,6 +199,14 @@ function drawProgress(input: ThreadInput): { progress: Map<string, ProgressState
   if (frontier !== -1 && frontier < start) return none
   let end = frontier
   for (let at = items.length - 1; end === -1 && at >= 0; at -= 1) if (items[at]!.kind !== 'other') end = at
+  /* Everything is done and all of it sits in one folded section: that
+     heading is both ends, and the stretch would have no length. Its line is
+     green from its caret down to the next block, so a finished project still
+     shows its green. */
+  if (end === start && frontier === -1 && input.folded.has(items[start]!.id)) {
+    progress.set(items[start]!.id, 'done-start')
+    return none
+  }
   if (end <= start) return none
   for (let at = start; at <= end; at += 1) progress.set(items[at]!.id, at === start ? 'done-start' : at === end ? 'done-frontier' : 'done')
   /* With nothing open the stretch ends on the last task, and a section it
@@ -349,14 +357,25 @@ export function threadStyle(model: ThreadModel, folded: ReadonlySet<string>, eli
   const rules: string[] = []
   const grow: string[] = []
   for (const [id, style] of model.line) if (!model.progress.has(id)) rules.push(`${outer(id)}{--dana-thread-line:var(--dana-thread-${style})}`)
+  if (model.progress.size > 0) rules.push(`${[...model.progress.keys()].map(outer).join(',')}{--dana-thread-width:var(--dana-thread-weight)}`)
   /* The done stretch: the done colour down to the badge ('done-start' from
      it, 'done-frontier' to it), over the block's own grey line. */
+  const growing: string[] = []
   for (const [id, state] of model.progress) {
     const fill = fillOf(state, state)
     rules.push(`${outer(id)}{--dana-thread-line:var(--dana-thread-${state});--dana-thread-under:var(--dana-thread-${model.line.get(id) ?? 'solid'});--dana-thread-fill:${fill}}`)
     const from = grownFrom === null ? fill : fillOf(grownFrom.get(id), state)
-    if (from !== fill) grow.push(`${outer(id)}{--dana-thread-from:${from};animation:dana-thread-grow var(--duration-slow) var(--ease-standard) both}`)
+    if (from !== fill) growing.push(id)
   }
+  /* One line growing down, not pieces growing at once: the time is shared
+     out in document order, each block taking its turn (linear, so the pieces
+     meet), the last easing to its stop. */
+  const turns = growing.length
+  growing.forEach((id, at) => {
+    const ease = at === turns - 1 ? 'var(--ease-standard)' : 'linear'
+    const from = fillOf(grownFrom?.get(id), model.progress.get(id)!)
+    grow.push(`${outer(id)}{--dana-thread-from:${from};animation:dana-thread-grow calc(var(--duration-slow) / ${turns}) ${ease} calc(var(--duration-slow) * ${at} / ${turns}) both}`)
+  })
   if (grow.length > 0) rules.push(`@media (prefers-reduced-motion: no-preference){${grow.join('')}}`)
   for (const id of folded) {
     rules.push(`${outer(id)}>.bn-block>.bn-block-group{display:none}${outer(id)}>.bn-block{--dana-thread-caret:var(--dana-icon-chevron-right)}`)

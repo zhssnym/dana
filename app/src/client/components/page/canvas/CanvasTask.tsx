@@ -22,8 +22,8 @@ export interface ThreadFacts {
   readonly shared: boolean
   /** A finished task's completion day, from the completed pages the page already read. */
   readonly completedOn: ReadonlyMap<string, string>
-  /** The viewer is ticking a task done here: the thread may answer with its one motion. */
-  readonly onTick?: () => void
+  /** The viewer is ticking this task done: the thread may answer with its one motion. */
+  readonly onTick?: (taskId: string) => void
 }
 
 /* The viewer ticked the ringed task: when the ring moves on, focus follows
@@ -240,7 +240,7 @@ function ThreadRow({ task, state, bridge, thread }: { readonly task: TaskCard; r
           event.stopPropagation()
           if (state === 'dropped') { bridge.actions.onRestore(task); return }
           if (state !== 'done') {
-            thread.onTick?.()
+            thread.onTick?.(task.id)
             // From the keyboard (the glyph holds focus): a pointer's tick leaves focus alone.
             if (state === 'next' && document.activeElement === event.currentTarget) {
               focusFollowsRingUntil = performance.now() + FOCUS_FOLLOWS_WITHIN
