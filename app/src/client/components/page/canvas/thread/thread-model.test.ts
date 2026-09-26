@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
-import { elision, finishedSections, foldedNow, freezeFolds, threadModel, threadStyle, toggleFold } from './thread-model.js'
-import type { FoldStore, FrozenFolds, ThreadBlock, ThreadInput, ThreadTask } from './thread-model.js'
+import { elision, freezeElision, threadModel, threadStyle } from './thread-model.js'
+import type { FrozenElision, ThreadBlock, ThreadInput, ThreadTask } from './thread-model.js'
 
 const TODAY = '2026-09-26'
 const task = (id: string): ThreadBlock => ({ id, type: 'danaTask', props: { taskId: id } })
@@ -10,7 +10,7 @@ const section = (id: string, children: ThreadBlock[], level = 1): ThreadBlock =>
 const card = (over: Partial<ThreadTask> = {}): ThreadTask => ({ blocked_by_count: 0, start_date: null, assignee: null, ...over })
 
 function input(blocks: ThreadBlock[], open: Record<string, ThreadTask>, over: Partial<ThreadInput> = {}): ThreadInput {
-  return { blocks, open: new Map(Object.entries(open)), today: TODAY, viewerId: 'me', shared: false, folded: new Set(), ...over }
+  return { blocks, open: new Map(Object.entries(open)), today: TODAY, viewerId: 'me', shared: false, ...over }
 }
 
 describe('AC-1501: the next ring is the first task the viewer can do now', () => {
@@ -36,10 +36,6 @@ describe('AC-1501: the next ring is the first task the viewer can do now', () =>
 
   test('a start of today is not waiting', () => {
     expect(threadModel(input(blocks, { ...open, later: card({ start_date: TODAY }) })).next).toBe('later')
-  })
-
-  test('folding the section that holds it never moves the ring', () => {
-    expect(threadModel(input(blocks, open, { shared: true, folded: new Set(['s1']) })).next).toBe('mine')
   })
 
   test('closed tasks never ring, and nothing open means no ring', () => {
@@ -83,13 +79,6 @@ describe('AC-1502: the line is solid up to the first open task and dashed after 
     expect([anyOpen, hasTasks]).toEqual([true, true])
   })
 
-  test('a folded section holding an open task is the frontier itself', () => {
-    const blocks = [section('s1', [task('o1')]), section('s2', [task('o2')])]
-    const { line } = threadModel(input(blocks, { o1: card(), o2: card() }, { folded: new Set(['s1']) }))
-    expect(line.get('s1')).toBe('frontier')
-    expect(line.get('s2')).toBe('dashed')
-  })
-
   test('a finished thread is solid everywhere', () => {
     const model = threadModel(input([section('s1', [task('d1')]), task('d2')], {}))
     expect(model.line.size).toBe(0)
@@ -98,21 +87,10 @@ describe('AC-1502: the line is solid up to the first open task and dashed after 
   })
 })
 
-describe('AC-1502: finished sections fold and long done stretches elide', () => {
-  test('only a section with tasks and none open is finished', () => {
-    const blocks = [
-      section('done', [task('d1'), section('inner', [task('d2')], 2)]),
-      section('open', [task('o1')]),
-      section('notes', [note('n1')]),
-      section('empty', []),
-    ]
-    expect([...finishedSections(blocks, new Map([['o1', card()]]))].sort()).toEqual(['done', 'inner'])
-  })
-
-  test('a dropped task is closed: its section is finished, it never rings and the line ignores it', () => {
+describe('AC-1502: long done stretches elide, and headings never fold', () => {
+  test('a dropped task is closed: it never rings and the line ignores it', () => {
     const blocks = [section('s', [task('d1'), task('dropped'), note('n1')]), section('t', [task('o1')])]
     const open = new Map([['dropped', card({ status: 'abandoned' })], ['o1', card()]])
-    expect([...finishedSections(blocks, open)]).toEqual(['s'])
     const model = threadModel(input(blocks, Object.fromEntries(open)))
     expect(model.next).toBe('o1')
     expect(model.line.get('dropped')).toBeUndefined()
@@ -137,47 +115,21 @@ describe('AC-1502: finished sections fold and long done stretches elide', () => 
     expect(elision(four, new Map([['o1', card()]])).elided.size).toBe(0)
   })
 
-  test('the style hides folded children and elided blocks, and never names storage', () => {
-    const css = threadStyle(threadModel(input([section('s', [task('a')])], {})), new Set(['s']), new Set(['x']), new Set(['y']))
-    expect(css).toContain('[data-id="s"]>.bn-block>.bn-block-group{display:none}')
+  test('the style hides elided blocks, never a finished section’s, and never names storage', () => {
+    const css = threadStyle(threadModel(input([section('s', [task('a')])], {})), new Set(['x']), new Set(['y']))
     expect(css).toContain('[data-id="x"]{display:none}')
     expect(css).toContain('[data-id="y"]{padding-block-start')
+    expect(css).not.toContain('.bn-block-group{display:none}')
     expect(css).not.toContain('toggle-')
   })
-})
 
-describe('AC-1502: auto-fold is never stored, a user close is, and ticks linger', () => {
-  const memory = (): FoldStore & { readonly map: Map<string, string> } => {
-    const map = new Map<string, string>()
-    return { map, getItem: (key) => map.get(key) ?? null, setItem: (key, value) => { map.set(key, value) }, removeItem: (key) => { map.delete(key) } }
-  }
-
-  test('auto-fold writes nothing, and unfolding an auto-folded section writes nothing', () => {
-    const store = memory()
-    const opened = new Set<string>()
-    const finished = new Set(['done'])
-    expect([...foldedNow(['done', 'live'], finished, opened, store)]).toEqual(['done'])
-    toggleFold(store, opened, 'done', true)
-    expect(foldedNow(['done', 'live'], finished, opened, store).size).toBe(0)
-    expect(store.map.size).toBe(0)
-  })
-
-  test('a user close is stored and wins over the session; reopening removes it', () => {
-    const store = memory()
-    const opened = new Set<string>()
-    toggleFold(store, opened, 'live', false)
-    expect([...store.map]).toEqual([['toggle-live', 'false']])
-    expect([...foldedNow(['live'], new Set(), new Set(['live']), store)]).toEqual(['live'])
-    toggleFold(store, opened, 'live', true)
-    expect(store.map.size).toBe(0)
-  })
-
-  test('ticking the last open task keeps its section open until the page is opened again', () => {
-    const blocks = [section('s', [task('a')])]
-    const frozen: { current: FrozenFolds | null } = { current: null }
-    expect(freezeFolds(frozen, blocks, new Map([['a', card()]])).finished.size).toBe(0)
-    expect(freezeFolds(frozen, blocks, new Map()).finished.size).toBe(0)
-    expect([...freezeFolds({ current: null }, blocks, new Map()).finished]).toEqual(['s'])
+  test('ticking a task never elides it until the page is opened again', () => {
+    const blocks = [task('a'), task('b'), task('c'), task('d'), task('e'), task('o')]
+    const open = new Map([['a', card()], ['b', card()], ['c', card()], ['d', card()], ['e', card()], ['o', card()]])
+    const frozen: { current: FrozenElision | null } = { current: null }
+    expect(freezeElision(frozen, blocks, open).elision.elided.size).toBe(0)
+    expect(freezeElision(frozen, blocks, new Map([['o', card()]])).elision.elided.size).toBe(0)
+    expect([...freezeElision({ current: null }, blocks, new Map([['o', card()]])).elision.elided.keys()]).toEqual(['a', 'b'])
   })
 })
 
@@ -222,24 +174,18 @@ describe('AC-1514: the rail is drawn in the done colour from the first completed
     expect([...model.line]).toEqual([['d2', 'covered'], ['after', 'covered']])
   })
 
-  test('a folded section is one item: the stop while it holds the frontier, done while it is finished', () => {
-    const blocks = [section('s1', [task('d1')]), section('s2', [task('d2'), task('o1')]), task('o2')]
-    expect(progressOf(blocks, { o1: card(), o2: card() }, { folded: new Set(['s1', 's2']) })).toEqual([['s1', 'done-start'], ['s2', 'done-frontier']])
-    expect(threadModel(input(blocks, { o1: card(), o2: card() }, { folded: new Set(['s1', 's2']) })).foldedOpen).toEqual(new Set(['s2']))
-  })
-
   test('a hidden start hands the start to its "Earlier work" break, green over its whole length', () => {
     const blocks = [task('d1'), task('d2'), task('d3'), task('d4'), task('d5'), task('o1')]
     const elided = new Map([['d1', 'd3'], ['d2', 'd3']])
     expect(progressOf(blocks, { o1: card() }, { elided })).toEqual([['d3', 'done'], ['d4', 'done'], ['d5', 'done'], ['o1', 'done-frontier']])
     // The green runs past the label: only a break off the stretch cuts its line.
-    const css = threadStyle(threadModel(input(blocks, { o1: card() }, { elided })), new Set(), new Set(['d1', 'd2']), new Set(['d3']))
+    const css = threadStyle(threadModel(input(blocks, { o1: card() }, { elided })), new Set(['d1', 'd2']), new Set(['d3']))
     expect(css).toContain('[data-id="d3"]{padding-block-start:var(--row-height);--dana-thread-knee:calc(var(--row-height) + var(--dana-thread-center))}')
   })
 
   test('the style draws the stretch over each block’s own grey line, and the stop only to its badge', () => {
     const model = threadModel(input([task('d1'), task('d2'), task('o1'), task('o2')], { o1: card(), o2: card() }))
-    const css = threadStyle(model, new Set(), new Set(), new Set())
+    const css = threadStyle(model, new Set(), new Set())
     expect(css).toContain('[data-id="d1"]{--dana-thread-line:var(--dana-thread-done-start);--dana-thread-under:var(--dana-thread-solid);--dana-thread-fill:100%}')
     expect(css).toContain('[data-id="o1"]{--dana-thread-line:var(--dana-thread-done-frontier);--dana-thread-under:var(--dana-thread-frontier);--dana-thread-fill:var(--dana-thread-knee)}')
     expect(css).toContain('[data-id="o2"]{--dana-thread-line:var(--dana-thread-dashed)}')

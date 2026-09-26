@@ -15,16 +15,14 @@ name: CI
 # fall back to PGlite, so the job refuses to start instead.
 #
 # `pull_request` stays unfiltered so every pull request gets a verdict. The
-# push paths-ignore keeps merges that touch only editor config, templates and
-# root markdown off the runner.
+# push paths-ignore keeps merges that touch only editor config and root
+# markdown off the runner. (The issue and PR templates were removed in #359.)
 on:
   push:
     branches: [main]
     paths-ignore:
       - '.claude/**'
       - '.vscode/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/pull_request_template.md'
       - '*.md'
       - 'LICENSE'
   pull_request:

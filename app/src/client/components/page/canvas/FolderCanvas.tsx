@@ -19,8 +19,8 @@ import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider, ThreadFactsProvider } from './CanvasTask.js'
 import type { ThreadFacts } from './CanvasTask.js'
-import { foldableSections, foldedNow, freezeFolds, threadModel, threadStyle, toggleFold } from './thread/thread-model.js'
-import type { FoldStore, FrozenFolds, ProgressState, ThreadBlock } from './thread/thread-model.js'
+import { freezeElision, threadModel, threadStyle } from './thread/thread-model.js'
+import type { FrozenElision, ProgressState, ThreadBlock } from './thread/thread-model.js'
 import './thread/thread.css'
 import { SavedResults } from './CanvasResult.js'
 import { CanvasSurface } from './CanvasSurface.js'
@@ -53,17 +53,17 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
    * found here draws as its real row, checked and muted. */
   readonly completed?: Rows['tasks']
   /** Ignored since M4: done work always shows in place on the thread, where
-   * finished sections fold and long done stretches elide instead. */
+   * long done stretches elide instead. */
   readonly showCompleted?: boolean
   /** The viewer may write the Results tab: the Work thread's end line
    * ("Write what came of it") is offered only then. */
   readonly resultsWritable?: boolean
 }
 
-/* The Work thread's fold and elision are computed once per opening of the
-   page (M4 §2.9, "ticks linger"): a task ticked now stays where it is. Held
-   above the checkpoint remount, so making a task does not refold the page. */
-interface Frozen { current: FrozenFolds | null }
+/* The Work thread's elision is computed once per opening of the page (M4
+   §2.9, "ticks linger"): a task ticked now stays where it is. Held above the
+   checkpoint remount, so making a task does not re-elide the page. */
+interface Frozen { current: FrozenElision | null }
 
 /** Reset history only at identity-changing checkpoints or explicit server reconciliation. */
 export default function FolderCanvas(props: Props): React.JSX.Element {
@@ -687,20 +687,17 @@ let focusResultsOf: { readonly folderId: string; readonly at: number } | null = 
 const FOCUS_RESULTS_WITHIN = 10_000
 
 /* What the viewer opened on the thread, for this session only (M4 §2.9):
-   auto-folded sections they unfolded and "Earlier work" breaks they expanded.
-   Never stored: `toggle-<id>` holds only what the user closed. */
-const threadSession = new Map<string, { opened: Set<string>; expanded: Set<string> }>()
-function sessionOf(folderId: string): { opened: Set<string>; expanded: Set<string> } {
+   the "Earlier work" breaks they expanded. Never stored. Section headings
+   never fold, so a `toggle-<id>` an older build stored for one is ignored. */
+const threadSession = new Map<string, { expanded: Set<string> }>()
+function sessionOf(folderId: string): { expanded: Set<string> } {
   let found = threadSession.get(folderId)
-  if (found === undefined) { found = { opened: new Set(), expanded: new Set() }; threadSession.set(folderId, found) }
+  if (found === undefined) { found = { expanded: new Set() }; threadSession.set(folderId, found) }
   return found
 }
-function foldStore(): FoldStore | null {
-  try { return window.localStorage } catch { return null }
-}
 
-/** A real control laid over the rail: a section's fold, or an "Earlier work" break. */
-interface RailMark { readonly id: string; readonly kind: 'fold' | 'break'; readonly x: number; readonly y: number; readonly label: string }
+/** A real control laid over the rail: an "Earlier work" break. */
+interface RailMark { readonly id: string; readonly x: number; readonly y: number; readonly label: string }
 
 type Card = Rows['tasks'][number]
 const noFacts: ThreadFacts = { next: null, shared: false, completedOn: new Map() }
@@ -738,10 +735,10 @@ const FILL_FOR = 2000
  * read the ring and meta facts through `ThreadFactsProvider`; the editor
  * itself does not re-render.
  *
- * Folding and "Earlier work" are real buttons laid over the rail from this
- * container, not widgets in the document, so drag, selection and undo are
- * untouched and a keyboard or screen reader reaches them. A mouse press in a
- * heading's gutter is also heard by delegation.
+ * "Earlier work" is a real button laid over the rail from this container, not
+ * a widget in the document, so drag, selection and undo are untouched and a
+ * keyboard or screen reader reaches it. Section headings are numbered stops
+ * and never fold.
  */
 function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish, children }: {
   readonly enabled: boolean
@@ -768,14 +765,12 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
   }, [done.data])
   const open = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
   const blocks = editor.document as unknown as readonly ThreadBlock[]
-  const still = enabled ? freezeFolds(frozen, blocks, open) : null
+  const still = enabled ? freezeElision(frozen, blocks, open) : null
   const session = sessionOf(folderId)
-  const sections = enabled ? foldableSections(blocks) : []
-  const folded = foldedNow(sections, still?.finished ?? new Set(), session.opened, foldStore())
   const elided = new Map<string, string>()
   const breaks = new Set<string>()
   for (const [id, at] of still?.elision.elided ?? []) if (!session.expanded.has(at)) { elided.set(id, at); breaks.add(at) }
-  const model = threadModel({ blocks: enabled ? blocks : [], open, today: context.today, viewerId: context.viewerId, shared, folded, elided })
+  const model = threadModel({ blocks: enabled ? blocks : [], open, today: context.today, viewerId: context.viewerId, shared, elided })
   /* The one motion (AC-1514): a tick by this viewer grows the done stretch
      down to the new frontier. The tick is heard first (`onTick`); the stretch
      moves when the page's lists answer, which may be a moment later (after a
@@ -783,7 +778,7 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
      own tick is animated. Compared after commit, so a render React throws
      away changes nothing. */
   const [grown, setGrown] = useState<{ readonly from: ReadonlyMap<string, ProgressState>; readonly at: number } | null>(null)
-  const css = enabled ? threadStyle(model, folded, new Set(elided.keys()), breaks, grown?.from ?? null) : ''
+  const css = enabled ? threadStyle(model, new Set(elided.keys()), breaks, grown?.from ?? null) : ''
   const stop = [...model.progress].find(([, state]) => state === 'done-frontier')?.[0] ?? null
   useLayoutEffect(() => {
     if (!enabled) return
@@ -820,17 +815,12 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
   }, [folderId])
   const facts = useMemo<ThreadFacts>(() => ({ next: model.next, shared, completedOn, onTick }), [model.next, shared, completedOn, onTick])
   const results = facets.data?.facets.find((facet) => facet.kind === 'results')
-  const toggle = useCallback((id: string, isFolded: boolean): void => {
-    toggleFold(foldStore(), sessionOf(folderId).opened, id, isFolded)
-    bump((value) => value + 1)
-  }, [folderId])
-  /* A press on a heading's badge (drawn on the rail, left of its text) folds
-     or unfolds it; a press on an "Earlier work" break shows what it holds.
-     Heard on the window, before the marquee (CanvasMarquee), which takes any
-     press outside a block's row for a band selection. */
+  /* A press on an "Earlier work" break shows what it holds. Heard on the
+     window, before the marquee (CanvasMarquee), which takes any press outside
+     a block's row for a band selection. */
   const host = useRef<HTMLDivElement>(null)
-  const live = useRef({ sections, folded, breaks, toggle })
-  live.current = { sections, folded, breaks, toggle }
+  const live = useRef({ breaks })
+  live.current = { breaks }
   /* Where the rail's controls go: measured after every render and on every
      resize, and set only when something moved. */
   const [marks, setMarks] = useState<readonly RailMark[]>([])
@@ -840,22 +830,11 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
     if (root === null) return
     const origin = root.getBoundingClientRect()
     const found: RailMark[] = []
-    const { sections: foldable, breaks: gaps } = live.current
-    for (const id of foldable) {
-      const content = root.querySelector<HTMLElement>(`.bn-block[data-id="${CSS.escape(id)}"] > .bn-block-content[data-dana-section]`)
-      const block = content?.parentElement
-      if (content === null || block === null || block === undefined || content.getClientRects().length === 0) continue
-      const box = content.getBoundingClientRect()
-      const style = getComputedStyle(content)
-      const line = parseFloat(style.lineHeight)
-      const y = box.top - origin.top + (parseFloat(style.paddingTop) || 0) + (Number.isNaN(line) ? 0 : line / 2)
-      found.push({ id, kind: 'fold', x: Math.round(block.getBoundingClientRect().left - origin.left), y: Math.round(y), label: content.textContent?.trim() || 'Section' })
-    }
-    for (const id of gaps) {
+    for (const id of live.current.breaks) {
       const outer = root.querySelector<HTMLElement>(`.bn-block-outer[data-id="${CSS.escape(id)}"]`)
       if (outer === null || outer.getClientRects().length === 0) continue
       const box = outer.getBoundingClientRect()
-      found.push({ id, kind: 'break', x: Math.round(box.left - origin.left), y: Math.round(box.top - origin.top), label: 'Earlier work' })
+      found.push({ id, x: Math.round(box.left - origin.left), y: Math.round(box.top - origin.top), label: 'Earlier work' })
     }
     const text = JSON.stringify(found)
     if (text !== drawn.current) { drawn.current = text; setMarks(found) }
@@ -873,28 +852,15 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
     const onPress = (event: MouseEvent): void => {
       if (event.button !== 0 || !(event.target instanceof HTMLElement) || host.current?.contains(event.target) !== true) return
       const target = event.target
-      const { sections: foldable, folded: shut, breaks: gaps, toggle: flip } = live.current
-      const claim = (): void => { event.preventDefault(); event.stopPropagation() }
-      if (target.classList.contains('bn-block-outer')) {
-        const id = target.getAttribute('data-id')
-        const row = target.querySelector(':scope > .bn-block')
-        if (id !== null && gaps.has(id) && row !== null && event.clientY < row.getBoundingClientRect().top) {
-          claim()
-          sessionOf(folderId).expanded.add(id)
-          bump((value) => value + 1)
-        }
-        return
+      if (!target.classList.contains('bn-block-outer')) return
+      const id = target.getAttribute('data-id')
+      const row = target.querySelector(':scope > .bn-block')
+      if (id !== null && live.current.breaks.has(id) && row !== null && event.clientY < row.getBoundingClientRect().top) {
+        event.preventDefault()
+        event.stopPropagation()
+        sessionOf(folderId).expanded.add(id)
+        bump((value) => value + 1)
       }
-      const block = target.closest('.bn-block')
-      const heading = block?.querySelector(':scope > .bn-block-content[data-dana-section]')
-      if (block === null || block === undefined || heading === null || heading === undefined) return
-      if (target !== block && target !== heading) return
-      const inset = parseFloat(getComputedStyle(heading).paddingInlineStart) || 0
-      if (event.clientX >= heading.getBoundingClientRect().left + inset) return
-      const id = block.getAttribute('data-id')
-      if (id === null || !foldable.includes(id)) return
-      claim()
-      flip(id, shut.has(id))
     }
     window.addEventListener('mousedown', onPress, true)
     return () => window.removeEventListener('mousedown', onPress, true)
@@ -907,49 +873,19 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
         ref={host}
         className="dana-thread min-w-0"
         onAnimationEnd={(event) => { if (event.animationName === 'dana-thread-grow') grew() }}
-        onKeyDownCapture={(event) => {
-          /* Enter in a folded heading writes its first child: open the
-             section first, so the new line is not hidden. */
-          if (event.key !== 'Enter' || event.shiftKey || !(event.target instanceof HTMLElement) || !event.target.isContentEditable) return
-          const id = editor.getTextCursorPosition().block.id
-          if (folded.has(id)) toggle(id, true)
-        }}
       >
-        {marks.map((mark) => {
-          const at = { '--dana-at-x': `${mark.x}px`, '--dana-at-y': `${mark.y}px` } as CSSProperties
-          if (mark.kind === 'break') {
-            return (
-              <button
-                key={`break-${mark.id}`}
-                type="button"
-                className="dana-thread-break"
-                style={at}
-                aria-expanded={false}
-                onClick={() => { sessionOf(folderId).expanded.add(mark.id); bump((value) => value + 1) }}
-              >
-                {mark.label}
-              </button>
-            )
-          }
-          const shut = folded.has(mark.id)
-          return (
-            <button
-              key={`fold-${mark.id}`}
-              type="button"
-              className="dana-thread-fold"
-              style={at}
-              aria-expanded={!shut}
-              aria-label={mark.label}
-              onClick={() => { toggle(mark.id, shut) }}
-              onKeyDown={(event) => {
-                // §2.7: ← folds a section, → unfolds it.
-                if ((event.key === 'ArrowLeft' && !shut) || (event.key === 'ArrowRight' && shut)) { event.preventDefault(); toggle(mark.id, shut) }
-              }}
-            >
-              <span aria-hidden />
-            </button>
-          )
-        })}
+        {marks.map((mark) => (
+          <button
+            key={`break-${mark.id}`}
+            type="button"
+            className="dana-thread-break"
+            style={{ '--dana-at-x': `${mark.x}px`, '--dana-at-y': `${mark.y}px` } as CSSProperties}
+            aria-expanded={false}
+            onClick={() => { sessionOf(folderId).expanded.add(mark.id); bump((value) => value + 1) }}
+          >
+            {mark.label}
+          </button>
+        ))}
         {children}
         {finish && model.hasTasks && !model.anyOpen && results !== undefined ? (
           <button

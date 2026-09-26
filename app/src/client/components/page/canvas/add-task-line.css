@@ -15,16 +15,16 @@
    last node: the glyph sits on the rail where a Task's badge does, the rail
    runs down to it (dashed: what is not done yet), and the title starts in the
    content column. It reads only the thread's own variables
-   (--dana-thread-x, --dana-thread-inset, --dana-thread-hairline,
-   --dana-thread-half, --dana-thread-dashed); U1 draws nothing for it. */
+   (--dana-thread-x, --dana-thread-inset, --dana-thread-weight,
+   --dana-badge-border, --dana-thread-dashed); U1 draws nothing for it. */
 .dana-thread .dana-add-task-line { position: relative; padding-inline-start: var(--dana-thread-inset); }
 .dana-thread .dana-add-task-line::before {
   content: '';
   position: absolute;
-  inset-inline-start: calc(var(--dana-thread-x) - var(--dana-thread-hairline) / 2);
+  inset-inline-start: calc(var(--dana-thread-x) - var(--dana-thread-weight) / 2);
   top: 0;
   height: 50%;
-  width: var(--dana-thread-hairline);
+  width: var(--dana-thread-weight);
   background: var(--dana-thread-dashed);
   pointer-events: none;
 }
@@ -35,11 +35,18 @@
   top: calc(50% - var(--control-height) / 2);
   margin: 0;
 }
-.dana-thread .dana-add-task-line > .dana-add-task-glyph > span { background: var(--background); }
 /* On the thread the line reads as a row of the document it ends: the
-   editor's text size, and a dashed circle where a Task's ring will be. The
-   Task page's own composer keeps its square. */
-.dana-thread .dana-add-task-line > .dana-add-task-glyph > span { border-radius: var(--radius-full); }
+   editor's text size, and a dashed bead where a Task's will be, edged as a
+   bead is. Its plus is quieter than the edge: the placeholder's grey, and
+   small. */
+.dana-thread .dana-add-task-line > .dana-add-task-glyph > span {
+  --dana-add-plus: calc(var(--spacing) * 1.5);
+  border-width: var(--dana-badge-border);
+  background:
+    linear-gradient(var(--text-placeholder), var(--text-placeholder)) center / var(--dana-add-plus) var(--dana-thread-hairline) no-repeat,
+    linear-gradient(var(--text-placeholder), var(--text-placeholder)) center / var(--dana-thread-hairline) var(--dana-add-plus) no-repeat,
+    var(--background);
+}
 .dana-thread .dana-add-task-line input {
   font-size: var(--text-editor-size);
   line-height: var(--text-editor-line);
