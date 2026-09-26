@@ -91,7 +91,6 @@ import { openSearch } from './overlays.js'
 import { useModalOpen, useRightEdge } from '../components/right-edge.js'
 import { WindowBar, WindowBarActions, WindowBarLead } from '../components/window-bar.js'
 import { BreadcrumbTrail, HistoryArrows } from '../components/breadcrumb-trail.js'
-import { useFolderView } from '../views/view-mode.js'
 import {
   clampSidebarWidth,
   clearSidebarWidth,
@@ -179,16 +178,8 @@ function TopTrail(): React.JSX.Element {
      names it, and the page's crumb leads back to the thread list. */
   const discussionId = pathname.startsWith(FOLDER_PREFIX) ? new URLSearchParams(search).get('discussion') : null
   const discussion = useDiscussion(discussionId ?? '', discussionId !== null)
-  /* An issue open in the Linear view is `?issue=<task id>` on its page: named
-     the same way, its page's crumb leading back to the issue list. Only while
-     the issue is on screen: the Work tab (no `facet`) in the Linear view. */
-  const [folderView] = useFolderView()
-  const issueParams = new URLSearchParams(search)
-  const issueId =
-    pathname.startsWith(FOLDER_PREFIX) && discussionId === null && folderView === 'linear' && !issueParams.has('facet')
-      ? issueParams.get('issue')
-      : null
-  const taskId = pathname.startsWith(TASK_PREFIX) ? pathname.slice(TASK_PREFIX.length) : issueId
+  /* A task is its own route (`?issue=` on a page redirects there, M4). */
+  const taskId = pathname.startsWith(TASK_PREFIX) ? pathname.slice(TASK_PREFIX.length) : null
   const task = useTask(taskId)
 
   let trail: React.JSX.Element | null = null
@@ -196,17 +187,12 @@ function TopTrail(): React.JSX.Element {
     const list = new URLSearchParams(search)
     list.delete('discussion')
     list.delete('outcome')
-    list.delete('issue')
     if (discussionId !== null && !list.has('facet')) list.set('conversation', 'open')
     const listTo = list.size === 0 ? pathname : `${pathname}?${list.toString()}`
     trail = (
       <BreadcrumbTrail
         folderId={pathname.slice(FOLDER_PREFIX.length)}
-        {...(discussionId !== null
-          ? { current: discussion.data?.title ?? '', folderTo: listTo }
-          : issueId !== null
-            ? { current: task.data?.title ?? '', folderTo: listTo }
-            : {})}
+        {...(discussionId !== null ? { current: discussion.data?.title ?? '', folderTo: listTo } : {})}
       />
     )
   } else if (taskId !== null) {

@@ -9,8 +9,6 @@ lifting its state into the shell.
 import { useSyncExternalStore, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 
-import { TabStrip } from "../shell/TabStrip.js"
-
 const slots: { lead: HTMLElement | null; trail: HTMLElement | null } = {
   lead: null,
   trail: null,
@@ -35,25 +33,21 @@ function useSlot(end: "lead" | "trail") {
   )
 }
 
-/* The two quiet strips themselves, rendered once by the shell. Workspace tabs
-   sit above the existing window bar on desktop; the tab component removes
-   itself on a phone, where the full strip would compete with Menu and Search. */
+/* The one quiet strip, rendered once by the shell. The browser's own tabs
+   and the sidebar are the ways between places, so Dana draws no tab strip. */
 export function WindowBar() {
   return (
-    <>
-      <TabStrip />
-      <div className="flex h-[var(--shell-windowbar-height)] shrink-0 items-center gap-1.5 bg-card px-3">
-        {/* The left end: history arrows and the breadcrumb trail. */}
-        <div
-          ref={(node) => setSlot("lead", node)}
-          className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
-        />
-        <div
-          ref={(node) => setSlot("trail", node)}
-          className="flex shrink-0 items-center gap-1.5"
-        />
-      </div>
-    </>
+    <div className="flex h-[var(--shell-windowbar-height)] shrink-0 items-center gap-1.5 bg-card px-3">
+      {/* The left end: history arrows and the breadcrumb trail. */}
+      <div
+        ref={(node) => setSlot("lead", node)}
+        className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
+      />
+      <div
+        ref={(node) => setSlot("trail", node)}
+        className="flex shrink-0 items-center gap-1.5"
+      />
+    </div>
   )
 }
 

@@ -70,7 +70,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Navigate, useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router'
 
 import {
-  useCreateFacet,
   useDeleteFacet,
   useRestoreFacet,
   useDeleteFolder,
@@ -137,12 +136,13 @@ import { mayPerform, ruleFor } from '../../shared/folder-actions.js'
    against #228's closed vocabulary of every Folder action there is. */
 import type { FolderAction as FolderActionName } from '../../shared/folder-actions.js'
 import { paths } from '../routes.js'
-import { FOLDER_ACTION_PARAM } from '../shell/app-sidebar.js'
+import { FOLDER_ACTION_PARAM, useAddPageInside } from '../shell/app-sidebar.js'
+import { copyLink } from '../lib/object-acts.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { usePageImport } from '../shell/workflow-import.js'
 import { FolderTabs } from '../components/folder-facets.js'
-import type { CreateFacetInput, FacetCapabilities } from '../components/folder-facets.js'
+import type { FacetCapabilities } from '../components/folder-facets.js'
 import { PageSection } from '../components/page/PageSection.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
@@ -301,6 +301,7 @@ function FolderPageBody({
   const id = folderId ?? routeId
   const navigate = useNavigate()
   const importFile = usePageImport()
+  const addPageInside = useAddPageInside()
   const [search, setSearch] = useSearchParams()
   /* Set as this page is trashed: its reads stop, so the delete's
      invalidation refetches none of them against a 404 while the page is
@@ -328,7 +329,6 @@ function FolderPageBody({
   const patch = useRenameFolder()
   const leave = useLeaveFolder()
   const transfer = useTransferOwnership()
-  const createFacet = useCreateFacet()
   const patchFacet = usePatchFacet()
   const deleteFacet = useDeleteFacet()
   const restoreFacet = useRestoreFacet()
@@ -580,15 +580,6 @@ function FolderPageBody({
       },
       () => {},
     )
-  }
-
-  function createFolderFacet(input: CreateFacetInput): void {
-    createFacet.mutate({
-      folderId: id,
-      body: input.kind === 'work'
-        ? { kind: 'work', h1_block_id: input.h1BlockId, after_facet_id: activeFacet?.id }
-        : { kind: input.kind, display_name: input.name, after_facet_id: activeFacet?.id },
-    }, { onSuccess: selectFacet })
   }
 
   function renameFolderFacet(facet: Facet, name: string | null): void {
@@ -905,10 +896,7 @@ function FolderPageBody({
     } else if (action === 'cover') {
       if (gates?.identity === true) setCoverOpen(true)
       else refuse('folder.profile.edit')
-    } else if (action === 'transfer') {
-      if (gates?.transferOwnership === true) setTransferOpen(true)
     } else if (action === 'history') setHistoryOpen(true)
-    else if (action === 'workflow') void saveAsWorkflow()
     /* Leave is the exception and asks anyway. The two rules that refuse it
        are state rather than preset — the owner's transfer-first rule and the
        continuity invariant — so `ruleFor('member.leave').why` would answer
@@ -969,8 +957,11 @@ function FolderPageBody({
           history: () => {
             setHistoryOpen(true)
           },
+          /* The Library row's pair (M4: one menu, the same items everywhere). */
+          rename: gates?.identity === true ? () => setRenaming(true) : undefined,
+          'add-page': gates?.identity === true && !isDefault ? () => addPageInside(id) : undefined,
           'copy-link': () => {
-            void navigator.clipboard.writeText(folderLink(id))
+            copyLink(folderLink(id))
           },
           duplicate: () => {
             /* Duplicated server-side; the copy is the duplicator's own private
@@ -988,16 +979,6 @@ function FolderPageBody({
               ? () => {
                   importFile(id)
                 }
-              : undefined,
-          workflow: () => {
-            void saveAsWorkflow()
-          },
-          /* Offered whenever the folder is shared and the viewer owns it,
-             rather than only when somebody is eligible: the dialog says what
-             to do when nobody is. */
-          transfer:
-            gates?.transferOwnership === true && others.length > 0
-              ? () => setTransferOpen(true)
               : undefined,
           /* Any member's, refused to the owner until they transfer and to the
              last Full-control member; `folderGates` reads both off the roster. */
@@ -1021,7 +1002,7 @@ function FolderPageBody({
         {/* An open thread is its own page (r9): the breadcrumb names it and
             its head is the thread's, so the page's head and tabs step aside. */}
         <div className={threadOpen ? 'hidden' : 'space-y-4'}>
-          {hasCover ? (
+          {hasCover && !isDefault ? (
             <div className="-mt-4 md:-mt-6">
               {/* A viewer below Can edit reads the band and is offered nothing
                   on it (AC-011, AC-193). */}
@@ -1048,7 +1029,8 @@ function FolderPageBody({
                 patch.mutate({ id, body: { icon: null } })
               }}
               actions={headerActions}
-              coverKey={coverKey}
+              /* Covers are for projects; the Desk is not one (M4). */
+              coverKey={isDefault ? undefined : coverKey}
             />
           </PageSection>
 
@@ -1064,7 +1046,6 @@ function FolderPageBody({
               }}
               onReorder={reorderFolderFacets}
               capabilities={facetCapabilities}
-              onAdd={(name) => createFolderFacet({ kind: 'shared_blank', name })}
               onRename={renameFolderFacet}
               onHide={hideFolderFacet}
               onDelete={removeFolderFacet}
@@ -1141,6 +1122,25 @@ function FolderPageBody({
           onClose={() => {
             setSharing(false)
           }}
+          /* Export and Transfer are Share's (M4), no longer the "…"'s. */
+          onExport={() => {
+            void saveAsWorkflow()
+          }}
+          /* Offered whenever the folder is shared and the viewer owns it,
+             rather than only when somebody is eligible: the dialog says what
+             to do when nobody is. */
+          onTransfer={
+            gates?.transferOwnership === true && others.length > 0
+              ? () => {
+                  /* After Share has closed and handed focus back to its
+                     button, so the dialog keeps focus (Escape closes it). */
+                  setSharing(false)
+                  window.setTimeout(() => {
+                    setTransferOpen(true)
+                  }, 0)
+                }
+              : undefined
+          }
         />
       ) : null}
 

@@ -1,7 +1,7 @@
 /*
-The sample workspace's client half: one
-hook the strip and the Settings row both call, so the confirmation, the
-undo and the sentence about kept folders are written once.
+The sample workspace's client half: one hook the strip and the Settings row
+both call, so the undo and the sentence about kept folders are written once.
+The strip only keeps the sample; removing it is Settings' alone (M4).
 
 **"Keep it" is a dismissal local to the device**, in `localStorage`, on the
 same reasoning `StarterOffer.tsx` records for its own: the account keeps
@@ -9,8 +9,8 @@ the sample either way, and the strip is furniture whose absence changes
 nothing on the server. The Settings row is the way back to the act from a
 device that dismissed it.
 
-**Removal is one press, and the undo bar is its safety net**: no confirm
-before it, because it destroys only what the sample wrote. The server leaves a
+**Removal asks first, and the undo bar is its second net.** Settings puts
+`SAMPLE_COPY.confirm` before `remove` (M4). The server leaves a
 sample page someone else holds, moves one the person wrote in to Trash with
 their writing, and names both back, so what the undo (POST /sample,
 idempotent: a bar pressed twice lands on one workspace) writes afresh sits
@@ -27,9 +27,12 @@ import { showToast } from '../state/toasts.js'
 import { dismissStarters } from './StarterOffer.js'
 
 export const SAMPLE_COPY = {
-  strip: 'Sample workspace',
-  stripRemove: 'Remove',
+  strip: 'This is a sample',
   keep: 'Keep it',
+  confirm: 'Remove the sample workspace?',
+  confirmDetail:
+    'Its pages and tasks go. A sample page you wrote in moves to Trash with your writing, and one shared with someone else stays.',
+  confirmLabel: 'Remove sample',
   undone: 'Sample workspace removed',
   kept: (names: readonly string[]) =>
     `${names.join(', ')} ${names.length === 1 ? 'stays because it is' : 'stay because they are'} shared.`,
