@@ -380,6 +380,12 @@
 .dana-writing-canvas.dana-post-editor .bn-editor > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child) {
   --dana-hint: var(--dana-canvas-placeholder, none);
 }
+/* m12: a message box ending in a line of text needs no click-to-add strip
+   under it, which grew the composer by a line at the first keystroke. After
+   an image or a list the strip stays, so there is still a way below it. */
+.dana-writing-canvas.dana-post-editor .bn-editor > .bn-block-group > .bn-block-outer:nth-last-child(2):has(> .bn-block > * > .bn-block-content[data-content-type='paragraph']) ~ .bn-trailing-block {
+  display: none;
+}
 
 /* ---- r5-page: one ink for every Delete, and the submenu chevron as quiet
    as the other icons. */

@@ -457,6 +457,7 @@ export async function createComment(
         content: body.content ?? null,
         likes: 0,
         liked: false,
+        liked_by: [] as string[],
         files: attached,
         created_at: toIso(inserted[0]?.created_at),
         edited_at: null,
@@ -485,6 +486,9 @@ function commentSelect(viewerId: string): ReturnType<typeof sql> {
                EXISTS (SELECT 1 FROM comment_likes l
                         WHERE l.comment_id = c.id
                           AND l.user_id = ${viewerId}) AS liked,
+               (SELECT coalesce(json_agg(l.user_id ORDER BY l.created_at, l.user_id), '[]'::json)
+                  FROM comment_likes l
+                  WHERE l.comment_id = c.id) AS liked_by,
                (SELECT coalesce(json_agg(json_build_object(
                           'id', f.id, 'name', f.name, 'mime', f.mime,
                           'bytes', f.bytes,
@@ -507,6 +511,7 @@ function lineFrom(row: Record<string, unknown>): CommentLine {
     content: postContentOrNull(row.content),
     likes: Number(row.likes),
     liked: row.liked === true,
+    liked_by: likersFrom(row.liked_by),
     files: filesFrom(row.files),
     created_at: toIso(row.created_at),
     edited_at: row.edited_at === null ? null : toIso(row.edited_at),
@@ -562,6 +567,12 @@ async function commentLineById(
    per attachment for exactly this ORDER BY to read; file_id follows it as a
    total tiebreak, so the aggregate has one answer even for rows this module
    did not write. */
+/** Who liked a post, earliest first (user ids). */
+function likersFrom(value: unknown): string[] {
+  const parsed: unknown = typeof value === 'string' ? JSON.parse(value) : value
+  return Array.isArray(parsed) ? parsed.map(String) : []
+}
+
 function filesFrom(value: unknown): CommentFile[] {
   const parsed: unknown = typeof value === 'string' ? JSON.parse(value) : value
   if (!Array.isArray(parsed)) return []

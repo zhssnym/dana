@@ -3,8 +3,8 @@ One thread, as its own page (W-C; #212, #320; r4, r9). The top bar's
 breadcrumb names it and its page crumb returns to the list, and the page's
 own head and tabs step aside. Its head is the page head's: the status (an
 outline bubble while open, the accent check once resolved) and the 28px
-title on the left; "Turn into a task", "Resolve" or "Reopen" and the "…"
-menu (Rename, Move to Trash) on the right. It says nothing the posts already
+title on the left; "Turn into a task", "Resolve" and the "…" menu (Rename,
+Move to Trash) on the right. It says nothing the posts already
 show.
 
 "Turn into a task" is an open thread's main act (M4 §4.4): talk that has
@@ -14,7 +14,8 @@ its composed page) and links the thread to it (`PATCH` `task_id`, M5). The
 thread stays open: from then on it is the task's conversation, where anyone
 who may comment keeps talking about the task (a resolved thread takes no
 posts). A thread about a task (made by "Discuss" on the task, or linked
-here) shows the task under its title and is not offered the act again. The
+here) shows the task under its title, one plain row with its state mark,
+name and state, and is not offered the act again. The
 two are separate writes, in that order, because each has its own route: a
 failure of the link leaves the task standing, unlinked, and says so ("The
 task was made. The thread was not linked to it."), never the generic
@@ -26,13 +27,12 @@ step goes on from that step (the view remembers the task it made), so it
 never makes a second task. The General discussion is never converted: it is the page's
 catch-all, not one subject.
 
-The thread fills the window: the posts sit at the bottom just above the
-composer, the history scrolls in its own region, and the composer stays at
-the window's foot. "Resolve" puts one optional line, "What was decided?",
+The thread fills the window: the posts read from the top, the history
+scrolls in its own region, and the composer stays at the window's foot. "Resolve" puts one optional line, "What was decided?",
 where the composer was (empty resolves without a decision, Wave 2 decision
 3). A resolved or trashed thread takes no writes (the server answers 409
-`discussion_frozen`), so its composer becomes one quiet line: "Resolved
-<date> by <name>." and the decision if any; Reopen stays in the head. Move to Trash asks
+`discussion_frozen`), so it has no composer: a short block under the title
+says "Resolved <date> by <name>" and the decision if any, with Reopen. Move to Trash asks
 nothing: the thread goes back to the list at once and the undo bar brings it
 back. Server state names are unchanged (`resolved`).
 
@@ -79,7 +79,7 @@ import { pushUndo, undoLabel } from '../../shell/undo.js'
 import { DISCUSSION_TITLE_MAX, discussionSchema, OUTCOME_STATEMENT_MAX } from '../../../shared/consultation.js'
 import type { Discussion } from '../../../shared/consultation.js'
 import { paths } from '../../routes.js'
-import { StateMark, taskState } from '../thread/timeline/state.js'
+import { STATE_WORD, StateMark, taskState } from '../thread/timeline/state.js'
 import { getPageResponse } from '../../../shared/pages.js'
 import { TASK_TITLE_LIMIT } from '../../../shared/tasks.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
@@ -271,19 +271,29 @@ function ThreadBody(props: {
   }
 
   const today = localDay(new Date().toISOString())
-  /* Resolved: one quiet line where the composer was; Reopen is the head's. */
-  const closedNote = (
-    <p className="py-2 text-sm text-muted-foreground">
-      {trashed
-        ? 'This thread is in Trash.'
-        : `Resolved${closedAt !== null ? ` ${formatDate(localDay(closedAt), today)}` : ''}${closedBy !== null ? ` by ${personOf(closedBy).name}` : ''}`}
-      {!trashed && outcome !== null && outcome.statement !== '' ? (
-        <>{': '}<span className="text-foreground">{outcome.statement}</span></>
-      ) : null}
-    </p>
-  )
-
   const resolved = d.state === 'resolved'
+  /* Closed: a short block under the title says how it ended (and the
+     decision, if one was given), with Reopen beside it. */
+  const closedNote = frozen ? (
+    <div className="mt-3 flex min-w-0 shrink-0 items-start gap-3 rounded-md border border-border px-3 py-2 ml-9">
+      <div className="min-w-0 flex-1 text-sm">
+        <p className="text-muted-foreground">
+          {trashed
+            ? 'This thread is in Trash.'
+            : `Resolved${closedAt !== null ? ` ${formatDate(localDay(closedAt), today)}` : ''}${closedBy !== null ? ` by ${personOf(closedBy).name}` : ''}`}
+        </p>
+        {!trashed && outcome !== null && outcome.statement !== '' ? (
+          <p className="mt-0.5 break-words whitespace-pre-wrap text-foreground">{outcome.statement}</p>
+        ) : null}
+      </div>
+      {resolved && powers.reopen && !trashed ? (
+        <Button type="button" variant="ghost" size="sm" className="-my-0.5 shrink-0" disabled={reopen.isPending} onClick={() => { reopen.mutate(d.id) }}>
+          Reopen
+        </Button>
+      ) : null}
+    </div>
+  ) : null
+
   const hasMenu = (powers.edit && !frozen) || trashable
   return (
     <div
@@ -310,9 +320,6 @@ function ThreadBody(props: {
           ) : null}
           {resolvable && !closing ? (
             <Button type="button" variant="ghost" disabled={turning} onClick={() => { setClosing(true) }}>Resolve</Button>
-          ) : null}
-          {resolved && powers.reopen && !trashed ? (
-            <Button type="button" variant="ghost" disabled={reopen.isPending} onClick={() => { reopen.mutate(d.id) }}>Reopen</Button>
           ) : null}
           {hasMenu ? (
             <DropdownMenu>
@@ -342,18 +349,19 @@ function ThreadBody(props: {
         </div>
       </header>
       {d.task !== null ? (
-        <p className="mt-1 shrink-0 pl-9 text-sm">
+        /* The task it is about: one plain row, its mark, name and state. */
+        <p className="mt-2 shrink-0 pl-7 text-sm">
           <Link
             to={paths.task(d.task.id)}
-            className="inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-sm text-muted-foreground outline-none hover:text-foreground"
+            className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-md px-2 py-1 outline-none hover:bg-accent"
           >
             <StateMark state={taskState(d.task)} className="size-3.5 shrink-0" />
-            {/* The thread is titled with its task, so the task's name is
-                repeated only once it has been renamed. */}
-            <span className="min-w-0 truncate">{d.task.title.trim() === d.title.trim() ? 'Open the task' : d.task.title}</span>
+            <span className="min-w-0 truncate font-medium text-foreground">{d.task.title}</span>
+            <span className="shrink-0 text-muted-foreground">{STATE_WORD[taskState(d.task)]}</span>
           </Link>
         </p>
       ) : null}
+      {closedNote}
       {d.context !== null && d.context !== '' ? (
         <p className="mt-2 shrink-0 pl-9 text-sm break-words whitespace-pre-wrap text-muted-foreground">{d.context}</p>
       ) : null}
@@ -373,7 +381,7 @@ function ThreadBody(props: {
         onRefused={refused}
         post={(body) => postComment.mutateAsync({ discussionId: d.id, body, taskId: d.task_id })}
         {...(frozen
-          ? { closed: closedNote }
+          ? { closed: null }
           : closing
             ? { closed: <CloseThread discussion={d} onDone={() => { setClosing(false) }} /> }
             : {})}

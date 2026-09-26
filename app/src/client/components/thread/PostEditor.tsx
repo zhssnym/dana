@@ -28,6 +28,7 @@ Default export: `React.lazy` keeps BlockNote out of the page's own chunk.
 */
 import { useEffect, useRef, useState } from 'react'
 import { BlockNoteSchema } from '@blocknote/core'
+import { SuggestionMenu } from '@blocknote/core/extensions'
 import { en } from '@blocknote/core/locales'
 import { BlockNoteView } from '@blocknote/shadcn'
 import { FilePanelController, FormattingToolbarController, useCreateBlockNote } from '@blocknote/react'
@@ -35,12 +36,12 @@ import '@blocknote/shadcn/style.css'
 
 import type { CommentFile, PostContent } from '../../../shared/comments.js'
 import { uploadFile } from '../../api/http.js'
-import { SendHorizontal } from '../../lib/icons.js'
+import { Paperclip } from '../../lib/icons.js'
 import { Button } from '../ui/button.js'
 import { cn } from '../ui/utils.js'
 import { MentionSuggestions } from '../page/canvas/mentions.js'
 import { pageTheme } from '../page/canvas/BlockSideMenu.js'
-import { CanvasFilePanel } from '../page/canvas/CanvasFilePanel.js'
+import { CanvasFilePanel, mediaKindOf } from '../page/canvas/CanvasFilePanel.js'
 import type { CanvasMediaKind } from '../page/canvas/CanvasFilePanel.js'
 import { CanvasFormattingToolbar } from '../page/canvas/CanvasFormattingToolbar.js'
 import { canvasSchema } from '../page/canvas/schema.js'
@@ -210,6 +211,32 @@ export default function PostEditor({
   }
 
   const sendTitle = editing ? 'Ctrl+Enter' : coarse ? undefined : 'Enter to send'
+  const chat = !editing && renderActions === undefined
+  const picker = useRef<HTMLInputElement>(null)
+
+  /** The composer's Attach: each picked file uploads and joins the post as its own block. */
+  async function attach(list: FileList | null): Promise<void> {
+    for (const file of Array.from(list ?? [])) {
+      const kind = mediaKindOf(file.type)
+      try {
+        const props = await upload(kind, file)
+        const last = editor.document.at(-1)
+        if (last !== undefined) editor.insertBlocks([{ type: kind, props } as never], last, 'after')
+        setEmpty(false)
+      } catch {
+        /* `upload` has already said why, under the box. */
+      }
+    }
+    editor.focus()
+  }
+
+  /** The composer's @: the canvas's own mention menu, at the end of the writing. */
+  function mention(): void {
+    const last = editor.document.at(-1)
+    editor.focus()
+    if (last !== undefined && !editor.isFocused()) editor.setTextCursorPosition(last, 'end')
+    editor.getExtension(SuggestionMenu)?.openSuggestionMenu('@')
+  }
 
   return (
     <div
@@ -236,13 +263,12 @@ export default function PostEditor({
       <div
         className={cn(
           'min-w-0 rounded-lg border border-border bg-background focus-within:border-quiet-foreground',
-          /* A new post's Send sits at the end of the writing, not on a row of its own. */
-          !editing && renderActions === undefined && 'flex items-end gap-1 pr-1',
+          /* A new post: the writing, then one row of Attach, @ and Send. */
         )}
       >
         {/* The padding lives here: canvas.css zeroes the canvas's own left padding on phones. */}
         <div
-          className={cn('min-w-0 px-3', editing ? 'pt-2' : renderActions === undefined ? 'flex-1 py-1.5' : 'min-h-24 cursor-text py-2')}
+          className={cn('min-w-0 px-3', editing ? 'pt-2' : renderActions === undefined ? 'pt-2 pb-0.5' : 'min-h-24 cursor-text py-2')}
           /* The issue composer's box is taller than its one line: a click anywhere in it writes. */
           onMouseDown={
             renderActions === undefined
@@ -301,20 +327,38 @@ export default function PostEditor({
               {submitLabel}
             </Button>
           </div>
-        ) : renderActions !== undefined ? null : (
-          <div className="shrink-0 py-1">
+        ) : !chat ? null : (
+          <div className="flex items-center gap-0.5 px-1.5 pb-1.5">
+            <input
+              ref={picker}
+              type="file"
+              multiple
+              hidden
+              tabIndex={-1}
+              onChange={(event) => {
+                const files = event.target.files
+                void attach(files).finally(() => { event.target.value = '' })
+              }}
+            />
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Attach a file" title="Attach a file" className="text-muted-foreground" onClick={() => picker.current?.click()}>
+              <Paperclip strokeWidth={1.75} aria-hidden="true" />
+            </Button>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Mention someone" title="Mention someone" className="text-sm text-muted-foreground" onMouseDown={(event) => { event.preventDefault() }} onClick={mention}>
+              @
+            </Button>
+            {sendTitle === undefined ? null : <span className="ml-auto pr-2 text-xs text-quiet-foreground">{sendTitle}</span>}
             <Button
               type="button"
-              variant="ghost"
-              size="icon"
+              variant={empty ? 'ghost' : 'commit'}
+              size="sm"
               disabled={empty}
-              aria-label={submitLabel}
               title={sendTitle}
+              className={cn('px-2.5', sendTitle === undefined && 'ml-auto', empty && 'bg-muted text-muted-foreground')}
               onClick={() => {
                 void submit()
               }}
             >
-              <SendHorizontal strokeWidth={1.75} aria-hidden="true" />
+              {submitLabel}
             </Button>
           </div>
         )}

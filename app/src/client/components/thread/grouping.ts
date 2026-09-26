@@ -1,15 +1,18 @@
 /*
-How a thread's posts sit on screen (r3 discuss): Slack's grouping, pure.
+How a thread's posts sit on screen (r3 discuss, m12): Slack's grouping, pure.
+
+A thread keeps one level of replies (7.14). The posts that answer nothing are
+the thread's spine, oldest first; each carries its replies under it, oldest
+first, as an indented run. A reply whose parent is not in the thread (deleted,
+0047 clears the link, or not loaded) reads as a post of the spine. A reply to
+a reply is filed under that reply's own parent.
 
 A post **starts a group** — face, name and time drawn — unless the post
-before it is by the same author (by id, never by name: every unknown author
-answers "Someone"), on the same local day, less than five minutes earlier, and the
-post is not a reply to something further up (a reply carries its own
-reference line). A reply to the post directly above it is read as the next
-line of the conversation: no reference line, and it groups like any post (r5).
-Anything else draws only the text, under the
-group's head. A new local day always starts a group, and draws a divider first only when
-the thread spans more than one day (r4: a one-day thread needs no dates).
+before it in the same run is by the same author (by id, never by name: every
+unknown author answers "Someone"), on the same local day, and less than five
+minutes earlier. On the spine, a post that has replies ends its group, since
+its replies sit between it and the next. Anything else draws only its text,
+its time shown in the gutter on hover.
 
 Days and clock times are the browser's local ones: the thread is read where
 the reader is.
@@ -23,11 +26,11 @@ export interface PlacedPost {
   readonly line: CommentLine
   /** Draw the face, the name and the time. */
   readonly head: boolean
-  /** A local day ("2026-09-24") when a divider goes above this post. */
-  readonly day: string | null
-  /** Draw the reply's reference line: it answers a post that is not the one
-   * directly above it. */
-  readonly quote: boolean
+}
+
+export interface PlacedRoot extends PlacedPost {
+  /** Its replies, oldest first. */
+  readonly replies: readonly PlacedPost[]
 }
 
 /** An instant's civil date on the reader's clock: "2026-09-24". */
@@ -44,26 +47,52 @@ export function localClock(instant: string): string {
   return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`
 }
 
-/** Posts in order (oldest first), each told whether it heads a group and whether a day divider precedes it. */
-export function placePosts(posts: readonly CommentLine[]): PlacedPost[] {
-  const placed: PlacedPost[] = []
-  const days = new Set(posts.map((line) => localDay(line.created_at)))
-  const dated = days.size > 1
-  let previous: CommentLine | null = null
-  let previousDay: string | null = null
+function joins(previous: CommentLine | undefined, line: CommentLine): boolean {
+  return (
+    previous !== undefined &&
+    previous.author_id === line.author_id &&
+    localDay(previous.created_at) === localDay(line.created_at) &&
+    Date.parse(line.created_at) - Date.parse(previous.created_at) < GROUP_WINDOW_MS
+  )
+}
+
+/** Posts in order (oldest first), arranged as the spine with each post's replies under it. */
+export function placePosts(posts: readonly CommentLine[]): PlacedRoot[] {
+  const byId = new Map(posts.map((line) => [line.id, line]))
+  const rootOf = (line: CommentLine): string | null => {
+    let parent = line.parent_id === null ? undefined : byId.get(line.parent_id)
+    const seen = new Set<string>([line.id])
+    while (parent !== undefined && parent.parent_id !== null && !seen.has(parent.id)) {
+      seen.add(parent.id)
+      const up = byId.get(parent.parent_id)
+      if (up === undefined) break
+      parent = up
+    }
+    return parent?.id ?? null
+  }
+  const roots: CommentLine[] = []
+  const replies = new Map<string, CommentLine[]>()
   for (const line of posts) {
-    const day = localDay(line.created_at)
-    const newDay = day !== previousDay
-    const quote = line.parent_id !== null && line.parent_id !== previous?.id
-    const joins =
-      previous !== null &&
-      !newDay &&
-      previous.author_id === line.author_id &&
-      !quote &&
-      Date.parse(line.created_at) - Date.parse(previous.created_at) < GROUP_WINDOW_MS
-    placed.push({ line, head: !joins, day: newDay && dated ? day : null, quote })
-    previous = line
-    previousDay = day
+    const root = rootOf(line)
+    if (root === null) {
+      roots.push(line)
+    } else {
+      const run = replies.get(root) ?? []
+      run.push(line)
+      replies.set(root, run)
+    }
+  }
+  const placed: PlacedRoot[] = []
+  let previous: CommentLine | undefined
+  for (const line of roots) {
+    const run = replies.get(line.id) ?? []
+    placed.push({
+      line,
+      head: !joins(previous, line),
+      replies: run.map((reply, index) => ({ line: reply, head: !joins(run[index - 1], reply) })),
+    })
+    /* Replies stand between this post and the next: the next starts a group. */
+    previous = run.length > 0 ? undefined : line
   }
   return placed
 }
