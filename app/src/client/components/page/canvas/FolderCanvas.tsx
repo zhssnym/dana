@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteEditor } from '@blocknote/core'
 import { en } from '@blocknote/core/locales'
@@ -19,8 +19,8 @@ import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider, ThreadFactsProvider } from './CanvasTask.js'
 import type { ThreadFacts } from './CanvasTask.js'
-import { elision, finishedSections, foldableSections, threadModel, threadStyle } from './thread/thread-model.js'
-import type { Elision, ThreadBlock } from './thread/thread-model.js'
+import { foldableSections, foldedNow, freezeFolds, threadModel, threadStyle, toggleFold } from './thread/thread-model.js'
+import type { FoldStore, FrozenFolds, ThreadBlock } from './thread/thread-model.js'
 import './thread/thread.css'
 import { SavedResults } from './CanvasResult.js'
 import { CanvasSurface } from './CanvasSurface.js'
@@ -59,7 +59,7 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
 /* The Work thread's fold and elision are computed once per opening of the
    page (M4 §2.9, "ticks linger"): a task ticked now stays where it is. Held
    above the checkpoint remount, so making a task does not refold the page. */
-interface Frozen { current: { finished: ReadonlySet<string>; elision: Elision } | null }
+interface Frozen { current: FrozenFolds | null }
 
 /** Reset history only at identity-changing checkpoints or explicit server reconciliation. */
 export default function FolderCanvas(props: Props): React.JSX.Element {
@@ -524,13 +524,17 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
   }, [editor, draftKey])
   /* "Write what came of it" opened this Results tab: the cursor goes in it. */
   useEffect(() => {
-    if (results !== true || focusResultsOf !== folderId) return
+    if (results !== true || focusResultsOf?.folderId !== folderId) return
+    // A request older than a few seconds was left behind (the viewer went
+    // elsewhere before Results opened): it must not grab focus later.
+    if (performance.now() - focusResultsOf.at > FOCUS_RESULTS_WITHIN) { focusResultsOf = null; return }
     // The view mounts a frame or so after this session does, and the editor
-    // may be made twice on the way; the request is let go once it lands.
+    // may be made twice on the way; the request is let go once it lands or
+    // the tries run out.
     let frame = 0
     let tries = 0
     const land = (): void => {
-      if (editor.domElement?.isConnected !== true) { if (++tries < 30) frame = requestAnimationFrame(land); return }
+      if (editor.domElement?.isConnected !== true) { if (++tries < 30) frame = requestAnimationFrame(land); else focusResultsOf = null; return }
       const last = editor.document.at(-1)
       if (last !== undefined) editor.setTextCursorPosition(last, 'end')
       editor.focus()
@@ -640,8 +644,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
   </>
 }
 
-/** The folder whose Results tab "Write what came of it" just opened, to put the cursor in. */
-let focusResultsOf: string | null = null
+/** The folder whose Results tab "Write what came of it" just opened, to put the cursor in, and when. */
+let focusResultsOf: { readonly folderId: string; readonly at: number } | null = null
+const FOCUS_RESULTS_WITHIN = 10_000
 
 /* What the viewer opened on the thread, for this session only (M4 §2.9):
    auto-folded sections they unfolded and "Earlier work" breaks they expanded.
@@ -652,9 +657,12 @@ function sessionOf(folderId: string): { opened: Set<string>; expanded: Set<strin
   if (found === undefined) { found = { opened: new Set(), expanded: new Set() }; threadSession.set(folderId, found) }
   return found
 }
-function closedByUser(id: string): boolean {
-  try { return window.localStorage.getItem(`toggle-${id}`) === 'false' } catch { return false }
+function foldStore(): FoldStore | null {
+  try { return window.localStorage } catch { return null }
 }
+
+/** A real control laid over the rail: a section's fold, or an "Earlier work" break. */
+interface RailMark { readonly id: string; readonly kind: 'fold' | 'break'; readonly x: number; readonly y: number; readonly label: string }
 
 type Card = Rows['tasks'][number]
 const noFacts: ThreadFacts = { next: null, shared: false, completedOn: new Map() }
@@ -666,8 +674,10 @@ const noFacts: ThreadFacts = { next: null, shared: false, completedOn: new Map()
  * read the ring and meta facts through `ThreadFactsProvider`; the editor
  * itself does not re-render.
  *
- * Folding and "Earlier work" are handled by delegation on this container, not
- * by widgets in the document, so drag, selection and undo are untouched.
+ * Folding and "Earlier work" are real buttons laid over the rail from this
+ * container, not widgets in the document, so drag, selection and undo are
+ * untouched and a keyboard or screen reader reaches them. A mouse press in a
+ * heading's gutter is also heard by delegation.
  */
 function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish, children }: {
   readonly enabled: boolean
@@ -694,23 +704,19 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
   }, [done.data])
   const open = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
   const blocks = editor.document as unknown as readonly ThreadBlock[]
-  if (enabled && frozen.current === null) frozen.current = { finished: finishedSections(blocks, open), elision: elision(blocks, open) }
+  const still = enabled ? freezeFolds(frozen, blocks, open) : null
   const session = sessionOf(folderId)
   const sections = enabled ? foldableSections(blocks) : []
-  const folded = new Set(sections.filter((id) => closedByUser(id) || (frozen.current?.finished.has(id) === true && !session.opened.has(id))))
+  const folded = foldedNow(sections, still?.finished ?? new Set(), session.opened, foldStore())
   const model = threadModel({ blocks: enabled ? blocks : [], open, today: context.today, viewerId: context.viewerId, shared, folded })
   const elided = new Set<string>()
   const breaks = new Set<string>()
-  for (const [id, at] of frozen.current?.elision.elided ?? []) if (!session.expanded.has(at)) { elided.add(id); breaks.add(at) }
+  for (const [id, at] of still?.elision.elided ?? []) if (!session.expanded.has(at)) { elided.add(id); breaks.add(at) }
   const css = enabled ? threadStyle(model, folded, elided, breaks) : ''
   const facts = useMemo<ThreadFacts>(() => ({ next: model.next, shared, completedOn }), [model.next, shared, completedOn])
   const results = facets.data?.facets.find((facet) => facet.kind === 'results')
   const toggle = useCallback((id: string, isFolded: boolean): void => {
-    const session = sessionOf(folderId)
-    try {
-      if (isFolded) { if (closedByUser(id)) window.localStorage.removeItem(`toggle-${id}`); session.opened.add(id) }
-      else { window.localStorage.setItem(`toggle-${id}`, 'false'); session.opened.delete(id) }
-    } catch { /* storage is optional: the fold holds for this render only */ }
+    toggleFold(foldStore(), sessionOf(folderId).opened, id, isFolded)
     bump((value) => value + 1)
   }, [folderId])
   /* A press on a heading's badge (drawn on the rail, left of its text) folds
@@ -720,6 +726,43 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
   const host = useRef<HTMLDivElement>(null)
   const live = useRef({ sections, folded, breaks, toggle })
   live.current = { sections, folded, breaks, toggle }
+  /* Where the rail's controls go: measured after every render and on every
+     resize, and set only when something moved. */
+  const [marks, setMarks] = useState<readonly RailMark[]>([])
+  const drawn = useRef('')
+  const measure = useCallback((): void => {
+    const root = host.current
+    if (root === null) return
+    const origin = root.getBoundingClientRect()
+    const found: RailMark[] = []
+    const { sections: foldable, breaks: gaps } = live.current
+    for (const id of foldable) {
+      const content = root.querySelector<HTMLElement>(`.bn-block[data-id="${CSS.escape(id)}"] > .bn-block-content[data-dana-section]`)
+      const block = content?.parentElement
+      if (content === null || block === null || block === undefined || content.getClientRects().length === 0) continue
+      const box = content.getBoundingClientRect()
+      const style = getComputedStyle(content)
+      const line = parseFloat(style.lineHeight)
+      const y = box.top - origin.top + (parseFloat(style.paddingTop) || 0) + (Number.isNaN(line) ? 0 : line / 2)
+      found.push({ id, kind: 'fold', x: Math.round(block.getBoundingClientRect().left - origin.left), y: Math.round(y), label: content.textContent?.trim() || 'Section' })
+    }
+    for (const id of gaps) {
+      const outer = root.querySelector<HTMLElement>(`.bn-block-outer[data-id="${CSS.escape(id)}"]`)
+      if (outer === null || outer.getClientRects().length === 0) continue
+      const box = outer.getBoundingClientRect()
+      found.push({ id, kind: 'break', x: Math.round(box.left - origin.left), y: Math.round(box.top - origin.top), label: 'Earlier work' })
+    }
+    const text = JSON.stringify(found)
+    if (text !== drawn.current) { drawn.current = text; setMarks(found) }
+  }, [])
+  useLayoutEffect(() => { if (enabled) measure() })
+  useEffect(() => {
+    const root = host.current
+    if (!enabled || root === null || typeof ResizeObserver === 'undefined') return undefined
+    const watch = new ResizeObserver(() => { measure() })
+    watch.observe(root)
+    return () => { watch.disconnect() }
+  }, [enabled, measure])
   useEffect(() => {
     if (!enabled) return undefined
     const onPress = (event: MouseEvent): void => {
@@ -755,7 +798,52 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
   return (
     <ThreadFactsProvider value={facts}>
       <style>{css}</style>
-      <div ref={host} className="dana-thread min-w-0">
+      <div
+        ref={host}
+        className="dana-thread min-w-0"
+        onKeyDownCapture={(event) => {
+          /* Enter in a folded heading writes its first child: open the
+             section first, so the new line is not hidden. */
+          if (event.key !== 'Enter' || event.shiftKey || !(event.target instanceof HTMLElement) || !event.target.isContentEditable) return
+          const id = editor.getTextCursorPosition().block.id
+          if (folded.has(id)) toggle(id, true)
+        }}
+      >
+        {marks.map((mark) => {
+          const at = { '--dana-at-x': `${mark.x}px`, '--dana-at-y': `${mark.y}px` } as CSSProperties
+          if (mark.kind === 'break') {
+            return (
+              <button
+                key={`break-${mark.id}`}
+                type="button"
+                className="dana-thread-break"
+                style={at}
+                aria-expanded={false}
+                onClick={() => { sessionOf(folderId).expanded.add(mark.id); bump((value) => value + 1) }}
+              >
+                {mark.label}
+              </button>
+            )
+          }
+          const shut = folded.has(mark.id)
+          return (
+            <button
+              key={`fold-${mark.id}`}
+              type="button"
+              className="dana-thread-fold"
+              style={at}
+              aria-expanded={!shut}
+              aria-label={mark.label}
+              onClick={() => { toggle(mark.id, shut) }}
+              onKeyDown={(event) => {
+                // §2.7: ← folds a section, → unfolds it.
+                if ((event.key === 'ArrowLeft' && !shut) || (event.key === 'ArrowRight' && shut)) { event.preventDefault(); toggle(mark.id, shut) }
+              }}
+            >
+              <span aria-hidden />
+            </button>
+          )
+        })}
         {children}
         {finish && model.hasTasks && !model.anyOpen && results !== undefined ? (
           <button
@@ -764,7 +852,7 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
             onClick={() => {
               const search = new URLSearchParams(location.search)
               search.set('facet', results.id)
-              focusResultsOf = folderId
+              focusResultsOf = { folderId, at: performance.now() }
               void navigate({ search: `?${search.toString()}` })
             }}
           >

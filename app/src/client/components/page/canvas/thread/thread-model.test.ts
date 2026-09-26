@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
-import { elision, finishedSections, threadModel, threadStyle } from './thread-model.js'
-import type { ThreadBlock, ThreadInput, ThreadTask } from './thread-model.js'
+import { elision, finishedSections, foldedNow, freezeFolds, threadModel, threadStyle, toggleFold } from './thread-model.js'
+import type { FoldStore, FrozenFolds, ThreadBlock, ThreadInput, ThreadTask } from './thread-model.js'
 
 const TODAY = '2026-09-26'
 const task = (id: string): ThreadBlock => ({ id, type: 'danaTask', props: { taskId: id } })
@@ -106,7 +106,42 @@ describe('AC-1432: finished sections fold and long done stretches elide', () => 
     const css = threadStyle(threadModel(input([section('s', [task('a')])], {})), new Set(['s']), new Set(['x']), new Set(['y']))
     expect(css).toContain('[data-id="s"]>.bn-block>.bn-block-group{display:none}')
     expect(css).toContain('[data-id="x"]{display:none}')
-    expect(css).toContain('"Earlier work"')
+    expect(css).toContain('[data-id="y"]{padding-block-start')
     expect(css).not.toContain('toggle-')
+  })
+})
+
+describe('AC-1433: auto-fold is never stored, a user close is, and ticks linger', () => {
+  const memory = (): FoldStore & { readonly map: Map<string, string> } => {
+    const map = new Map<string, string>()
+    return { map, getItem: (key) => map.get(key) ?? null, setItem: (key, value) => { map.set(key, value) }, removeItem: (key) => { map.delete(key) } }
+  }
+
+  test('auto-fold writes nothing, and unfolding an auto-folded section writes nothing', () => {
+    const store = memory()
+    const opened = new Set<string>()
+    const finished = new Set(['done'])
+    expect([...foldedNow(['done', 'live'], finished, opened, store)]).toEqual(['done'])
+    toggleFold(store, opened, 'done', true)
+    expect(foldedNow(['done', 'live'], finished, opened, store).size).toBe(0)
+    expect(store.map.size).toBe(0)
+  })
+
+  test('a user close is stored and wins over the session; reopening removes it', () => {
+    const store = memory()
+    const opened = new Set<string>()
+    toggleFold(store, opened, 'live', false)
+    expect([...store.map]).toEqual([['toggle-live', 'false']])
+    expect([...foldedNow(['live'], new Set(), new Set(['live']), store)]).toEqual(['live'])
+    toggleFold(store, opened, 'live', true)
+    expect(store.map.size).toBe(0)
+  })
+
+  test('ticking the last open task keeps its section open until the page is opened again', () => {
+    const blocks = [section('s', [task('a')])]
+    const frozen: { current: FrozenFolds | null } = { current: null }
+    expect(freezeFolds(frozen, blocks, new Map([['a', card()]])).finished.size).toBe(0)
+    expect(freezeFolds(frozen, blocks, new Map()).finished.size).toBe(0)
+    expect([...freezeFolds({ current: null }, blocks, new Map()).finished]).toEqual(['s'])
   })
 })

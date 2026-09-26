@@ -10,8 +10,9 @@ list is closed for the line's purpose, so drawing the thread needs no per-task
 read. `toggle-<id>` still holds only what the user closed; this module never
 writes it.
 
-Pure: no DOM, no React, no storage. `FolderCanvas` feeds it and turns its
-answer into one style element (`threadStyle`).
+Pure: no DOM and no React. The fold helpers at the end are handed the
+storage to use, so a test can hold it. `FolderCanvas` feeds this module and
+turns its answer into one style element (`threadStyle`).
 */
 import { isSectionHeading } from '../outline.js'
 
@@ -215,13 +216,52 @@ const outer = (id: string): string => `.dana-thread .bn-block-outer[data-id="${q
 /**
  * The model as one style element's text: per-block rules by `data-id`, so
  * nothing is written into ProseMirror's DOM. Folded sections hide their
- * children, elided blocks are not drawn, a break block carries "Earlier work".
+ * children, elided blocks are not drawn, a break block makes room above it
+ * for the "Earlier work" button ThreadLayer places there.
  */
 export function threadStyle(model: ThreadModel, folded: ReadonlySet<string>, elided: ReadonlySet<string>, breaks: ReadonlySet<string>): string {
   const rules: string[] = []
   for (const [id, style] of model.line) rules.push(`${outer(id)}{--dana-thread-line:var(--dana-thread-${style})}`)
   for (const id of folded) rules.push(`${outer(id)}>.bn-block>.bn-block-group{display:none}${outer(id)}>.bn-block{--dana-thread-caret:var(--dana-icon-chevron-right)}${outer(id)}>.bn-block>.bn-block-content{color:var(--muted-foreground)}`)
   if (elided.size > 0) rules.push(`${[...elided].map(outer).join(',')}{display:none}`)
-  for (const id of breaks) rules.push(`${outer(id)}{padding-block-start:var(--row-height);--dana-thread-line-top:var(--row-height)}${outer(id)}::after{content:"Earlier work"}`)
+  for (const id of breaks) rules.push(`${outer(id)}{padding-block-start:var(--row-height);--dana-thread-line-top:var(--row-height)}`)
   return rules.join('\n')
+}
+
+/* ---- Folding state (§2.9). Auto-fold is derived and never stored; the
+   user's own close is `toggle-<id>` = "false", the key BlockNote's toggles
+   already use. `opened` holds what the viewer opened this session. */
+
+export interface FoldStore {
+  getItem(key: string): string | null
+  setItem(key: string, value: string): void
+  removeItem(key: string): void
+}
+
+export function closedByUser(store: FoldStore | null, id: string): boolean {
+  try { return store?.getItem(`toggle-${id}`) === 'false' } catch { return false }
+}
+
+/** What is folded now: the user's closes, and finished sections the viewer has not opened. */
+export function foldedNow(sections: readonly string[], finished: ReadonlySet<string>, opened: ReadonlySet<string>, store: FoldStore | null): Set<string> {
+  return new Set(sections.filter((id) => closedByUser(store, id) || (finished.has(id) && !opened.has(id))))
+}
+
+/** The viewer folds or unfolds a section. Only their own close is written. */
+export function toggleFold(store: FoldStore | null, opened: Set<string>, id: string, isFolded: boolean): void {
+  if (isFolded) {
+    opened.add(id)
+    try { if (closedByUser(store, id)) store?.removeItem(`toggle-${id}`) } catch { /* storage is optional */ }
+  } else {
+    opened.delete(id)
+    try { store?.setItem(`toggle-${id}`, 'false') } catch { /* storage is optional */ }
+  }
+}
+
+export interface FrozenFolds { readonly finished: ReadonlySet<string>; readonly elision: Elision }
+
+/** Fold and elision are taken once per opening, so a tick never moves the page (ticks linger). */
+export function freezeFolds(frozen: { current: FrozenFolds | null }, blocks: readonly ThreadBlock[], open: ReadonlyMap<string, ThreadTask>): FrozenFolds {
+  frozen.current ??= { finished: finishedSections(blocks, open), elision: elision(blocks, open) }
+  return frozen.current
 }

@@ -195,6 +195,10 @@ function ThreadRow({ task, state, bridge, thread }: { readonly task: TaskCard; r
   const doneOn = state === 'done' ? thread.completedOn.get(task.id) : undefined
   const day = display?.due?.label ?? display?.starts ?? (doneOn === undefined ? undefined : formatDate(doneOn, bridge.context.today))
   const face = !finished && thread.shared && task.assignee !== null ? task.assignee : null
+  /* On a shared page a done task says who and when ("Maya · 12 Sep", §2.2).
+     The card carries no completer, so the person is the assignee. */
+  const by = state === 'done' && thread.shared && task.assignee !== null ? task.assignee.display_name ?? DELETED_USER : undefined
+  const when = by === undefined ? day : day === undefined ? by : `${by} · ${day}`
   return (
     <div data-row-key="" className="dana-thread-row flex min-h-[var(--row-height)] min-w-0 items-center gap-x-3">
       <button
@@ -227,10 +231,10 @@ function ThreadRow({ task, state, bridge, thread }: { readonly task: TaskCard; r
         {state === 'next' ? <span className="sr-only"> (next)</span> : null}
         {state === 'dropped' ? <span className="sr-only"> (dropped)</span> : null}
       </span>
-      {waitsOn !== undefined || day !== undefined || face !== null ? (
+      {waitsOn !== undefined || when !== undefined || face !== null ? (
         <span className="dana-thread-meta flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
           {waitsOn !== undefined ? <span className="truncate">waits on {waitsOn}</span> : null}
-          {day !== undefined ? <span>{day}</span> : null}
+          {when !== undefined ? <span>{when}</span> : null}
           {face !== null ? <PersonFace id={face.id} name={face.display_name ?? DELETED_USER} image={face.avatar_url} dense /> : null}
         </span>
       ) : null}

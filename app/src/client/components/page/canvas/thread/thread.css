@@ -30,8 +30,9 @@
   --dana-thread-hairline: calc(var(--spacing) / 4);
   /* BlockNote pads a heading 18px above; the thread says it in a step. */
   --dana-thread-heading-pad: calc(var(--spacing) * 4);
-  /* The hairline, a step firmer than a divider: it carries meaning here. */
-  --dana-thread-ink: color-mix(in oklch, var(--line), var(--quiet-foreground) 35%);
+  /* The line is the hairline token (§2.1); the metrics above are steps of
+     --spacing, named here only so the rules below read. */
+  --dana-thread-ink: var(--line);
   --dana-thread-solid: linear-gradient(var(--dana-thread-ink), var(--dana-thread-ink));
   /* Opaque gaps: a dashed stretch hides the section line drawn beneath it. */
   --dana-thread-dashed: repeating-linear-gradient(to bottom, var(--dana-thread-ink) 0 var(--spacing), var(--background) var(--spacing) calc(var(--spacing) * 2));
@@ -141,6 +142,19 @@
 .dana-thread .bn-block:has(> .react-renderer > .bn-block-content[data-content-type='diagram']) { --dana-badge: var(--dana-icon-workflow); --dana-badge-on: block; }
 /* An empty line says nothing. */
 .dana-thread .bn-block:has(> .react-renderer > .bn-block-content[data-content-type='paragraph'] .ProseMirror-trailingBreak:only-child) { --dana-badge-on: none; }
+/* A toggle (heading or list item) already draws its triangle: that is its
+   node, moved onto the rail below, and it wears no second badge. */
+.dana-thread .bn-block:has(> .bn-block-content[data-content-type] .bn-toggle-wrapper) { --dana-badge-on: none; }
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block > .bn-block-content .bn-toggle-wrapper > .bn-toggle-button {
+  right: calc(100% + var(--dana-thread-gap) + var(--dana-thread-x) - var(--control-height) / 2);
+  display: flex;
+  width: var(--control-height);
+  height: var(--control-height);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--background);
+}
 /* Consecutive prose and lists share one badge, on the first. */
 :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer:has(> .bn-block > :is(.react-renderer > [data-content-type='paragraph'], [data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='toggleListItem'])):not(:has(> .bn-block > .react-renderer > [data-content-type='paragraph'] .ProseMirror-trailingBreak:only-child))
   + .bn-block-outer:has(> .bn-block > :is(.react-renderer > [data-content-type='paragraph'], [data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='toggleListItem'])) > .bn-block {
@@ -165,7 +179,9 @@
 .dana-thread .bn-block:has(> .bn-block-content[data-dana-section][data-level='2']) { --dana-thread-center: calc(var(--text-h2-line) / 2 + var(--dana-thread-heading-pad)); }
 .dana-thread .bn-block:has(> .bn-block-content[data-dana-section][data-level='3']) { --dana-thread-center: calc(var(--text-h3-line) / 2 + var(--dana-thread-heading-pad)); }
 @media (hover: hover) {
-  .dana-thread .bn-block:has(> .bn-block-content[data-dana-section]:hover):has(> .bn-block-group) {
+  /* Keyed on the block, so the caret stays while the pointer is on the
+     badge itself; not while it is on what the section holds. */
+  .dana-thread .bn-block:has(> .bn-block-content[data-dana-section]):has(> .bn-block-group):hover:not(:has(> .bn-block-group:hover)) {
     --dana-badge: var(--dana-thread-caret, var(--dana-icon-chevron-down));
     --dana-badge-size: var(--icon-size-compact);
     --dana-badge-ink: var(--muted-foreground);
@@ -212,21 +228,55 @@
 /* The quote's bar is the rail's job now. */
 .dana-thread [data-content-type='quote'] blockquote { border-inline-start: 0; padding-inline-start: 0; }
 
+/* The rail's controls: real buttons ThreadLayer lays over the thread (a
+   section's fold, and "Earlier work"), placed by measurement. The fold is
+   see-through over the heading's badge and draws its caret on hover or focus. */
+.dana-thread { position: relative; }
+.dana-thread .dana-thread-fold {
+  --dana-thread-fold: calc(var(--spacing) * 5);
+  position: absolute;
+  z-index: 2;
+  inset-inline-start: calc(var(--dana-at-x) + var(--dana-thread-x) - var(--dana-thread-fold) / 2);
+  top: calc(var(--dana-at-y) - var(--dana-thread-fold) / 2);
+  display: flex;
+  width: var(--dana-thread-fold);
+  height: var(--dana-thread-fold);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+.dana-thread .dana-thread-fold > span {
+  display: none;
+  width: var(--icon-size-compact);
+  height: var(--icon-size-compact);
+  background-color: var(--muted-foreground);
+  -webkit-mask: var(--dana-icon-chevron-down) center / contain no-repeat;
+  mask: var(--dana-icon-chevron-down) center / contain no-repeat;
+}
+.dana-thread .dana-thread-fold[aria-expanded='false'] > span {
+  -webkit-mask-image: var(--dana-icon-chevron-right);
+  mask-image: var(--dana-icon-chevron-right);
+}
+.dana-thread .dana-thread-fold:is(:hover, :focus-visible) { background: var(--background); }
+.dana-thread .dana-thread-fold:is(:hover, :focus-visible) > span { display: block; }
+.dana-thread .dana-thread-fold:focus-visible { outline: var(--focus-ring-width) solid var(--ring); }
+
 /* "Earlier work": the break above a long done stretch's last three. The
    rule `threadStyle` writes gives the block room above and cuts its line. */
-:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer::after {
+.dana-thread .dana-thread-break {
   position: absolute;
-  top: 0;
-  inset-inline-start: var(--dana-thread-inset);
+  z-index: 2;
+  inset-inline-start: calc(var(--dana-at-x) + var(--dana-thread-inset));
+  top: var(--dana-at-y);
   height: var(--row-height);
   line-height: var(--row-height);
   font-size: var(--text-xs);
   color: var(--muted-foreground);
   cursor: pointer;
 }
-@media (hover: hover) {
-  :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer:hover::after { color: var(--foreground); }
-}
+.dana-thread .dana-thread-break:hover { color: var(--foreground); }
+.dana-thread .dana-thread-break:focus-visible { outline: var(--focus-ring-width) solid var(--ring); border-radius: var(--radius-sm); }
 
 /* The end of the project: one plain line, only when nothing is open. */
 .dana-thread .dana-thread-end {
@@ -242,15 +292,15 @@
 .dana-thread .dana-thread-end:focus-visible { outline: var(--focus-ring-width) solid var(--ring); outline-offset: var(--focus-ring-width); border-radius: var(--radius-sm); }
 .dana-thread:has(> .dana-thread-end) .dana-canvas-tail { min-height: calc(var(--spacing) * 4); }
 
-/* Phone: a narrower rail, a smaller heading badge, no gutter; meta wraps
-   under the title as one line. */
+/* Phone: a narrower rail and a smaller heading badge; meta wraps under the
+   title as one line. The gutter's handle stays until a touch drag exists
+   (canvas.css hides it for touch and at 480px and below). */
 @media (max-width: 767px) {
   .dana-thread {
     --dana-thread-rail: calc(var(--spacing) * 6);
     --dana-thread-gap: calc(var(--spacing) * 2);
   }
   .dana-thread .bn-block:has(> .bn-block-content[data-dana-section]) { --dana-badge-size: var(--icon-size-compact); }
-  .dana-thread .bn-side-menu { display: none; }
   .dana-thread .dana-thread-row { flex-wrap: wrap; }
   .dana-thread .dana-thread-meta { flex-basis: 100%; padding-block-end: var(--spacing); }
 }
