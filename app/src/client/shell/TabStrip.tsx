@@ -5,15 +5,16 @@ This is intentionally separate from a Folder's Purpose / Work / Results /
 Discussion tabs. Those change the view inside one page; these tabs remember
 which Dana places are open. The sidebar still answers where things live.
 
-The + is an open-place search, not a creation menu. It reuses Dana's search
-answer so a person can open a Page, Collection or Task without restoring the
-old New folder / New shelf / New task menu.
+The + is primarily an open-place search. It reuses Dana's search answer so a
+person can open a Page, Collection or Task, and keeps one separated New page
+action at the bottom rather than restoring the old mixed creation menu.
 */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 
+import { useCreateFolder } from '../api/mutations.js'
 import { useBundle, useFolders, useShelves, useTask } from '../api/queries.js'
-import { CheckCircle2, FileText, Plus, Search, Settings, Trash2, X } from '../lib/icons.js'
+import { CheckCircle2, FileText, Folders, Plus, Search, Settings, Trash2, X } from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
 import { SHORTCUTS_RESULT, useSearchAnswer, type SearchAnswer } from '../lib/search-items.js'
 import { useSortableList } from '../lib/use-sortable-list.js'
@@ -25,6 +26,7 @@ import { DEFAULT_FOCUS_LISTS } from '../../shared/bundle.js'
 import type { FocusAppearance } from '../../shared/bundle.js'
 import type { Folder } from '../../shared/folders.js'
 import type { Shelf } from '../../shared/shelves.js'
+import { FOLDER_ACTION_PARAM } from './app-sidebar.js'
 import { focusList, focusMark, isFocusKey } from './focus-lists.js'
 import {
   closeTab,
@@ -46,6 +48,8 @@ interface OpenPlace {
   readonly path: string
   readonly label: string
   readonly hint: string
+  readonly icon: LucideIcon
+  readonly color?: string
 }
 
 interface TabIdentity {
@@ -169,22 +173,52 @@ function TabFace({
   )
 }
 
-function searchPlace(item: SearchItem): OpenPlace | null {
+function searchPlace(item: SearchItem, places: readonly OpenPlace[]): OpenPlace | null {
   if (item.id === SHORTCUTS_RESULT) return null
+
+  let result: OpenPlace
   switch (item.kind) {
     case 'task':
-      return {
+      result = {
         path: paths.task(item.id),
         label: item.title,
         hint: item.hint ? `Task · ${item.hint}` : 'Task',
+        icon: CheckCircle2,
       }
+      break
     case 'folder':
-      return { path: paths.folder(item.id), label: item.title, hint: 'Page' }
+      result = {
+        path: paths.folder(item.id),
+        label: item.title,
+        hint: 'Page',
+        icon: item.icon ?? FileText,
+        ...(item.color === undefined ? {} : { color: item.color }),
+      }
+      break
     case 'shelf':
-      return { path: paths.shelf(item.id), label: item.title, hint: 'Collection' }
+      result = {
+        path: paths.shelf(item.id),
+        label: item.title,
+        hint: 'Collection',
+        icon: item.icon ?? Folders,
+        ...(item.color === undefined ? {} : { color: item.color }),
+      }
+      break
     case 'page':
-      return { path: item.id, label: item.title, hint: item.passage ? item.hint ?? 'In page' : 'Place' }
+      result = {
+        path: item.id,
+        label: item.title,
+        hint: item.passage ? item.hint ?? 'In page' : 'Place',
+        icon: item.icon ?? FileText,
+        ...(item.color === undefined ? {} : { color: item.color }),
+      }
+      break
   }
+
+  /* Search owns ranking, while the in-hand place list owns the freshest
+     identity. Prefer that complete local row when the destination is already
+     known here; passages and tasks still keep the search result itself. */
+  return places.find((place) => place.path === result.path) ?? result
 }
 
 function uniquePlaces(places: readonly OpenPlace[]): OpenPlace[] {
@@ -196,9 +230,14 @@ function uniquePlaces(places: readonly OpenPlace[]): OpenPlace[] {
   })
 }
 
-function OpenPlacePicker({ places, onPick }: {
+function OpenPlacePicker({
+  places,
+  onPick,
+  onCreatePage,
+}: {
   readonly places: readonly OpenPlace[]
   readonly onPick: (path: string) => void
+  readonly onCreatePage: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -222,7 +261,7 @@ function OpenPlacePicker({ places, onPick }: {
       `${place.label} ${place.hint}`.toLocaleLowerCase().includes(needle),
     )
     const searched = answer.results
-      .map(searchPlace)
+      .map((item) => searchPlace(item, places))
       .filter((place): place is OpenPlace => place !== null)
     return uniquePlaces([...searched, ...local])
   }, [answer.results, debouncedQuery, places])
@@ -240,6 +279,11 @@ function OpenPlacePicker({ places, onPick }: {
     if (place === undefined) return
     changeOpen(false)
     onPick(place.path)
+  }
+
+  function createPage(): void {
+    changeOpen(false)
+    onCreatePage()
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
@@ -312,26 +356,45 @@ function OpenPlacePicker({ places, onPick }: {
           ) : shown.length === 0 ? (
             <p className="px-2 py-1.5 text-sm text-muted-foreground">No places found</p>
           ) : (
-            shown.map((place, index) => (
-              <button
-                key={place.path}
-                id={`dana-open-tab-${String(index)}`}
-                type="button"
-                role="option"
-                aria-selected={index === active}
-                tabIndex={-1}
-                onMouseDown={(event) => event.preventDefault()}
-                onMouseMove={() => setActive(index)}
-                onClick={() => pick(place)}
-                className={`flex h-[var(--control-height)] w-full items-center gap-2 rounded-md px-2 text-left text-sm font-normal text-foreground ${
-                  index === active ? 'bg-accent' : ''
-                }`}
-              >
-                <span className="min-w-0 flex-1 truncate">{place.label}</span>
-                <span className="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground">{place.hint}</span>
-              </button>
-            ))
+            shown.map((place, index) => {
+              const Icon = place.icon
+              return (
+                <button
+                  key={place.path}
+                  id={`dana-open-tab-${String(index)}`}
+                  type="button"
+                  role="option"
+                  aria-selected={index === active}
+                  tabIndex={-1}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseMove={() => setActive(index)}
+                  onClick={() => pick(place)}
+                  className={`flex h-[var(--control-height)] w-full items-center gap-2 rounded-md px-2 text-left text-sm font-normal text-foreground ${
+                    index === active ? 'bg-accent' : ''
+                  }`}
+                >
+                  <Icon
+                    className="size-4 shrink-0"
+                    strokeWidth={1.75}
+                    style={place.color === undefined ? undefined : { color: place.color }}
+                    aria-hidden="true"
+                  />
+                  <span className="min-w-0 flex-1 truncate">{place.label}</span>
+                  <span className="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground">{place.hint}</span>
+                </button>
+              )
+            })
           )}
+        </div>
+        <div className="mt-1 border-t border-border pt-1">
+          <button
+            type="button"
+            onClick={createPage}
+            className="flex h-[var(--control-height)] w-full items-center gap-2 rounded-md px-2 text-left text-sm font-normal text-foreground hover:bg-accent"
+          >
+            <Plus className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+            <span>New page</span>
+          </button>
         </div>
       </PopoverContent>
     </Popover>
@@ -346,6 +409,8 @@ export function TabStrip() {
   const bundle = useBundle().data
   const focusKeys = bundle?.focus_lists ?? DEFAULT_FOCUS_LISTS
   const focusAppearance = bundle?.focus_appearance
+  const createFolder = useCreateFolder()
+  const creatingPage = useRef(false)
   const { tabs, activeId } = useTabs()
   const tablist = useRef<HTMLDivElement>(null)
   const desk = folders.find((folder) => folder.is_default)
@@ -357,35 +422,59 @@ export function TabStrip() {
   }, [route])
 
   const places = useMemo<readonly OpenPlace[]>(() => {
-    const fixed: OpenPlace[] = navPages.map((page) => ({
-      path: page.path,
-      label: page.name,
-      hint: 'Focus',
-    }))
+    const fixed: OpenPlace[] = navPages.map((page) => {
+      const mark = focusMark(page.key, focusAppearance)
+      return {
+        path: page.path,
+        label: page.name,
+        hint: 'Focus',
+        icon: mark.icon,
+        ...(mark.color === undefined ? {} : { color: mark.color }),
+      }
+    })
     const fixedPaths = new Set(fixed.map((place) => place.path))
     const extraFocus = focusKeys
       .map((key) => focusList(key))
       .filter((list) => !fixedPaths.has(list.path))
-      .map((list): OpenPlace => ({ path: list.path, label: list.name, hint: 'Focus' }))
-    const pages = folders.map((folder): OpenPlace => ({
-      path: paths.folder(folder.id),
-      label: folder.name,
-      hint: 'Page',
-    }))
-    const collections = shelves.map((shelf): OpenPlace => ({
-      path: paths.shelf(shelf.id),
-      label: shelf.name,
-      hint: 'Collection',
-    }))
+      .map((list): OpenPlace => {
+        const mark = focusMark(list.key, focusAppearance)
+        return {
+          path: list.path,
+          label: list.name,
+          hint: 'Focus',
+          icon: mark.icon,
+          ...(mark.color === undefined ? {} : { color: mark.color }),
+        }
+      })
+    const pages = folders.map((folder): OpenPlace => {
+      const mark = folderMark(folder)
+      return {
+        path: paths.folder(folder.id),
+        label: folder.name,
+        hint: 'Page',
+        icon: mark.icon,
+        color: mark.color,
+      }
+    })
+    const collections = shelves.map((shelf): OpenPlace => {
+      const mark = shelfMark(shelf)
+      return {
+        path: paths.shelf(shelf.id),
+        label: shelf.name,
+        hint: 'Collection',
+        icon: mark.icon,
+        color: mark.color,
+      }
+    })
     return [
       ...fixed,
       ...extraFocus,
       ...pages,
       ...collections,
-      { path: paths.settings, label: 'Settings', hint: 'Place' },
-      { path: paths.trash, label: 'Trash', hint: 'Place' },
+      { path: paths.settings, label: 'Settings', hint: 'Place', icon: Settings },
+      { path: paths.trash, label: 'Trash', hint: 'Place', icon: Trash2 },
     ]
-  }, [focusKeys, folders, shelves])
+  }, [focusAppearance, focusKeys, folders, shelves])
 
   const drag = useSortableList({
     count: tabs.length,
@@ -399,6 +488,22 @@ export function TabStrip() {
 
   function go(path: string): void {
     void navigate(path)
+  }
+
+  function createPage(): void {
+    if (creatingPage.current) return
+    creatingPage.current = true
+    createFolder.mutate(
+      { name: 'Untitled' },
+      {
+        onSuccess: (made) => {
+          go(openInNewTab(`${paths.folder(made.id)}?${FOLDER_ACTION_PARAM}=rename`))
+        },
+        onSettled: () => {
+          creatingPage.current = false
+        },
+      },
+    )
   }
 
   function close(id: string): void {
@@ -535,6 +640,7 @@ export function TabStrip() {
         onPick={(path) => {
           go(openInNewTab(path))
         }}
+        onCreatePage={createPage}
       />
     </div>
   )
