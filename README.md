@@ -18,5 +18,3 @@ the rest of the docs live.
 
 **Team:** Hassan runs the project, the back end and the infrastructure, built with Claude Code. Imran
 does product and design.
-
-*Written with love by Hassan.*
