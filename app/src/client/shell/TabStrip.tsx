@@ -216,16 +216,9 @@ function searchPlace(item: SearchItem, places: readonly OpenPlace[]): OpenPlace 
   }
 
   /* Search owns ranking, while the in-hand place list owns the freshest
-     identity. Merge the latter into a matching result instead of letting the
-     same destination grow a second icon resolver here. */
-  const local = places.find((place) => place.path === result.path)
-  return local === undefined
-    ? result
-    : {
-        ...result,
-        icon: local.icon,
-        ...(local.color === undefined ? { color: undefined } : { color: local.color }),
-      }
+     identity. Prefer that complete local row when the destination is already
+     known here; passages and tasks still keep the search result itself. */
+  return places.find((place) => place.path === result.path) ?? result
 }
 
 function uniquePlaces(places: readonly OpenPlace[]): OpenPlace[] {
