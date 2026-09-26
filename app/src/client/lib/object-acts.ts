@@ -61,7 +61,6 @@ import {
   RotateCcw,
   SunMedium,
   Trash2,
-  UserRoundCheck,
 } from './icons.js'
 import type { LucideIcon } from './icons.js'
 
@@ -141,42 +140,41 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     which offers exactly one destination and is a different thing.
     */
     { key: 'open', label: 'Open in…', icon: Fullscreen, group: 1 },
-    { key: 'history', label: 'History', icon: History, group: 1 },
+    /* No History: the task page's one timeline is its history (M4). */
     /* Today membership from the row's own menu, the pair of 7.8's pull and its
        DELETE, offered one at a time the way abandon and restore are. */
     { key: 'pull', label: 'Add to Today', icon: SunMedium, group: 2 },
     { key: 'unpull', label: 'Remove from Today', icon: SunMedium, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
-    { key: 'abandon', label: 'Abandon', icon: Ban, group: 4 },
+    /* The key keeps its stored word; the screen says Drop (M4's To do · Done · Dropped). */
+    { key: 'abandon', label: 'Drop', icon: Ban, group: 4 },
     { key: 'restore', label: 'Restore', icon: RotateCcw, group: 4 },
     { key: 'delete', label: 'Delete task', icon: Trash2, group: 5, destructive: true },
   ],
   /*
   **One folder menu, drawn identically in its three homes**: the folder page's
   header "…", the Library row's "…", and a right-click on that row (which opens
-  the row's "…"). Every surface passes the same handlers, so the order below is
-  the menu; nothing arrives through `extra`. "Open in a new tab" left with the
-  tab strip.
+  the row's "…"). Every surface passes the same handlers (M4: the page passes
+  Rename and Add a page inside, the row History and Import), so the order below
+  is the menu; nothing arrives through `extra`.
+
+  **Export as template and Transfer ownership are Share's** (M4): both are
+  about who else gets the page, so they sit in the sharing panel and never
+  here. A surface that still passes `workflow` or `transfer` draws nothing,
+  since an act with no spec in this list is not drawn.
   */
   folder: [
     { key: 'history', label: 'History', icon: History, group: 1 },
-    /* Rename and Add a page inside are the sidebar row's: on the page itself
-       the title is edited in place and `/page` adds a sub-page, so the page
-       passes neither. Tabs are managed on the tab strip itself. */
     { key: 'rename', label: 'Rename', icon: Pencil, group: 2 },
     { key: 'add-page', label: 'Add a page inside', icon: Plus, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
-    /* Notion's pair (round 3): Import brings a file in under this page,
-       Export writes this page to a file. The key keeps its old name so the
-       sidebar's `?folder-action=workflow` deep link still reaches it. */
+    /* Import brings a file in under this page (round 3). */
     { key: 'import', label: 'Import as sub-page…', icon: FolderInput, group: 3 },
-    { key: 'workflow', label: 'Export as template', icon: Download, group: 3 },
     /* Leave and Delete are never offered together: a surface supplies the one
        its viewer's role permits (9.6's matrix), which is the contract's own
        safety property doing the permission work. */
-    { key: 'transfer', label: 'Transfer ownership…', icon: UserRoundCheck, group: 4 },
     /* Leave asks first (access goes, no undo), so it keeps its ellipsis;
        Delete goes to Trash with undo and asks nothing. */
     { key: 'leave', label: 'Leave page…', icon: LogOut, group: 4 },

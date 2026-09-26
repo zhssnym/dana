@@ -423,16 +423,13 @@ function usePageTreeValue({
 }): PageTreeValue {
   const navigate = useNavigate()
   const move = useMoveFolder()
-  const create = useCreateFolder()
+  const addPageInside = useAddPageInside()
   const remove = useDeleteFolder()
   const restore = useRestoreFolder()
   const leaveFolder = useLeaveFolder()
   const renameFolder = useRenameFolder()
   const [renaming, setRenaming] = useState<string | null>(null)
   const [leaving, setLeaving] = useState<Folder | null>(null)
-  /* Set on the press, before the mutation's own pending state has rendered:
-     a double click lands both clicks in the same frame. */
-  const creating = useRef(false)
   const tree = useMemo(() => buildTree(folders), [folders])
   const [folded, setFolded] = useState(readPageFolds)
   const [mark, setMark] = useState<TreeDrop['mark'] | null>(null)
@@ -519,24 +516,9 @@ function usePageTreeValue({
     clearMark,
     commit,
     addInside: (parent) => {
-      /* One page per press: a held key or a double click must not stack
-         Untitled pages while the first create is in flight. */
-      if (creating.current) return
-      creating.current = true
-      create.mutate(
-        { name: 'Untitled', parent_folder_id: parent.id },
-        {
-          onSettled: () => {
-            creating.current = false
-          },
-          onSuccess: (made) => {
-            setFold(parent.id, false)
-            /* Opened with its name field focused and selected, so typing
-               replaces "Untitled" (the folder page's rename act). */
-            void navigate(folderActionPath(made.id, 'rename'))
-          },
-        },
-      )
+      addPageInside(parent.id, () => {
+        setFold(parent.id, false)
+      })
     },
     mayEdit: mayEditPage,
     renaming,
@@ -664,18 +646,48 @@ function inboxOf(folders: readonly Folder[]): Folder | null {
 }
 
 /*
-The acts a Library row can perform on its page, all run in place (the page
-keeps History, Tabs…, Import… and Export). `?folder-action=` remains for a new
-page's name field and an owner's delete question, which live on the page.
-`folderGates` decides which a viewer gets, the same call the page makes.
+The acts a Library row runs by asking the page: `?folder-action=` opens a new
+page's name field, an owner's delete question and the page's History, which
+all live on the page. `folderGates` decides which a viewer gets, the same call
+the page makes.
 */
-export type FolderAction = 'rename' | 'leave' | 'delete'
+export type FolderAction = 'rename' | 'leave' | 'delete' | 'history'
 
 /** The query the folder page reads to run an act the Library asked for. */
 export const FOLDER_ACTION_PARAM = 'folder-action'
 
 function folderActionPath(id: string, action: FolderAction): string {
   return `${paths.folder(id)}?${FOLDER_ACTION_PARAM}=${action}`
+}
+
+/**
+ * The folder menu's "Add a page inside", wherever the menu opens (the row and
+ * the page's own "…"): an Untitled sub-page, opened with its name field
+ * focused and selected, so typing replaces "Untitled".
+ */
+export function useAddPageInside(): (parentId: string, onMade?: () => void) => void {
+  const navigate = useNavigate()
+  const create = useCreateFolder()
+  /* One page per press: a held key or a double click must not stack Untitled
+     pages while the first create is in flight. Set on the press, before the
+     mutation's own pending state has rendered. */
+  const creating = useRef(false)
+  return (parentId, onMade) => {
+    if (creating.current) return
+    creating.current = true
+    create.mutate(
+      { name: 'Untitled', parent_folder_id: parentId },
+      {
+        onSettled: () => {
+          creating.current = false
+        },
+        onSuccess: (made) => {
+          onMade?.()
+          void navigate(folderActionPath(made.id, 'rename'))
+        },
+      },
+    )
+  }
 }
 
 function SidebarFolderRow({
@@ -704,6 +716,7 @@ function SidebarFolderRow({
   const display = folderRowDisplay(folder)
   const navigate = useNavigate()
   const duplicate = useDuplicateFolder()
+  const importPage = usePageImport()
   const gates = folderGates({
     access: folder.my_access,
     isOwner: folder.is_owner,
@@ -756,10 +769,12 @@ function SidebarFolderRow({
       onRename={(name) => {
         pages.rename(folder, name)
       }}
-      /* The row's menu: Rename, Copy link, Duplicate, then Leave or Delete
-         by role, each run here. The page's own "…" keeps History, Tabs…,
-         Import… and Export. */
+      /* The row's menu is the page's own "…" (`lib/object-acts.ts`), with
+         this row's plumbing: History opens on the page, the rest run here. */
       acts={{
+        history: () => {
+          void navigate(folderActionPath(folder.id, 'history'))
+        },
         /* In the menu as well as on the hover "+", which is out of the Tab
            order: this is the keyboard's way to it (Shift+F10). */
         'add-page':
@@ -783,6 +798,13 @@ function SidebarFolderRow({
             },
           })
         },
+        /* Into this page, which needs edit rights here; never the Desk. */
+        import:
+          gates.identity && !folder.is_default
+            ? () => {
+                importPage(folder.id)
+              }
+            : undefined,
         leave: gates.leave
           ? () => {
               pages.leave(folder)

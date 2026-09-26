@@ -11,8 +11,7 @@ import type { TaskCard } from '../../shared/tasks.js'
 import { useCreateTask, usePullIntoMyDay } from '../api/mutations.js'
 import { useMe } from '../api/queries.js'
 import { presenterToday } from '../parts/presenters.js'
-import { AddCoverAction, PageCover } from '../components/page-cover.js'
-import { PageMark, usePageHasCover } from '../components/page-head.js'
+import { PageMark } from '../components/page-head.js'
 import { Button } from '../components/ui/button.js'
 import { Image as ImageIcon } from '../lib/icons.js'
 import { useWearFilterLabel } from '../api/labels.js'
@@ -228,52 +227,27 @@ export function ScreenHead({
 }
 
 /**
- * A Focus page's head uses the same mark-and-cover composition as every other
- * first-class Dana page. The three fixed Focus pages already have durable place
- * cover storage. Added Focus lists may name an equivalent legacy place store;
- * a list with no durable store keeps its native icon and plain head rather than
- * pretending a browser-only choice is saved.
+ * A Focus page's head: the page's mark and its name. Covers are a project's
+ * alone (M4), so a system page draws none and offers none; a cover stored for
+ * one earlier is kept, not drawn.
  */
 export function PlaceHead({
   place,
   fact,
   bare = false,
-  identityKey,
 }: {
   readonly place: Place
   /** Today's "N of M done". */
   readonly fact?: string
   /** An empty list has nothing to group or sort: no View menu. */
   readonly bare?: boolean
-  /** Durable place-cover key for an added Focus list, where one exists. */
+  /** Retired in M4 with system-page covers, never read; kept so a caller that
+      still passes it compiles. */
   readonly identityKey?: string
 }): React.JSX.Element {
-  const nativeIdentityKey =
-    place.spine.key === 'today' ||
-    place.spine.key === 'scheduled' ||
-    place.spine.key === 'assignments'
-      ? place.spine.key
-      : undefined
-  const storageName = identityKey ?? nativeIdentityKey
-  /* Hooks are unconditional. `today` is only a harmless read fallback when a
-     Focus list has no durable identity store; `hasCover` keeps it from drawing. */
-  const coverStorageName = storageName ?? 'today'
-  const storedCover = usePageHasCover(coverStorageName)
-  const hasCover = storageName !== undefined && storedCover
-
   return (
-    <header className={hasCover ? 'group/head pt-0' : 'group/head pt-2'}>
-      {hasCover ? (
-        <div className="-mt-4 md:-mt-6">
-          <PageCover storageName={coverStorageName} />
-        </div>
-      ) : null}
-      <PageMark icon={place.spine.icon} hasCover={hasCover} />
-      {storageName === undefined ? null : (
-        <div className="mt-1">
-          <AddCoverAction storageName={storageName} />
-        </div>
-      )}
+    <header className="group/head pt-2">
+      <PageMark icon={place.spine.icon} hasCover={false} />
       <div className="mt-1.5 flex items-baseline justify-between gap-6">
         <div className="flex min-w-0 items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
           <h1 data-page-title="" className="min-w-0 max-w-full truncate text-[length:var(--text-title-size)] leading-8 font-title text-foreground max-md:whitespace-normal">

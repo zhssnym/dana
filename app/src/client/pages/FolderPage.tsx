@@ -149,7 +149,7 @@ import { mayPerform, ruleFor } from '../../shared/folder-actions.js'
    against #228's closed vocabulary of every Folder action there is. */
 import type { FolderAction as FolderActionName } from '../../shared/folder-actions.js'
 import { paths } from '../routes.js'
-import { FOLDER_ACTION_PARAM } from '../shell/app-sidebar.js'
+import { FOLDER_ACTION_PARAM, useAddPageInside } from '../shell/app-sidebar.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { usePageImport } from '../shell/workflow-import.js'
@@ -248,6 +248,7 @@ export function FolderPage({
   const id = folderId ?? routeId
   const navigate = useNavigate()
   const importFile = usePageImport()
+  const addPageInside = useAddPageInside()
   const [search, setSearch] = useSearchParams()
   /* Linear, Board or Freeform: this device's choice for every page, kept apart
      from the place pages' layout. `?mode=` seeds it, as it seeds theirs. */
@@ -1009,6 +1010,9 @@ export function FolderPage({
           history: () => {
             setHistoryOpen(true)
           },
+          /* The Library row's pair (M4: one menu, the same items everywhere). */
+          rename: gates?.identity === true ? () => setRenaming(true) : undefined,
+          'add-page': gates?.identity === true && !isDefault ? () => addPageInside(id) : undefined,
           'copy-link': () => {
             void navigator.clipboard.writeText(folderLink(id))
           },
@@ -1028,16 +1032,6 @@ export function FolderPage({
               ? () => {
                   importFile(id)
                 }
-              : undefined,
-          workflow: () => {
-            void saveAsWorkflow()
-          },
-          /* Offered whenever the folder is shared and the viewer owns it,
-             rather than only when somebody is eligible: the dialog says what
-             to do when nobody is. */
-          transfer:
-            gates?.transferOwnership === true && others.length > 0
-              ? () => setTransferOpen(true)
               : undefined,
           /* Any member's, refused to the owner until they transfer and to the
              last Full-control member; `folderGates` reads both off the roster. */
@@ -1219,6 +1213,21 @@ export function FolderPage({
           onClose={() => {
             setSharing(false)
           }}
+          /* Export and Transfer are Share's (M4), no longer the "…"'s. */
+          onExport={() => {
+            void saveAsWorkflow()
+          }}
+          /* Offered whenever the folder is shared and the viewer owns it,
+             rather than only when somebody is eligible: the dialog says what
+             to do when nobody is. */
+          onTransfer={
+            gates?.transferOwnership === true && others.length > 0
+              ? () => {
+                  setSharing(false)
+                  setTransferOpen(true)
+                }
+              : undefined
+          }
         />
       ) : null}
 
