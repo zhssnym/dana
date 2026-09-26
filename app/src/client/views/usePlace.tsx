@@ -3,18 +3,24 @@ What every place-page shares: its header (title and the View menu), its View
 settings, its layout, and the capture its spine defines. A page keeps only
 which rows it reads and how it arranges them when nobody asked for a grouping.
 */
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
 
+import type { FocusListKey, PatchFocusAppearance } from '../../shared/bundle.js'
 import type { TaskCard } from '../../shared/tasks.js'
-import { useCreateTask, usePullIntoMyDay } from '../api/mutations.js'
-import { useMe } from '../api/queries.js'
+import { useCreateTask, usePatchBundle, usePullIntoMyDay } from '../api/mutations.js'
+import { useBundle, useMe } from '../api/queries.js'
 import { presenterToday } from '../parts/presenters.js'
-import { PageMark } from '../components/page-head.js'
+import { AddCoverAction, PageCover } from '../components/page-cover.js'
+import { PageMark, usePageHasCover } from '../components/page-head.js'
+import { IconPicker } from '../components/page/IconPicker.js'
 import { Button } from '../components/ui/button.js'
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover.js'
 import { Image as ImageIcon } from '../lib/icons.js'
 import { useWearFilterLabel } from '../api/labels.js'
+import { focusMark } from '../shell/focus-lists.js'
+import type { FocusMark } from '../shell/focus-lists.js'
 import { labelsWorn, sortRows, wearsLabel } from './filter.js'
 import type { GroupBy, PageFilter } from './filter.js'
 import { usePageFilter } from './filter-store.js'
@@ -29,6 +35,15 @@ The address bar as it is now. React Router's copy lags a navigation (issue
 */
 function liveSearch(): URLSearchParams {
   return new URLSearchParams(window.location.search)
+}
+
+function focusAppearancePatch(
+  key: FocusListKey,
+  value: null | { icon?: string | null; color?: string | null },
+): PatchFocusAppearance {
+  const patch: PatchFocusAppearance = {}
+  patch[key] = value
+  return patch
 }
 
 export interface Place {
@@ -187,21 +202,128 @@ export function ScreenHead({
 }
 
 /**
- * A Focus page's head: the page's mark and its name. Covers are a project's
- * alone (M4), so a system page draws none and offers none; a cover stored for
- * one earlier is kept, not drawn.
+ * A Focus page's head uses the same mark-and-cover composition as every other
+ * first-class Dana page. Its mark reads and writes #353's account-level Focus
+ * appearance, while its cover stays on the existing native-place cover path.
+ * It keeps no View menu and no count (M4); a page passes its own controls.
  */
 export function PlaceHead({
   place,
   controls,
+  identityKey,
+  focusKey,
 }: {
   readonly place: Place
   /** The page's own controls, if any. Focus pages keep no View menu (M4). */
   readonly controls?: ReactNode
+  /** Durable place-cover key for an added Focus list. */
+  readonly identityKey?: string
+  /** Added Focus lists use a generic spine, so their account identity key is explicit. */
+  readonly focusKey?: FocusListKey
 }): React.JSX.Element {
+  const nativeIdentityKey =
+    place.spine.key === 'today' ||
+    place.spine.key === 'scheduled' ||
+    place.spine.key === 'assignments'
+      ? place.spine.key
+      : undefined
+  const storageName = identityKey ?? nativeIdentityKey
+  const nativeFocusKey: FocusListKey | undefined =
+    place.spine.key === 'today' ||
+    place.spine.key === 'scheduled' ||
+    place.spine.key === 'assignments'
+      ? place.spine.key
+      : undefined
+  const resolvedFocusKey = focusKey ?? nativeFocusKey
+  const bundle = useBundle()
+  const patchBundle = usePatchBundle()
+  const [markOpen, setMarkOpen] = useState(false)
+  const appearance =
+    resolvedFocusKey === undefined
+      ? undefined
+      : bundle.data?.focus_appearance[resolvedFocusKey]
+  const mark: FocusMark =
+    resolvedFocusKey === undefined
+      ? { icon: place.spine.icon }
+      : focusMark(resolvedFocusKey, bundle.data?.focus_appearance)
+
+  /* Hooks are unconditional. `today` is only a harmless read fallback when a
+     place has no durable cover store; `hasCover` keeps it from drawing. */
+  const coverStorageName = storageName ?? 'today'
+  const storedCover = usePageHasCover(coverStorageName)
+  const hasCover = storageName !== undefined && storedCover
+
+  function saveFocusAppearance(
+    value: null | { icon?: string | null; color?: string | null },
+  ): void {
+    if (resolvedFocusKey === undefined) return
+    patchBundle.mutate({
+      focus_appearance: focusAppearancePatch(resolvedFocusKey, value),
+    })
+  }
+
   return (
-    <header className="group/head pt-2">
-      <PageMark icon={place.spine.icon} hasCover={false} />
+    <header className={hasCover ? 'group/head pt-0' : 'group/head pt-2'}>
+      {hasCover ? (
+        <div className="-mt-4 md:-mt-6">
+          <PageCover storageName={coverStorageName} />
+        </div>
+      ) : null}
+      {resolvedFocusKey === undefined ? (
+        <PageMark icon={mark.icon} hasCover={hasCover} />
+      ) : (
+        <Popover open={markOpen} onOpenChange={setMarkOpen}>
+          <PopoverTrigger
+            render={
+              <PageMark
+                icon={mark.icon}
+                hasCover={hasCover}
+                interactive
+                aria-label={`Icon and colour for ${place.spine.name}`}
+                {...(mark.color === undefined ? {} : { color: mark.color })}
+              />
+            }
+          />
+          <PopoverContent align="start" className="w-auto p-0">
+            <IconPicker
+              icon={appearance?.icon ?? null}
+              color={appearance?.color ?? null}
+              onPick={(next) => {
+                saveFocusAppearance(next)
+              }}
+              {...(appearance?.icon == null
+                ? {}
+                : {
+                    onRemove: () => {
+                      saveFocusAppearance({ icon: null })
+                      setMarkOpen(false)
+                    },
+                  })}
+            />
+            {appearance === undefined ? null : (
+              <div className="border-t border-border p-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start text-muted-foreground"
+                  onClick={() => {
+                    saveFocusAppearance(null)
+                    setMarkOpen(false)
+                  }}
+                >
+                  Reset to default
+                </Button>
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+      )}
+      {storageName === undefined ? null : (
+        <div className="mt-1">
+          <AddCoverAction storageName={storageName} />
+        </div>
+      )}
       <div className="mt-1.5 flex items-baseline justify-between gap-6">
         <div className="flex min-w-0 items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
           <h1 data-page-title="" className="min-w-0 max-w-full truncate text-[length:var(--text-title-size)] leading-8 font-title text-foreground max-md:whitespace-normal">

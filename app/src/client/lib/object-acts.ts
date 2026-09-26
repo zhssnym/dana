@@ -81,6 +81,10 @@ export type ActKey =
      in and a task offers four (9.3's dialog, panel, tab and page), so the act
      is the reaching and the label says how per kind. */
   | 'open'
+  /* The explicit workspace-tab path restored in #340/#342. It is separate
+     from `open`: normal navigation keeps its existing surface, while this act
+     preserves the current workspace tab and activates another one. */
+  | 'open-tab'
   | 'history'
   | 'rename'
   /* A new page inside this one. The sidebar row draws it as a "+" under a
@@ -135,10 +139,10 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     /*
     `Fullscreen` and not `OpenInNewTab`. A task offers four ways in and this act
     is the choosing of one, so the glyph is the one that means "somewhere
-    larger"; `OpenInNewTab` is the glyph for the folder's act one list down,
-    which offers exactly one destination and is a different thing.
+    larger"; the explicit workspace-tab act below is the one exact destination.
     */
     { key: 'open', label: 'Open in…', icon: Fullscreen, group: 1 },
+    { key: 'open-tab', label: 'Open in new tab', icon: OpenInNewTab, group: 1 },
     /* No History: the task page's one timeline is its history (M4). */
     /* Today membership from the row's own menu, the pair of 7.8's pull and its
        DELETE, offered one at a time the way abandon and restore are. */
@@ -155,8 +159,9 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
   **One folder menu, drawn identically in its three homes**: the folder page's
   header "…", the Library row's "…", and a right-click on that row (which opens
   the row's "…"). Every surface passes the same handlers (M4: the page passes
-  Rename and Add a page inside, the row History and Import), so the order below
-  is the menu; nothing arrives through `extra`.
+  Rename and Add a page inside, the row History, Import and the workspace-tab
+  act), so the order below is the menu; nothing arrives through `extra`. The
+  page itself does not offer a second copy of the destination it is showing.
 
   **Export as template and Transfer ownership are Share's** (M4): both are
   about who else gets the page, so they sit in the sharing panel and never
@@ -164,6 +169,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
   since an act with no spec in this list is not drawn.
   */
   folder: [
+    { key: 'open-tab', label: 'Open in new tab', icon: OpenInNewTab, group: 1 },
     { key: 'history', label: 'History', icon: History, group: 1 },
     { key: 'rename', label: 'Rename', icon: Pencil, group: 2 },
     { key: 'add-page', label: 'Add a page inside', icon: Plus, group: 2 },
@@ -181,6 +187,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
   ],
   shelf: [
     { key: 'open', label: 'Open collection', icon: OpenInNewTab, group: 1 },
+    { key: 'open-tab', label: 'Open in new tab', icon: OpenInNewTab, group: 1 },
     { key: 'history', label: 'History', icon: History, group: 1 },
     { key: 'rename', label: 'Rename collection', icon: Pencil, group: 2 },
     /* 9.10: "the page's address is still copyable, an address not being an

@@ -57,10 +57,10 @@ export type SearchResultItem = {
   status?: SearchResultStatus
   folder?: { name: string; color: string }
   dueDate?: string
-  /* A folder's own colour, for its mark. */
+  /* The identity colour of a result that owns one. */
   color?: string
-  /* The glyph a folder's owner chose, or a passage's text glyph; absent
-     means the plain page glyph. */
+  /* The glyph a result owns, or a passage's text glyph; absent means the
+     plain page glyph. */
   icon?: LucideIcon
   /* How well it matched, best first (`lib/search-items.ts`'s `nameRank`);
      absent means unranked, which sorts as a name match. */
@@ -435,7 +435,7 @@ function SearchDialog({
                             ) : (
                               <Glyph
                                 className="size-4 shrink-0 text-muted-foreground"
-                                style={item.kind === "folder" && item.color ? { color: item.color } : undefined}
+                                style={item.color ? { color: item.color } : undefined}
                                 strokeWidth={1.75}
                                 aria-hidden="true"
                               />
