@@ -22,9 +22,10 @@ import { HistoryArrows } from '../components/breadcrumb-trail.js'
 import { folderMark, shelfMark } from '../parts/presenters.js'
 import { navPages, paths } from '../routes.js'
 import { DEFAULT_FOCUS_LISTS } from '../../shared/bundle.js'
+import type { FocusAppearance } from '../../shared/bundle.js'
 import type { Folder } from '../../shared/folders.js'
 import type { Shelf } from '../../shared/shelves.js'
-import { focusList, isFocusKey } from './focus-lists.js'
+import { focusList, focusMark, isFocusKey } from './focus-lists.js'
 import {
   closeTab,
   openInNewTab,
@@ -83,20 +84,23 @@ function titleFor(path: string, folders: readonly Folder[], shelves: readonly Sh
 One tab face, resolved from the metadata the rest of Dana already uses.
 
 Pages and collections go through the same identity resolvers as their sidebar
-rows, so a chosen mark and colour cannot drift here. Focus pages reuse their
-Focus metadata, and fixed pages reuse `navPages`. A Task's title is the only
-piece the tab store itself does not know, so the face reads that one Task while
-its tab is open; passing null keeps the hook inert for every other destination.
+rows, so a chosen mark and colour cannot drift here. Focus pages use #353's
+same saved resolver as their page head and sidebar row. A Task's title is the
+only piece the tab store itself does not know, so the face reads that one Task
+while its tab is open; passing null keeps the hook inert for every other
+destination.
 */
 function TabFace({
   path,
   folders,
   shelves,
+  focusAppearance,
   labelId,
 }: {
   readonly path: string
   readonly folders: readonly Folder[]
   readonly shelves: readonly Shelf[]
+  readonly focusAppearance: FocusAppearance | undefined
   readonly labelId: string
 }): React.JSX.Element {
   const key = tabKey(path)
@@ -106,12 +110,22 @@ function TabFace({
   let identity: TabIdentity
   const fixed = navPages.find((page) => page.path === key)
   if (fixed !== undefined) {
-    identity = { title: fixed.name, icon: fixed.icon }
+    const mark = focusMark(fixed.key, focusAppearance)
+    identity = {
+      title: fixed.name,
+      icon: mark.icon,
+      ...(mark.color === undefined ? {} : { color: mark.color }),
+    }
   } else if (key.startsWith('/app/lists/')) {
     const listKey = key.slice('/app/lists/'.length)
     if (isFocusKey(listKey)) {
       const list = focusList(listKey)
-      identity = { title: list.name, icon: list.icon }
+      const mark = focusMark(listKey, focusAppearance)
+      identity = {
+        title: list.name,
+        icon: mark.icon,
+        ...(mark.color === undefined ? {} : { color: mark.color }),
+      }
     } else {
       identity = { title: 'Dana', icon: FileText }
     }
@@ -329,7 +343,9 @@ export function TabStrip() {
   const navigate = useNavigate()
   const folders = useFolders().data ?? NO_FOLDERS
   const shelves = useShelves().data ?? NO_SHELVES
-  const focusKeys = useBundle().data?.focus_lists ?? DEFAULT_FOCUS_LISTS
+  const bundle = useBundle().data
+  const focusKeys = bundle?.focus_lists ?? DEFAULT_FOCUS_LISTS
+  const focusAppearance = bundle?.focus_appearance
   const { tabs, activeId } = useTabs()
   const tablist = useRef<HTMLDivElement>(null)
   const desk = folders.find((folder) => folder.is_default)
@@ -495,7 +511,13 @@ export function TabStrip() {
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               } ${state.isActive ? 'opacity-70 shadow-sm' : ''}`}
             >
-              <TabFace path={tab.path} folders={folders} shelves={shelves} labelId={labelId} />
+              <TabFace
+                path={tab.path}
+                folders={folders}
+                shelves={shelves}
+                focusAppearance={focusAppearance}
+                labelId={labelId}
+              />
               <button
                 type="button"
                 aria-label="Close tab"
