@@ -940,8 +940,11 @@ export function FolderPage({
   const listFacet = activeFacet?.kind === 'main' || activeFacet?.kind === 'work'
   /* #208: Board and Linear narrow to one Label; Freeform is a document and
      never hides a block. */
-  const labelFilter = activeFacet?.kind === 'main' && folderView !== 'freeform'
-  const viewMenu = listFacet ? (
+  /* Linear's table header holds its Label filter, and Open · Closed · All say
+     what is shown there, so the page head offers neither (m3 list). */
+  const linearMain = activeFacet?.kind === 'main' && folderView === 'linear'
+  const labelFilter = activeFacet?.kind === 'main' && folderView !== 'freeform' && !linearMain
+  const viewMenu = listFacet && !linearMain ? (
     <>
       <FolderViewMenu
         showCompleted={showCompleted}
@@ -1138,7 +1141,7 @@ export function FolderPage({
                       tasks={visible}
                       completed={completedRows}
                       label={labelFilterId}
-                      showCompleted={showCompleted}
+                      onLabel={(next) => place.setFilter({ ...place.filter, label: next })}
                       today={place.today}
                       context={context}
                       actions={actions}

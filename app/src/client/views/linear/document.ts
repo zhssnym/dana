@@ -77,6 +77,23 @@ export function applyEdit(page: PageView, edit: LineEdit): { document: CanvasDoc
   }
 }
 
+/** Where a task stands now, as a `move_step` would put it back: in front of
+    the next task of its milestone, or at that milestone's end. Undo reads it
+    before a move. */
+export function placementOf(page: PageView, id: string): { section: string | null; before: string | null } {
+  const { blocks, items } = documentOf(page)
+  const sectionIds = new Set(blocks.filter((block) => block.block_kind === 'section').map((block) => block.id))
+  const at = items.findIndex((item) => item.kind === 'task' && item.id === id)
+  const self = items[at]
+  if (self === undefined) return { section: null, before: null }
+  for (let i = at + 1; i < items.length; i++) {
+    const item = items[i]!
+    if (item.kind === 'block' && item.section_block_id === null && sectionIds.has(item.id)) break
+    if (item.kind === 'task' && item.section_block_id === self.section_block_id) return { section: self.section_block_id, before: item.id }
+  }
+  return { section: self.section_block_id, before: null }
+}
+
 function operationsOf(page: PageView, edit: LineEdit) {
   const { document, createTask } = applyEdit(page, edit)
   const operations = canvasOperations(documentOf(page), document)

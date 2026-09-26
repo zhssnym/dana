@@ -11,9 +11,13 @@ today, and every line can be pressed. Each line names the module that binds it:
   under 9.1's undo bar.
 - In a task list (Today, Upcoming, Assigned, a page's Linear and Board) the
   arrows move between tasks, Enter opens the focused task and Space completes
-  it; on Linear, Enter opens the task as an issue and Space closes or reopens it (`components/row-keys.ts`, the rows in `task-row.tsx`, `task-board.tsx`
-  and `views/LinearView.tsx`). Enter also commits a "New task" row
+  it (`components/row-keys.ts`, the rows in `task-row.tsx` and
+  `task-board.tsx`). Enter also commits a "New task" row
   (`components/quick-add.tsx`).
+- In a page's Linear list, `views/LinearView.tsx` binds the issue keys: C or N
+  for New issue, Enter or O to open, Space to close or reopen, X to select,
+  Shift+arrows to extend, Alt+arrows to move the issue, M, A and L for the
+  Milestone, Assignee and Label menus, Esc to clear the selection.
 - Escape closes the open thing: a "New task" row, a dialog through the
   primitive, and a held drag row through `lib/use-sortable-list.ts`.
 - The arrows move the cursor through search's results,
@@ -82,6 +86,21 @@ const GROUPS: readonly { readonly title: string; readonly rows: readonly Shortcu
       { keys: ['↑', '↓'], what: 'Move between tasks' },
       { keys: ['Enter'], what: 'Open the task' },
       { keys: ['Space'], what: 'Complete the task' },
+    ],
+  },
+  {
+    title: 'In a list of issues',
+    rows: [
+      { keys: ['C'], also: ['N'], what: 'New issue' },
+      { keys: ['Enter'], also: ['O'], what: 'Open the issue' },
+      { keys: ['Space'], what: 'Close or reopen the issue' },
+      { keys: ['J'], also: ['K'], what: 'Next or previous issue' },
+      { keys: ['X'], what: 'Select the issue' },
+      { keys: ['Shift', '↑'], also: ['Shift', '↓'], what: 'Select the next one too' },
+      { keys: ['Alt', '↑'], also: ['Alt', '↓'], what: 'Move the issue' },
+      { keys: ['M'], what: 'Milestone' },
+      { keys: ['A'], what: 'Assignee' },
+      { keys: ['L'], what: 'Label' },
     ],
   },
   {

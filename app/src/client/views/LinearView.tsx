@@ -1,8 +1,8 @@
 /*
 The Linear view: the page's tasks as a GitHub Issues list (m3 list; scratchpad
 m3/RESEARCH-LIST.md). One bordered table: a header row (select-all, Open ·
-Closed · All with counts, Milestone, Assignee and Sort menus, the density
-switch, New issue), then one line per issue, then the one "New issue" line.
+Closed · All with counts, Milestone, Assignee, Label and Sort menus, the
+density switch, New issue), then one line per issue, then the one "New issue" line.
 
 In page order (the default sort) milestones are rows of the table, every issue
 sits in its place under its milestone, a closed one too (All shows done work
@@ -12,10 +12,10 @@ milestones: one `move_step` edit of the Work document. Other sorts are flat.
 Only the title opens an issue (`?issue=<id>`, so Back returns here):
 `linear/IssuePage.tsx`. Keys: arrows (and J/K) move, Enter or O opens, Space
 closes or reopens, X selects, Shift+arrows extend, Alt+arrows move the row,
-Esc clears; C focuses New issue, M and A open Milestone and Assignee (and L
-Label for a selection).
+Esc clears; C (or N) focuses New issue, M, A and L open Milestone, Assignee and
+Label. Every bulk act and every move registers one undo.
 */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { useLabels, useSetTaskLabel, useWearFilterLabel } from '../api/labels.js'
@@ -31,7 +31,7 @@ import { GripVertical } from '../lib/icons.js'
 import { moved, useSortableList } from '../lib/use-sortable-list.js'
 import { useRowKeys } from '../components/row-keys.js'
 import { Composer } from './linear/Composer.js'
-import { useLineWriter } from './linear/document.js'
+import { placementOf, useLineWriter } from './linear/document.js'
 import { IssuePage } from './linear/IssuePage.js'
 import { CommentCount, LabelChip, StateMark } from './linear/IssueParts.js'
 import { labelsOf, sectionReader, useCommentCounts, usePeople } from './linear/issues.js'
@@ -41,6 +41,7 @@ import { dropPlacement, listRows, NO_FILTERS, rowState, stateCounts } from './li
 import type { Density, ListFilters, ListRow, ListSort, ListState, RowState } from './linear/list.js'
 import { startDay } from './linear/stage.js'
 import { wearsLabel } from './filter.js'
+import { pushUndo, undoLabel } from '../shell/undo.js'
 import type { RowContext } from '../parts/presenters.js'
 import type { RowActions } from '../parts/useRowActions.js'
 import type { PageView } from '../../shared/pages.js'
@@ -78,6 +79,10 @@ function useStored<T extends string>(key: string, fallback: T, allowed: readonly
   return [value, set]
 }
 
+/* Where the list was when an issue opened, per page: kept outside the
+   component, so a remount on the way back still finds it. */
+const backTo = new Map<string, { scroller: HTMLElement | null; top: number; id: string }>()
+
 const typing = (target: EventTarget | null): boolean =>
   target instanceof HTMLElement &&
   target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""], [role="menu"], [role="dialog"]') !== null
@@ -88,16 +93,15 @@ export function LinearView(props: {
   /* Open work (and not planned), already narrowed to the page's Label filter. */
   readonly tasks: readonly TaskCard[]
   readonly completed: readonly TaskCard[]
-  /* The Label filter's choice, which a task added here is given too. */
+  /* The Label filter's choice, which a task added here is given too. The
+     header's Label menu changes it (the page's filter, not a second one). */
   readonly label: string | null
-  /* The page's "Show completed" belongs to the other views; here the state
-     switch (Open · Closed · All) says what is shown. */
-  readonly showCompleted: boolean
+  readonly onLabel: (labelId: string | null) => void
   readonly today: string
   readonly context: RowContext
   readonly actions: RowActions
 }): React.JSX.Element {
-  const { folderId, page, tasks, label, today, context, actions } = props
+  const { folderId, page, tasks, label, onLabel, today, context, actions } = props
   const wearFilterLabel = useWearFilterLabel(folderId)
   const [search, setSearch] = useSearchParams()
   const issueId = search.get('issue')
@@ -159,7 +163,9 @@ export function LinearView(props: {
   )
   const rows = held !== null && held.page === page ? held.rows : computed
   const shownTasks = useMemo(() => rows.flatMap((row) => (row.kind === 'task' ? [row.task] : [])), [rows])
-  const selectedTasks = useMemo(() => everyIssue.filter((task) => selected.has(task.id)), [everyIssue, selected])
+  /* Only rows on screen count as selected: a row an act took out of view is
+     never acted on unseen. */
+  const selectedTasks = useMemo(() => shownTasks.filter((task) => selected.has(task.id)), [shownTasks, selected])
   const { sections } = useMemo(() => sectionReader(page), [page])
   const manual = sort === 'manual'
 
@@ -168,7 +174,12 @@ export function LinearView(props: {
     setSelected(new Set())
   }
 
+  /* Back from an issue lands where the list was: its scroll and its row. */
   const openIssue = (task: Pick<TaskCard, 'id'>): void => {
+    let scroller: HTMLElement | null = table.current?.parentElement ?? null
+    /* The first ancestor that scrolls (an overflow-x wrapper computes overflow-y auto too, so it must also be taller than it shows). */
+    while (scroller !== null && !(/(auto|scroll)/.test(getComputedStyle(scroller).overflowY) && scroller.scrollHeight > scroller.clientHeight)) scroller = scroller.parentElement
+    backTo.set(folderId, { scroller, top: scroller?.scrollTop ?? 0, id: task.id })
     setSearch((current) => {
       const next = new URLSearchParams(current)
       next.set('issue', task.id)
@@ -182,6 +193,23 @@ export function LinearView(props: {
       return next
     })
   }
+
+  useLayoutEffect(() => {
+    const was = backTo.get(folderId)
+    if (issueId !== null || was === undefined) return
+    backTo.delete(folderId)
+    const land = (): void => {
+      if (was.scroller !== null) was.scroller.scrollTop = was.top
+      const row = table.current?.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(was.id)}"]`)
+      /* Row keys hand out tabindex after this; a row needs one to take focus. */
+      if (row !== null && row !== undefined && !row.hasAttribute('tabindex')) row.setAttribute('tabindex', '-1')
+      row?.focus({ preventScroll: true })
+    }
+    land()
+    /* Once more after the frame, in case the list grew as it settled. */
+    const frame = requestAnimationFrame(land)
+    return () => cancelAnimationFrame(frame)
+  }, [issueId, folderId])
 
   const focusNew = (): void => {
     const input = composer.current?.querySelector('input')
@@ -221,8 +249,13 @@ export function LinearView(props: {
     const place = dropPlacement(next, to)
     const was = dropPlacement(rows, from)
     if (place.section === was.section && place.before === was.before) return
+    const home = placementOf(page, row.task.id)
     setHeld({ page, rows: next.map((each, index) => (index === to && each.kind === 'task' ? { ...each, section: place.section } : each)) })
-    void writer.write({ op: 'move_step', id: row.task.id, section: place.section, before: place.before }).catch(() => setHeld(null))
+    const id = row.task.id
+    void writer.write({ op: 'move_step', id, section: place.section, before: place.before }).then(
+      () => pushUndo(undoLabel('Moved', row.task.title), () => void writer.write({ op: 'move_step', id, ...home }).catch(() => undefined)),
+      () => setHeld(null),
+    )
   }
   const drag = useSortableList({
     count: rows.length,
@@ -237,23 +270,42 @@ export function LinearView(props: {
     if (held !== null && held.page !== page) setHeld(null)
   }, [held, page])
 
-  /* ---- bulk ---- */
-  const markAs = async (target: RowState): Promise<void> => {
-    const chosen = selectedTasks
-    await Promise.all(
-      chosen.map(async (task) => {
-        const now = rowState(task, today)
-        if (now === target) return
-        const event = (name: 'complete' | 'uncomplete' | 'abandon' | 'restore') => transition.mutateAsync({ id: task.id, event: name })
-        /* Back to open first, then on to the target. */
-        if (now === 'completed') await event('uncomplete')
-        if (now === 'not-planned') await event('restore')
-        if (target === 'completed') await event('complete')
-        else if (target === 'not-planned') await event('abandon')
-        else if (target === 'in-progress') await update.mutateAsync({ id: task.id, body: { start_date: startDay(task, today) } })
-        else if (now === 'in-progress') await update.mutateAsync({ id: task.id, body: { start_date: null } })
-      }),
-    ).catch(() => undefined)
+  /* ---- bulk ----
+     Each act is one undo entry that puts every task back as it was, and
+     clears the selection, as GitHub's does. A failed write is toasted by the
+     mutation cache; the catch only keeps the rest going. */
+  const many = (verb: string, chosen: readonly TaskCard[]): string =>
+    chosen.length === 1 && chosen[0] !== undefined ? undoLabel(verb, chosen[0].title) : `${verb} ${String(chosen.length)} issues`
+  const event = (id: string, name: 'complete' | 'uncomplete' | 'abandon' | 'restore') => transition.mutateAsync({ id, event: name })
+  /* Would it read as started once pending? */
+  const started = (task: TaskCard): boolean => rowState({ status: 'pending', start_date: task.start_date }, today) === 'in-progress'
+  /* From its status to `target`, through open. Open means not started, so a
+     start date on or before today goes too, whatever the state was. */
+  const goTo = async (task: TaskCard, target: RowState): Promise<void> => {
+    if (task.status === 'completed') await event(task.id, 'uncomplete')
+    if (task.status === 'abandoned') await event(task.id, 'restore')
+    if (target === 'completed') await event(task.id, 'complete')
+    else if (target === 'not-planned') await event(task.id, 'abandon')
+    else if (target === 'in-progress') await update.mutateAsync({ id: task.id, body: { start_date: startDay(task, today) } })
+    else if (started(task)) await update.mutateAsync({ id: task.id, body: { start_date: null } })
+  }
+  /* Back to the status and start date it had before `goTo`. */
+  const goBack = async (was: TaskCard, target: RowState): Promise<void> => {
+    if (target === 'completed') await event(was.id, 'uncomplete')
+    if (target === 'not-planned') await event(was.id, 'restore')
+    const moved = target === 'in-progress' || (target === 'open' && started(was))
+    if (moved) await update.mutateAsync({ id: was.id, body: { start_date: was.start_date } })
+    if (was.status === 'completed') await event(was.id, 'complete')
+    if (was.status === 'abandoned') await event(was.id, 'abandon')
+  }
+  const markAs = (target: RowState): void => {
+    const chosen = selectedTasks.filter((task) => rowState(task, today) !== target)
+    clearSelection()
+    if (chosen.length === 0) return
+    void Promise.all(chosen.map((task) => goTo(task, target))).catch(() => undefined)
+    pushUndo(many(`Marked ${WORD[target].toLowerCase()}`, chosen), () => {
+      void Promise.all(chosen.map((task) => goBack(task, target))).catch(() => undefined)
+    })
   }
   const labelRows: LabelChoiceRow[] = (pageLabels ?? [])
     .filter((row) => !row.archived)
@@ -265,20 +317,34 @@ export function LinearView(props: {
     }))
   const toggleLabel = (row: LabelChoiceRow): void => {
     const on = row.worn < selectedTasks.length
-    for (const task of selectedTasks) {
-      const wears = labelsOf(task).some((worn) => worn.id === row.id)
-      if (wears !== on) setLabel.mutate({ taskId: task.id, labelId: row.id, on })
-    }
+    const changed = selectedTasks.filter((task) => labelsOf(task).some((worn) => worn.id === row.id) !== on)
+    if (changed.length === 0) return
+    for (const task of changed) setLabel.mutate({ taskId: task.id, labelId: row.id, on })
+    pushUndo(many(on ? 'Labelled' : 'Unlabelled', changed), () => {
+      for (const task of changed) setLabel.mutate({ taskId: task.id, labelId: row.id, on: !on })
+    })
   }
   const assign = (personId: string | null): void => {
-    for (const task of selectedTasks) {
-      if ((task.assignee?.id ?? null) !== personId) update.mutate({ id: task.id, body: { assignee_id: personId } })
-    }
+    const changed = selectedTasks.filter((task) => (task.assignee?.id ?? null) !== personId)
+    clearSelection()
+    if (changed.length === 0) return
+    for (const task of changed) update.mutate({ id: task.id, body: { assignee_id: personId } })
+    pushUndo(many('Assigned', changed), () => {
+      for (const task of changed) update.mutate({ id: task.id, body: { assignee_id: task.assignee?.id ?? null } })
+    })
   }
   const toMilestone = (sectionId: string | null): void => {
-    /* In page order, each to the milestone's end, so they keep their order. */
-    const ordered = shownTasks.filter((task) => selected.has(task.id))
-    for (const task of ordered) void writer.write({ op: 'move_step', id: task.id, section: sectionId, before: null })
+    /* In page order, each to the milestone's end, so they keep their order.
+       The undo puts them back last first, so each lands in front of the task
+       it stood before. */
+    const ordered = selectedTasks
+    clearSelection()
+    if (ordered.length === 0) return
+    const was = ordered.map((task) => ({ id: task.id, ...placementOf(page, task.id) }))
+    for (const task of ordered) void writer.write({ op: 'move_step', id: task.id, section: sectionId, before: null }).catch(() => undefined)
+    pushUndo(many('Moved', ordered), () => {
+      for (const each of [...was].reverse()) void writer.write({ op: 'move_step', ...each }).catch(() => undefined)
+    })
   }
   const remove = (): void => {
     actions.onDeleteMany(selectedTasks)
@@ -286,8 +352,8 @@ export function LinearView(props: {
   }
 
   /* ---- page keys: C, M, A, L, Esc ---- */
-  const latest = useRef({ focusNew, clearSelection, setMenu, selecting: selected.size > 0 })
-  latest.current = { focusNew, clearSelection, setMenu, selecting: selected.size > 0 }
+  const latest = useRef({ focusNew, clearSelection, setMenu, selecting: selectedTasks.length > 0 })
+  latest.current = { focusNew, clearSelection, setMenu, selecting: selectedTasks.length > 0 }
   useEffect(() => {
     if (issueId !== null) return
     const onKey = (event: KeyboardEvent): void => {
@@ -295,10 +361,10 @@ export function LinearView(props: {
       const now = latest.current
       const key = event.key.toLowerCase()
       if (event.key === 'Escape' && now.selecting) now.clearSelection()
-      else if (key === 'c' && !event.shiftKey) now.focusNew()
+      else if ((key === 'c' || key === 'n') && !event.shiftKey) now.focusNew()
       else if (key === 'm') now.setMenu('milestone')
       else if (key === 'a') now.setMenu('assignee')
-      else if (key === 'l' && now.selecting) now.setMenu('label')
+      else if (key === 'l') now.setMenu('label')
       else return
       event.preventDefault()
     }
@@ -340,6 +406,7 @@ export function LinearView(props: {
     return all[all.indexOf(from) + step]
   }
 
+  const selecting = selectedTasks.length > 0
   const taskRow = (task: TaskCard, section: string | null, index: number): React.JSX.Element => {
     const state = rowState(task, today)
     const open = state === 'open' || state === 'in-progress'
@@ -365,6 +432,12 @@ export function LinearView(props: {
           data-row-key=""
           data-task-id={task.id}
           aria-selected={checked}
+          onContextMenu={(event) => {
+            /* A long press on a phone selects, as GitHub's app does. */
+            if (!globalThis.matchMedia('(pointer: coarse)').matches) return
+            event.preventDefault()
+            toggleSelect(task.id, false)
+          }}
           onKeyDown={(event) => {
             if (event.target !== event.currentTarget) return
             const key = event.key
@@ -400,15 +473,20 @@ export function LinearView(props: {
             checked && 'bg-selected hover:bg-selected',
           )}
         >
-          <SelectBox checked={checked} label={`Select ${task.title}`} onToggle={(event) => toggleSelect(task.id, event.shiftKey)} />
-          <span className="flex w-4 shrink-0 justify-center">
+          <SelectBox
+            checked={checked}
+            label={`Select ${task.title}`}
+            onToggle={(event) => toggleSelect(task.id, event.shiftKey)}
+            className={selecting ? undefined : 'pointer-coarse:hidden'}
+          />
+          <span className="flex w-4 shrink-0 justify-center pointer-coarse:hidden pointer-coarse:group-focus-within/row:flex">
             {manual && (
               <button
                 type="button"
                 aria-label={`Move ${task.title}`}
                 {...drag.handleProps(index)}
                 className={cn(
-                  'flex h-6 w-4 cursor-grab items-center justify-center rounded-xs text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100 active:cursor-grabbing pointer-coarse:opacity-100',
+                  'flex h-6 w-4 cursor-grab items-center justify-center rounded-xs text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100 active:cursor-grabbing pointer-coarse:group-focus-within/row:opacity-100',
                   drawn.isActive && 'opacity-100',
                 )}
               >
@@ -478,13 +556,13 @@ export function LinearView(props: {
         className="flex min-h-9 items-center gap-1.5 border-t border-border bg-muted/40 px-2"
       >
         <span aria-hidden className="flex size-6 shrink-0 items-center justify-center">
-          <span className="size-2.5 rotate-45 rounded-xs border-[1.5px] border-muted-foreground" />
+          <span className="size-2 rotate-45 bg-muted-foreground" />
         </span>
         <h3 className="min-w-0 flex-1 truncate text-sm font-section text-foreground">{row.name}</h3>
         <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
           {row.done} of {row.total}
         </span>
-        <span aria-hidden className="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-muted max-sm:w-10">
+        <span aria-hidden className="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-border max-sm:w-10">
           <span
             className="block h-full rounded-full bg-muted-foreground"
             style={{ width: `${String(row.total === 0 ? 0 : Math.round((row.done / row.total) * 100))}%` }}
@@ -502,9 +580,13 @@ export function LinearView(props: {
     /* Under a Milestone filter it goes into that milestone; under a Label
        filter it wears that label, or it would vanish the moment it was made. */
     const section = filters.milestone.kind === 'section' ? filters.milestone.id : null
+    const assignee = filters.assignee.kind === 'person' ? filters.assignee.id : null
+    /* A new issue is open, so Closed would hide it: show Open. */
+    if (state === 'closed') setState('open')
     const id = crypto.randomUUID()
     void writer.write({ op: 'add_step', title: text, section, id }).then(() => {
       wearFilterLabel(id, label)
+      if (assignee !== null) update.mutate({ id, body: { assignee_id: assignee } })
     })
   }
 
@@ -522,7 +604,7 @@ export function LinearView(props: {
         }
       }}
     >
-      <div ref={table} className="rounded-[var(--radius-sm)] border border-border">
+      <div ref={table} className="@container/list rounded-[var(--radius-sm)] border border-border">
         <ListHeader
           state={state}
           counts={counted}
@@ -540,6 +622,11 @@ export function LinearView(props: {
           people={peopleChoices}
           viewerId={me}
           labels={labelRows}
+          labelFilter={label}
+          onLabelFilter={(next) => {
+            onLabel(next)
+            clearSelection()
+          }}
           shown={shownTasks.length}
           selected={selectedTasks.length}
           onSelectAll={() => setSelected(new Set(shownTasks.map((task) => task.id)))}

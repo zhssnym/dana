@@ -1,11 +1,12 @@
 /*
 The issue table's header row (m3 list, after GitHub's): select-all, the state
-switch Open · Closed · All with counts, then Milestone, Assignee and Sort menus,
-the density switch and New issue. With rows selected the same row becomes the
-bulk bar in place: "n selected", Mark as, Label, Assignee, Milestone, Delete.
+switch Open · Closed · All with counts, then Milestone, Assignee, Label and
+Sort menus (the density switch sits in Sort's menu) and New issue. With rows selected the same row
+becomes the bulk bar in place: "n selected", Mark as, Label, Assignee,
+Milestone, Delete.
 
-Labels as a filter stay in the page head (the page's one Label filter), so this
-row offers Label only for a selection.
+The Label menu is the page's one Label filter (the page head does not offer it
+in Linear), so choosing one here narrows Board too.
 */
 import { CheckMark } from '../../components/ui/checkbox.js'
 import { Button } from '../../components/ui/button.js'
@@ -18,9 +19,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu.js'
-import { Segmented } from '../../components/ui/segmented.js'
 import { cn } from '../../components/ui/utils.js'
-import { ArrowDownUp, Check, ChevronDown, List, ListCollapse, Minus, X } from '../../lib/icons.js'
+import { ArrowDownUp, Check, ChevronDown, Minus, X } from '../../lib/icons.js'
 import { StateMark } from './IssueParts.js'
 import { SORT_WORD } from './list.js'
 import type { AssigneeFilter, Density, ListFilters, ListSort, ListState, MilestoneFilter, RowState } from './list.js'
@@ -129,6 +129,9 @@ export function ListHeader(props: {
   readonly people: readonly Choice[]
   readonly viewerId: string | null
   readonly labels: readonly LabelChoiceRow[]
+  /* The page's Label filter: its chosen label, and how to change it. */
+  readonly labelFilter: string | null
+  readonly onLabelFilter: (labelId: string | null) => void
   readonly shown: number
   readonly selected: number
   readonly onSelectAll: () => void
@@ -224,6 +227,8 @@ export function ListHeader(props: {
     m.kind === 'any' ? null : m.kind === 'none' ? 'No milestone' : (milestones.find((s) => s.id === m.id)?.name ?? null)
   const assigneeWord = (a: AssigneeFilter): string | null =>
     a.kind === 'any' ? null : a.kind === 'none' ? 'Unassigned' : a.id === props.viewerId ? 'Me' : (people.find((p) => p.id === a.id)?.name ?? null)
+  const labelWord =
+    props.labelFilter === null ? null : (props.labels.find((l) => l.id === props.labelFilter)?.name ?? 'One label')
   const milestoneValue = filters.milestone.kind === 'section' ? filters.milestone.id : filters.milestone.kind
   const assigneeValue = filters.assignee.kind === 'person' ? filters.assignee.id : filters.assignee.kind
 
@@ -293,10 +298,27 @@ export function ListHeader(props: {
             ))}
           </DropdownMenuRadioGroup>
         </Menu>
+        {(props.labels.length > 0 || props.labelFilter !== null) && (
+        <Menu name="Label" value={labelWord} {...menuProps('label')}>
+          <DropdownMenuRadioGroup
+            value={props.labelFilter ?? ''}
+            onValueChange={(value: string) => props.onLabelFilter(value === '' ? null : value)}
+          >
+            <DropdownMenuRadioItem closeOnClick value="">Any label</DropdownMenuRadioItem>
+            {props.labels.length > 0 && <DropdownMenuSeparator />}
+            {props.labels.map((l) => (
+              <DropdownMenuRadioItem closeOnClick key={l.id} value={l.id}>
+                <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ backgroundColor: l.color }} />
+                <span className="min-w-0 truncate">{l.name}</span>
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </Menu>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger className={TRIGGER} aria-label={`Sort: ${SORT_WORD[props.sort]}`}>
             <ArrowDownUp aria-hidden className="size-3.5 shrink-0" />
-            <span className="min-w-0 truncate max-sm:sr-only">{SORT_WORD[props.sort]}</span>
+            <span className="min-w-0 truncate @max-3xl/list:sr-only">{SORT_WORD[props.sort]}</span>
             <ChevronDown aria-hidden className="size-3.5 shrink-0" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-auto min-w-52">
@@ -307,18 +329,14 @@ export function ListHeader(props: {
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
+            {/* Density lives with the order, so the header stays one line. */}
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioGroup value={props.density} onValueChange={(value: Density) => props.onDensity(value)}>
+              <DropdownMenuRadioItem closeOnClick value="compact">Compact</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem closeOnClick value="comfortable">Comfortable</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Segmented
-          label="Density"
-          value={props.density}
-          onValueChange={props.onDensity}
-          className="ml-1 max-sm:hidden"
-          options={[
-            { value: 'compact', label: <ListCollapse aria-hidden />, ariaLabel: 'Compact' },
-            { value: 'comfortable', label: <List aria-hidden />, ariaLabel: 'Comfortable' },
-          ]}
-        />
         <Button size="sm" className="ml-1 max-sm:ml-auto" onClick={props.onNew}>
           New issue
         </Button>
@@ -330,6 +348,6 @@ export function ListHeader(props: {
 const MARKS: { state: RowState; word: string }[] = [
   { state: 'open', word: 'Open' },
   { state: 'in-progress', word: 'In progress' },
-  { state: 'completed', word: 'Done' },
+  { state: 'completed', word: 'Closed' },
   { state: 'not-planned', word: 'Not planned' },
 ]
