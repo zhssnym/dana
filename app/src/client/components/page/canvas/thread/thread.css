@@ -31,7 +31,7 @@
   /* BlockNote pads a heading 18px above; the thread says it in a step. */
   --dana-thread-heading-pad: calc(var(--spacing) * 4);
   /* The line is the hairline token (§2.1), and the done stretch is the done
-     colour at twice its weight (AC-1510): the checks, joined up. Neither is
+     colour at twice its weight (AC-1514): the checks, joined up. Neither is
      a new value; the metrics above are steps of --spacing, named here only
      so the rules below read. */
   --dana-thread-ink: var(--line);
@@ -131,7 +131,7 @@
 /* A divider keeps the rail: the thread is one line, and the rule is drawn
    beside it, in the content column. */
 
-/* The one motion (AC-1510): when this viewer ticks a task, the done colour
+/* The one motion (AC-1514): when this viewer ticks a task, the done colour
    grows down to the new frontier. `threadStyle` names the blocks that grow,
    and from where, only while ThreadLayer holds the tick: nothing moves on
    load, on someone else's tick, or on an untick. */

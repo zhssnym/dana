@@ -39,7 +39,7 @@ export interface ThreadTask {
 export type LineStyle = 'solid' | 'frontier' | 'dashed' | 'covered'
 
 /**
- * The done stretch of the rail (AC-1510): drawn in the done colour from the
+ * The done stretch of the rail (AC-1514): drawn in the done colour from the
  * first completed task's badge ('done-start') to the global frontier's badge
  * ('done-frontier'), every item between them 'done'.
  */
@@ -349,7 +349,7 @@ function fillOf(state: ProgressState | undefined, now: ProgressState): string {
  * for the "Earlier work" button ThreadLayer places there.
  *
  * `grownFrom` is the done stretch before this viewer's tick, while the one
- * motion plays (AC-1510): each block whose fill changed grows from where it
+ * motion plays (AC-1514): each block whose fill changed grows from where it
  * was. An animation, not a transition, so it plays on blocks the editor has
  * only just drawn (a repeating task's tick remounts it).
  */

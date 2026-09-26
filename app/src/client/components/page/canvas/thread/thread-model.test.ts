@@ -181,7 +181,7 @@ describe('AC-1502: auto-fold is never stored, a user close is, and ticks linger'
   })
 })
 
-describe('AC-1510: the rail is drawn in the done colour from the first completed task to the first open task', () => {
+describe('AC-1514: the rail is drawn in the done colour from the first completed task to the first open task', () => {
   const progressOf = (blocks: ThreadBlock[], open: Record<string, ThreadTask>, over: Partial<ThreadInput> = {}): [string, string][] =>
     [...threadModel(input(blocks, open, over)).progress]
 

@@ -776,7 +776,7 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
   const breaks = new Set<string>()
   for (const [id, at] of still?.elision.elided ?? []) if (!session.expanded.has(at)) { elided.set(id, at); breaks.add(at) }
   const model = threadModel({ blocks: enabled ? blocks : [], open, today: context.today, viewerId: context.viewerId, shared, folded, elided })
-  /* The one motion (AC-1510): a tick by this viewer grows the done stretch
+  /* The one motion (AC-1514): a tick by this viewer grows the done stretch
      down to the new frontier. The tick is heard first (`onTick`); the stretch
      moves when the page's lists answer, which may be a moment later (after a
      remount, for a repeating task), and only a move that follows the viewer's

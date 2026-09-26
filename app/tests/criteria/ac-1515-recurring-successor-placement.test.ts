@@ -1,5 +1,5 @@
 /*
-AC-1511: given a repeating Task on a page's Work, when it is completed then
+AC-1515: given a repeating Task on a page's Work, when it is completed then
 its next occurrence is stored directly after it in page order, and when it is
 uncompleted and completed again the recreated occurrence takes the same place.
 
@@ -40,8 +40,8 @@ async function pageOrder(folderId: string): Promise<string[]> {
   return found.map((row) => String(row.id))
 }
 
-describe('AC-1511: a repeating Task’s next occurrence stands directly after it', () => {
-  test('AC-1511: complete places the successor after the completed occurrence, and a re-complete puts it back there', async () => {
+describe('AC-1515: a repeating Task’s next occurrence stands directly after it', () => {
+  test('AC-1515: complete places the successor after the completed occurrence, and a re-complete puts it back there', async () => {
     const [owner] = await cast.of(app)
     if (owner === undefined) throw new Error('cast must produce an owner')
     const folderId = await createFolder(owner, 'p3 ac1511 weekly')
