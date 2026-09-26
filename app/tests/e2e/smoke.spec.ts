@@ -79,11 +79,12 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
     await expect(taskRow(page, 'Buy milk').first()).toBeVisible()
   })
 
+  const words = `left at once ${Date.now()}`
   await test.step('writing typed just before leaving the page is saved', async () => {
     // The autosave waits 450 ms; leaving inside that wait must still send it.
-    const words = `left at once ${Date.now()}`
-    // The space below the last block writes on, in a fresh line.
-    await page.locator('.dana-canvas-tail').first().click()
+    // Work's thread ends in its one last line; "# " there opens a heading at the page's end.
+    await page.getByRole('textbox', { name: 'Add a task', exact: true }).click()
+    await page.keyboard.type('# ')
     await page.keyboard.type(words)
     await expect(page.locator('.dana-writing-canvas').first()).toContainText(words)
     await page.getByRole('navigation').getByRole('link', { name: /Today/ }).first().click()
@@ -93,5 +94,30 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
         return (await response.text()).includes(words)
       })
       .toBe(true)
+  })
+
+  await test.step('a task typed in Work\'s last line is stored in the last Section', async () => {
+    // AC-1440: the heading written above ends the page, so it is the Section the Task lands in.
+    await page.goto(`/app/folders/${seedIds.groceries}`)
+    const line = page.getByRole('textbox', { name: 'Add a task', exact: true })
+    const task = `last line ${Date.now()}`
+    await line.fill(task)
+    await line.press('Enter')
+    await expect(taskRow(page, task).first()).toBeVisible()
+    await expect(line).toBeFocused()
+    // Read back from the server: the stored Task, and the Section it is placed in.
+    await expect
+      .poll(async () => {
+        const search = (await (await page.request.get(`/api/v1/search?q=${encodeURIComponent(task)}&tz=UTC`)).json()) as { rows: { id: string; title: string }[] }
+        const id = search.rows.find((row) => row.title === task)?.id
+        const document = (await (await page.request.get(`/api/v1/folders/${seedIds.groceries}/page`)).json()) as {
+          task_placements: { id: string; section_block_id: string | null }[]
+          blocks: { id: string; kind: string; text: string | null }[]
+        }
+        const heading = document.blocks.find((block) => block.kind === 'section' && block.text === words)
+        const placed = document.task_placements.find((placement) => placement.id === id)
+        return { stored: placed !== undefined, section: heading !== undefined && placed?.section_block_id === heading.id }
+      })
+      .toEqual({ stored: true, section: true })
   })
 })

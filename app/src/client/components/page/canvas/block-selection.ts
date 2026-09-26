@@ -110,6 +110,8 @@ export interface BlockSelectionActions {
   readonly duplicate: (ids: readonly string[]) => void
   /** Whether a nested shape can be kept; Tab that would break it does nothing. */
   readonly admits?: (document: readonly TreeBlock[]) => boolean
+  /** Move these blocks a step (Mod+Shift+↑/↓); true when the page changed. */
+  readonly move?: (ids: readonly string[], direction: -1 | 1) => boolean
 }
 
 function isMod(event: KeyboardEvent): boolean {
@@ -139,6 +141,17 @@ function currentBlockId(view: EditorView): string | null {
     if (node.type.name === 'blockContainer' && typeof node.attrs.id === 'string') return node.attrs.id
   }
   return null
+}
+
+/** Where block `id`'s container starts in the document, or -1. */
+function blockAt(view: EditorView, id: string): number {
+  let at = -1
+  view.state.doc.descendants((node, pos) => {
+    if (at >= 0) return false
+    if (node.type.name === 'blockContainer' && node.attrs.id === id) { at = pos; return false }
+    return true
+  })
+  return at
 }
 
 /** The caret at the `edge` of block `id`'s text; false when the block has no text (a row). */
@@ -346,6 +359,25 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
         if (inEditor) { stop(); actions.duplicate([editor.getTextCursorPosition().block.id]) }
         return
       }
+      // Mod+Shift+↑/↓ moves the picked blocks, or the caret's block, a step as a unit (`moveBlocksBy`).
+      if ((key === 'ArrowUp' || key === 'ArrowDown') && mod && event.shiftKey && !event.altKey && actions.move !== undefined) {
+        const own = ids.length === 0 && onHost ? currentBlockId(view) : null
+        const moving = ids.length > 0 ? ids : own === null ? EMPTY : [own]
+        if (moving.length === 0) return
+        stop()
+        const { anchor, head } = view.state.selection
+        const text = view.state.selection instanceof TextSelection
+        const from = own === null ? -1 : blockAt(view, own)
+        if (!actions.move(moving, key === 'ArrowUp' ? -1 : 1)) return
+        if (ids.length > 0) { setBlockSelection(editor, ids); reveal(view, ids, key === 'ArrowUp' ? 'first' : 'last'); return }
+        // The caret stays where it was in its block.
+        const to = own === null ? -1 : blockAt(view, own)
+        if (to < 0 || from < 0) return
+        const { doc } = view.state
+        const selection = text ? TextSelection.create(doc, to + anchor - from, to + head - from) : NodeSelection.create(doc, to + 1)
+        view.dispatch(view.state.tr.setSelection(selection).scrollIntoView())
+        return
+      }
       if (ids.length === 0) {
         /* A Task row, sub-page row, image or divider (a node selection) is
            already wearing the selection tint, whether it was reached by the
@@ -410,6 +442,17 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
       if (key === '/' && mod && !event.shiftKey && !event.altKey) { stop(); openBlockMenu(view, ids[0]!); return }
       if (mod && key.toLowerCase() === 'a' && !event.shiftKey) { stop(); setBlockSelection(editor, editor.document.map((block) => block.id)); return }
       if (key === 'Tab' && !mod && !event.altKey) { stop(); nestSelection(editor, view, ids, event.shiftKey ? 'out' : 'in', actions.admits); return }
+      /* Undo and redo while blocks are picked from outside the text (the arrow
+         keys or the marquee leave the editor unfocused) are the editor's, so a
+         Mod+Shift+↑/↓ move comes back in one step, as a drag does. */
+      if (mod && !event.altKey && !inEditor && (key.toLowerCase() === 'z' || key.toLowerCase() === 'y')) {
+        stop()
+        if (key.toLowerCase() === 'y' || event.shiftKey) editor.redo()
+        else editor.undo()
+        const kept = ids.filter((id) => editor.getBlock(id) !== undefined)
+        if (kept.length > 0) setBlockSelection(editor, kept)
+        return
+      }
       if (['Shift', 'Control', 'Meta', 'Alt'].includes(key) || mod) return // copy, cut, undo keep their meaning
       if (key.length === 1) { stop(); return } // a typed character does not replace the blocks
       clearBlockSelection(editor)

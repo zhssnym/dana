@@ -196,3 +196,42 @@ export function removeCanvasBlocks(editor: CanvasEditor, blocks: readonly Canvas
     editor.removeBlocks([...ids])
   })
 }
+
+/**
+ * Mod+Shift+↑/↓ (M4 §2.6, BlockNote's own binding): the blocks move one step
+ * as a unit, children and all, and in one undo entry. BlockNote's step drops a
+ * block into the previous sibling's children, which the outline refuses for a
+ * heading and which walks a Task into a Section a row at a time; here a
+ * heading steps past the whole Section beside it, and any other block steps
+ * past its sibling, into the end (↑) or the top (↓) of the Section it meets.
+ * The canvas guard still refuses a shape the page cannot keep.
+ */
+export function moveBlocksBy(editor: CanvasEditor, ids: readonly string[], direction: -1 | 1): boolean {
+  const blocks = ids.flatMap((id) => { const block = editor.getBlock(id); return block === undefined ? [] : [block] })
+  const edge = direction === -1 ? blocks[0] : blocks.at(-1)
+  if (edge === undefined) return false
+  const heading = blocks.some(isSectionHeading)
+  const holds = (block: CanvasBlock | undefined): block is CanvasBlock => block !== undefined && isSectionHeading(block) && block.children.length > 0
+  // The Section met on the way: its end going up, its top going down; a heading stays at the Section's own level.
+  const into = (section: CanvasBlock): { ref: CanvasBlock; placement: 'before' | 'after' } => {
+    if (direction === 1) return { ref: section.children[0]!, placement: 'before' }
+    let ref = section.children.at(-1)!
+    while (!heading && holds(ref)) ref = ref.children.at(-1)!
+    return { ref, placement: 'after' }
+  }
+  const beside = direction === -1 ? editor.getPrevBlock(edge) : editor.getNextBlock(edge)
+  const parent = editor.getParentBlock(edge)
+  let target: { ref: CanvasBlock; placement: 'before' | 'after' }
+  if (beside !== undefined) {
+    target = !heading && holds(beside) ? into(beside) : { ref: beside, placement: direction === -1 ? 'before' : 'after' }
+  } else if (parent !== undefined) {
+    const outer = direction === -1 ? editor.getPrevBlock(parent) : editor.getNextBlock(parent)
+    target = holds(outer) ? into(outer) : { ref: parent, placement: direction === -1 ? 'before' : 'after' }
+  } else return false
+  const before = JSON.stringify(editor.document)
+  editor.transact(() => {
+    editor.removeBlocks(blocks.map((block) => block.id))
+    editor.insertBlocks(blocks as never, target.ref.id, target.placement)
+  })
+  return JSON.stringify(editor.document) !== before
+}

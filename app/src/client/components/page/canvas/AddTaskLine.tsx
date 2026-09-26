@@ -22,7 +22,16 @@ import { headingLine } from './markdown.js'
 import { isSectionHeading } from './outline.js'
 import type { CanvasEditor } from './schema.js'
 
-interface Held { text: string; focused: boolean; queue: string[]; mountedAt: number; scroll: { box: Element; top: number; until: number } | null }
+interface Held {
+  text: string
+  focused: boolean
+  queue: string[]
+  mountedAt: number
+  /** Until when a mount takes the caret back: only a remount this line's own save caused. */
+  resume: number
+  /** Lets go of the page's held scroll, while one is held. */
+  release: (() => void) | null
+}
 const held = new Map<string, Held>()
 
 const HEADING = /^(#{1,3}) $/
@@ -53,10 +62,69 @@ function scrollerOf(element: Element | null): Element | null {
   return document.scrollingElement
 }
 
+/**
+ * Holds the page where it is read while a save remounts the editor: from the
+ * Enter, before the old editor leaves, until the new one has settled (2 s) or
+ * the person scrolls. The block the page scrolls keeps its height meanwhile,
+ * so the gap while the editor remounts never pulls the page to its top.
+ */
+function holdScroll(state: Held, line: HTMLElement): void {
+  state.release?.()
+  const box = scrollerOf(line)
+  if (box === null) return
+  let keep: HTMLElement | null = line
+  while (keep !== null && keep.parentElement !== box) keep = keep.parentElement
+  const top = box.scrollTop
+  const until = performance.now() + 2000
+  const minHeight = keep?.style.minHeight ?? ''
+  if (keep !== null) keep.style.minHeight = `${keep.offsetHeight}px`
+  let frame = 0
+  const release = (): void => {
+    cancelAnimationFrame(frame)
+    if (keep !== null) keep.style.minHeight = minHeight
+    window.removeEventListener('wheel', release)
+    window.removeEventListener('touchstart', release)
+    if (state.release === release) state.release = null
+  }
+  const hold = (): void => {
+    if (!box.isConnected || performance.now() > until) { release(); return }
+    if (Math.abs(box.scrollTop - top) > 1) box.scrollTop = top
+    frame = requestAnimationFrame(hold)
+  }
+  state.release = release
+  window.addEventListener('wheel', release, { passive: true })
+  window.addEventListener('touchstart', release, { passive: true })
+  hold()
+}
+
 /** Pinned: drawn above where it stands in the page (CSS `sticky`), so the page's end is not in view. */
 function pinned(line: HTMLElement): boolean {
   const before = line.previousElementSibling
   return before !== null && line.getBoundingClientRect().top < before.getBoundingClientRect().bottom - 1
+}
+
+/**
+ * A line the slash menu was opened on and left empty (Esc, or a click away)
+ * goes again once the caret leaves it, as an empty line does on Enter, so no
+ * blank line is left above "Add a task…". The page's only line stays.
+ */
+function dropIfLeftEmpty(editor: CanvasEditor, id: string): void {
+  const root = editor.domElement
+  const empty = (): boolean => {
+    const block = editor.getBlock(id)
+    return block !== undefined && block.type === 'paragraph' && Array.isArray(block.content) && block.content.length === 0 && block.children.length === 0
+  }
+  const check = (): void => {
+    if (!empty()) { stop(); return }
+    const away = editor.getTextCursorPosition().block.id !== id || (root !== undefined && !root.contains(document.activeElement))
+    if (!away || editor.getExtension(SuggestionMenu)?.shown() === true) return
+    stop()
+    if (editor.document.length > 1) editor.transact((tr) => { tr.setMeta('addToHistory', false); editor.removeBlocks([id]) })
+  }
+  const onFocusOut = (): void => { window.setTimeout(check, 0) }
+  const offSelection = editor.onSelectionChange(check)
+  root?.addEventListener('focusout', onFocusOut)
+  function stop(): void { offSelection(); root?.removeEventListener('focusout', onFocusOut) }
 }
 
 export function AddTaskLine({ editor, page, editable }: {
@@ -66,7 +134,7 @@ export function AddTaskLine({ editor, page, editable }: {
   /** False while the page is saving a Task; an Enter then waits for the next mount. */
   readonly editable: boolean
 }): React.JSX.Element {
-  const state = held.get(page) ?? { text: '', focused: false, queue: [], mountedAt: 0, scroll: null }
+  const state = held.get(page) ?? { text: '', focused: false, queue: [], mountedAt: 0, resume: 0, release: null }
   held.set(page, state)
   const [text, setText] = useState(state.text)
   const [, poke] = useState(0)
@@ -92,8 +160,8 @@ export function AddTaskLine({ editor, page, editable }: {
   function send(): void {
     const title = state.queue.shift()
     if (title === undefined) return
-    const box = scrollerOf(line.current)
-    state.scroll = box === null ? null : { box, top: box.scrollTop, until: performance.now() + 2000 }
+    if (line.current !== null) holdScroll(state, line.current)
+    if (state.focused) state.resume = performance.now() + 2000
     const where = place()
     const id = where === null ? null : openLineAt(editor, where, title)
     const block = id === null ? undefined : editor.getBlock(id)
@@ -107,36 +175,23 @@ export function AddTaskLine({ editor, page, editable }: {
     const id = where === null ? null : openLineAt(editor, where, '')
     keep('')
     state.focused = false
-    if (id !== null) then(id)
+    if (id === null) return
+    then(id)
+    dropIfLeftEmpty(editor, id)
   }
 
   /* Saving a Task remounts the page's editor, often twice in a row, and the
-     page's rows arrive over a few frames. Each mount takes the caret back and
-     holds the page where it was read until those have settled or the person
-     scrolls; an Enter that came in meanwhile is sent once this editor has
-     stood still for `SETTLE`, so it is never written into an editor that is
-     about to be replaced. */
+     page's rows arrive over a few frames. A mount the line's own save caused
+     takes the caret back (`resume`); any other arrival, such as Back to this
+     page, does not, so a phone's keyboard never opens by itself. The page's
+     scroll is held from the Enter (`holdScroll`). An Enter that came in
+     meanwhile is sent once this editor has stood still for `SETTLE`, so it
+     is never written into an editor that is about to be replaced. */
   useEffect(() => {
     state.mountedAt = performance.now()
-    if (state.focused) input.current?.focus({ preventScroll: true })
-    const scroll = state.scroll
-    if (scroll === null) return
-    const box = scroll.box.isConnected ? scroll.box : scrollerOf(line.current)
-    let frame = 0
-    const hold = (): void => {
-      if (box === null || state.scroll !== scroll || performance.now() > scroll.until) return
-      if (Math.abs(box.scrollTop - scroll.top) > 1) box.scrollTop = scroll.top
-      frame = requestAnimationFrame(hold)
-    }
-    const release = (): void => { if (state.scroll === scroll) state.scroll = null; cancelAnimationFrame(frame) }
-    hold()
-    window.addEventListener('wheel', release, { passive: true })
-    window.addEventListener('touchstart', release, { passive: true })
-    return () => {
-      cancelAnimationFrame(frame)
-      window.removeEventListener('wheel', release)
-      window.removeEventListener('touchstart', release)
-    }
+    if (state.focused && performance.now() < state.resume) input.current?.focus({ preventScroll: true })
+    else state.focused = false
+    return () => { if (performance.now() >= state.resume) state.focused = false }
   }, [state])
   useEffect(() => {
     if (!editable || state.queue.length === 0) return
@@ -154,14 +209,14 @@ export function AddTaskLine({ editor, page, editable }: {
     >
       {/* Where a Task row's checkbox stands: its control box, hung into the gutter as the row's is. */}
       <span aria-hidden="true" className="-ms-[calc((var(--control-height)-var(--checkbox-size))/2)] flex size-[var(--control-height)] shrink-0 items-center justify-center">
-        <span className="size-[var(--checkbox-size)] rounded-sm border border-dashed border-quiet-foreground" />
+        <span className="size-[var(--checkbox-size)] rounded-xs border border-dashed border-quiet-foreground" />
       </span>
       <input
         ref={input}
         value={text}
         aria-label="Add a task"
         placeholder="Add a task…"
-        enterKeyHint="done"
+        enterKeyHint="enter"
         className="min-w-0 flex-1 bg-transparent py-1 text-[length:var(--text-body-size)] leading-[var(--text-body-line)] text-foreground outline-none placeholder:text-quiet-foreground"
         onFocus={() => { state.focused = true }}
         onBlur={() => { state.focused = false }}
