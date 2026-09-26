@@ -1,23 +1,22 @@
 /*
-The Discussion tab's threads, laid out as Today lays out tasks (r9-dlist): an
-"Open" group ending in "New thread", then a "Resolved" group; no tabs, no
-column headers. Most recent activity first, as the server orders them.
+The Discussion tab's threads as one list, like an issues list: no groups, no
+tabs, no column headers, most recent activity first as the server orders
+them, and "New thread" as the last row.
 
-Each thread is one row at the task row's height. Where a task has its
-checkbox a thread has its status mark, in a shape a task never has: an
-outline speech bubble while open, a filled check circle once resolved.
-Pressing the mark resolves (the thread view's close without a decision) or
-reopens the thread, with Undo. The title carries the row; an unread one (a
-post from someone else since this person last read it, the server's
-`read_at`) is heavier and nothing else marks it. On the right: an open
-thread's last post ("Bilal: How about Tuesday?", wide screens only) after its
-title, its other participants and when it last moved ("12 min"); a resolved
-one's "Resolved 15 Sep". No post counts (M4 §4.7): the last post and its
-time already say whether a thread is alive.
+Each thread is one row at the task row's height with one leading mark: a
+thread about a task shows the task's state mark (linking to the task); any
+other shows an outline speech bubble while open, a filled check once
+resolved, and pressing it resolves (without a decision) or reopens, with
+Undo. A resolved thread is the same row, muted. The title carries the row; an
+unread one (a post from someone else since this person last read it, the
+server's `read_at`) is heavier and nothing else marks it. After the title, the
+last post, muted ("Bilal: How about Tuesday?", wide screens only); on the
+right, the last poster's face and when the thread last moved ("12 min"). No
+post counts (M4 §4.7).
 
 The keyboard path is the task lists' (`row-keys.ts`): arrows move, Enter
 opens, Space resolves or reopens. An old `?threads=closed` link still loads;
-the parameter is ignored since both groups are always shown.
+the parameter is ignored.
 
 The list re-reads every twenty seconds while the tab is visible
 (`useDiscussions`), so new activity arrives without a reload.
@@ -35,8 +34,8 @@ import type { Discussion } from '../../../shared/consultation.js'
 import { DISCUSSION_TITLE_MAX } from '../../../shared/consultation.js'
 import { MessageCircle, Plus, ResolvedMark } from '../../lib/icons.js'
 import type { PersonResolver } from '../../lib/thread.js'
-import { formatAgo, formatCompactDate } from '../../parts/format-dates.js'
-import { initialsOf, presenterToday } from '../../parts/presenters.js'
+import { formatAgo } from '../../parts/format-dates.js'
+import { initialsOf } from '../../parts/presenters.js'
 import { pushUndo, undoLabel } from '../../shell/undo.js'
 import { Face } from '../person-face.js'
 import { StateMark, taskState } from '../thread/timeline/state.js'
@@ -105,11 +104,8 @@ export function DiscussionList({
     const powers = discussionPowers(viewer, d, false)
     return stateOf(d) === 'open' ? powers.resolve : powers.reopen
   }
-  const open = discussions.filter((d) => stateOf(d) === 'open')
-  const resolved = discussions.filter((d) => stateOf(d) === 'resolved')
   const mayStart = viewer !== null && mayStartDiscussion(viewer)
   const now = Date.now()
-  const today = presenterToday()
   const viewerId = viewer?.viewerId ?? null
 
   const toggle = (d: Discussion): void => {
@@ -154,7 +150,6 @@ export function DiscussionList({
         state={stateOf(d)}
         may={may(d)}
         now={now}
-        today={today}
         personOf={personOf}
         viewerId={viewerId}
         onOpen={onOpen}
@@ -165,40 +160,27 @@ export function DiscussionList({
 
   return (
     <div ref={keys} className="-mx-1.5 min-w-0">
-      <div className="space-y-[var(--space-group)]">
-        <section aria-label="Open">
-          <h2 className="mb-1 px-1.5 text-sm font-section text-foreground">Open</h2>
-          <ul className="flex flex-col">
-            {open.map(row)}
-            {mayStart ? (
-              <li>
-                <NewThread folderId={folderId} onStarted={onStarted} />
-              </li>
-            ) : null}
-          </ul>
-          {open.length === 0 && !mayStart ? (
-            <p className="px-1.5 py-1 text-sm text-muted-foreground">No open threads.</p>
-          ) : null}
-        </section>
-
-        {resolved.length === 0 ? null : (
-          <section aria-label="Resolved">
-            <h2 className="mb-1 px-1.5 text-sm font-section text-foreground">Resolved</h2>
-            <ul className="flex flex-col">{resolved.map(row)}</ul>
-          </section>
-        )}
-
-        {list.hasNextPage ? (
-          <button
-            type="button"
-            className="h-[var(--control-height)] rounded-sm px-1.5 text-xs text-muted-foreground outline-none hover:text-foreground"
-            disabled={list.isFetchingNextPage}
-            onClick={() => void list.fetchNextPage()}
-          >
-            Show older threads
-          </button>
+      <ul className="flex flex-col">
+        {discussions.map(row)}
+        {mayStart ? (
+          <li>
+            <NewThread folderId={folderId} onStarted={onStarted} />
+          </li>
         ) : null}
-      </div>
+      </ul>
+      {discussions.length === 0 && !mayStart ? (
+        <p className="px-1.5 py-1 text-sm text-muted-foreground">No threads yet.</p>
+      ) : null}
+      {list.hasNextPage ? (
+        <button
+          type="button"
+          className="h-[var(--control-height)] rounded-sm px-1.5 text-xs text-muted-foreground outline-none hover:text-foreground"
+          disabled={list.isFetchingNextPage}
+          onClick={() => void list.fetchNextPage()}
+        >
+          Show older threads
+        </button>
+      ) : null}
     </div>
   )
 }
@@ -208,7 +190,6 @@ function ThreadRow({
   state,
   may,
   now,
-  today,
   personOf,
   viewerId,
   onOpen,
@@ -218,7 +199,6 @@ function ThreadRow({
   readonly state: State
   readonly may: boolean
   readonly now: number
-  readonly today: string
   readonly personOf: PersonResolver
   readonly viewerId: string | null
   readonly onOpen: (discussionId: string) => void
@@ -257,7 +237,17 @@ function ThreadRow({
         }
       }}
     >
-      {may ? (
+      {d.task !== null ? (
+        /* A thread about a task leads with the task's state, linking to it. */
+        <Link
+          to={paths.task(d.task.id)}
+          title={`Task: ${d.task.title}`}
+          aria-label={`Task: ${d.task.title}`}
+          className="flex size-[var(--control-height)] items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground"
+        >
+          <StateMark state={taskState(d.task)} className="size-3.5" />
+        </Link>
+      ) : may ? (
         <button
           type="button"
           aria-label={isOpen ? 'Resolve thread' : 'Reopen thread'}
@@ -274,19 +264,6 @@ function ThreadRow({
         <span className="flex size-[var(--control-height)] items-center justify-center">{mark}</span>
       )}
       <span className="flex min-w-0 items-baseline gap-2">
-        {d.task !== null ? (
-          /* The task this thread is about (M5), first so it reads as the
-             row's kind and is never pushed under the faces on a phone: its
-             state mark, linking to it. */
-          <Link
-            to={paths.task(d.task.id)}
-            title={`Task: ${d.task.title}`}
-            aria-label={`Task: ${d.task.title}`}
-            className="flex shrink-0 self-center rounded-sm text-muted-foreground outline-none hover:text-foreground"
-          >
-            <StateMark state={taskState(d.task)} className="size-3.5" />
-          </Link>
-        ) : null}
         <span
           title={d.title}
           className={cn(
@@ -297,49 +274,34 @@ function ThreadRow({
         >
           {d.title}
         </span>
-        {isOpen && last !== null ? (
+        {last !== null ? (
           <span className="min-w-0 flex-1 truncate text-muted-foreground max-md:hidden">
             {last.author_id === viewerId ? 'You' : personOf(last.author_id).name}: {last.preview}
           </span>
         ) : null}
       </span>
       <span className="flex items-center gap-2 pl-3 text-xs whitespace-nowrap text-muted-foreground">
-        {isOpen ? (
-          <>
-            <Faces ids={(d.participant_ids ?? []).filter((id) => id !== viewerId).slice(0, 3)} personOf={personOf} />
-            <span>{formatAgo(d.last_post?.created_at ?? d.last_activity_at, now)}</span>
-          </>
-        ) : d.resolved_at === null ? null : (
-          <span>Resolved {formatCompactDate(d.resolved_at.slice(0, 10), today)}</span>
-        )}
+        {last !== null ? <LastFace id={last.author_id} personOf={personOf} /> : null}
+        <span>{formatAgo(d.last_post?.created_at ?? d.last_activity_at, now)}</span>
       </span>
     </div>
   )
 }
 
-/** Who else is talking, as small overlapping faces; the reader never shows. */
-function Faces({
-  ids,
+/** Who posted last, as one small face. */
+function LastFace({
+  id,
   personOf,
 }: {
-  readonly ids: readonly string[]
+  readonly id: string
   readonly personOf: PersonResolver
-}): React.JSX.Element | null {
-  if (ids.length === 0) return null
+}): React.JSX.Element {
+  const person = personOf(id)
   return (
-    <span className="flex -space-x-1" aria-label={ids.map((id) => personOf(id).name).join(', ')}>
-      {ids.map((id) => {
-        const person = personOf(id)
-        return (
-          <Face
-            key={id}
-            dense
-            className="ring-2 ring-background"
-            person={{ id, initials: initialsOf(person.name), name: person.name, ...(person.image === undefined ? {} : { image: person.image }) }}
-          />
-        )
-      })}
-    </span>
+    <Face
+      dense
+      person={{ id, initials: initialsOf(person.name), name: person.name, ...(person.image === undefined ? {} : { image: person.image }) }}
+    />
   )
 }
 
