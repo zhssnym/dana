@@ -332,6 +332,8 @@ export function TabStrip() {
   const focusKeys = useBundle().data?.focus_lists ?? DEFAULT_FOCUS_LISTS
   const { tabs, activeId } = useTabs()
   const tablist = useRef<HTMLDivElement>(null)
+  const desk = folders.find((folder) => folder.is_default)
+  const emptyTabPath = desk === undefined ? `${paths.home}/desk` : paths.folder(desk.id)
 
   const route = `${location.pathname}${location.search}${location.hash}`
   useEffect(() => {
@@ -384,7 +386,7 @@ export function TabStrip() {
   }
 
   function close(id: string): void {
-    const next = closeTab(id)
+    const next = closeTab(id, emptyTabPath)
     if (next !== null) go(next)
   }
 
@@ -422,7 +424,6 @@ export function TabStrip() {
         {tabs.map((tab, index) => {
           const active = tab.id === activeId
           const state = drag.itemState(index)
-          const closable = !(tabs.length === 1 && tabKey(tab.path) === paths.today)
           const labelId = `dana-workspace-tab-${tab.id}`
           return (
             <div
@@ -435,7 +436,7 @@ export function TabStrip() {
               data-sort-handle
               {...drag.surfaceProps(index, () => go(selectTab(tab.id)))}
               onAuxClick={(event) => {
-                if (event.button !== 1 || !closable) return
+                if (event.button !== 1) return
                 event.preventDefault()
                 close(tab.id)
               }}
@@ -465,7 +466,7 @@ export function TabStrip() {
                   activate(tabs.length - 1)
                   return
                 }
-                if ((event.key === 'Delete' || event.key === 'Backspace') && closable) {
+                if (event.key === 'Delete' || event.key === 'Backspace') {
                   event.preventDefault()
                   close(tab.id)
                   return
@@ -495,16 +496,14 @@ export function TabStrip() {
               } ${state.isActive ? 'opacity-70 shadow-sm' : ''}`}
             >
               <TabFace path={tab.path} folders={folders} shelves={shelves} labelId={labelId} />
-              {closable ? (
-                <button
-                  type="button"
-                  aria-label="Close tab"
-                  onClick={() => close(tab.id)}
-                  className="absolute right-1 flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/tab:opacity-100 group-focus-within/tab:opacity-100"
-                >
-                  <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                </button>
-              ) : null}
+              <button
+                type="button"
+                aria-label="Close tab"
+                onClick={() => close(tab.id)}
+                className="absolute right-1 flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/tab:opacity-100 group-focus-within/tab:opacity-100"
+              >
+                <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+              </button>
             </div>
           )
         })}
