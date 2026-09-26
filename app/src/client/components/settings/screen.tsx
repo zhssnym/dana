@@ -8,7 +8,7 @@ card: the title says where you are.
 import type { ComponentProps, ReactNode } from 'react'
 
 import { ScreenHead } from '../../views/usePlace.js'
-import { Row } from '../ui/row.js'
+import { Row, RowGroup } from '../ui/row.js'
 import { cn } from '../ui/utils.js'
 
 export function Screen({
@@ -43,10 +43,10 @@ export function Screen({
 }
 
 /*
-A Settings section, after Hassan's grouped-cards reference (r12): a small
-muted label above one rounded, bordered card, its rows split by the one
-hairline. Groups stand further apart than a label from its card. An untitled
-section (Delete account) is the card alone.
+Settings follows the same flat row-group language as the rest of Dana. A
+section heading and whitespace do the grouping; ordinary settings do not need
+a rounded box around them or a hairline between every row. The one untitled
+section is the destructive tail, so it earns the group's single divider.
 */
 export function SettingsSection({
   title,
@@ -55,30 +55,28 @@ export function SettingsSection({
   ...props
 }: Omit<ComponentProps<'section'>, 'title'> & { readonly title?: string }): React.JSX.Element {
   return (
-    <section
+    <RowGroup
+      title={title}
+      divider={title === undefined}
       aria-label={title}
-      className={cn('flex flex-col gap-1.5 [&+&]:mt-4', className)}
+      className={cn(title === undefined && 'pt-1', className)}
       {...props}
     >
-      {title === undefined ? null : (
-        <h2 className="text-xs font-title text-muted-foreground">{title}</h2>
-      )}
-      <div className="flex flex-col divide-y divide-border rounded-(--radius-card) border border-border">
-        {children}
-      </div>
-    </section>
+      {children}
+    </RowGroup>
   )
 }
 
-/* Settings' row: the system Row inside a card, 12px in from the card's edge,
-   36px tall (44 with a description), its label at body weight. On a phone
-   too the control stays on the label's line; a description wraps instead. */
+/* Settings' row stays compact and aligned with the section heading. On a phone
+   too the control stays on the label's line; a description wraps instead.
+   With no card edge to compensate for, the system Row's quiet 8px inset is the
+   only horizontal padding. */
 export function StackingRow({ className, label, ...props }: ComponentProps<typeof Row>): React.JSX.Element {
   return (
     <Row
       label={label}
       className={cn(
-        'min-h-9 gap-4 rounded-none px-3 py-1 max-sm:gap-3',
+        'min-h-9 gap-4 py-1 max-sm:gap-3',
         className,
       )}
       {...props}
