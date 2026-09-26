@@ -4,14 +4,15 @@ tabs, no column headers, most recent activity first as the server orders
 them, and "New thread" as the last row.
 
 The list reads like an issues list: one bordered box, hairlines between rows.
-Each thread is a two-line row with one leading mark: a thread about a task
+Each thread is one compact line with one leading mark: a thread about a task
 shows the task's state mark (linking to the task); any other shows an outline
 speech bubble while open, a filled check once resolved, and pressing it
-resolves (without a decision) or reopens, with Undo. Line one is the title, at
-medium weight; an unread one (a post from someone else since this person last
-read it, the server's `read_at`) is heavier and nothing else marks it. Line
-two is small muted meta: the last poster and when ("Lucía Ortega · 4 days
-ago"), or "Resolved · Sep 18" once resolved. A resolved thread is the same
+resolves (without a decision) or reopens, with Undo. Then the title, at
+medium weight and cut short before the meta; an unread one (a post from
+someone else since this person last read it, the server's `read_at`) is
+heavier and nothing else marks it. On the right, small muted meta: the last
+poster and when ("Lucía Ortega · 4 days ago"), or "Resolved · Sep 18" once
+resolved. A resolved thread is the same
 row, muted. No preview, no face, no post counts (M4 §4.7).
 
 The keyboard path is the task lists' (`row-keys.ts`): arrows move, Enter
@@ -55,12 +56,11 @@ export function isUnread(d: Discussion, viewerId: string | null): boolean {
   return Date.parse(last.created_at) > Date.parse(d.read_at)
 }
 
-/* A two-line row: the mark beside line one, the meta under the title. */
+/* One compact line: mark, title (truncating), meta on the right. */
 const ROW =
-  'grid w-full grid-cols-[var(--control-height)_minmax(0,1fr)] items-start gap-x-1 py-2 pr-3 pl-1.5 text-sm transition-colors duration-[var(--duration-fast)]'
+  'grid h-9 w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-x-1 pr-3 pl-1.5 text-sm transition-colors duration-[var(--duration-fast)]'
 
-/* The mark's box is line one's height, so it sits beside the title. */
-const MARK = 'flex h-5 w-[var(--control-height)] items-center justify-center rounded-sm'
+const MARK = 'flex size-[var(--control-height)] items-center justify-center rounded-sm'
 
 export function DiscussionList({
   folderId,
@@ -272,19 +272,17 @@ function ThreadRow({
       ) : (
         <span className={MARK}>{mark}</span>
       )}
-      <span className="flex min-w-0 flex-col">
-        <span
-          title={d.title}
-          className={cn(
-            'min-w-0 truncate leading-5',
-            isOpen ? 'text-foreground' : 'text-muted-foreground',
-            fresh ? 'font-title' : 'font-section',
-          )}
-        >
-          {d.title}
-        </span>
-        <span className="min-w-0 truncate text-xs leading-5 text-muted-foreground">{meta}</span>
+      <span
+        title={d.title}
+        className={cn(
+          'min-w-0 truncate',
+          isOpen ? 'text-foreground' : 'text-muted-foreground',
+          fresh ? 'font-title' : 'font-section',
+        )}
+      >
+        {d.title}
       </span>
+      <span className="pl-3 text-xs whitespace-nowrap text-muted-foreground">{meta}</span>
     </div>
   )
 }
@@ -305,7 +303,7 @@ function NewThread({
     return (
       <button
         type="button"
-        className={cn(ROW, 'items-center text-left text-muted-foreground outline-none hover:bg-muted hover:text-foreground')}
+        className={cn(ROW, 'text-left text-muted-foreground outline-none hover:bg-muted hover:text-foreground')}
         onClick={() => { setTyping(true) }}
       >
         <span className="flex justify-center">
@@ -322,7 +320,7 @@ function NewThread({
   }
   return (
     <form
-      className={cn(ROW, 'items-center')}
+      className={ROW}
       onSubmit={(event) => {
         event.preventDefault()
         const trimmed = title.trim()
@@ -371,9 +369,8 @@ function ListSkeleton(): React.JSX.Element {
       aria-busy="true"
     >
       {[0, 1, 2].map((row) => (
-        <div key={row} className="flex flex-col gap-2 px-3 py-3">
+        <div key={row} className="flex h-9 items-center px-3">
           <Skeleton className={row === 1 ? 'h-3.5 w-2/5' : 'h-3.5 w-3/5'} />
-          <Skeleton className="h-3 w-1/5" />
         </div>
       ))}
     </div>
