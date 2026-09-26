@@ -80,7 +80,7 @@ import { paths } from '../routes.js'
 import { browserTimezone } from '../api/tz.js'
 import { setViewerTimezone } from '../lib/viewer.js'
 import { ToastRegion } from '../state/ToastRegion.js'
-import { AppSidebar } from './app-sidebar.js'
+import { AppSidebar, FOOT_BUTTON } from './app-sidebar.js'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip.js'
 import { useFolderGroupActions } from './folder-groups.js'
 import { OfflineBanner } from './OfflineBanner.js'
@@ -202,21 +202,23 @@ function TopTrail(): React.JSX.Element {
   }
   /* A top-level place (Today, Settings, Trash, a collection) has no crumb:
      its title already says where you are, and saying it twice is noise. */
-  /* With the sidebar hidden on a laptop, the one control that brings it back
-     leads the bar, spaced like the trail beside it. */
+  /* With the sidebar hidden on a laptop, the control that brings it back sits
+     exactly where the footer's collapse was, so the toggle never moves. */
   const { isMobile, state } = useSidebar()
   return (
-    <WindowBarLead>
+    <>
+      <WindowBarLead>{trail}</WindowBarLead>
       {isMobile || state === 'expanded' ? null : (
         <Tooltip>
           <TooltipTrigger
-            render={<SidebarTrigger size="icon" className="shrink-0 text-muted-foreground hover:text-foreground" />}
+            render={
+              <SidebarTrigger className={`${FOOT_BUTTON} fixed bottom-2 left-[calc(var(--sidebar-width)_-_var(--spacing)*2_-_var(--control-height)_-_1px)] z-10`} />
+            }
           />
-          <TooltipContent side="bottom">Expand sidebar</TooltipContent>
+          <TooltipContent side="top">Expand sidebar</TooltipContent>
         </Tooltip>
       )}
-      {trail}
-    </WindowBarLead>
+    </>
   )
 }
 
