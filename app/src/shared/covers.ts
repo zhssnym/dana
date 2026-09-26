@@ -20,14 +20,16 @@ in the contract, which 11.13 puts in the design record instead.
 import { z } from 'zod'
 
 /**
- * 4.20's set: 4.19's native views minus `desk`, which is a folder and
- * carries 4.3's own cover column.
+ * 4.20's native place-page set. Desk is absent because it is a folder and
+ * carries 4.3's own cover column. `overdue` joined this set in issue #353 so
+ * every Focus destination can use the same durable cover path.
  */
 export const PLACE_COVER_PLACES = [
   'today',
   'scheduled',
   'assignments',
   'important',
+  'overdue',
   'all',
   'done',
   'abandoned',

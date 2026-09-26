@@ -6,6 +6,8 @@ user_views exists as a table rather than a bookmark.
 */
 import { z } from 'zod'
 
+import { hexColor } from './folders.js'
+
 /**
  * The native views 9.7's pin list governs; Desk is locked pinned.
  *
@@ -85,6 +87,40 @@ export const FOCUS_LISTS = [
 export type FocusListKey = (typeof FOCUS_LISTS)[number]
 export const DEFAULT_FOCUS_LISTS: readonly FocusListKey[] = ['today', 'scheduled', 'assignments']
 
+/*
+Issue #353: a Focus destination's optional personal identity override. The
+stored map is sparse: an absent key means "use Dana's native icon and colour".
+That is intentionally different from a present object whose one field is null:
+the latter lets the other field stay overridden.
+
+The icon alphabet is exactly the page/shelf icon-key rule and the colour uses
+the one shared #RRGGBB primitive. The read shape always carries both fields;
+the PATCH shape below makes either nested field optional so changing an icon
+does not accidentally clear a colour (or vice versa).
+*/
+const focusIconKey = z
+  .string()
+  .regex(/^[a-z0-9-]{1,40}$/, 'must be an icon key')
+
+export const focusAppearanceOverride = z.object({
+  icon: focusIconKey.nullable(),
+  color: hexColor.nullable(),
+})
+export type FocusAppearanceOverride = z.infer<typeof focusAppearanceOverride>
+
+export const focusAppearance = z.partialRecord(
+  z.enum(FOCUS_LISTS),
+  focusAppearanceOverride,
+)
+export type FocusAppearance = z.infer<typeof focusAppearance>
+
+const patchFocusAppearanceOverride = focusAppearanceOverride.partial()
+export const patchFocusAppearance = z.partialRecord(
+  z.enum(FOCUS_LISTS),
+  patchFocusAppearanceOverride.nullable(),
+)
+export type PatchFocusAppearance = z.infer<typeof patchFocusAppearance>
+
 export const patchSettingsBody = z.object({
   theme: z.enum(['system', 'light', 'dark']).optional(),
   row_density: z.enum(['comfortable', 'compact']).optional(),
@@ -104,6 +140,11 @@ export const patchSettingsBody = z.object({
   sidebar_order: z.array(z.uuid()).max(300).optional(),
   arrangements: z.record(z.uuid(), z.string().max(40)).optional(),
   focus_lists: z.array(z.enum(FOCUS_LISTS)).max(FOCUS_LISTS.length).optional(),
+  /** Sparse per-key patch. `null` removes the whole override (reset to native);
+   * a nested null clears only that field. If both fields end up null the
+   * server canonicalizes the entry away, so there is still only one fallback
+   * state. */
+  focus_appearance: patchFocusAppearance.optional(),
 })
 export type PatchSettingsBody = z.infer<typeof patchSettingsBody>
 
@@ -120,6 +161,7 @@ export interface SettingsBundle {
   sidebar_order: string[]
   arrangements: Record<string, string>
   focus_lists: FocusListKey[]
+  focus_appearance: FocusAppearance
 }
 
 /* ------------------------------------------------------------------ *
@@ -163,6 +205,7 @@ export const settingsBundle = z.object({
   sidebar_order: z.array(z.string()),
   arrangements: z.record(z.string(), z.string()),
   focus_lists: z.array(z.enum(FOCUS_LISTS)),
+  focus_appearance: focusAppearance,
 })
 export const getSettingsResponse = settingsBundle
 export type GetSettingsResponse = z.infer<typeof settingsBundle>
