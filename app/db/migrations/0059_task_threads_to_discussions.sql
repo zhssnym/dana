@@ -90,18 +90,6 @@ SELECT t.folder_id, t.id,
  WHERE NOT EXISTS (SELECT 1 FROM discussions d WHERE d.task_id = t.id)
  GROUP BY t.id, t.folder_id, t.title;
 --> statement-breakpoint
-UPDATE comments c
-   SET discussion_id = d.id, task_id = NULL
-  FROM discussions d
- WHERE d.task_id = c.task_id AND c.task_id IS NOT NULL;
---> statement-breakpoint
-UPDATE discussions d
-   SET last_activity_at = latest.at
-  FROM (SELECT discussion_id, max(created_at) AS at FROM comments
-         WHERE discussion_id IS NOT NULL GROUP BY discussion_id) latest
- WHERE d.task_id IS NOT NULL AND latest.discussion_id = d.id
-   AND latest.at > d.last_activity_at;
---> statement-breakpoint
 INSERT INTO discussion_reads (discussion_id, user_id, read_at)
 SELECT d.id, r.user_id, r.read_at
   FROM task_thread_reads r
@@ -113,7 +101,20 @@ SELECT d.id, m.user_id, d.last_activity_at
   FROM discussions d
   JOIN folder_members m ON m.folder_id = d.folder_id
  WHERE d.task_id IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM comments c WHERE c.discussion_id = d.id)
 ON CONFLICT (discussion_id, user_id) DO NOTHING;
+--> statement-breakpoint
+UPDATE comments c
+   SET discussion_id = d.id, task_id = NULL
+  FROM discussions d
+ WHERE d.task_id = c.task_id AND c.task_id IS NOT NULL;
+--> statement-breakpoint
+UPDATE discussions d
+   SET last_activity_at = latest.at
+  FROM (SELECT discussion_id, max(created_at) AS at FROM comments
+         WHERE discussion_id IS NOT NULL GROUP BY discussion_id) latest
+ WHERE d.task_id IS NOT NULL AND latest.discussion_id = d.id
+   AND latest.at > d.last_activity_at;
 --> statement-breakpoint
 ALTER TABLE comments
   ADD CONSTRAINT comments_no_task_scope_check CHECK (task_id IS NULL);

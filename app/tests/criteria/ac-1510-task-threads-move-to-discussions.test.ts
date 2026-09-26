@@ -361,7 +361,7 @@ describe('AC-1510 migration 0059 moves task threads into linked Discussions', ()
     ).toEqual([{ task_id: ids.live }])
   })
 
-  test('whoever had read the task thread keeps that read; every other member has read it to its last post', async () => {
+  test('whoever had read the task thread keeps that read; every other member has read a new thread to its last post, and a thread that already existed keeps its own reads', async () => {
     expect(
       await rows(
         db,
@@ -381,8 +381,7 @@ describe('AC-1510 migration 0059 moves task threads into linked Discussions', ()
       { task_id: ids.onDesk, user_id: ids.owner, read_at: '2026-04-04 00:00:00' },
       { task_id: ids.done, user_id: ids.owner, read_at: '2026-04-05 00:00:00' },
       { task_id: ids.done, user_id: ids.member, read_at: '2026-04-05 00:00:00' },
-      { task_id: ids.converted, user_id: ids.owner, read_at: '2026-03-06 00:00:00' },
-      { task_id: ids.converted, user_id: ids.member, read_at: '2026-03-06 00:00:00' },
+      // The converted thread existed before 0059: nobody had read it, so it stays unread.
     ])
   })
 
