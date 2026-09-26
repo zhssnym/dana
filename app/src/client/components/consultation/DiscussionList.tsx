@@ -23,6 +23,7 @@ The list re-reads every twenty seconds while the tab is visible
 (`useDiscussions`), so new activity arrives without a reload.
 */
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
 
 import {
   useCreateDiscussion,
@@ -38,6 +39,8 @@ import { formatAgo, formatCompactDate } from '../../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../../parts/presenters.js'
 import { pushUndo, undoLabel } from '../../shell/undo.js'
 import { Face } from '../person-face.js'
+import { StateMark, taskState } from '../thread/timeline/state.js'
+import { paths } from '../../routes.js'
 import { useRowKeys } from '../row-keys.js'
 import { InlineError } from '../state-patterns.js'
 import { Skeleton } from '../ui/skeleton.js'
@@ -240,7 +243,7 @@ function ThreadRow({
       aria-label={d.title}
       className={cn(ROW, 'cursor-pointer hover:bg-muted')}
       onClick={(event) => {
-        if ((event.target as HTMLElement).closest('button')) return
+        if ((event.target as HTMLElement).closest('button, a')) return
         onOpen(d.id)
       }}
       onKeyDown={(event) => {
@@ -281,6 +284,17 @@ function ThreadRow({
         >
           {d.title}
         </span>
+        {d.task !== null ? (
+          /* The task this thread is about (M5): its state, linking to it. */
+          <Link
+            to={paths.task(d.task.id)}
+            title={`Task: ${d.task.title}`}
+            aria-label={`Task: ${d.task.title}`}
+            className="flex shrink-0 self-center rounded-sm text-muted-foreground outline-none hover:text-foreground"
+          >
+            <StateMark state={taskState(d.task)} className="size-3.5" />
+          </Link>
+        ) : null}
         {isOpen && last !== null ? (
           <span className="min-w-0 flex-1 truncate text-muted-foreground max-md:hidden">
             {last.author_id === viewerId ? 'You' : personOf(last.author_id).name}: {last.preview}

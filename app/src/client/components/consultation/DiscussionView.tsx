@@ -10,20 +10,20 @@ show.
 "Turn into a task" is an open thread's main act (M4 §4.4): talk that has
 found its task ends there. One press creates the task, titled as the thread,
 at the foot of the page's Work (`POST /tasks` appends a folder's new task to
-its composed page), posts one line in the thread linking to it, and resolves
-the thread without a decision. The three are separate writes, in that order,
+its composed page), links the thread to it (`PATCH` `task_id`, M5), and
+resolves the thread without a decision. A thread about a task (made by
+"Discuss" on the task, or linked here) shows the task under its title and is
+not offered the act again. The three are separate writes, in that order,
 because each has its own route: a failure stops the chain where it failed
-and the steps already taken stay (a task with no link post yet, or a linked
+and the steps already taken stay (a task with no link yet, or a linked
 thread still open), each visible where it landed; a failure after the task
 exists says so ("The task was made. The thread was not closed."), never the
 generic "Nothing was saved". The task is filed into the section the foot of
 Work belongs to, so it folds and moves with the heading it sits under. There is no Undo of the
 whole act: the thread's own Reopen and the task's own delete undo each half,
-and deleting the task later leaves the thread resolved with its link, which
-is intended: the talk did end in a task. A retry after a failed step goes on
-from that step (the view remembers the task it made), so it never makes a
-second task; once a conversion completes that memory is cleared, so a
-Reopen and a second press make a second task, as the button says. The General discussion is never converted: it is the page's
+and a deleted task stops showing under the thread. A retry after a failed
+step goes on from that step (the view remembers the task it made), so it
+never makes a second task. The General discussion is never converted: it is the page's
 catch-all, not one subject.
 
 The thread fills the window: the posts sit at the bottom just above the
@@ -52,6 +52,7 @@ General discussion is never offered Move to Trash here (the route decides).
 */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router'
 import type { QueryClient } from '@tanstack/react-query'
 
 import {
@@ -77,8 +78,8 @@ import type { PersonResolver, ThreadAuthority } from '../../lib/thread.js'
 import { pushUndo, undoLabel } from '../../shell/undo.js'
 import { DISCUSSION_TITLE_MAX, discussionSchema, OUTCOME_STATEMENT_MAX } from '../../../shared/consultation.js'
 import type { Discussion } from '../../../shared/consultation.js'
-import { commentLine } from '../../../shared/comments.js'
-import type { PostContent } from '../../../shared/comments.js'
+import { paths } from '../../routes.js'
+import { StateMark, taskState } from '../thread/timeline/state.js'
 import { getPageResponse } from '../../../shared/pages.js'
 import { TASK_TITLE_LIMIT } from '../../../shared/tasks.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
@@ -142,7 +143,7 @@ function ThreadBody(props: {
   const [turning, setTurning] = useState(false)
   /* What a conversion has already done in this view, so a retry after a
      failed step goes on from that step instead of making a second task. */
-  const made = useRef<{ taskId: string; title: string; linked: boolean } | null>(null)
+  const made = useRef<{ taskId: string; linked: boolean } | null>(null)
   /* After a conversion resolves the thread its button is gone; the focus
      goes to Reopen, which takes its place. */
   const reopenButton = useRef<HTMLButtonElement>(null)
@@ -206,10 +207,11 @@ function ThreadBody(props: {
   const trashed = d.trashed_at !== null
   const trashable = powers.trash && !d.is_general
   const resolvable = powers.resolve && d.state === 'open' && !trashed
-  /* It writes three things, so it is drawn only for someone who may write
-     all three: resolve this thread, post in it, and create a task here. */
+  /* It writes three things, so it is drawn only for someone who may do all
+     three: create a task here, link this thread to it, and resolve it. A
+     thread already about a task has its task and is not offered it. */
   const convertible =
-    resolvable && !d.is_general && may.createComment && viewer !== null && mayDraw(viewer.facts, 'task.create')
+    resolvable && powers.edit && !d.is_general && d.task === null && viewer !== null && mayDraw(viewer.facts, 'task.create')
 
   useEffect(() => {
     if (!focusReopen || reopenButton.current === null) return
@@ -232,7 +234,7 @@ function ThreadBody(props: {
           folder_id: folderId,
           ...(section === null ? {} : { section_block_id: section }),
         })
-        made.current = { taskId: task.id, title: task.title, linked: false }
+        made.current = { taskId: task.id, linked: false }
       }
     } catch (error) {
       /* Nothing was made: the mutation cache's own toast says so, truly. */
@@ -241,14 +243,15 @@ function ThreadBody(props: {
       return
     }
     /* A task now exists, so the generic "Nothing was saved" would be false:
-       the link post and the resolve are plain writes that speak for
-       themselves when they fail. */
+       the link and the resolve are plain writes that speak for themselves
+       when they fail. The link is the thread's own `task_id`, drawn under
+       its title and on the task page, both ways. */
     try {
       if (!made.current.linked) {
-        await mutateApi(commentLine, {
-          method: 'POST',
-          path: `/discussions/${d.id}/comments`,
-          body: { content: taskLinkPost(made.current.taskId, made.current.title) },
+        await mutateApi(discussionSchema, {
+          method: 'PATCH',
+          path: `/discussions/${d.id}`,
+          body: { task_id: made.current.taskId },
         })
         made.current.linked = true
       }
@@ -351,6 +354,17 @@ function ThreadBody(props: {
           ) : null}
         </div>
       </header>
+      {d.task !== null ? (
+        <p className="mt-1 shrink-0 pl-9 text-sm">
+          <Link
+            to={paths.task(d.task.id)}
+            className="inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-sm text-muted-foreground outline-none hover:text-foreground"
+          >
+            <StateMark state={taskState(d.task)} className="size-3.5 shrink-0" />
+            <span className="min-w-0 truncate">{d.task.title}</span>
+          </Link>
+        </p>
+      ) : null}
       {d.context !== null && d.context !== '' ? (
         <p className="mt-2 shrink-0 pl-9 text-sm break-words whitespace-pre-wrap text-muted-foreground">{d.context}</p>
       ) : null}
@@ -379,10 +393,6 @@ function ThreadBody(props: {
   )
 }
 
-/** The thread's last post once it becomes a task: one line, a Dana link to
- * the task. A post draws a Dana link as a chip carrying the task's live
- * name (thread/PostView.tsx), so a renamed task reads renamed here; the
- * stored title is only the offline fallback. */
 /* The section the foot of Work belongs to, so a task added there is filed
    into it (as a task typed at the end of a section is) rather than drawn
    under the last heading while belonging to none: the last item's own
@@ -398,16 +408,6 @@ async function footSection(client: QueryClient, folderId: string): Promise<strin
   const block = page.blocks.find((b) => b.id === last.id)
   if (block === undefined) return null
   return block.kind === 'section' ? block.id : block.section_block_id
-}
-
-function taskLinkPost(taskId: string, title: string): PostContent {
-  return {
-    version: 1,
-    blocks: [{
-      kind: 'paragraph',
-      rich_content: { version: 1, runs: [{ text: 'Turned into a task: ' }, { text: title, href: `/app/tasks/${taskId}` }] },
-    }],
-  }
 }
 
 /** Escape goes back to the list unless something nearer wants it: a field's

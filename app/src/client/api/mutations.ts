@@ -80,11 +80,8 @@ import type {
   TaskTransitionResponse,
 } from '../../shared/tasks.js'
 import { deleteTaskMyDayResponse, postTaskMyDayResponse } from '../../shared/tasks.js'
-import {
-  commentLine,
-  patchCommentResponse,
-} from '../../shared/comments.js'
-import type { CommentLine, PatchCommentBody, PostCommentBody } from '../../shared/comments.js'
+import { patchCommentResponse } from '../../shared/comments.js'
+import type { CommentLine, PatchCommentBody } from '../../shared/comments.js'
 import {
   postNotificationReadResponse,
   postNotificationsReadAllResponse,
@@ -131,7 +128,6 @@ import { mutateApi, requestTimezone } from './http.js'
 import { INLINE_VALIDATION_META, INVALIDATES_META, VALIDATION_ERROR_TOAST_META } from './queryClient.js'
 import type { InvalidatesMeta } from './queryClient.js'
 import type { GetThreadResponse } from '../../shared/comments.js'
-import { queryKeys } from './keys.js'
 import { taskDependencyEdge } from '../../shared/task-dependencies.js'
 import type { TaskDependencyEdge } from '../../shared/task-dependencies.js'
 
@@ -916,43 +912,6 @@ export const CHAT_WRITE = { [INVALIDATES_META]: chatChanged } as const
 export function withPost(thread: GetThreadResponse | undefined, line: CommentLine): GetThreadResponse | undefined {
   if (thread === undefined || thread.comments.some((c) => c.id === line.id)) return thread
   return { ...thread, comments: [...thread.comments, line] }
-}
-
-export interface PostCommentVariables {
-  readonly folderId: string
-  readonly body: PostCommentBody
-  /*
-  Which task's thread this joins.
-
-  It is a query parameter rather than a body field because that is where 7.14
-  puts it: `routes/conversation.ts` parses `threadQuery` off `req.query` on both
-  the read and the write, and `postCommentBody` carries no task at all. The read
-  half takes one too (`useThread`'s second argument).
-  */
-  readonly taskId?: string
-}
-
-export function usePostComment(): UseMutationResult<
-  CommentLine,
-  Error,
-  PostCommentVariables
-> {
-  const client = useQueryClient()
-  return useMutation({
-    meta: CHAT_WRITE,
-    onSuccess: (line, { folderId, taskId }) => {
-      client.setQueryData<GetThreadResponse>(queryKeys.thread(folderId, taskId ?? null), (thread) => withPost(thread, line))
-    },
-    mutationFn: ({ folderId, body, taskId }: PostCommentVariables) =>
-      mutateApi(commentLine, {
-        method: 'POST',
-        path:
-          taskId === undefined
-            ? `/folders/${folderId}/comments`
-            : `/folders/${folderId}/comments?task=${encodeURIComponent(taskId)}`,
-        body,
-      }),
-  })
 }
 
 export interface PatchCommentVariables {

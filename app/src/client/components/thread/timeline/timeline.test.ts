@@ -44,7 +44,6 @@ describe('AC-1505 the task timeline', () => {
         line(1, 'completed', '2026-09-20T10:01:00.000Z'),
         line(2, 'reopened', '2026-09-20T10:02:00.000Z'),
       ],
-      comments: [],
       dependsOn: [],
       blocks: [],
       nameOf: () => 'Maya',

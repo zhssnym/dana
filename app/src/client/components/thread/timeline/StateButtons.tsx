@@ -1,8 +1,7 @@
 /*
-The task page's one finishing act (M4), beside "Post" under the timeline:
+The task page's one finishing act (M4), under the history beside "Discuss":
 "Mark done ▾", whose menu holds Drop, or "Reopen" once the task is done or
-dropped. With words in the composer it reads "Post and mark done" and posts
-first, so the post sits before the event in the timeline.
+dropped.
 
 Only the buttons the person's access lets them press are drawn: marking done
 and reopening a done task need task.status.complete; dropping and reopening
@@ -24,12 +23,10 @@ export interface StateMay {
 export function StateButtons(props: {
   readonly state: TaskState
   readonly may: StateMay
-  readonly withPost: boolean
-  readonly busy: boolean
   readonly onFinish: (how: 'done' | 'dropped') => void
   readonly onReopen: () => void
 }): React.JSX.Element | null {
-  const { state, withPost, may } = props
+  const { state, may } = props
   /* Finishing swaps "Mark done" for "Reopen" (and back), so the pressed
      button unmounts; once the state has moved, focus goes to its successor. */
   const pressed = useRef(false)
@@ -50,8 +47,8 @@ export function StateButtons(props: {
   if (state !== 'open') {
     if (!(state === 'done' ? may.complete : may.abandon)) return null
     return (
-      <Button variant="outline" disabled={props.busy} data-task-state-button onClick={reopen}>
-        {withPost ? 'Post and reopen' : 'Reopen'}
+      <Button variant="outline" data-task-state-button onClick={reopen}>
+        Reopen
       </Button>
     )
   }
@@ -59,12 +56,11 @@ export function StateButtons(props: {
   const done = (
     <Button
       variant="outline"
-      disabled={props.busy}
       className={may.abandon ? 'rounded-r-none' : undefined}
       data-task-state-button
       onClick={() => finish('done')}
     >
-      {withPost ? 'Post and mark done' : 'Mark done'}
+      Mark done
     </Button>
   )
   if (!may.abandon) return done
@@ -77,8 +73,7 @@ export function StateButtons(props: {
             <Button
               variant="outline"
               size="icon"
-              disabled={props.busy}
-              aria-label="Other ways to finish"
+                      aria-label="Other ways to finish"
               className="-ml-px rounded-l-none"
             />
           }

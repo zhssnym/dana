@@ -3,38 +3,31 @@ The task page's body: everything a task is, in one quiet column (M4: one
 task page, no peek).
 
 The order is the page's: one properties block (Status first, then only what
-is set, and "Add property"), a rule, the task's own document, then Subtasks,
-Dependencies and Attachments where there are some, a rule, and one timeline:
-its posts and its events together, ending in "Write a post" with "Mark done ▾"
-(Drop in its menu). Nothing here can be dragged or collapsed; a task is not a
+is set, and "Add property"), a rule, the task's own document, then Subtasks
+and Dependencies where there are some, a rule, and the task's history (its
+events, never posts) ending in "Discuss" and "Mark done ▾" (Drop in its menu).
+Talk about a task lives in its project's Discussion (M5); "Discuss" opens the
+task's one thread there, and makes it on first use. Nothing here can be dragged or collapsed; a task is not a
 form somebody arranges. Every edit commits as it is made, so there is no Save.
 
 **The properties block shows only what is set.** A task with no date draws no
 Date row; "Add property" offers it, and choosing it reveals the row already
 asking its question. A row dismissed without an answer goes away again.
 
-**Attachments have one home**, the Attachments section here. The comment
-composer in this panel offers no file or link of its own.
+Files go in the task's document, which takes file and image blocks.
 */
 
 import { Face } from "./person-face.js"
 import { InlineInput } from "./ui/inline-field.js"
 import {
-  ArrowUpRight,
   Bell,
   CalendarDays,
-  FileText,
   GripVertical,
-  Image as ImageIcon,
-  Link2,
   ListPlus,
   MoreHorizontal,
-  Paperclip,
-  Play,
   Plus,
   Repeat2,
   UserRound,
-  Video,
   Workflow,
   X,
   type LucideIcon,
@@ -58,7 +51,7 @@ import {
   ReminderPanel,
   RepeatPanel,
 } from "./task-pickers.js"
-import { TaskThread } from "./thread/TaskThread.js"
+import { TaskHistory } from "./thread/TaskHistory.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
 import { useMultiMemberFolderIds, useTaskDependencies } from "../api/queries.js"
 import { presenterToday } from "../parts/presenters.js"
@@ -421,183 +414,6 @@ function StepList({
   )
 }
 
-/* ------------------------------------------------------------ attachments */
-
-/*
-Viewable is a decision the server makes, not a property of the file's name:
-images and video are shown, documents opened, everything else handed over as a
-download. A link is an anchor, so middle-click and "copy link address" work.
-*/
-const ATTACHMENT_ICON: Record<NonNullable<ConceptTask["attachments"]>[number]["kind"], LucideIcon> = {
-  image: ImageIcon,
-  video: Video,
-  document: FileText,
-  file: Paperclip,
-  link: Link2,
-}
-
-type Attachment = NonNullable<ConceptTask["attachments"]>[number]
-
-function kindOf(type: string): Attachment["kind"] {
-  if (type.startsWith("image/")) return "image"
-  if (type.startsWith("video/")) return "video"
-  if (type === "application/pdf" || type.startsWith("text/")) return "document"
-  return "file"
-}
-
-function readableSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function AttachmentPicker({
-  onAdd,
-  pickOnMount = false,
-}: {
-  onAdd: (files: Attachment[]) => void
-  /* "Add property → Attachment" opens the file chooser straight away. */
-  pickOnMount?: boolean
-}) {
-  const input = useRef<HTMLInputElement>(null)
-  const picked = useRef(false)
-
-  function takeFiles(list: FileList | null) {
-    if (!list || list.length === 0) return
-    onAdd(
-      Array.from(list).map((file) => {
-        const kind = kindOf(file.type)
-        return {
-          name: file.name,
-          meta: `${file.type.split("/")[1]?.toUpperCase() ?? "FILE"} · ${readableSize(file.size)}`,
-          kind,
-          preview: kind === "image" ? URL.createObjectURL(file) : undefined,
-          /* The bytes themselves: the writer uploads what carries a file and
-             skips what does not, so without this a chosen file went nowhere. */
-          file,
-        }
-      }),
-    )
-  }
-
-  return (
-    <div
-      onClick={(event) => event.stopPropagation()}
-      onPointerDown={(event) => event.stopPropagation()}
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={(event) => {
-        event.preventDefault()
-        takeFiles(event.dataTransfer.files)
-      }}
-    >
-      <input
-        ref={(element) => {
-          input.current = element
-          if (element && pickOnMount && !picked.current) {
-            picked.current = true
-            element.click()
-          }
-        }}
-        type="file"
-        multiple
-        className="sr-only"
-        onChange={(event) => {
-          takeFiles(event.target.files)
-          event.target.value = ""
-        }}
-      />
-      {/* A file only: the task's attachments are its conversation's files
-          (4.16), and a link has nowhere to be stored; it belongs in Work. */}
-      <EmptyAction label="Add a file" onSelect={() => input.current?.click()} />
-    </div>
-  )
-}
-
-function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments"]> }) {
-  const [openName, setOpenName] = useState<string | null>(null)
-
-  return (
-    <div className="flex flex-col">
-      {files.map((file) => {
-        const Icon = ATTACHMENT_ICON[file.kind]
-        const viewable = file.kind === "image" || file.kind === "video"
-        const isOpen = openName === file.name
-        const Row = file.url ? "a" : "button"
-        const rowProps = file.url
-          ? ({
-              href: file.url,
-              target: "_blank",
-              rel: "noreferrer noopener",
-              onClick: (event: React.MouseEvent) => event.stopPropagation(),
-            } as const)
-          : ({
-              type: "button" as const,
-              onClick: (event: React.MouseEvent) => {
-                event.stopPropagation()
-                if (viewable) setOpenName(isOpen ? null : file.name)
-              },
-            } as const)
-
-        return (
-          <div key={file.name}>
-            <Row
-              {...rowProps}
-              className={cn(
-                "flex h-10 w-full items-center gap-2.5 rounded-sm px-1 text-left transition-colors duration-100 hover:bg-accent",
-              )}
-            >
-              {file.preview ? (
-                <span className="relative size-7 shrink-0 overflow-hidden rounded-sm bg-muted">
-                  <img src={file.preview} alt="" className="size-full object-cover" />
-                  {file.kind === "video" ? (
-                    <span className="absolute inset-0 flex items-center justify-center">
-                      <Play className="size-3.5 fill-background text-background" strokeWidth={1.5} aria-hidden="true" />
-                    </span>
-                  ) : null}
-                </span>
-              ) : (
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-sm bg-muted">
-                  <Icon className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
-                </span>
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm text-foreground">{file.name}</span>
-                <span className="block text-xs text-muted-foreground">{file.meta}</span>
-              </span>
-              <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                {file.url ? (
-                  <>
-                    Open
-                    <ArrowUpRight className="size-3" strokeWidth={2} aria-hidden="true" />
-                  </>
-                ) : viewable ? (
-                  isOpen ? "Hide" : "View"
-                ) : (
-                  "Download"
-                )}
-              </span>
-            </Row>
-            {viewable && file.preview ? (
-              <Reveal open={isOpen}>
-                <div className="px-1 pb-2">
-                  <img
-                    src={file.preview}
-                    alt={file.name}
-                    /* Reserved from the stored shape where there is one, so
-                       the reveal does not jump when the bytes land (#108). */
-                    style={file.ratio === undefined ? undefined : { aspectRatio: file.ratio }}
-                    className="w-full max-w-[320px] rounded-sm"
-                  />
-                </div>
-              </Reveal>
-            ) : null}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 /* ------------------------------------------------------------- properties */
 
 type AddableProperty = "date" | "reminder" | "repeat" | "assignee" | "steps"
@@ -767,14 +583,12 @@ export function TaskCard({
   /* The one property "Add property" has just revealed, if any. */
   const [adding, setAdding] = useState<AddableProperty | null>(null)
   const [depOpening, setDepOpening] = useState(false)
-  const [attaching, setAttaching] = useState(false)
   const counts = stepCount(task)
 
   const relatable = isRelatableTask(task.id)
   const deps = useTaskDependencies(relatable ? task.id : null)
   const hasDeps =
     (deps.data?.depends_on.length ?? 0) > 0 || (deps.data?.blocks.length ?? 0) > 0
-  const attachments = task.attachments ?? []
   const steps = task.steps ?? []
   const move = useStateMoves(task, patch)
 
@@ -810,9 +624,6 @@ export function TaskCard({
       : []),
     ...(relatable && deps.data !== undefined && !hasDeps && !depOpening
       ? [{ key: "dependency", label: "Waits on", icon: Workflow, onSelect: () => setDepOpening(true) }]
-      : []),
-    ...(attachments.length === 0 && !attaching
-      ? [{ key: "attachment", label: "Attachment", icon: Paperclip, onSelect: () => setAttaching(true) }]
       : []),
   ]
 
@@ -992,24 +803,11 @@ export function TaskCard({
         section={(_badge, body, title) => <Section title={title}>{body}</Section>}
       />
 
-      {attachments.length > 0 || attaching ? (
-        <Section title="Attachments">
-          {attachments.length > 0 ? <AttachmentList files={attachments} /> : null}
-          <AttachmentPicker
-            pickOnMount={attaching && attachments.length === 0}
-            onAdd={(added) => {
-              patch(task.id, { attachments: [...attachments, ...added] })
-              setAttaching(false)
-            }}
-          />
-        </Section>
-      ) : null}
-
       <hr className="border-border" />
 
-      {/* One timeline: posts and events together, then "Write a post". */}
+      {/* The history, then "Discuss" and the finishing act. */}
       <div>
-        <TaskThread
+        <TaskHistory
           taskId={task.id}
           folderId={task.folder?.id ?? null}
           state={stateOf(task)}

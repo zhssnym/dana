@@ -22,10 +22,6 @@ questions would drift, which is why this file composes rather than computes.
   The row draws the count through its own `steps` prop, which is a separate prop
   on `TaskRowProps` precisely so the count and the items need not travel
   together.
-- `attachments`. There is no storage, no permission model and no virus story
-  behind one, so there is nothing to map. The block is drawn and fed nothing.
-- `comments`. 9.6's conversation is served at `GET /folders/:id/thread`, and is
-  mounted by the surfaces that show it rather than mapped here.
 
 **The repeat is read from the detail's rule.** `repeatUnit`, `repeatEvery`,
 `repeatDays` and `repeatEnds` are the parts of 4.11's RRULE, taken apart so the
@@ -283,6 +279,4 @@ export const writtenElsewhere: readonly (keyof ConceptTask)[] = [
   'reminderAt',
   'repeatMonthDay',
   'start',
-  'comments',
-  'attachments',
 ]
