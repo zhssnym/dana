@@ -12,7 +12,7 @@ import { PageBody } from '../components/page/PageStates.js'
 import { useRowKeys } from '../components/row-keys.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { paths } from '../routes.js'
-import { FOCUS_EMPTY, FOCUS_FILTERS, focusList, isFocusKey } from '../shell/focus-lists.js'
+import { FOCUS_EMPTY, FOCUS_FILTERS, focusIdentityKey, focusList, isFocusKey } from '../shell/focus-lists.js'
 import type { FocusListKey } from '../shell/focus-lists.js'
 import { groupRows } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
@@ -55,10 +55,15 @@ function FocusList({ listKey }: { readonly listKey: FocusListKey }): React.JSX.E
       ? [{ key: 'all', name: list.name, rows: narrowed }]
       : groupRows(narrowed, place.groupBy, place.today, place.viewerId)
   const emptyCopy = FOCUS_EMPTY[listKey] ?? ''
+  const identityKey = focusIdentityKey(listKey)
 
   return (
     <div ref={keys} className="space-y-6">
-      <PlaceHead place={place} bare={rows.length === 0} />
+      <PlaceHead
+        place={place}
+        bare={rows.length === 0}
+        {...(identityKey === undefined ? {} : { identityKey })}
+      />
       {place.mode === 'board' ? (
         <PageBody
           query={view}

@@ -56,6 +56,29 @@ export function focusList(key: FocusListKey): FocusList {
   return { key, ...TABLE[key], isDefault: DEFAULT_FOCUS_LISTS.includes(key) }
 }
 
+/**
+ * Existing 4.20 place rows that are semantically the same Focus destination.
+ * `anytime` is the former No date page and `all` the former All open page, so
+ * those durable per-viewer stores can keep serving the renamed Focus lists.
+ * Overdue never had its own place row; returning undefined is the backend
+ * boundary rather than inventing local-only identity state.
+ */
+export function focusIdentityKey(key: FocusListKey): string | undefined {
+  switch (key) {
+    case 'today':
+    case 'scheduled':
+    case 'assignments':
+    case 'important':
+      return key
+    case 'undated':
+      return 'anytime'
+    case 'open':
+      return 'all'
+    case 'overdue':
+      return undefined
+  }
+}
+
 /** Every list the "+" can offer, in its order, less the ones already shown. */
 export function focusOffers(shown: readonly FocusListKey[]): readonly FocusList[] {
   return FOCUS_LISTS.filter((key) => !shown.includes(key)).map(focusList)
