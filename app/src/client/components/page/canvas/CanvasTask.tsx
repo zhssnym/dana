@@ -6,7 +6,6 @@ import type { TaskRows } from '../../../pages/task-rows.js'
 import { useTask, useTaskDependencies } from '../../../api/queries.js'
 import { DELETED_USER, taskRowDisplay } from '../../../parts/presenters.js'
 import { formatDay } from '../../../lib/dates.js'
-import { Hourglass } from '../../../lib/icons.js'
 import { isWaiting } from './thread/thread-model.js'
 import { cn } from '../../ui/utils.js'
 import { PersonFace } from '../../person-face.js'
@@ -94,10 +93,10 @@ type NodeState = 'open' | 'next' | 'waiting' | 'done' | 'dropped'
  * glyph sits on the rail, then the title, then a little meta on the right.
  * No star, no labels, no counts: the task page holds those.
  *
- * - open: a ring; the one "next" task wears the accent ring and a bold title
- * - waiting (a blocker, or a start still ahead): the hourglass; meta names the blocker, or the start day
- * - done: the check, title muted, the day it was done in meta
- * - dropped: the crossed ring, title muted and struck; never drawn as done
+ * - open: an empty box; the one "next" task wears the accent box and a bold title
+ * - waiting (a blocker, or a start still ahead): the amber pause; meta names the blocker, or the start day
+ * - done: the filled box with its check, title muted, the day it was done in meta
+ * - dropped: the dash in a faint box, title muted and struck; never drawn as done
  *
  * A click on the glyph ticks it (a dropped task is restored); a click anywhere
  * else on the row opens the one task page (`onOpenTask`), as does Enter.
@@ -169,23 +168,21 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
   return <div data-canvas-task-id={taskId} data-canvas-task-loading="" aria-busy="true" className="min-h-6 min-w-0" contentEditable={false} />
 }
 
-/** The node's glyph: a ring, the accent ring, the check, the crossed ring. */
+/**
+ * The node's glyph, a 16px square bead on the rail: an empty box; the next
+ * task's accent box with a centre; filled in the done colour with the check;
+ * waiting's pause; dropped's dash in a fainter box. The edge is 1.5px (2px for
+ * next), drawn inside the 16px box, so every bead is one size on the line.
+ */
 function Glyph({ state }: { readonly state: NodeState }): React.JSX.Element {
-  // 2.25 on Lucide's 24-unit box is 1.5px at 16px: the ring's own weight.
-  if (state === 'waiting') return <Hourglass className="size-4" strokeWidth={2.25} />
+  const edge = state === 'next' ? 2 : 1.5
   return (
     <svg viewBox="0 0 16 16" aria-hidden className="size-4">
-      {state === 'done' ? (
-        <>
-          <circle cx="8" cy="8" r="7" fill="currentColor" />
-          <path d="M5 8.2 7.1 10.3 11 6" fill="none" stroke="var(--background)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </>
-      ) : (
-        <>
-          <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth={state === 'next' ? 2 : 1.5} />
-          {state === 'dropped' ? <path d="M3.8 12.2 12.2 3.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /> : null}
-        </>
-      )}
+      <rect x={edge / 2} y={edge / 2} width={16 - edge} height={16 - edge} rx={4 - edge / 2} fill={state === 'done' ? 'currentColor' : 'none'} stroke={state === 'dropped' ? 'var(--line)' : 'currentColor'} strokeWidth={edge} />
+      {state === 'done' ? <path d="M5 8.2 7.1 10.3 11 6" fill="none" stroke="var(--background)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /> : null}
+      {state === 'next' ? <rect x="5" y="5" width="6" height="6" rx="1.5" fill="currentColor" /> : null}
+      {state === 'waiting' ? <><rect x="5.5" y="5" width="1.6" height="6" rx=".5" fill="currentColor" /><rect x="8.9" y="5" width="1.6" height="6" rx=".5" fill="currentColor" /></> : null}
+      {state === 'dropped' ? <rect x="5" y="7.25" width="6" height="1.5" rx=".6" fill="currentColor" /> : null}
     </svg>
   )
 }
@@ -231,7 +228,7 @@ function ThreadRow({ task, state, bridge, thread }: { readonly task: TaskCard; r
         aria-label={GLYPH_LABEL[state]}
         className={cn(
           'dana-thread-glyph',
-          state === 'done' ? 'text-[var(--color-success-600)]' : state === 'next' ? 'text-primary' : state === 'dropped' ? 'text-quiet-foreground' : 'text-muted-foreground',
+          state === 'done' ? 'text-[var(--color-success-600)]' : state === 'next' ? 'text-primary' : state === 'waiting' ? 'text-[var(--color-warning-700)]' : 'text-quiet-foreground',
         )}
         /* A tick is not an edit: the press must not pick the row as a node
            (which tints it and puts it in the editor's undo). */
