@@ -50,12 +50,15 @@ export function TaskHistory({
 
   if (entries.length === 0) return null
   return (
-    <ol className="-mx-2 min-w-0" aria-label="History">
-      {entries.map((entry) => (
-        <li key={entry.key} className="min-w-0 list-none">
-          <EventRow entry={entry} person={personOf} folderId={folderId ?? ''} onOpenTask={(id) => { openTask(id) }} />
-        </li>
-      ))}
-    </ol>
+    <section className="flex min-w-0 flex-col gap-1" aria-labelledby={`history-${taskId}`}>
+      <h2 id={`history-${taskId}`} className="text-sm text-muted-foreground">History</h2>
+      <ol className="-mx-2 min-w-0">
+        {entries.map((entry) => (
+          <li key={entry.key} className="min-w-0 list-none">
+            <EventRow entry={entry} person={personOf} folderId={folderId ?? ''} onOpenTask={(id) => { openTask(id) }} />
+          </li>
+        ))}
+      </ol>
+    </section>
   )
 }

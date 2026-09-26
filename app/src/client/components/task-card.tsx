@@ -675,6 +675,9 @@ export function TaskCard({
   const timeFormat = useTimeFormat()
   const folderId = task.folder?.id ?? null
   const roster = usePeopleLibrary(folderId)
+  /* "Invite by email" opens its address field inside the Assignee menu, so
+     the field goes wherever the menu goes: Escape, a click outside, a pick. */
+  const [assigneeOpen, setAssigneeOpen] = useState(false)
   const [inviting, setInviting] = useState(false)
   /* `/Subtask` on an empty line, and `/Blocked by`: the block under the
      writing opens already asking. */
@@ -693,6 +696,11 @@ export function TaskCard({
         <MenuRow
           label={CHIP_ASSIGNEE}
           empty={!task.assignee}
+          open={assigneeOpen}
+          onOpenChange={(open) => {
+            setAssigneeOpen(open)
+            if (!open) setInviting(false)
+          }}
           value={
             task.assignee ? (
               <>
@@ -710,8 +718,16 @@ export function TaskCard({
               {person.name}
             </DropdownMenuItem>
           ))}
-          {folderId === null ? null : (
-            <DropdownMenuItem onClick={() => setInviting(true)}>{INVITE_BY_EMAIL}</DropdownMenuItem>
+          {folderId === null ? null : inviting ? (
+            <TaskAssigneeInvite
+              folderId={folderId}
+              folderName={task.folder?.name ?? ""}
+              onDone={() => setAssigneeOpen(false)}
+            />
+          ) : (
+            <DropdownMenuItem closeOnClick={false} onClick={() => setInviting(true)}>
+              {INVITE_BY_EMAIL}
+            </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
           {/* `null`, issue #169: the patch that says "clear the assignee". */}
@@ -729,16 +745,6 @@ export function TaskCard({
 
         <DiscussionRow taskId={task.id} folderId={folderId} threadId={may.threadId} mayStart={may.discuss} />
       </div>
-
-      {inviting && task.folder?.id !== undefined ? (
-        <TaskAssigneeInvite
-          folderId={task.folder.id}
-          folderName={task.folder.name}
-          onDone={() => setInviting(false)}
-        />
-      ) : null}
-
-      <hr className="border-border" />
 
       {/* #221: the task's own document, in the folder canvas's writer, with
           its subtasks and "Blocked by" under the writing. The plain-text
@@ -796,8 +802,6 @@ export function TaskCard({
           section={(_badge, body) => body}
         />
       </div>
-
-      <hr className="border-border" />
 
       <TaskHistory taskId={task.id} folderId={folderId} />
     </div>

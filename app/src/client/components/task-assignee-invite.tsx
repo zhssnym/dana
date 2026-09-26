@@ -45,7 +45,6 @@ export function TaskAssigneeInvite({
   readonly onDone: () => void
 }): React.JSX.Element {
   const [email, setEmail] = useState('')
-  const [sent, setSent] = useState<string | null>(null)
   const invite = useCreateInvite()
 
   function send(): void {
@@ -54,31 +53,25 @@ export function TaskAssigneeInvite({
     invite.mutate(
       folderInviteBody(address, folderId),
       {
-        onSuccess: () => {
-          setSent(address)
-          onDone()
-        },
+        onSuccess: onDone,
       },
     )
   }
 
-  if (sent !== null) {
-    /* 9.8's sentence, which the row draws as a chip the moment 7.4 reports
-       the pending invite. Said here too, because the person who just sent it
-       is looking at this and not at the row behind it. */
-    return (
-      <p className="px-1.5 py-1 text-xs leading-4 text-[var(--color-info-700)]">
-        {`Invite pending: ${sent}`}
-      </p>
-    )
-  }
-
   return (
-    <div className="flex items-center gap-1 px-1.5 py-1">
+    /* It lives inside the Assignee menu: the menu keeps Escape (which closes
+       both) and nothing else, so its typeahead never eats the address. */
+    <div
+      className="flex items-center gap-1 px-1.5 py-1"
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') event.stopPropagation()
+      }}
+    >
       <Input
         type="email"
         aria-label={INVITE_BY_EMAIL}
         value={email}
+        autoFocus
         placeholder="name@example.com"
         onChange={(event) => {
           setEmail(event.target.value)
