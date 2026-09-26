@@ -159,9 +159,6 @@
   background-color: transparent;
   color: var(--muted-foreground);
 }
-.dana-writing-canvas .bn-editor[contenteditable='true'] [data-file-block] .bn-add-file-button:hover {
-  background-color: var(--muted);
-}
 .dana-writing-canvas [data-file-block] .bn-add-file-button-icon {
   width: var(--icon-size-compact);
   height: var(--icon-size-compact);
@@ -387,13 +384,10 @@
 /* The divider block is the one divider: the hairline, not a second grey. */
 .dana-writing-canvas .bn-block-content[data-content-type='divider'] hr { border: 0; border-top: 1px solid var(--border); background: none; }
 /* A Task row reached by keyboard (Tab, or focus handed back when its peek
-   closes) wears the block-selection tint: the editor suppresses the global
-   outline inside its document, and a ring would stack on the row's own. */
-.dana-writing-canvas [data-canvas-task-id]:focus-visible {
-  outline: none;
-  background: var(--dana-block-selection);
-  box-shadow: 0 0 0 var(--dana-block-selection-inset-y) var(--dana-block-selection);
-}
+   closes) wears the block-selection tint, in its shape (m3-hover, below): the
+   editor suppresses the global outline inside its document, and a ring would
+   stack on the row's own. */
+.dana-writing-canvas [data-canvas-task-id]:focus-visible { outline: none; }
 
 /* ---- r7-editor: Notion's to-do rhythm at Dana's body size.
    Every one-line text block is one --row-height tall, as a Task row is, so
@@ -427,3 +421,64 @@
 }
 .dana-writing-canvas .bn-editor .bn-inline-content:has(.ProseMirror-trailingBreak:only-child)::before,
 .dana-writing-canvas .bn-block-content:has(.ProseMirror-trailingBreak:only-child)::after { color: var(--text-placeholder); }
+
+/* ---- m3-hover: a row's hover is the shape its selection will be. A Task,
+   sub-page or Folder row, and an empty Image or File block's "Add an image"
+   row, drew its hover on its own box, while the tint that picks it
+   (block-selection.ts, and a node selection above) reaches
+   --dana-block-selection-inset-x/-y past the block: two sizes for one row.
+   The hover is drawn on the block instead, with the same insets and radius,
+   behind the row's content; the row's own hover is not drawn here. Text
+   blocks have no hover: the gutter's handle is theirs. */
+.dana-writing-canvas .bn-block-content:is([data-content-type='danaTask'], [data-content-type='danaPage'], [data-content-type='danaFolder'], :has(.bn-add-file-button), :has(.bn-file-name-with-icon)) {
+  position: relative;
+  isolation: isolate;
+}
+.dana-writing-canvas .bn-block-content:is([data-content-type='danaTask'], [data-content-type='danaPage'], [data-content-type='danaFolder'], :has(.bn-add-file-button), :has(.bn-file-name-with-icon))::before {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--dana-block-selection-inset-y)) calc(-1 * var(--dana-block-selection-inset-x));
+  /* BlockNote gives every block's ::before height 0 (its list marker's slot). */
+  width: auto;
+  height: auto;
+  z-index: -1;
+  border-radius: var(--dana-block-selection-radius);
+  background: transparent;
+  pointer-events: none;
+  transition: background-color var(--duration-fast) var(--ease-enter);
+}
+@media (hover: hover) {
+  .dana-writing-canvas .bn-block-content[data-content-type='danaTask']:has([data-row-key]:hover)::before,
+  .dana-writing-canvas .bn-block-content[data-content-type='danaPage']:has(a[data-canvas-page-id]:hover)::before,
+  .dana-writing-canvas .bn-block-content[data-content-type='danaFolder']:has(a[data-canvas-folder-id]:hover)::before,
+  .dana-writing-canvas .bn-editor[contenteditable='true'] .bn-block-content:has(.bn-add-file-button:hover)::before,
+  .dana-writing-canvas .bn-block-content:has(.bn-file-name-with-icon:hover)::before {
+    background: var(--muted);
+  }
+}
+.dana-writing-canvas [data-canvas-task-id] [data-row-key]:hover,
+.dana-writing-canvas a[data-canvas-page-id]:hover,
+.dana-writing-canvas a[data-canvas-folder-id]:hover,
+.dana-writing-canvas .bn-editor[contenteditable='true'] [data-file-block] .bn-add-file-button:hover,
+.dana-writing-canvas [data-file-block] .bn-file-name-with-icon:hover,
+.dana-writing-canvas .ProseMirror-selectednode .bn-file-name-with-icon { background-color: transparent; }
+/* While a block is node-selected, no row draws a hover: the hover reaches
+   the insets past its row, so on the row under a selected one it would
+   paint over that selection's rounded bottom. (block-selection.ts does the
+   same for a block selection.) */
+.dana-writing-canvas .ProseMirror-focused:has(.bn-block-content.ProseMirror-selectednode, .ProseMirror-selectednode > .bn-block-content) .bn-block-content::before {
+  background: transparent !important;
+}
+/* Keyboard focus on a Task row: the selection's tint, in the selection's shape. */
+.dana-writing-canvas .bn-block-content[data-content-type='danaTask']:has([data-canvas-task-id]:focus-visible)::before {
+  background: var(--dana-block-selection);
+}
+/* A Task row picked with Ctrl/Cmd/Shift+click (task-row.tsx's own bulk
+   selection, `bg-primary/10` on its listitem) is tinted in the selection's
+   shape too, not on the row's smaller box: the row's own tint is cleared and
+   the block's ::before wears the selection. `!important` so it still shows
+   beside a block or node selection, which clear every row's hover. */
+.dana-writing-canvas [data-canvas-task-id] [role='listitem'][class~='bg-primary/10'] { background-color: transparent; }
+.dana-writing-canvas .bn-block-content[data-content-type='danaTask']:has([role='listitem'][class~='bg-primary/10'])::before {
+  background: var(--dana-block-selection) !important;
+}
