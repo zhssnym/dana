@@ -84,12 +84,15 @@ export function BlockSelectionStyle({ editor, scope }: { readonly editor: AnyEdi
   const block = (id: string): string => `.${scope} .bn-block-outer[data-id="${CSS.escape(id)}"] > .bn-block`
   const all = ids.map(block)
   // No caret, and no text highlight over the picked blocks: they are picked whole.
+  // No row hover either (canvas.css m3-hover): it reaches past its row, so it
+  // would paint over a neighbour's tint and show through a picked row's.
   return createElement('style', null, `${all.join(', ')} { position: relative; }
 ${all.map((selector) => `${selector}::after`).join(', ')} { content: ''; position: absolute; inset: 0 calc(-1 * var(--dana-block-selection-inset-x)); background: var(--dana-block-selection); pointer-events: none; animation: dana-block-selection-in var(--duration-fast) var(--ease-enter); }
 ${block(ids[0]!)}::after { top: calc(-1 * var(--dana-block-selection-inset-y)); border-start-start-radius: var(--dana-block-selection-radius); border-start-end-radius: var(--dana-block-selection-radius); }
 ${block(ids.at(-1)!)}::after { bottom: calc(-1 * var(--dana-block-selection-inset-y)); border-end-start-radius: var(--dana-block-selection-radius); border-end-end-radius: var(--dana-block-selection-radius); }
 ${hangs(scope, ids)} { inset-inline-start: calc(-1 * (var(--dana-block-selection-inset-x) + var(--dana-block-selection-hang))); }
 .${scope} .bn-editor { caret-color: transparent; }
+.${scope} .bn-block-content::before { background: transparent !important; }
 .${scope} .bn-editor ::selection { background: transparent; }`)
 }
 

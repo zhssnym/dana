@@ -430,11 +430,11 @@
    The hover is drawn on the block instead, with the same insets and radius,
    behind the row's content; the row's own hover is not drawn here. Text
    blocks have no hover: the gutter's handle is theirs. */
-.dana-writing-canvas .bn-block-content:is([data-content-type='danaTask'], [data-content-type='danaPage'], [data-content-type='danaFolder'], :has(.bn-add-file-button)) {
+.dana-writing-canvas .bn-block-content:is([data-content-type='danaTask'], [data-content-type='danaPage'], [data-content-type='danaFolder'], :has(.bn-add-file-button), :has(.bn-file-name-with-icon)) {
   position: relative;
   isolation: isolate;
 }
-.dana-writing-canvas .bn-block-content:is([data-content-type='danaTask'], [data-content-type='danaPage'], [data-content-type='danaFolder'], :has(.bn-add-file-button))::before {
+.dana-writing-canvas .bn-block-content:is([data-content-type='danaTask'], [data-content-type='danaPage'], [data-content-type='danaFolder'], :has(.bn-add-file-button), :has(.bn-file-name-with-icon))::before {
   content: '';
   position: absolute;
   inset: calc(-1 * var(--dana-block-selection-inset-y)) calc(-1 * var(--dana-block-selection-inset-x));
@@ -451,14 +451,24 @@
   .dana-writing-canvas .bn-block-content[data-content-type='danaTask']:has([data-row-key]:hover)::before,
   .dana-writing-canvas .bn-block-content[data-content-type='danaPage']:has(a[data-canvas-page-id]:hover)::before,
   .dana-writing-canvas .bn-block-content[data-content-type='danaFolder']:has(a[data-canvas-folder-id]:hover)::before,
-  .dana-writing-canvas .bn-editor[contenteditable='true'] .bn-block-content:has(.bn-add-file-button:hover)::before {
+  .dana-writing-canvas .bn-editor[contenteditable='true'] .bn-block-content:has(.bn-add-file-button:hover)::before,
+  .dana-writing-canvas .bn-block-content:has(.bn-file-name-with-icon:hover)::before {
     background: var(--muted);
   }
 }
 .dana-writing-canvas [data-canvas-task-id] [data-row-key]:hover,
 .dana-writing-canvas a[data-canvas-page-id]:hover,
 .dana-writing-canvas a[data-canvas-folder-id]:hover,
-.dana-writing-canvas .bn-editor[contenteditable='true'] [data-file-block] .bn-add-file-button:hover { background-color: transparent; }
+.dana-writing-canvas .bn-editor[contenteditable='true'] [data-file-block] .bn-add-file-button:hover,
+.dana-writing-canvas [data-file-block] .bn-file-name-with-icon:hover,
+.dana-writing-canvas .ProseMirror-selectednode .bn-file-name-with-icon { background-color: transparent; }
+/* While a block is node-selected, no row draws a hover: the hover reaches
+   the insets past its row, so on the row under a selected one it would
+   paint over that selection's rounded bottom. (block-selection.ts does the
+   same for a block selection.) */
+.dana-writing-canvas .ProseMirror-focused:has(.bn-block-content.ProseMirror-selectednode, .ProseMirror-selectednode > .bn-block-content) .bn-block-content::before {
+  background: transparent !important;
+}
 /* Keyboard focus on a Task row: the selection's tint, in the selection's shape. */
 .dana-writing-canvas .bn-block-content[data-content-type='danaTask']:has([data-canvas-task-id]:focus-visible)::before {
   background: var(--dana-block-selection);
