@@ -1,0 +1,154 @@
+/*
+"Add a comment", GitHub's composer (RESEARCH-ISSUE 3.6): the post editor in
+a box, then "Close issue ▾" (as completed, or as not planned from its menu)
+or "Reopen issue", and "Comment". With words in the editor the state button
+reads "Close with comment" and posts before it closes. Dana's editor is
+WYSIWYG, so there are no Write and Preview tabs.
+
+Someone who may not comment still gets the state buttons.
+*/
+import { Suspense, lazy } from 'react'
+
+import { postFileIds } from '../../../../shared/comments.js'
+import type { PostContent } from '../../../../shared/comments.js'
+import { Button } from '../../../components/ui/button.js'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../../../components/ui/dropdown-menu.js'
+import { ChevronDown } from '../../../lib/icons.js'
+import { StateMark } from '../IssueParts.js'
+import type { IssueState } from '../issues.js'
+
+const PostEditor = lazy(() => import('../../../components/thread/PostEditor.js'))
+
+export function postBody(content: PostContent): { content: PostContent; file_ids?: string[] } {
+  const ids = [...new Set(postFileIds(content))]
+  return ids.length > 0 ? { content, file_ids: ids } : { content }
+}
+
+function StateButtons(props: {
+  readonly state: IssueState
+  readonly withComment: boolean
+  readonly busy: boolean
+  readonly onClose: (reason: 'completed' | 'not-planned') => void
+  readonly onReopen: () => void
+}): React.JSX.Element {
+  const { state, withComment } = props
+  if (state !== 'open') {
+    return (
+      <Button variant="outline" disabled={props.busy} onClick={props.onReopen}>
+        <StateMark state="open" className="size-3.5" />
+        {withComment ? 'Reopen with comment' : 'Reopen issue'}
+      </Button>
+    )
+  }
+  return (
+    <div className="flex">
+      <Button
+        variant="outline"
+        disabled={props.busy}
+        className="rounded-r-none"
+        onClick={() => props.onClose('completed')}
+      >
+        <StateMark state="completed" className="size-3.5" />
+        {withComment ? 'Close with comment' : 'Close issue'}
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={props.busy}
+              aria-label="More ways to close"
+              className="-ml-px rounded-l-none"
+            />
+          }
+        >
+          <ChevronDown className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-64">
+          <DropdownMenuItem onClick={() => props.onClose('completed')} className="items-start">
+            <StateMark state="completed" className="mt-0.5 size-3.5" />
+            <span className="flex flex-col">
+              <span>Close as completed</span>
+              <span className="text-xs text-muted-foreground">Done, closed, no more work</span>
+            </span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => props.onClose('not-planned')} className="items-start">
+            <StateMark state="not-planned" className="mt-0.5 size-3.5" />
+            <span className="flex flex-col">
+              <span>Close as not planned</span>
+              <span className="text-xs text-muted-foreground">Won't do, duplicate or stale</span>
+            </span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+}
+
+export function IssueComposer(props: {
+  readonly folderId: string
+  readonly state: IssueState
+  readonly canComment: boolean
+  readonly onPost: (content: PostContent) => Promise<unknown>
+  readonly onClose: (reason: 'completed' | 'not-planned') => void
+  readonly onReopen: () => void
+}): React.JSX.Element {
+  const { state } = props
+  if (!props.canComment) {
+    return (
+      <div className="flex justify-end pt-4">
+        <StateButtons state={state} withComment={false} busy={false} onClose={props.onClose} onReopen={props.onReopen} />
+      </div>
+    )
+  }
+  return (
+    <section aria-label="Add a comment" className="relative z-10 flex flex-col gap-2 bg-background pt-4">
+      <h2 className="text-sm font-section text-foreground">Add a comment</h2>
+      <Suspense fallback={<div className="h-28 rounded-lg border border-border" aria-busy="true" />}>
+        <PostEditor
+          folderId={props.folderId}
+          label="Comment"
+          placeholder="Leave a comment"
+          submitLabel="Comment"
+          onSubmit={props.onPost}
+          renderActions={({ submit, empty, busy }) => (
+            <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+              <StateButtons
+                state={state}
+                withComment={!empty}
+                busy={busy}
+                onClose={(reason) => {
+                  if (empty) {
+                    props.onClose(reason)
+                    return
+                  }
+                  void submit().then((posted) => {
+                    if (posted) props.onClose(reason)
+                  })
+                }}
+                onReopen={() => {
+                  if (empty) {
+                    props.onReopen()
+                    return
+                  }
+                  void submit().then((posted) => {
+                    if (posted) props.onReopen()
+                  })
+                }}
+              />
+              <Button variant="commit" disabled={empty || busy} title="Ctrl+Enter" onClick={() => void submit()}>
+                Comment
+              </Button>
+            </div>
+          )}
+        />
+      </Suspense>
+    </section>
+  )
+}
