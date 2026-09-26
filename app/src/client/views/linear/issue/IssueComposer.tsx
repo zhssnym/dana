@@ -1,8 +1,8 @@
 /*
-"Add a comment", GitHub's composer (RESEARCH-ISSUE 3.6): the post editor in
-a box, then "Close issue ▾" (as completed, or as not planned from its menu)
-or "Reopen issue", and "Comment". With words in the editor the state button
-reads "Close with comment" and posts before it closes. Dana's editor is
+"Write a post", GitHub's composer (RESEARCH-ISSUE 3.6) in Dana's words: the
+post editor in a box, then "Mark done ▾" (or Abandon from its menu) or
+"Reopen", and "Post". With words in the editor the state button reads "Post
+and mark done" and posts before it changes the status. Dana's editor is
 WYSIWYG, so there are no Write and Preview tabs.
 
 Someone who may not comment still gets the state buttons, but only the ones
@@ -46,7 +46,7 @@ function StateButtons(props: {
   readonly onReopen: () => void
 }): React.JSX.Element | null {
   const { state, withComment, may } = props
-  /* Closing swaps "Close issue" for "Reopen issue" (and back), so the pressed
+  /* Marking done swaps "Mark done" for "Reopen" (and back), so the pressed
      button unmounts and focus would fall to the body. Once the state has
      moved, focus goes to the button that took its place. */
   const pressed = useRef(false)
@@ -68,7 +68,7 @@ function StateButtons(props: {
     return (
       <Button variant="outline" disabled={props.busy} data-issue-state-button onClick={reopen}>
         <StateMark state="open" className="size-3.5" />
-        {withComment ? 'Reopen with comment' : 'Reopen issue'}
+        {withComment ? 'Post and reopen' : 'Reopen'}
       </Button>
     )
   }
@@ -77,7 +77,7 @@ function StateButtons(props: {
     return (
       <Button variant="outline" disabled={props.busy} data-issue-state-button onClick={() => close('completed')}>
         <StateMark state="completed" className="size-3.5" />
-        {withComment ? 'Close with comment' : 'Close issue'}
+        {withComment ? 'Post and mark done' : 'Mark done'}
       </Button>
     )
   }
@@ -91,7 +91,7 @@ function StateButtons(props: {
         onClick={() => close('completed')}
       >
         <StateMark state="completed" className="size-3.5" />
-        {withComment ? 'Close with comment' : 'Close issue'}
+        {withComment ? 'Post and mark done' : 'Mark done'}
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -100,7 +100,7 @@ function StateButtons(props: {
               variant="outline"
               size="icon"
               disabled={props.busy}
-              aria-label="More ways to close"
+              aria-label="More ways to finish"
               className="-ml-px rounded-l-none"
             />
           }
@@ -111,14 +111,14 @@ function StateButtons(props: {
           <DropdownMenuItem onClick={() => close('completed')} className="items-start">
             <StateMark state="completed" className="mt-0.5 size-3.5" />
             <span className="flex flex-col">
-              <span>Close as completed</span>
-              <span className="text-xs text-muted-foreground">Done, closed, no more work</span>
+              <span>Mark done</span>
+              <span className="text-xs text-muted-foreground">Finished, nothing left to do</span>
             </span>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => close('not-planned')} className="items-start">
             <StateMark state="not-planned" className="mt-0.5 size-3.5" />
             <span className="flex flex-col">
-              <span>Close as not planned</span>
+              <span>Abandon</span>
               <span className="text-xs text-muted-foreground">Won't do, duplicate or stale</span>
             </span>
           </DropdownMenuItem>
@@ -148,14 +148,14 @@ export function IssueComposer(props: {
     )
   }
   return (
-    <section aria-label="Add a comment" className="relative z-10 flex flex-col gap-2 bg-background pt-4">
-      <h2 className="text-sm font-section text-foreground">Add a comment</h2>
+    <section aria-label="Write a post" className="relative z-10 flex flex-col gap-2 bg-background pt-4">
+      <h2 className="text-sm font-section text-foreground">Write a post</h2>
       <Suspense fallback={<div className="h-28 rounded-lg border border-border" aria-busy="true" />}>
         <PostEditor
           folderId={props.folderId}
-          label="Comment"
-          placeholder="Leave a comment"
-          submitLabel="Comment"
+          label="Post"
+          placeholder="Write a reply…"
+          submitLabel="Post"
           onSubmit={props.onPost}
           renderActions={({ submit, empty, busy }) => (
             <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
@@ -184,7 +184,7 @@ export function IssueComposer(props: {
                 }}
               />
               <Button variant="commit" disabled={empty || busy} title="Ctrl+Enter" onClick={() => void submit()}>
-                Comment
+                Post
               </Button>
             </div>
           )}

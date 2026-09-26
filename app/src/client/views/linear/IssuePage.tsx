@@ -11,9 +11,9 @@ surface's; this is the Linear view's reading of the same task.
   document, editable in place as a GitHub description is, with its steps),
   then comment boxes and event rows, each event with a round badge for its
   kind (`issue/timeline.ts`, `issue/EventRow.tsx`).
-- "Add a comment", with "Close issue ▾" (completed, or not planned, which
-  is abandoned) or "Reopen issue", and "Comment" (`issue/IssueComposer.tsx`).
-- The sidebar: Assignee, Labels, Milestone, Dates, Relationships and
+- "Write a post", with "Mark done ▾" (or Abandon) or "Reopen", and "Post"
+  (`issue/IssueComposer.tsx`).
+- The sidebar: Assignee, Labels, Section, Dates, Relationships and
   Participants (`issue/IssueSidebar.tsx`); after the thread on a phone.
 */
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
@@ -248,10 +248,10 @@ export function IssuePage(props: {
             <IssueBox
               label="Description"
               person={author}
-              verb="opened"
+              verb="created"
               at={Date.parse(detail.created_at)}
               edited={edited}
-              menuLabel="Issue actions"
+              menuLabel="Task actions"
               menu={[
                 { label: 'Copy link', onSelect: () => void navigator.clipboard?.writeText(window.location.href) },
                 { label: 'Open task', onSelect: () => actions.onOpenTask(card) },
@@ -283,7 +283,7 @@ export function IssuePage(props: {
               {detail.steps_total > 0 && (
                 <div className="border-t border-border px-4 py-2">
                   <p className="flex items-center gap-2 pb-1 text-xs text-muted-foreground">
-                    <span className="font-section text-foreground">Steps</span>
+                    <span className="font-section text-foreground">Subtasks</span>
                     <span className="tabular-nums">
                       {detail.steps_done} of {detail.steps_total}
                     </span>

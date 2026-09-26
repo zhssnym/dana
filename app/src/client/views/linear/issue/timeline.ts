@@ -2,7 +2,7 @@
 The issue page's timeline as data (m3 issue; scratchpad m3/RESEARCH-ISSUE.md
 3.2 and 3.5): the task's comments, its history events and its dependency
 edges, merged oldest first. Each history line becomes one GitHub-shaped act
-("Maya closed this as completed", "Maya added the step Plates"), matched on
+("Maya marked this done", "Maya added the subtask Plates"), matched on
 the event's verb and the server's detail wording.
 
 - `created` is the body box's own "opened", so it is not a row; an "assigned

@@ -22,9 +22,9 @@ export function issueState(task: Pick<TaskCard, 'status'>): IssueState {
 }
 
 export const STATE_WORD: Record<IssueState, string> = {
-  open: 'Open',
-  completed: 'Closed',
-  'not-planned': 'Not planned',
+  open: 'To do',
+  completed: 'Done',
+  'not-planned': 'Abandoned',
 }
 
 /** A task's labels as one list: the page's, then the viewer's own; never archived ones. */

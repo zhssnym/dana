@@ -124,7 +124,7 @@ function phraseOf(act: Act, labelColor: (name: string) => string | null): React.
     case 'from-step':
       return (
         <>
-          made this from a step of <span className={INK}>{act.parent}</span>
+          made this from a subtask of <span className={INK}>{act.parent}</span>
         </>
       )
     case 'duplicated':
@@ -148,7 +148,7 @@ function phraseOf(act: Act, labelColor: (name: string) => string | null): React.
     case 'reminder':
       return act.set ? 'set a reminder' : 'removed the reminder'
     case 'state':
-      return act.reopened ? 'reopened this' : act.state === 'completed' ? 'closed this as completed' : 'closed this as not planned'
+      return act.reopened ? 'reopened this' : act.state === 'completed' ? 'marked this done' : 'abandoned this'
     case 'restored-trash':
       return 'restored this from Trash'
     case 'trashed':
@@ -159,20 +159,20 @@ function phraseOf(act: Act, labelColor: (name: string) => string | null): React.
       if (act.action === 'renamed') {
         return one ? (
           <>
-            renamed a step to <span className={INK}>{act.names[0]}</span>
+            renamed a subtask to <span className={INK}>{act.names[0]}</span>
           </>
         ) : (
-          <>renamed {act.names.length} steps</>
+          <>renamed {act.names.length} subtasks</>
         )
       }
       return (
         <>
-          {verb} {one ? 'the step' : 'the steps'} {names(act.names)}
+          {verb} {one ? 'the subtask' : 'the subtasks'} {names(act.names)}
         </>
       )
     }
     case 'promoted':
-      return 'turned a step into a task'
+      return 'turned a subtask into a task'
     case 'blocked-by':
       return 'marked this as blocked by'
     case 'blocking':

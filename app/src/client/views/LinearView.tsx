@@ -1,8 +1,9 @@
 /*
 The Linear view: the page's tasks as a GitHub Issues list (m3 list; scratchpad
-m3/RESEARCH-LIST.md). One bordered table: a header row (select-all, Open ·
-Closed · All with counts, Milestone, Assignee, Label and Sort menus, the
-density switch, New issue), then one line per issue, then the one "New issue" line.
+m3/RESEARCH-LIST.md), in Dana's words: tasks, To do · Done, sections. One
+bordered table: a header row (select-all, To do · Done · All with counts,
+Section, Assignee, Label and Sort menus, the density switch, New task), then
+one line per task, then the one "New task" line.
 
 In page order (the default sort) milestones are rows of the table, every issue
 sits in its place under its milestone, a closed one too (All shows done work
@@ -12,7 +13,7 @@ milestones: one `move_step` edit of the Work document. Other sorts are flat.
 Only the title opens an issue (`?issue=<id>`, so Back returns here):
 `linear/IssuePage.tsx`. Keys: arrows (and J/K) move, Enter or O opens, Space
 closes or reopens, X selects, Shift+arrows extend, Alt+arrows move the row,
-Esc clears; C (or N) focuses New issue, M, A and L open Milestone, Assignee and
+Esc clears; C (or N) focuses New task, M, A and L open Section, Assignee and
 Label. Every bulk act and every move registers one undo.
 */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -48,10 +49,10 @@ import type { PageView } from '../../shared/pages.js'
 import type { TaskCard } from '../../shared/tasks.js'
 
 const WORD: Record<RowState, string> = {
-  open: 'Open',
+  open: 'Not started',
   'in-progress': 'In progress',
-  completed: 'Closed',
-  'not-planned': 'Not planned',
+  completed: 'Done',
+  'not-planned': 'Abandoned',
 }
 
 /* New keys (m3 list): per viewer, on this device, for every page. */
@@ -267,7 +268,7 @@ export function LinearView(props: {
     disabled: !manual,
     describe: (index) => {
       const row = rows[index]
-      return row?.kind === 'task' ? row.task.title : 'Milestone'
+      return row?.kind === 'task' ? row.task.title : 'Section'
     },
   })
   useEffect(() => {
@@ -286,7 +287,7 @@ export function LinearView(props: {
      clears the selection, as GitHub's does. A failed write is toasted by the
      mutation cache; the catch only keeps the rest going. */
   const many = (verb: string, chosen: readonly TaskCard[]): string =>
-    chosen.length === 1 && chosen[0] !== undefined ? undoLabel(verb, chosen[0].title) : `${verb} ${String(chosen.length)} issues`
+    chosen.length === 1 && chosen[0] !== undefined ? undoLabel(verb, chosen[0].title) : `${verb} ${String(chosen.length)} tasks`
   const event = (id: string, name: 'complete' | 'uncomplete' | 'abandon' | 'restore') => transition.mutateAsync({ id, event: name })
   /* Would it read as started once pending? */
   const started = (task: TaskCard): boolean => rowState({ status: 'pending', start_date: task.start_date }, today) === 'in-progress'
@@ -412,10 +413,10 @@ export function LinearView(props: {
     const state = rowState(task, today)
     const date = closedOn.get(task.id)
     const where = !manual && section !== null ? ` · ${milestoneName.get(section) ?? ''}` : ''
-    if (state === 'completed') return `${date === undefined ? 'Closed' : `Closed ${formatDayInline(date, today)}`}${where}`
-    if (state === 'not-planned') return `Closed as not planned ${agoFor(Date.parse(task.updated_at))}${where}`
+    if (state === 'completed') return `${date === undefined ? 'Done' : `Done ${formatDayInline(date, today)}`}${where}`
+    if (state === 'not-planned') return `Abandoned ${agoFor(Date.parse(task.updated_at))}${where}`
     const who = task.created_by === null ? '' : ` by ${person(task.created_by.id).name}`
-    return `Opened ${agoFor(Date.parse(task.created_at))}${who}${where}`
+    return `Created ${agoFor(Date.parse(task.created_at))}${who}${where}`
   }
 
   const siblingRow = (from: HTMLElement, step: 1 | -1): HTMLElement | undefined => {
@@ -581,7 +582,7 @@ export function LinearView(props: {
       <li
         key={`m:${row.id}`}
         ref={drag.setItemRef(index)}
-        aria-label={`Milestone ${row.name}`}
+        aria-label={`Section ${row.name}`}
         style={{
           transform: drawn.offset === 0 ? undefined : `translate3d(0, ${String(drawn.offset)}px, 0)`,
           transition: 'transform 150ms ease-out',
@@ -628,7 +629,7 @@ export function LinearView(props: {
     })
   }
 
-  const empty = state === 'open' ? 'No open issues' : state === 'closed' ? 'Nothing closed yet' : 'No issues yet'
+  const empty = state === 'open' ? 'Nothing to do' : state === 'closed' ? 'Nothing done yet' : 'No tasks yet'
   const peopleChoices = (members ?? []).map((member) => ({ id: member.user.id, name: person(member.user.id).name }))
 
   return (
@@ -677,7 +678,7 @@ export function LinearView(props: {
           menu={menu}
           onMenu={setMenu}
         />
-        <ul role="list" aria-label="Issues">
+        <ul role="list" aria-label="Tasks">
           {rows.map((row, index) =>
             row.kind === 'milestone' ? milestoneRow(row, index) : taskRow(row.task, row.section, index),
           )}
@@ -689,8 +690,8 @@ export function LinearView(props: {
           <Composer
             variant="line"
             kinds={['step', 'milestone']}
-            label="New issue"
-            placeholder="New issue, or type / for a milestone"
+            label="New task"
+            placeholder="New task, or type / for a section"
             onSubmit={addNew}
             onImage={() => undefined}
           />

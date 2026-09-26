@@ -157,9 +157,9 @@ export function IssueSidebar(props: {
           </p>
         )}
       </Section>
-      <Section label="Milestone" onEdit={null}>
+      <Section label="Section" onEdit={null}>
         <p className={cn('min-w-0 truncate', props.milestone === null ? MUTED : 'text-foreground')}>
-          {props.milestone ?? 'No milestone'}
+          {props.milestone ?? 'No section'}
         </p>
       </Section>
       <Section label="Dates" onEdit={onEdit}>

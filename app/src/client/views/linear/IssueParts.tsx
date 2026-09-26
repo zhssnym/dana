@@ -1,18 +1,18 @@
 /*
-The small pieces the issue list and the issue page share: the state mark, the
-state pill, a label chip and a comment count. Drawn in ink, not colour: the
-open mark carries the accent, a closed one is muted, and not planned is struck.
+The small pieces the Linear list and its task page share: the status mark, the
+state pill, a label chip and a post count. Drawn in ink, as the Board's are:
+in progress and done carry the accent, not started and abandoned are muted.
 */
 import { cn } from '../../components/ui/utils.js'
 import { STATE_WORD } from './issues.js'
 import type { IssueState } from './issues.js'
 
-/** GitHub's state mark: a ringed dot (open), a ringed half disc (in
-    progress, the list's fourth state), a ticked disc (completed), a struck
-    ring (not planned). */
+/** Dana's status mark, as the task page and the Board draw it (`StatusMark`
+    in `components/task-card.tsx`): a dashed ring (not started), a half-filled
+    ring (in progress), a ticked disc (done), a struck ring (abandoned). */
 export function StateMark(props: { readonly state: IssueState | 'in-progress'; readonly className?: string }): React.JSX.Element {
   const { state } = props
-  const live = state === 'open' || state === 'in-progress'
+  const live = state === 'completed' || state === 'in-progress'
   return (
     <svg
       viewBox="0 0 16 16"
@@ -30,10 +30,8 @@ export function StateMark(props: { readonly state: IssueState | 'in-progress'; r
         </>
       ) : (
         <>
-          <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
-          {state === 'open' ? (
-            <circle cx="8" cy="8" r="1.75" fill="currentColor" />
-          ) : state === 'in-progress' ? (
+          <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray={state === 'open' ? '2.4 1.8' : undefined} />
+          {state === 'open' ? null : state === 'in-progress' ? (
             <path d="M8 4.25a3.75 3.75 0 0 1 0 7.5z" fill="currentColor" />
           ) : (
             <path d="M3.8 12.2 12.2 3.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -44,7 +42,7 @@ export function StateMark(props: { readonly state: IssueState | 'in-progress'; r
   )
 }
 
-/** The pill beside an issue's title: its mark and "Open", "Closed" or "Not planned". */
+/** The pill beside a task's title: its mark and "To do", "Done" or "Abandoned". */
 export function StatePill(props: { readonly state: IssueState }): React.JSX.Element {
   return (
     <span
@@ -74,8 +72,8 @@ export function CommentCount(props: { readonly count: number | undefined }): Rea
   return (
     <span
       className="inline-flex shrink-0 items-center gap-1 text-xs tabular-nums text-muted-foreground"
-      aria-label={`${String(count)} comment${count === 1 ? '' : 's'}`}
-      title={`${String(count)} comment${count === 1 ? '' : 's'}`}
+      aria-label={`${String(count)} post${count === 1 ? '' : 's'}`}
+      title={`${String(count)} post${count === 1 ? '' : 's'}`}
     >
       <svg viewBox="0 0 16 16" aria-hidden className="size-3.5">
         <path

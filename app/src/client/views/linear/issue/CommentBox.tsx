@@ -134,13 +134,13 @@ export function CommentBox(props: {
     <>
       <IssueBox
         id={`comment-${comment.id}`}
-        label={`Comment by ${props.person.name}`}
+        label={`Post by ${props.person.name}`}
         person={props.person}
-        verb="commented"
+        verb="posted"
         at={Date.parse(comment.created_at)}
         edited={comment.edited_at === null ? null : Date.parse(comment.edited_at)}
         menu={menu}
-        menuLabel="Comment actions"
+        menuLabel="Post actions"
         {...(props.className === undefined ? {} : { className: props.className })}
       >
         <div className="px-4 py-3 text-sm">
@@ -149,9 +149,9 @@ export function CommentBox(props: {
               <PostEditor
                 folderId={props.folderId}
                 initial={{ content: comment.content, body: comment.body, files: comment.files }}
-                submitLabel="Update comment"
+                submitLabel="Save"
                 autoFocus
-                label="Edit comment"
+                label="Edit post"
                 onCancel={() => setEditing(false)}
                 onSubmit={(content) =>
                   patch
@@ -185,7 +185,7 @@ export function CommentBox(props: {
       </IssueBox>
       {deleting && (
         <ConfirmDialog
-          message="Delete this comment?"
+          message="Delete this post?"
           description="This cannot be undone."
           confirmLabel="Delete"
           onCancel={() => setDeleting(false)}

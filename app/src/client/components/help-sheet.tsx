@@ -14,10 +14,10 @@ today, and every line can be pressed. Each line names the module that binds it:
   it (`components/row-keys.ts`, the rows in `task-row.tsx` and
   `task-board.tsx`). Enter also commits a "New task" row
   (`components/quick-add.tsx`).
-- In a page's Linear list, `views/LinearView.tsx` binds the issue keys: C or N
-  for New issue, Enter or O to open, Space to close or reopen, X to select,
-  Shift+arrows to extend, Alt+arrows to move the issue, M, A and L for the
-  Milestone, Assignee and Label menus, Esc to clear the selection.
+- In a page's Linear list, `views/LinearView.tsx` binds its keys: C or N
+  for New task, Enter or O to open, Space to mark done or reopen, X to select,
+  Shift+arrows to extend, Alt+arrows to move the task, M, A and L for the
+  Section, Assignee and Label menus, Esc to clear the selection.
 - Escape closes the open thing: a "New task" row, a dialog through the
   primitive, and a held drag row through `lib/use-sortable-list.ts`.
 - The arrows move the cursor through search's results,
@@ -89,16 +89,16 @@ const GROUPS: readonly { readonly title: string; readonly rows: readonly Shortcu
     ],
   },
   {
-    title: 'In a list of issues',
+    title: 'In a Linear list',
     rows: [
-      { keys: ['C'], also: ['N'], what: 'New issue' },
-      { keys: ['Enter'], also: ['O'], what: 'Open the issue' },
-      { keys: ['Space'], what: 'Close or reopen the issue' },
-      { keys: ['J'], also: ['K'], what: 'Next or previous issue' },
-      { keys: ['X'], what: 'Select the issue' },
+      { keys: ['C'], also: ['N'], what: 'New task' },
+      { keys: ['Enter'], also: ['O'], what: 'Open the task' },
+      { keys: ['Space'], what: 'Mark done or reopen' },
+      { keys: ['J'], also: ['K'], what: 'Next or previous task' },
+      { keys: ['X'], what: 'Select the task' },
       { keys: ['Shift', '↑'], also: ['Shift', '↓'], what: 'Select the next one too' },
-      { keys: ['Alt', '↑'], also: ['Alt', '↓'], what: 'Move the issue' },
-      { keys: ['M'], what: 'Milestone' },
+      { keys: ['Alt', '↑'], also: ['Alt', '↓'], what: 'Move the task' },
+      { keys: ['M'], what: 'Section' },
       { keys: ['A'], what: 'Assignee' },
       { keys: ['L'], what: 'Label' },
     ],

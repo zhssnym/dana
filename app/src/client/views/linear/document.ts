@@ -43,7 +43,7 @@ export function applyEdit(page: PageView, edit: LineEdit): { document: CanvasDoc
       return first < 0 ? items.length : first
     }
     const start = items.findIndex((item) => item.kind === 'block' && item.id === section)
-    if (start < 0) throw new Error('That milestone is no longer on the page.')
+    if (start < 0) throw new Error('That section is no longer on the page.')
     let at = start + 1
     while (at < items.length && !isSection(items[at]!)) at++
     return at

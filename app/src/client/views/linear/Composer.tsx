@@ -9,7 +9,7 @@ import {
   Link2,
   ListChecks,
   ListTodo,
-  Milestone,
+  Heading1,
   Plus,
   Type,
   type LucideIcon,
@@ -24,7 +24,7 @@ const KINDS: Record<ComposerKind, { label: string; icon: LucideIcon; placeholder
   subtask: { label: 'Subtask', icon: ListChecks, placeholder: 'Subtask' },
   link: { label: 'Link', icon: Link2, placeholder: 'Paste a link' },
   image: { label: 'Image', icon: ImageIcon, placeholder: '' },
-  milestone: { label: 'Milestone', icon: Milestone, placeholder: 'Milestone name' },
+  milestone: { label: 'Section', icon: Heading1, placeholder: 'Section name' },
 }
 
 type TextKind = Exclude<ComposerKind, 'image'>

@@ -83,7 +83,7 @@ export interface PostEditorProps {
   readonly label?: string
   /**
    * A new post's own button row, drawn under the editor in place of the
-   * inline Send (the issue page's "Close issue" and "Comment"). `submit`
+   * inline Send (the Linear task page's "Mark done" and "Post"). `submit`
    * is the one send path, and resolves once the post is on the server or
    * refused.
    */

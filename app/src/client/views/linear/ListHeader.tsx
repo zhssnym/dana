@@ -1,9 +1,9 @@
 /*
 The issue table's header row (m3 list, after GitHub's): select-all, the state
-switch Open · Closed · All with counts, then Milestone, Assignee, Label and
-Sort menus (the density switch sits in Sort's menu) and New issue. With rows selected the same row
+switch To do · Done · All with counts, then Section, Assignee, Label and
+Sort menus (the density switch sits in Sort's menu) and New task. With rows selected the same row
 becomes the bulk bar in place: "n selected", Mark as, Label, Assignee,
-Milestone, Delete.
+Section, Delete.
 
 The Label menu is the page's one Label filter (the page head does not offer it
 in Linear), so choosing one here narrows Board too.
@@ -31,8 +31,8 @@ const TRIGGER =
   'inline-flex h-7 max-w-40 shrink-0 items-center gap-1 rounded-sm px-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground data-[set]:text-foreground'
 
 const STATES: { value: ListState; word: string }[] = [
-  { value: 'open', word: 'Open' },
-  { value: 'closed', word: 'Closed' },
+  { value: 'open', word: 'To do' },
+  { value: 'closed', word: 'Done' },
   { value: 'all', word: 'All' },
 ]
 
@@ -154,7 +154,7 @@ export function ListHeader(props: {
   const box = (
     <SelectBox
       checked={all ? true : selected > 0 ? 'mixed' : false}
-      label={selected > 0 ? 'Clear the selection' : 'Select every issue shown'}
+      label={selected > 0 ? 'Clear the selection' : 'Select every task shown'}
       onToggle={() => (selected > 0 ? props.onClear() : props.onSelectAll())}
     />
   )
@@ -202,8 +202,8 @@ export function ListHeader(props: {
             </DropdownMenuItem>
           ))}
         </BulkMenu>
-        <BulkMenu name="Milestone" {...menuProps('milestone')}>
-          <DropdownMenuItem onClick={() => props.onMilestone(null)}>No milestone</DropdownMenuItem>
+        <BulkMenu name="Section" {...menuProps('milestone')}>
+          <DropdownMenuItem onClick={() => props.onMilestone(null)}>No section</DropdownMenuItem>
           {milestones.length > 0 && <DropdownMenuSeparator />}
           {milestones.map((m) => (
             <DropdownMenuItem key={m.id} onClick={() => props.onMilestone(m.id)}>
@@ -224,7 +224,7 @@ export function ListHeader(props: {
   }
 
   const milestoneWord = (m: MilestoneFilter): string | null =>
-    m.kind === 'any' ? null : m.kind === 'none' ? 'No milestone' : (milestones.find((s) => s.id === m.id)?.name ?? null)
+    m.kind === 'any' ? null : m.kind === 'none' ? 'No section' : (milestones.find((s) => s.id === m.id)?.name ?? null)
   const assigneeWord = (a: AssigneeFilter): string | null =>
     a.kind === 'any' ? null : a.kind === 'none' ? 'Unassigned' : a.id === props.viewerId ? 'Me' : (people.find((p) => p.id === a.id)?.name ?? null)
   const labelWord =
@@ -233,7 +233,7 @@ export function ListHeader(props: {
   const assigneeValue = filters.assignee.kind === 'person' ? filters.assignee.id : filters.assignee.kind
 
   return (
-    <div role="toolbar" aria-label="Issues" className="flex min-h-10 flex-wrap items-center gap-x-1 gap-y-1 bg-muted/40 px-2 py-1">
+    <div role="toolbar" aria-label="Tasks" className="flex min-h-10 flex-wrap items-center gap-x-1 gap-y-1 bg-muted/40 px-2 py-1">
       {box}
       <div className="mr-auto flex items-center gap-0.5">
         {STATES.map(({ value, word }) => {
@@ -258,7 +258,7 @@ export function ListHeader(props: {
         })}
       </div>
       <div className="flex flex-wrap items-center gap-0.5 max-sm:w-full">
-        <Menu name="Milestone" value={milestoneWord(filters.milestone)} {...menuProps('milestone')}>
+        <Menu name="Section" value={milestoneWord(filters.milestone)} {...menuProps('milestone')}>
           <DropdownMenuRadioGroup
             value={milestoneValue}
             onValueChange={(value: string) =>
@@ -268,8 +268,8 @@ export function ListHeader(props: {
               })
             }
           >
-            <DropdownMenuRadioItem closeOnClick value="any">Any milestone</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem closeOnClick value="none">No milestone</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem closeOnClick value="any">Any section</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem closeOnClick value="none">No section</DropdownMenuRadioItem>
             {milestones.length > 0 && <DropdownMenuSeparator />}
             {milestones.map((m) => (
               <DropdownMenuRadioItem closeOnClick key={m.id} value={m.id}>
@@ -338,7 +338,7 @@ export function ListHeader(props: {
           </DropdownMenuContent>
         </DropdownMenu>
         <Button size="sm" className="ml-1 max-sm:ml-auto" onClick={props.onNew}>
-          New issue
+          New task
         </Button>
       </div>
     </div>
@@ -346,8 +346,8 @@ export function ListHeader(props: {
 }
 
 const MARKS: { state: RowState; word: string }[] = [
-  { state: 'open', word: 'Open' },
+  { state: 'open', word: 'Not started' },
   { state: 'in-progress', word: 'In progress' },
-  { state: 'completed', word: 'Closed' },
-  { state: 'not-planned', word: 'Not planned' },
+  { state: 'completed', word: 'Done' },
+  { state: 'not-planned', word: 'Abandoned' },
 ]

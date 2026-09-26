@@ -23,7 +23,7 @@ export const SORT_WORD: Record<ListSort, string> = {
   oldest: 'Oldest',
   updated: 'Recently updated',
   due: 'Due date',
-  comments: 'Most commented',
+  comments: 'Most discussed',
 }
 
 /** Milestone: any, outside every milestone, or one section's id. */
