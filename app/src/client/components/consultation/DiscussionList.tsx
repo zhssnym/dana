@@ -1,9 +1,11 @@
 /*
 The Discussion tab's threads as one list, like an issues list: no groups, no
-tabs, no column headers, most recent activity first as the server orders
-them, and "New thread" as the last row.
+column headers, most recent activity first as the server orders them.
 
-The list reads like an issues list: one bordered box, hairlines between rows.
+The list reads like an issues list: one bordered box, hairlines between rows,
+and a tinted head row with two filters on the left, "Open" (the default) and
+"Resolved", with no counts, and a small "New thread" button on the right. The
+filter lives in this component only; there is no storage key.
 Each thread is one compact line with one leading mark: a thread about a task
 shows the task's state mark (linking to the task); any other shows an outline
 speech bubble while open, a filled check once resolved, and pressing it
@@ -33,6 +35,7 @@ import {
 } from '../../api/consultation.js'
 import type { Discussion } from '../../../shared/consultation.js'
 import { DISCUSSION_TITLE_MAX } from '../../../shared/consultation.js'
+import { Button } from '../ui/button.js'
 import { MessageCircle, Plus, ResolvedMark } from '../../lib/icons.js'
 import type { PersonResolver } from '../../lib/thread.js'
 import { formatAgo } from '../../parts/format-dates.js'
@@ -82,6 +85,8 @@ export function DiscussionList({
   const resolve = useResolveDiscussion()
   const reopen = useReopenDiscussion()
   const keys = useRowKeys<HTMLDivElement>()
+  const [filter, setFilter] = useState<State>('open')
+  const [starting, setStarting] = useState(false)
   /* A pressed mark moves its row at once; the refetch then agrees. */
   const [moved, setMoved] = useState<ReadonlyMap<string, State>>(new Map())
   const move = (id: string, to: State | null): void => {
@@ -159,19 +164,60 @@ export function DiscussionList({
     </li>
   )
 
+  const shown = discussions.filter((d) => stateOf(d) === filter)
+  const filterButton = (to: State, label: string): React.JSX.Element => (
+    <button
+      type="button"
+      aria-pressed={filter === to}
+      className={cn(
+        'h-[var(--control-height)] rounded-sm px-1.5 outline-none',
+        filter === to ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+      )}
+      onClick={() => { setFilter(to) }}
+    >
+      {label}
+    </button>
+  )
+
   return (
     <div ref={keys} className="min-w-0">
-      <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-md border border-border">
-        {discussions.map(row)}
-        {mayStart ? (
-          <li>
-            <NewThread folderId={folderId} onStarted={onStarted} />
-          </li>
-        ) : null}
-      </ul>
-      {discussions.length === 0 && !mayStart ? (
-        <p className="py-1 text-sm text-muted-foreground">No threads yet.</p>
-      ) : null}
+      <div className="overflow-hidden rounded-md border border-border">
+        <div className="flex h-10 items-center justify-between gap-3 border-b border-border bg-muted pr-2 pl-1.5 text-sm">
+          <div role="group" aria-label="Show threads" className="flex items-center gap-1">
+            {filterButton('open', 'Open')}
+            {filterButton('resolved', 'Resolved')}
+          </div>
+          {mayStart ? (
+            <Button
+              variant="commit"
+              size="sm"
+              onClick={() => {
+                setFilter('open')
+                setStarting(true)
+              }}
+            >
+              New thread
+            </Button>
+          ) : null}
+        </div>
+        <ul className="flex flex-col divide-y divide-border">
+          {starting && mayStart ? (
+            <li>
+              <NewThread
+                folderId={folderId}
+                onDone={() => { setStarting(false) }}
+                onStarted={onStarted}
+              />
+            </li>
+          ) : null}
+          {shown.map(row)}
+          {shown.length === 0 && !starting ? (
+            <li className="flex h-9 items-center px-3 text-sm text-muted-foreground">
+              {filter === 'open' ? 'No open threads' : 'No resolved threads'}
+            </li>
+          ) : null}
+        </ul>
+      </div>
       {list.hasNextPage ? (
         <button
           type="button"
@@ -287,36 +333,22 @@ function ThreadRow({
   )
 }
 
-/** The list's last row: "New thread", then a title, then Enter. */
+/** The row the head's "New thread" opens at the top: a title, then Enter. */
 function NewThread({
   folderId,
+  onDone,
   onStarted,
 }: {
   readonly folderId: string
+  readonly onDone: () => void
   readonly onStarted: (discussionId: string) => void
 }): React.JSX.Element {
   const create = useCreateDiscussion()
-  const [typing, setTyping] = useState(false)
   const [title, setTitle] = useState('')
 
-  if (!typing) {
-    return (
-      <button
-        type="button"
-        className={cn(ROW, 'text-left text-muted-foreground outline-none hover:bg-muted hover:text-foreground')}
-        onClick={() => { setTyping(true) }}
-      >
-        <span className="flex justify-center">
-          <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
-        </span>
-        New thread
-      </button>
-    )
-  }
-
   const cancel = (): void => {
-    setTyping(false)
     setTitle('')
+    onDone()
   }
   return (
     <form
