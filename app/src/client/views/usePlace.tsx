@@ -16,7 +16,6 @@ import { PageMark, usePageHasCover } from '../components/page-head.js'
 import { Button } from '../components/ui/button.js'
 import { Image as ImageIcon } from '../lib/icons.js'
 import { useWearFilterLabel } from '../api/labels.js'
-import { LabelFilterClear, ViewMenu } from './FilterControl.js'
 import { labelsWorn, sortRows, wearsLabel } from './filter.js'
 import type { GroupBy, PageFilter } from './filter.js'
 import { usePageFilter } from './filter-store.js'
@@ -142,47 +141,9 @@ export function usePlace(
   }
 }
 
-/** Filter chips are gone; the one narrowing (Label) is said by PlaceControls. Kept for the folder page's import. */
+/** Filter chips are gone. Kept for the folder page's import. */
 export function PlaceFilterChips(_props: { readonly place: Place }): null {
   return null
-}
-
-/** The View menu: layout (where the page has more than one), grouping, sort, Show completed. */
-export function PlaceControls({
-  place,
-  bare = false,
-}: {
-  readonly place: Place
-  /** Nothing to group or sort: the View menu is left out. */
-  readonly bare?: boolean
-}): React.JSX.Element | null {
-  if (bare && place.filter.label === null) return null
-  /* The calendar draws its own grid and honours none of grouping, sort, Label
-     or Show completed, so there its View menu is Layout alone. */
-  const calendar = place.mode === 'calendar'
-  return (
-    <>
-      {calendar ? null : <LabelFilterClear
-        filter={place.filter}
-        labels={place.labels}
-        onChange={place.setFilter}
-      />}
-      {bare ? null : (
-    <ViewMenu
-      layouts={place.spine.views}
-      layout={place.mode}
-      onLayout={place.setMode}
-      groups={place.spine.groups}
-      completed={place.spine.completed}
-      filter={place.filter}
-      labels={place.labels}
-      onChange={place.setFilter}
-      {...(place.spine.ownOrder === undefined ? {} : { ownOrder: place.spine.ownOrder })}
-      layoutOnly={calendar}
-    />
-      )}
-    </>
-  )
 }
 
 /**
@@ -236,19 +197,10 @@ export function ScreenHead({
  */
 export function PlaceHead({
   place,
-  fact,
-  bare = false,
-  identityKey,
   controls,
 }: {
   readonly place: Place
-  /** Today's "N of M done". */
-  readonly fact?: string
-  /** An empty list has nothing to group or sort: no View menu. */
-  readonly bare?: boolean
-  /** Durable place-cover key for an added Focus list, where one exists. */
-  readonly identityKey?: string
-  /** What stands in for the View menu, where a page draws its own (or null for none). */
+  /** The page's own controls, if any. Focus pages keep no View menu (M4). */
   readonly controls?: ReactNode
 }): React.JSX.Element {
   const nativeIdentityKey =
@@ -257,7 +209,7 @@ export function PlaceHead({
     place.spine.key === 'assignments'
       ? place.spine.key
       : undefined
-  const storageName = identityKey ?? nativeIdentityKey
+  const storageName = nativeIdentityKey
   /* Hooks are unconditional. `today` is only a harmless read fallback when a
      Focus list has no durable identity store; `hasCover` keeps it from drawing. */
   const coverStorageName = storageName ?? 'today'
@@ -282,14 +234,9 @@ export function PlaceHead({
           <h1 data-page-title="" className="min-w-0 max-w-full truncate text-[length:var(--text-title-size)] leading-8 font-title text-foreground max-md:whitespace-normal">
             {place.spine.name}
           </h1>
-          {fact === undefined ? null : (
-            <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">
-              {fact}
-            </span>
-          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {controls === undefined ? <PlaceControls place={place} bare={bare} /> : controls}
+          {controls}
         </div>
       </div>
     </header>

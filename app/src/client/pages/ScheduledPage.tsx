@@ -18,6 +18,7 @@ import { PlaceGroup, PlaceHead, usePlace } from '../views/usePlace.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { upcomingRows, useNoStoredLabel, withoutDropped } from '../shell/focus-lists.js'
+import { PLANNED_EMPTY } from './empty-states.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 import { useRowKeys } from '../components/row-keys.js'
 
@@ -59,6 +60,9 @@ export function ScheduledPage(): React.JSX.Element {
       <PlaceHead place={place} controls={toggle} />
 
       {calendar ? (
+        /* The month grid shows every dated task, today and past days
+           included: a calendar with blank cells before tomorrow would read
+           as nothing due. Only the list starts tomorrow (upcomingRows). */
         <PlannedCalendar
           onCreate={(title, date) => {
             place.capture(title, { due_date: date })
@@ -71,7 +75,7 @@ export function ScheduledPage(): React.JSX.Element {
           <PageBody
             query={view}
             isEmpty={rows.length === 0}
-            emptyCopy="Nothing from tomorrow on. Give a task a later date and it appears here."
+            emptyCopy={PLANNED_EMPTY}
             emptyIcon={CalendarDays}
             truncated={view.data?.truncated ?? false}
           >

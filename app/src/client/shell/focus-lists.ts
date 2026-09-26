@@ -58,10 +58,12 @@ export function isFocusKey(value: string | undefined): value is FocusListKey {
 
 /**
  * Upcoming's rows: from tomorrow on. What is late, started or due today is
- * Today's ("Carried over", "Started", "Today"), and one task is said once.
+ * Today's ("Carried over", "Started", "Today"), and so is a later task the
+ * viewer pulled into Today ("Added to Today"): one task is said once.
  */
 export function upcomingRows(rows: readonly TaskCard[], today: string): readonly TaskCard[] {
   return rows.filter((task) => {
+    if (task.pulled) return false
     const rung = rungForTask(task, today).key
     return rung !== 'overdue' && rung !== 'started' && rung !== 'today' && rung !== 'undated'
   })
