@@ -41,6 +41,7 @@ import {
   DEFAULT_PINNED,
   FOCUS_LISTS,
 } from '../../shared/bundle.js'
+import type { Executor } from '../database.js'
 import { inTransaction, rowsOf } from '../database.js'
 
 function toIso(value: unknown): string {
@@ -197,7 +198,7 @@ const BUNDLE_COLUMNS = sql`theme, row_density, clock, task_open, calendar_zoom,
   show_important, show_all, show_done`
 
 export async function readBundle(
-  db: Db,
+  db: Executor,
   userId: string,
 ): Promise<SettingsBundle> {
   const found = await rowsOf(
