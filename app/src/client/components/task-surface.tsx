@@ -59,6 +59,9 @@ function Title({
 
   return (
     <div className="flex flex-col gap-1">
+      {/* The page's heading and the tab's name (app-shell reads data-page-title);
+          the field below is where it is read and renamed. */}
+      <h1 data-page-title="" className="sr-only">{value}</h1>
       <InlineTextarea
         rows={1}
         value={editing ? draft : value}

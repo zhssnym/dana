@@ -200,7 +200,7 @@ export function SettingsPageContent({
             {sample ? (
               <StackingRow
                 label="Sample workspace"
-                description={sample.present ? 'A sample workspace to show you around.' : undefined}
+                description={sample.present ? 'To show you around.' : undefined}
                 control={
                   /* The client cannot tell removed from never had, so one neutral label. */
                   <Button

@@ -148,7 +148,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     { key: 'unpull', label: 'Remove from Today', icon: SunMedium, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
-    { key: 'abandon', label: 'Drop', icon: Ban, group: 4 },
+    { key: 'abandon', label: 'Abandon', icon: Ban, group: 4 },
     { key: 'restore', label: 'Restore', icon: RotateCcw, group: 4 },
     { key: 'delete', label: 'Delete task', icon: Trash2, group: 5, destructive: true },
   ],

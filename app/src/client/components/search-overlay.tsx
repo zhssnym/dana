@@ -12,7 +12,6 @@ import { Input } from "./ui/input.js"
 import { pageGlyph } from "../lib/nav-model.js"
 import {
   CalendarDays,
-  CheckCircle2,
   FileText,
   Folders,
   Keyboard,
@@ -39,6 +38,8 @@ import { arrangeColumn } from "../shell/library-order.js"
 import { onOpenSearch, openShortcuts } from "../shell/overlays.js"
 import { paths } from "../routes.js"
 import { openTask } from "./task-open.js"
+import { StateMark } from "./thread/timeline/state.js"
+import type { TaskState } from "./thread/timeline/state.js"
 
 export type SearchResultStatus = "pending" | "abandoned" | "completed"
 
@@ -110,11 +111,16 @@ const SHORTCUTS_ITEM: SearchResultItem = {
 }
 
 function resultGlyph(item: SearchResultItem): LucideIcon {
-  if (item.kind === "task") return CheckCircle2
   if (item.kind === "shelf") return Folders
   if (item.id === SHORTCUTS_RESULT) return Keyboard
   if (item.kind === "page") return item.icon ?? pageGlyph(item.title) ?? FileText
   return item.icon ?? FileText
+}
+
+const STATE_OF: Record<SearchResultStatus, TaskState> = {
+  pending: "open",
+  abandoned: "dropped",
+  completed: "done",
 }
 
 const statusLabels: Record<SearchResultStatus, string> = {
@@ -428,12 +434,17 @@ function SearchDialog({
                               active && "bg-selected",
                             )}
                           >
-                            <Glyph
-                              className="size-4 shrink-0 text-muted-foreground"
-                              style={item.kind === "folder" && item.color ? { color: item.color } : undefined}
-                              strokeWidth={1.75}
-                              aria-hidden="true"
-                            />
+                            {item.kind === "task" ? (
+                              /* The task's own state mark: a dropped task never wears the done check. */
+                              <StateMark state={STATE_OF[item.status ?? "pending"]} />
+                            ) : (
+                              <Glyph
+                                className="size-4 shrink-0 text-muted-foreground"
+                                style={item.kind === "folder" && item.color ? { color: item.color } : undefined}
+                                strokeWidth={1.75}
+                                aria-hidden="true"
+                              />
+                            )}
                             <span className="min-w-0 truncate">{item.title}</span>
                             {item.hint ? (
                               /* The hint keeps a share of a long row: a block

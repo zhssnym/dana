@@ -86,10 +86,6 @@ export function StateButtons(props: {
           <ChevronDown className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => finish('done')}>
-            <StateMark state="done" className="size-3.5" />
-            Mark done
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => finish('dropped')}>
             <StateMark state="dropped" className="size-3.5" />
             Drop

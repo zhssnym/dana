@@ -1003,7 +1003,7 @@ export function TaskCard({
         opening={depOpening}
         onIdle={() => setDepOpening(false)}
         /* The blocker count it offers is not drawn: counts go (M4). */
-        section={(_badge, body) => <Section title="Dependencies">{body}</Section>}
+        section={(_badge, body) => <Section title="Waits on">{body}</Section>}
       />
 
       {attachments.length > 0 || attaching ? (

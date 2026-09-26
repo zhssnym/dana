@@ -180,10 +180,41 @@ export function ThreadPosts({
     }
     return { before: map, after: sorted.slice(next) }
   }, [timeline, placed])
+  /* Day dividers over posts and events together, so an event sits under its
+     own day's heading; a thread on one day needs no dates (r4). Keyed by the
+     post id or event key the divider goes above. */
+  const dividers = useMemo(() => {
+    const order: { key: string; day: string }[] = []
+    const eventDay = (item: TimelineItem): string => localDay(new Date(item.at).toISOString())
+    for (const { line } of placed) {
+      for (const item of before.get(line.id) ?? []) order.push({ key: item.key, day: eventDay(item) })
+      order.push({ key: line.id, day: localDay(line.created_at) })
+    }
+    for (const item of after) order.push({ key: item.key, day: eventDay(item) })
+    const map = new Map<string, string>()
+    if (new Set(order.map((entry) => entry.day)).size < 2) return map
+    let previous: string | null = null
+    for (const { key, day } of order) {
+      if (day !== previous) map.set(key, day)
+      previous = day
+    }
+    return map
+  }, [placed, before, after])
   const today = localDay(new Date().toISOString())
   /* The post clicked, whose words the banner quotes; the reply joins its
      thread's one level (7.14), so it is sent under that post's parent. */
   const replyTarget = replyTo === null ? undefined : byId.get(replyTo)
+
+  const dayDivider = (day: string | undefined): React.ReactNode =>
+    day === undefined ? null : (
+      <div className="flex items-center gap-3 px-2 pt-3 pb-1" role="separator" aria-label={formatDayHeading(day, today)}>
+        <span className="h-px flex-1 bg-border" aria-hidden="true" />
+        <span className="text-xs font-medium text-muted-foreground" aria-hidden="true">
+          {formatDayHeading(day, today)}
+        </span>
+        <span className="h-px flex-1 bg-border" aria-hidden="true" />
+      </div>
+    )
 
   const timeOf = (instant: string): string => formatTime(localClock(instant), clock) ?? ''
   /* The gutter's time: Slack drops the AM/PM there. */
@@ -301,7 +332,7 @@ export function ThreadPosts({
       <div className="flex min-h-full flex-col justify-end pt-3">
       {posts.length > 0 || timeline.length > 0 ? (
         <ol className="-mx-2 min-w-0" aria-label={timeline.length > 0 ? 'Timeline' : 'Posts'}>
-          {placed.map(({ line, head: grouped, day, quote }) => {
+          {placed.map(({ line, head: grouped, quote }) => {
             const earlier = before.get(line.id)
             const head = grouped || earlier !== undefined
             const author = personOf(line.author_id)
@@ -316,19 +347,12 @@ export function ThreadPosts({
               <Fragment key={line.id}>
               {earlier?.map((item) => (
                 <li key={item.key} className="min-w-0 list-none">
+                  {dayDivider(dividers.get(item.key))}
                   {item.node}
                 </li>
               ))}
               <li className="min-w-0 list-none">
-                {day !== null ? (
-                  <div className="flex items-center gap-3 px-2 pt-3 pb-1" role="separator" aria-label={formatDayHeading(day, today)}>
-                    <span className="h-px flex-1 bg-border" aria-hidden="true" />
-                    <span className="text-xs font-medium text-muted-foreground" aria-hidden="true">
-                      {formatDayHeading(day, today)}
-                    </span>
-                    <span className="h-px flex-1 bg-border" aria-hidden="true" />
-                  </div>
-                ) : null}
+                {dayDivider(dividers.get(line.id))}
                 {newFrom === line.id ? (
                   <div className="flex items-center gap-3 px-2 pt-2 pb-1" role="separator" aria-label="New">
                     <span className="h-px flex-1 bg-border" aria-hidden="true" />
@@ -484,6 +508,7 @@ export function ThreadPosts({
           })}
           {after.map((item) => (
             <li key={item.key} className="min-w-0 list-none">
+              {dayDivider(dividers.get(item.key))}
               {item.node}
             </li>
           ))}

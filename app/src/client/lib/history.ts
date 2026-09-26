@@ -71,7 +71,7 @@ const VERB_LABEL: Record<HistoryVerb, string> = {
   renamed: 'Renamed',
   edited: 'Edited',
   moved: 'Moved',
-  completed: 'Completed',
+  completed: 'Marked done',
   reopened: 'Reopened',
   abandoned: 'Dropped',
   restored: 'Restored',
