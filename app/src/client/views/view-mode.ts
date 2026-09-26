@@ -113,12 +113,3 @@ export const RETIRED_STORAGE_KEYS = [
 
 export type FolderView = 'linear' | 'board' | 'freeform'
 
-/**
- * Always the thread (Freeform's document), reading no storage. Kept only so
- * app-shell's `?issue=` trail compiles; that branch can no longer fire (the
- * folder page redirects `?issue=` to the task page), and it and this stub go
- * together in the integration pass.
- */
-export function useFolderView(): [FolderView, (next: FolderView) => void] {
-  return ['freeform', () => {}]
-}

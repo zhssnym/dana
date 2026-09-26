@@ -50,7 +50,7 @@ export function TaskSurfaceHost(): ReactNode {
   const legacy = new URLSearchParams(location.search).get(TASK_PARAM)
   useEffect(() => {
     if (legacy === null || legacy === '') return
-    void navigate(paths.task(legacy), { replace: true })
+    void navigate(paths.task(encodeURIComponent(legacy)), { replace: true })
   }, [legacy, navigate])
 
   return null
