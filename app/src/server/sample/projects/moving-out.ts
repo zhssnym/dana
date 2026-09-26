@@ -28,14 +28,6 @@ const MOVING: SampleFolder = {
     },
   ],
   doc: [
-    {
-      kind: 'callout',
-      text: [
-        'Keys to the new flat in two weeks, move on the Saturday after, hand back Hornsgatan three days later. Viewings and the flat I chose are in ',
-        { text: 'Flat viewings', page: 'Flat viewings' },
-        '.',
-      ],
-    },
     { kind: 'section', text: 'Find the flat' },
     { page: 'Flat viewings' },
     { task: 'Confirm the end date with the landlord' },
@@ -76,9 +68,6 @@ const MOVING: SampleFolder = {
     },
     { kind: 'bullet', text: 'I applied for eleven flats, viewed three and got one.' },
     { kind: 'bullet', text: 'Signed twelve days ago, first-hand contract, no end date.' },
-    { kind: 'heading2', text: 'Still open' },
-    { kind: 'bullet', text: 'Broadband is late. I may have a week on my phone’s hotspot.' },
-    { kind: 'bullet', text: 'We have not decided who cleans Hornsgatan.' },
   ],
   tab: {
     name: 'Budget',
@@ -152,7 +141,7 @@ const MOVING: SampleFolder = {
       abandoned: true,
       notes: 'Sara is keeping it after all.',
     },
-    { title: 'Pick up the keys', due: 14, time: '16:00', reminder: { before: 60 }, notes: 'Familjebostäder office, bring ID.' },
+    { title: 'Pick up the keys', start: 14, due: 14, time: '16:00', reminder: { before: 60 }, notes: 'Familjebostäder office, bring ID.' },
     {
       title: 'Get quotes for the move-out cleaning',
       assignee: 'sara',
@@ -161,6 +150,7 @@ const MOVING: SampleFolder = {
     },
     {
       title: 'Hand back the keys at the inspection',
+      start: 21,
       due: 21,
       time: '10:00',
       notes: 'All four keys and the laundry tag. Sara is there too; both names are on the lease.',
@@ -297,6 +287,7 @@ const MOVE_DAY: SampleFolder = {
     { title: 'Buy boxes and tape', doneDaysAgo: 5, notes: '30 boxes from Biltema Kungens Kurva, 690 SEK.' },
     {
       title: 'Move everything to Tellusborgsvägen',
+      start: 18,
       due: 18,
       time: '08:00',
       steps: [

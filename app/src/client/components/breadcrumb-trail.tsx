@@ -12,9 +12,8 @@ The top bar's "where am I": history arrows, then the path, Notion's way.
   unlinked crumb when `current` is omitted. The server has already cut the walk
   at the first ancestor this viewer may not read, so nothing is filtered here.
   A long trail keeps its ends: the root, then "…" (a menu of the folded
-  levels), then the last two. A phone keeps only the last two.
-
-It has no chrome of its own, so the task peek can reuse it in its header.
+  levels), then the last two. A phone keeps only the last two. A trail of
+  one crumb (a root page) is not drawn.
 */
 import { useSyncExternalStore } from 'react'
 import { Link, useLocation, useNavigate, useNavigationType } from 'react-router'
@@ -97,6 +96,7 @@ export function HistoryArrows(): React.JSX.Element {
               size="icon"
               className="text-muted-foreground hover:text-foreground disabled:opacity-40"
               aria-label="Go back"
+              data-history-back
               disabled={!canBack}
               onClick={() => {
                 void navigate(-1)
@@ -168,7 +168,9 @@ export function BreadcrumbTrail({
   if (hasCurrent) crumbs.push({ id: null, name: current })
   /* Waiting for the page's own name: draw nothing rather than a half trail. */
   if (folderId !== null && detail === undefined) return null
-  if (crumbs.length === 0) return null
+  /* A root page alone is its own title, already the page's heading and the
+     sidebar's highlight: the trail shows only below the root (M4). */
+  if (crumbs.length < 2) return null
 
   const last = crumbs.length - 1
   /* The root, the fold, then the last two. */
@@ -226,8 +228,10 @@ export function BreadcrumbTrail({
                 <Link
                   to={folderTo !== undefined && crumb.id === folderId ? folderTo : paths.folder(crumb.id ?? '')}
                   /* The page already under a peek: going to it closes the
-                     peek without stacking a second entry for the same page. */
-                  replace={paths.folder(crumb.id ?? '') === pathname}
+                     peek without stacking a second entry for the same page.
+                     Leaving an open issue or thread (`folderTo`) pushes, so
+                     Back returns to it rather than to a copy of the list. */
+                  replace={folderTo === undefined && paths.folder(crumb.id ?? '') === pathname}
                   title={crumb.name}
                   className={cn(CRUMB, 'text-muted-foreground hover:bg-accent hover:text-foreground')}
                 >

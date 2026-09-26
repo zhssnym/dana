@@ -84,12 +84,15 @@ export function BlockSelectionStyle({ editor, scope }: { readonly editor: AnyEdi
   const block = (id: string): string => `.${scope} .bn-block-outer[data-id="${CSS.escape(id)}"] > .bn-block`
   const all = ids.map(block)
   // No caret, and no text highlight over the picked blocks: they are picked whole.
+  // No row hover either (canvas.css m3-hover): it reaches past its row, so it
+  // would paint over a neighbour's tint and show through a picked row's.
   return createElement('style', null, `${all.join(', ')} { position: relative; }
 ${all.map((selector) => `${selector}::after`).join(', ')} { content: ''; position: absolute; inset: 0 calc(-1 * var(--dana-block-selection-inset-x)); background: var(--dana-block-selection); pointer-events: none; animation: dana-block-selection-in var(--duration-fast) var(--ease-enter); }
 ${block(ids[0]!)}::after { top: calc(-1 * var(--dana-block-selection-inset-y)); border-start-start-radius: var(--dana-block-selection-radius); border-start-end-radius: var(--dana-block-selection-radius); }
 ${block(ids.at(-1)!)}::after { bottom: calc(-1 * var(--dana-block-selection-inset-y)); border-end-start-radius: var(--dana-block-selection-radius); border-end-end-radius: var(--dana-block-selection-radius); }
 ${hangs(scope, ids)} { inset-inline-start: calc(-1 * (var(--dana-block-selection-inset-x) + var(--dana-block-selection-hang))); }
 .${scope} .bn-editor { caret-color: transparent; }
+.${scope} .bn-block-content::before { background: transparent !important; }
 .${scope} .bn-editor ::selection { background: transparent; }`)
 }
 
@@ -107,6 +110,8 @@ export interface BlockSelectionActions {
   readonly duplicate: (ids: readonly string[]) => void
   /** Whether a nested shape can be kept; Tab that would break it does nothing. */
   readonly admits?: (document: readonly TreeBlock[]) => boolean
+  /** Move these blocks a step (Mod+Shift+↑/↓); true when the page changed. */
+  readonly move?: (ids: readonly string[], direction: -1 | 1) => boolean
 }
 
 function isMod(event: KeyboardEvent): boolean {
@@ -136,6 +141,17 @@ function currentBlockId(view: EditorView): string | null {
     if (node.type.name === 'blockContainer' && typeof node.attrs.id === 'string') return node.attrs.id
   }
   return null
+}
+
+/** Where block `id`'s container starts in the document, or -1. */
+function blockAt(view: EditorView, id: string): number {
+  let at = -1
+  view.state.doc.descendants((node, pos) => {
+    if (at >= 0) return false
+    if (node.type.name === 'blockContainer' && node.attrs.id === id) { at = pos; return false }
+    return true
+  })
+  return at
 }
 
 /** The caret at the `edge` of block `id`'s text; false when the block has no text (a row). */
@@ -170,14 +186,55 @@ const rowSteps = new WeakMap<object, string>()
  */
 function stepFromRow(editor: AnyEditor, view: EditorView, id: string, direction: -1 | 1): void {
   const next = neighbour(view, id, direction, false)?.getAttribute('data-id')
+  if ((next === null || next === undefined) && direction === 1 && toLineBelow(editor, view)) return
   if (next === null || next === undefined) return
   if (caretInto(view, next, direction === 1 ? 'start' : 'end')) { rowSteps.delete(editor); return }
+  pickRow(editor, view, next)
+}
+
+/** Pick one row out of the text, as the arrow keys reach it; ↑/↓ then step on from it (`stepFromRow`). */
+function pickRow(editor: AnyEditor, view: EditorView, next: string): void {
   setBlockSelection(editor, [next])
   rowSteps.set(editor, next)
   // Out of the text: Chrome would move the DOM selection off the row, and ProseMirror read it back. The picked row keeps the keys (`ownsKeys`).
   view.dom.blur()
   anchors.set(editor, next)
   reveal(view, [next], 'first')
+}
+
+/* Work's thread ends in its last line, "Add a task…" (`AddTaskLine`), drawn
+   after the editor: ↓ from the page's last block goes on into it, and ↑ from
+   it comes back up to that block, so the page and its last line are one
+   stretch to the keyboard. */
+function lineBelow(view: EditorView): HTMLInputElement | null {
+  return view.dom.closest('.dana-writing-canvas')?.querySelector<HTMLInputElement>('.dana-add-task-line input') ?? null
+}
+function toLineBelow(editor: AnyEditor, view: EditorView): boolean {
+  const line = lineBelow(view)
+  if (line === null) return false
+  clearBlockSelection(editor)
+  rowSteps.delete(editor)
+  line.focus()
+  return true
+}
+/** ↑ from the last line: the caret at the end of the page's last visible block, or that block picked when it is a row. */
+export function enterFromBelow(editor: AnyEditor): boolean {
+  const view = viewOf(editor)
+  const last = view === undefined ? undefined : visibleBlocks(view).at(-1)?.getAttribute('data-id')
+  return last !== null && last !== undefined && landOn(editor, last)
+}
+/** The visible block just above block `id` in reading order, or null. */
+export function blockAbove(editor: AnyEditor, id: string): string | null {
+  const view = viewOf(editor)
+  return view === undefined ? null : neighbour(view, id, -1, false)?.getAttribute('data-id') ?? null
+}
+/** The caret at the end of block `id`'s text, or that block picked when it is a row (a Task). */
+export function landOn(editor: AnyEditor, id: string): boolean {
+  const view = viewOf(editor)
+  if (view === undefined || outerOf(view, id) === null) return false
+  if (caretInto(view, id, 'end')) return true
+  pickRow(editor, view, id)
+  return true
 }
 
 /** Tab / Shift-Tab for the whole selection, which stays selected. */
@@ -343,6 +400,28 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
         if (inEditor) { stop(); actions.duplicate([editor.getTextCursorPosition().block.id]) }
         return
       }
+      // Mod+Shift+↑/↓ moves the picked blocks, or the caret's block, a step as a unit (`moveBlocksBy`).
+      if ((key === 'ArrowUp' || key === 'ArrowDown') && mod && event.shiftKey && !event.altKey && actions.move !== undefined) {
+        const own = ids.length === 0 && onHost ? currentBlockId(view) : null
+        const moving = ids.length > 0 ? ids : own === null ? EMPTY : [own]
+        if (moving.length === 0) return
+        stop()
+        const { anchor, head } = view.state.selection
+        const text = view.state.selection instanceof TextSelection
+        const from = own === null ? -1 : blockAt(view, own)
+        if (!actions.move(moving, key === 'ArrowUp' ? -1 : 1)) return
+        if (ids.length > 0) { setBlockSelection(editor, ids); reveal(view, ids, key === 'ArrowUp' ? 'first' : 'last'); return }
+        const to = own === null ? -1 : blockAt(view, own)
+        if (to < 0 || from < 0 || own === null) return
+        // The caret stays where it was in its block.
+        if (text) { view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, to + anchor - from, to + head - from)).scrollIntoView()); return }
+        /* A row (a Task) stays picked, as the arrow keys pick one (`stepFromRow`),
+           out of the text: a node selection on its redrawn node view does not
+           survive, the caret fell to the page's first line, and the next press
+           moved that block instead. */
+        pickRow(editor, view, own)
+        return
+      }
       if (ids.length === 0) {
         /* A Task row, sub-page row, image or divider (a node selection) is
            already wearing the selection tint, whether it was reached by the
@@ -356,17 +435,22 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
         /* A row ProseMirror selected (↓ from text onto a Task): its keys are
            read here, before ProseMirror, which would act at the page's first
            line (`stepFromRow`). ↑/↓ step on; the rest are a picked block's:
-           Enter opens a Task or sub-page, Backspace/Delete remove it by the
+           Enter opens a Task or sub-page, Space ticks a Task, Backspace/Delete remove it by the
            surface's rule, a letter does nothing. */
         const row = onHost && !mod && !event.altKey && view.state.selection instanceof NodeSelection && view.state.selection.node.isBlock ? currentBlockId(view) : null
         if (row !== null) {
           if ((key === 'ArrowUp' || key === 'ArrowDown') && !event.shiftKey) { stop(); stepFromRow(editor, view, row, key === 'ArrowUp' ? -1 : 1); return }
           if (key === 'Enter' && !event.shiftKey) { stop(); editSelection(editor, view, [row]); return }
+          // Space ticks a Task row, as its glyph does (M4 §2.7).
+          if (key === ' ' && !event.shiftKey) { stop(); outerOf(view, row)?.querySelector<HTMLElement>(':scope > .bn-block [data-canvas-task-id] [role="checkbox"]')?.click(); return }
           if (key === 'Backspace' || key === 'Delete') { stop(); actions.remove([row]); return }
           if (key.length === 1) { stop(); return }
         }
         // Only keys typed into the text itself (a field inside a block keeps its own).
         if (!onHost) return
+        // ↓ on the last line of the page's last block goes on into Work's last line.
+        if (key === 'ArrowDown' && !mod && !event.shiftKey && !event.altKey && view.state.selection.empty && editor.getExtension(SuggestionMenu)?.shown() !== true
+          && view.endOfTextblock('down') && visibleBlocks(view).at(-1)?.getAttribute('data-id') === currentBlockId(view) && toLineBelow(editor, view)) { stop(); return }
         if (mod && key.toLowerCase() === 'a' && !event.shiftKey && !event.altKey) {
           const { selection, doc } = view.state
           const $from = selection.$from
@@ -402,9 +486,25 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
       }
       if ((key === 'ArrowUp' || key === 'ArrowDown') && !mod && !event.altKey) { stop(); arrowSelection(editor, view, ids, key === 'ArrowUp' ? -1 : 1, event.shiftKey); return }
       if (key === 'Enter' && !mod && !event.shiftKey && !event.altKey) { stop(); editSelection(editor, view, ids); return }
+      // Space ticks one picked Task, as on a row reached from text (above).
+      if (key === ' ' && ids.length === 1 && !mod && !event.shiftKey && !event.altKey) {
+        const tick = outerOf(view, ids[0]!)?.querySelector<HTMLElement>(':scope > .bn-block [data-canvas-task-id] [role="checkbox"]')
+        if (tick !== null && tick !== undefined) { stop(); tick.click(); return }
+      }
       if (key === '/' && mod && !event.shiftKey && !event.altKey) { stop(); openBlockMenu(view, ids[0]!); return }
       if (mod && key.toLowerCase() === 'a' && !event.shiftKey) { stop(); setBlockSelection(editor, editor.document.map((block) => block.id)); return }
       if (key === 'Tab' && !mod && !event.altKey) { stop(); nestSelection(editor, view, ids, event.shiftKey ? 'out' : 'in', actions.admits); return }
+      /* Undo and redo while blocks are picked from outside the text (the arrow
+         keys or the marquee leave the editor unfocused) are the editor's, so a
+         Mod+Shift+↑/↓ move comes back in one step, as a drag does. */
+      if (mod && !event.altKey && !inEditor && (key.toLowerCase() === 'z' || key.toLowerCase() === 'y')) {
+        stop()
+        if (key.toLowerCase() === 'y' || event.shiftKey) editor.redo()
+        else editor.undo()
+        const kept = ids.filter((id) => editor.getBlock(id) !== undefined)
+        if (kept.length > 0) setBlockSelection(editor, kept)
+        return
+      }
       if (['Shift', 'Control', 'Meta', 'Alt'].includes(key) || mod) return // copy, cut, undo keep their meaning
       if (key.length === 1) { stop(); return } // a typed character does not replace the blocks
       clearBlockSelection(editor)
@@ -432,11 +532,25 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
       if (view.dom.contains(target) || isGutter(view, target) || target.closest('[role="menu"]')) return
       clearBlockSelection(editor)
     }
+    /* A drag by the handle drops with focus left on nothing, where no undo
+       reaches the editor: focus goes back to the page, so the next Mod+Z
+       takes the whole move back (one entry), as it does after a keyboard move. */
+    function onDrop(event: DragEvent): void {
+      const view = viewOf(editor)
+      if (view === undefined || !(event.target instanceof Node) || !view.dom.contains(event.target)) return
+      window.setTimeout(() => {
+        const active = document.activeElement
+        if (!view.dom.isConnected || (active !== null && active !== document.body && !isGutter(view, active))) return
+        view.focus()
+      }, 0)
+    }
     window.addEventListener('keydown', onKey, true)
     document.addEventListener('focusin', onFocus, true)
     window.addEventListener('keydown', onKeyUnclaimed)
     window.addEventListener('pointerdown', onPointer, true)
+    window.addEventListener('drop', onDrop)
     return () => {
+      window.removeEventListener('drop', onDrop)
       window.removeEventListener('keydown', onKey, true)
       window.removeEventListener('keydown', onKeyUnclaimed)
       window.removeEventListener('pointerdown', onPointer, true)

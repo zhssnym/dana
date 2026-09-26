@@ -10,19 +10,19 @@ The shelf page, bound through the adapter seam. What is worth knowing:
   this client's `IconPicker`: 4.3 and 4.18 store a key and `icon-manifest.ts` is
   the one place a key becomes a glyph, so `folderPageMark` is `markIcon` here.
 - **The header is the page head** (round 3): `FolderHeader`, the same mark,
-  title, hover "Add cover" and "…" every page wears, so a collection does not
+  title and "…" every page wears (covers are a project's alone, M4), so a collection does not
   read as a different kind of screen. No description line, the rule for every
   page since round 2; a stored description stays in the data, undrawn.
 - **Rename lives in the title only**: click it, Enter or blur commits,
   Escape puts the name back (AC-203).
 */
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useSearchParams } from "react-router"
 import type { ReactNode } from "react"
 
 import { FolderHeader } from "../components/folder-head.js"
 import { markIcon } from "../components/page/icon-manifest.js"
-import { PageCover } from "../components/page-cover.js"
 import { ObjectMenu } from "../components/object-menu.js"
 import { HistorySheet } from "../components/history-sheet.js"
 import { IDENTITY_COLOR_FALLBACK } from "../parts/identity-colors.js"
@@ -31,6 +31,7 @@ import {
   usePageIdentity as useFolderIdentity,
 } from "../lib/page-identity.js"
 import { shelfKey } from "../lib/shelf-acts.js"
+import { SHELF_ACTION_PARAM } from "../shell/app-sidebar.js"
 
 export function ShelfPage({
   id,
@@ -62,10 +63,26 @@ export function ShelfPage({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
 
+  /* History asked for by the Library row's "…" (`?shelf-action=history`):
+     opened here and the act dropped from the address, so Back does not
+     reopen it. */
+  const [search, setSearch] = useSearchParams()
+  const action = search.get(SHELF_ACTION_PARAM)
+  useEffect(() => {
+    if (action === null) return
+    if (action === "history") setHistoryOpen(true)
+    setSearch(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete(SHELF_ACTION_PARAM)
+        return next
+      },
+      { replace: true },
+    )
+  }, [action, setSearch])
+
   return (
     <div className="flex min-h-full w-full flex-col space-y-4">
-      <PageCover storageName={key} />
-
       <FolderHeader
         name={name}
         icon={Mark}
@@ -82,7 +99,6 @@ export function ShelfPage({
             ...(next.color === undefined ? {} : { color: next.color }),
           })
         }
-        coverKey={key}
         actions={
           <ObjectMenu
             kind="shelf"

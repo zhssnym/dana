@@ -31,14 +31,6 @@ export const HALF_MARATHON: readonly SampleFolder[] = [
       },
     ],
     doc: [
-      {
-        kind: 'callout',
-        text: [
-          'Race day is in 19 days. This week is about the long run and nothing else; the details for the last days are in ',
-          { text: 'Race week', page: RACE_WEEK },
-          '.',
-        ],
-      },
       { kind: 'section', text: 'Base: weeks 1–4' },
       { task: 'Register for the race' },
       { task: 'Get a gait analysis' },
@@ -187,6 +179,7 @@ export const HALF_MARATHON: readonly SampleFolder[] = [
       },
       {
         title: 'Run the race',
+        start: 19,
         due: 19,
         time: '11:30',
         important: true,
@@ -279,11 +272,13 @@ export const HALF_MARATHON: readonly SampleFolder[] = [
     tasks: [
       {
         title: 'Pick up the race bib',
+        start: 18,
         due: 18,
         notes: 'Race office at Östermalms IP, open until 19:00 the day before. Bring ID and the confirmation email.',
       },
       {
         title: 'Pack the race bag',
+        start: 18,
         due: 18,
         notes: 'Lay everything out the night before. Only things already tested on a long run.',
       },

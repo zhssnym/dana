@@ -2,11 +2,12 @@
 The sidebar's Focus group (round 8): a heading styled as Library's, a "+"
 that adds a list, and the viewer's lists in their own order. Drag a row to
 reorder it; its "…" hides a default (Today, Upcoming, Assigned) or removes an
-added list. Either one comes back from the "+".
+added list. Either one comes back from the "+". Assigned is neither drawn nor
+offered to a viewer with no page shared with anyone (M4, `focusRows`).
 */
 import { useRef } from 'react'
 
-import { useBundle } from '../api/queries.js'
+import { useBundle, useMultiMemberFolderIds } from '../api/queries.js'
 import { Button } from '../components/ui/button.js'
 import { MORE_ACTIONS } from '../components/ui/copy.js'
 import {
@@ -26,7 +27,7 @@ import { cn } from '../components/ui/utils.js'
 import { EyeOff, MoreHorizontal, Plus, Trash2 } from '../lib/icons.js'
 import { moved, swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
 import type { SortableItemState } from '../lib/use-sortable-list.js'
-import { focusList, focusMark, focusOffers } from './focus-lists.js'
+import { focusMark, focusOffers, focusRows } from './focus-lists.js'
 import type { FocusList, FocusListKey, FocusMark } from './focus-lists.js'
 import { grip } from './library-drag.js'
 
@@ -49,14 +50,18 @@ export function FocusGroup({
   readonly link: (to: string) => React.ReactElement
 }): React.JSX.Element {
   const appearance = useBundle().data?.focus_appearance
-  const shown = lists.map(focusList)
-  const offers = focusOffers(lists)
+  const shared = useMultiMemberFolderIds().size > 0
+  const shown = focusRows(lists, shared)
+  /* A solo viewer's stored Assigned stays stored, only undrawn, so a reorder
+     or removal among the drawn rows carries it along unchanged. */
+  const hidden = lists.filter((key) => !shown.some((list) => list.key === key))
+  const offers = focusOffers(lists).filter((offer) => shared || offer.key !== 'assignments')
   const sortable = useSortableList({
     count: shown.length,
     onLift: swallowNextClick,
     describe: (index) => shown[index]?.name ?? 'List',
     onReorder: (from, to) => {
-      onChange(moved(lists, from, to))
+      onChange([...moved(shown.map((list) => list.key), from, to), ...hidden])
     },
   })
   return (

@@ -159,7 +159,7 @@ async function edgesOf(
   const farColumn = sql.raw(far)
   return rowsOf(
     executor,
-    sql`SELECT d.id, d.created_at,
+    sql`SELECT d.id, d.created_at, d.created_by,
                far.id AS far_id, far.title AS far_title,
                far.status AS far_status,
                far.folder_id AS far_folder_id,
@@ -222,6 +222,7 @@ export async function readTaskDependencies(
     task: summaryOf(row),
     state,
     created_at: instantOf(row.created_at),
+    created_by: row.created_by == null ? null : String(row.created_by),
   })
 
   return {
@@ -322,7 +323,7 @@ export async function createTaskDependency(
           VALUES (${dependentTaskId}::uuid, ${blockingTaskId}::uuid,
                   ${viewerId}::uuid)
           ON CONFLICT ON CONSTRAINT task_dependencies_pair_key DO NOTHING
-          RETURNING id, created_at`,
+          RETURNING id, created_at, created_by`,
     )
 
     const summary: DependencyTaskSummary = {
@@ -340,6 +341,7 @@ export async function createTaskDependency(
           task: summary,
           state: stateOfBlocker(blocker.status),
           created_at: instantOf(row.created_at),
+          created_by: row.created_by == null ? null : String(row.created_by),
         },
       } as const
     }
@@ -351,7 +353,7 @@ export async function createTaskDependency(
        The status the route gives it says which of the two happened. */
     const existing = await rowsOf(
       tx,
-      sql`SELECT id, created_at FROM task_dependencies
+      sql`SELECT id, created_at, created_by FROM task_dependencies
           WHERE dependent_task_id = ${dependentTaskId}::uuid
             AND blocking_task_id = ${blockingTaskId}::uuid`,
     )
@@ -364,6 +366,7 @@ export async function createTaskDependency(
         task: summary,
         state: stateOfBlocker(blocker.status),
         created_at: instantOf(found.created_at),
+        created_by: found.created_by == null ? null : String(found.created_by),
       },
     } as const
   })

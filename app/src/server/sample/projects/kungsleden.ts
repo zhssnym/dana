@@ -26,14 +26,6 @@ const kungsleden: SampleFolder = {
     { kind: 'bullet', text: 'About 6,000 SEK each, travel included.' },
   ],
   doc: [
-    {
-      kind: 'callout',
-      text: [
-        'Night train up, bus back. The stages are in ',
-        { text: 'Day by day', page: 'Day by day' },
-        '; what goes in the pack is in the Gear list tab.',
-      ],
-    },
     { kind: 'section', text: 'Decide and book' },
     { task: 'Book the week off at work' },
     { task: 'Pick the route and direction' },

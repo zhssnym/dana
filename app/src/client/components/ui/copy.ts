@@ -18,7 +18,7 @@ carries them, in `ConfirmDialog.tsx`, and are exact there.
 
 /** 9.4: abandon from My Day. */
 export const ABANDON_CONFIRM =
-  'Abandon this task? It stops appearing in Today but stays everywhere else.'
+  'Drop this task? It stops appearing in Today but stays everywhere else.'
 
 /** 9.1's control table: every row's and every form's overflow menu. */
 export const MORE_ACTIONS = 'More actions'

@@ -1,0 +1,315 @@
+/* ---- m4-u1: the Work thread (M4 design §2). The Work document drawn on a
+   rail: a line down the left, a badge per block, and three derived states
+   written by `thread-model.ts` as per-block rules (the line's frontier, the
+   folds, the elided stretch). Every value is a token or a step of
+   --spacing; the badges are Lucide's drawings (lib/icons.tsx's family),
+   used here as masks so they take the quiet ink. */
+
+.dana-thread {
+  --dana-icon-milestone: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 13v8'/%3E%3Cpath d='M12 3v3'/%3E%3Cpath d='M18.172 6a2 2 0 0 1 1.414.586l2.06 2.06a1.207 1.207 0 0 1 0 1.708l-2.06 2.06a2 2 0 0 1-1.414.586H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z'/%3E%3C/svg%3E");
+  --dana-icon-text-align-start: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 5H3'/%3E%3Cpath d='M15 12H3'/%3E%3Cpath d='M17 19H3'/%3E%3C/svg%3E");
+  --dana-icon-list: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 5h.01'/%3E%3Cpath d='M3 12h.01'/%3E%3Cpath d='M3 19h.01'/%3E%3Cpath d='M8 5h13'/%3E%3Cpath d='M8 12h13'/%3E%3Cpath d='M8 19h13'/%3E%3C/svg%3E");
+  --dana-icon-list-ordered: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 5h10'/%3E%3Cpath d='M11 12h10'/%3E%3Cpath d='M11 19h10'/%3E%3Cpath d='M4 4h1v5'/%3E%3Cpath d='M4 9h2'/%3E%3Cpath d='M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02'/%3E%3C/svg%3E");
+  --dana-icon-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='3' rx='2' ry='2'/%3E%3Ccircle cx='9' cy='9' r='2'/%3E%3Cpath d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'/%3E%3C/svg%3E");
+  --dana-icon-video: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5'/%3E%3Crect x='2' y='6' width='14' height='12' rx='2'/%3E%3C/svg%3E");
+  --dana-icon-paperclip: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551'/%3E%3C/svg%3E");
+  --dana-icon-audio-lines: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 10v3'/%3E%3Cpath d='M6 6v11'/%3E%3Cpath d='M10 3v18'/%3E%3Cpath d='M14 8v7'/%3E%3Cpath d='M18 5v13'/%3E%3Cpath d='M22 10v3'/%3E%3C/svg%3E");
+  --dana-icon-link: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'/%3E%3Cpath d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'/%3E%3C/svg%3E");
+  --dana-icon-code: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 18 6-6-6-6'/%3E%3Cpath d='m8 6-6 6 6 6'/%3E%3C/svg%3E");
+  --dana-icon-quote: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z'/%3E%3Cpath d='M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z'/%3E%3C/svg%3E");
+  --dana-icon-lightbulb: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5'/%3E%3Cpath d='M9 18h6'/%3E%3Cpath d='M10 22h4'/%3E%3C/svg%3E");
+  --dana-icon-workflow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='8' height='8' x='3' y='3' rx='2'/%3E%3Cpath d='M7 11v4a2 2 0 0 0 2 2h4'/%3E%3Crect width='8' height='8' x='13' y='13' rx='2'/%3E%3C/svg%3E");
+  --dana-icon-chevron-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E");
+  --dana-icon-chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  --dana-thread-rail: calc(var(--spacing) * 8);
+  --dana-thread-gap: calc(var(--spacing) * 3);
+  --dana-thread-inset: calc(var(--dana-thread-rail) + var(--dana-thread-gap));
+  --dana-thread-x: calc(var(--dana-thread-rail) / 2);
+  --dana-thread-half: calc(var(--row-height) / 2);
+  --dana-thread-halo: calc(var(--spacing) * 0.5);
+  --dana-thread-hairline: calc(var(--spacing) / 4);
+  /* BlockNote pads a heading 18px above; the thread says it in a step. */
+  --dana-thread-heading-pad: calc(var(--spacing) * 4);
+  /* The line is the hairline token (§2.1); the metrics above are steps of
+     --spacing, named here only so the rules below read. */
+  --dana-thread-ink: var(--line);
+  --dana-thread-solid: linear-gradient(var(--dana-thread-ink), var(--dana-thread-ink));
+  /* Opaque gaps: a dashed stretch hides the section line drawn beneath it. */
+  --dana-thread-dashed: repeating-linear-gradient(to bottom, var(--dana-thread-ink) 0 var(--spacing), var(--background) var(--spacing) calc(var(--spacing) * 2));
+  --dana-thread-frontier: linear-gradient(var(--dana-thread-ink), var(--dana-thread-ink)) top / 100% var(--dana-thread-half) no-repeat, var(--dana-thread-dashed);
+}
+
+/* Every block starts from no badge and a solid line; the rules below and the
+   ones `threadStyle` writes say otherwise. Set on every block, so nothing a
+   section heading says is inherited by what it holds. */
+.dana-thread .bn-block-outer {
+  --dana-thread-line: var(--dana-thread-solid);
+  --dana-thread-line-top: calc(var(--spacing) * 0);
+}
+.dana-thread .bn-block {
+  --dana-badge: none;
+  --dana-badge-on: none;
+  --dana-badge-size: var(--icon-size-compact);
+  --dana-badge-ink: var(--quiet-foreground);
+  --dana-thread-center: var(--dana-thread-half);
+  --dana-thread-caret: initial;
+}
+
+/* A thread item: a block at the top of the document, or one a section
+   heading owns. Blocks nested under other blocks (a list's children) are
+   part of their parent's node. */
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer {
+  position: relative;
+}
+/* The line: one per item, the item's full height, so it has no gaps. A
+   section's children overdraw their heading's line at the same x. */
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer::before {
+  content: '';
+  display: block;
+  position: absolute;
+  inset-inline-start: calc(var(--dana-thread-x) - var(--dana-thread-hairline) / 2);
+  top: var(--dana-thread-line-top);
+  bottom: 0;
+  width: var(--dana-thread-hairline);
+  height: auto;
+  border: 0;
+  transition: none;
+  background: var(--dana-thread-line);
+  pointer-events: none;
+}
+.dana-thread .bn-editor > .bn-block-group > .bn-block-outer:first-child::before { top: var(--dana-thread-half); }
+/* BlockNote draws its nesting guide on this same ::before, in a selector
+   (0,6,1) that outranks the rule above: repeated classes outrank it, so a
+   section's own blocks show the thread's line and nothing else. */
+.dana-thread .bn-block-content[data-dana-section] + .bn-block-group > .bn-block-outer.bn-block-outer.bn-block-outer.bn-block-outer::before { border: 0; }
+/* A divider is a break in the line. */
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer:has(> .bn-block > .bn-block-content[data-content-type='divider'])::before { display: none; }
+
+/* The content column starts past the rail. */
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block > .bn-block-content,
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block > .react-renderer > .bn-block-content {
+  padding-inline-start: var(--dana-thread-inset);
+}
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block > .bn-block-content[data-content-type='heading'] {
+  padding-block-start: var(--dana-thread-heading-pad);
+}
+/* What a non-section item nests (a list's children) indents from its text. */
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block:not(:has(> .bn-block-content[data-dana-section])) > .bn-block-group {
+  margin-inline-start: calc(var(--dana-thread-inset) + var(--space-group));
+}
+/* A sub-section's rail branches off its parent's, one step in. */
+.dana-thread .bn-block:has(> .bn-block-content[data-dana-section]:is([data-level='2'], [data-level='3'])) > .bn-block-group {
+  margin-inline-start: var(--space-group);
+}
+
+/* The badge: a halo that cuts the line, and the drawing on it. */
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block { position: relative; }
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block::before,
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block::after {
+  content: '';
+  display: var(--dana-badge-on);
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: calc(var(--dana-thread-x) - var(--dana-badge-size) / 2);
+  top: calc(var(--dana-thread-center) - var(--dana-badge-size) / 2);
+  width: var(--dana-badge-size);
+  height: var(--dana-badge-size);
+}
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block::before {
+  margin: calc(-1 * var(--dana-thread-halo));
+  padding: var(--dana-thread-halo);
+  box-sizing: content-box;
+  border-radius: var(--radius-full);
+  background: var(--background);
+  pointer-events: none;
+}
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block::after {
+  background-color: var(--dana-badge-ink);
+  -webkit-mask: var(--dana-badge) center / contain no-repeat;
+  mask: var(--dana-badge) center / contain no-repeat;
+}
+
+/* Which badge each kind of block wears (§2.2). */
+.dana-thread .bn-block:has(> .react-renderer > .bn-block-content[data-content-type='paragraph']),
+.dana-thread .bn-block:has(> .bn-block-content[data-content-type='heading']:not([data-dana-section])) {
+  --dana-badge: var(--dana-icon-text-align-start); --dana-badge-on: block;
+}
+.dana-thread .bn-block:has(> .bn-block-content:is([data-content-type='bulletListItem'], [data-content-type='toggleListItem'])) { --dana-badge: var(--dana-icon-list); --dana-badge-on: block; }
+.dana-thread .bn-block:has(> .bn-block-content[data-content-type='numberedListItem']) { --dana-badge: var(--dana-icon-list-ordered); --dana-badge-on: block; }
+.dana-thread .bn-block:has(> .bn-block-content[data-content-type='image']) { --dana-badge: var(--dana-icon-image); --dana-badge-on: block; }
+.dana-thread .bn-block:has(> .bn-block-content[data-content-type='video']) { --dana-badge: var(--dana-icon-video); --dana-badge-on: block; }
+.dana-thread .bn-block:has(> .bn-block-content[data-content-type='file']) { --dana-badge: var(--dana-icon-paperclip); --dana-badge-on: block; }
+.dana-thread .bn-block:has(> .bn-block-content[data-content-type='audio']) { --dana-badge: var(--dana-icon-audio-lines); --dana-badge-on: block; }
+.dana-thread .bn-block:has(> .bn-block-content[data-content-type='codeBlock']) { --dana-badge: var(--dana-icon-code); --dana-badge-on: block; }
+.dana-thread .bn-block:has(> .bn-block-content[data-content-type='quote']) { --dana-badge: var(--dana-icon-quote); --dana-badge-on: block; }
+.dana-thread .bn-block:has(> .react-renderer > .bn-block-content[data-content-type='callout']) { --dana-badge: var(--dana-icon-lightbulb); --dana-badge-on: block; }
+.dana-thread .bn-block:has(> .react-renderer > .bn-block-content[data-content-type='diagram']) { --dana-badge: var(--dana-icon-workflow); --dana-badge-on: block; }
+/* An empty line says nothing. */
+.dana-thread .bn-block:has(> .react-renderer > .bn-block-content[data-content-type='paragraph'] .ProseMirror-trailingBreak:only-child) { --dana-badge-on: none; }
+/* A toggle (heading or list item) already draws its triangle: that is its
+   node, moved onto the rail below, and it wears no second badge. */
+.dana-thread .bn-block:has(> .bn-block-content[data-content-type] .bn-toggle-wrapper) { --dana-badge-on: none; }
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block > .bn-block-content .bn-toggle-wrapper > .bn-toggle-button {
+  right: calc(100% + var(--dana-thread-gap) + var(--dana-thread-x) - var(--control-height) / 2);
+  display: flex;
+  width: var(--control-height);
+  height: var(--control-height);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--background);
+}
+/* Consecutive prose and lists share one badge, on the first. */
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer:has(> .bn-block > :is(.react-renderer > [data-content-type='paragraph'], [data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='toggleListItem'])):not(:has(> .bn-block > .react-renderer > [data-content-type='paragraph'] .ProseMirror-trailingBreak:only-child))
+  + .bn-block-outer:has(> .bn-block > :is(.react-renderer > [data-content-type='paragraph'], [data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='toggleListItem'])) > .bn-block {
+  --dana-badge-on: none;
+}
+
+/* A section heading: the milestone for the top step, a small filled square
+   below it. The badge is its fold control: a caret on hover, and a right
+   caret while folded (the rule `threadStyle` writes). */
+.dana-thread .bn-block:has(> .bn-block-content[data-dana-section]) {
+  --dana-badge: var(--dana-thread-caret, var(--dana-icon-milestone));
+  --dana-badge-on: block;
+  --dana-badge-size: calc(var(--spacing) * 5);
+  --dana-badge-ink: var(--text);
+  --dana-thread-center: calc(var(--text-h1-line) / 2 + var(--dana-thread-heading-pad));
+}
+.dana-thread .bn-block:has(> .bn-block-content[data-dana-section]:is([data-level='2'], [data-level='3'])) {
+  --dana-badge: var(--dana-thread-caret, none);
+  --dana-badge-size: calc(var(--spacing) * 3);
+  --dana-badge-ink: var(--quiet-foreground);
+}
+.dana-thread .bn-block:has(> .bn-block-content[data-dana-section][data-level='2']) { --dana-thread-center: calc(var(--text-h2-line) / 2 + var(--dana-thread-heading-pad)); }
+.dana-thread .bn-block:has(> .bn-block-content[data-dana-section][data-level='3']) { --dana-thread-center: calc(var(--text-h3-line) / 2 + var(--dana-thread-heading-pad)); }
+@media (hover: hover) {
+  /* Keyed on the block, so the caret stays while the pointer is on the
+     badge itself; not while it is on what the section holds. */
+  .dana-thread .bn-block:has(> .bn-block-content[data-dana-section]):has(> .bn-block-group):hover:not(:has(> .bn-block-group:hover)) {
+    --dana-badge: var(--dana-thread-caret, var(--dana-icon-chevron-down));
+    --dana-badge-size: var(--icon-size-compact);
+    --dana-badge-ink: var(--muted-foreground);
+  }
+}
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block:has(> .bn-block-content[data-dana-section]):has(> .bn-block-group)::after { cursor: pointer; }
+
+/* Rows that draw their own icon (a sub-page, a folder, a Result's flag)
+   put it on the rail instead of beside the text: said once. */
+.dana-thread a[data-canvas-page-id],
+.dana-thread a[data-canvas-folder-id] { padding-inline-start: 0; }
+.dana-thread a[data-canvas-page-id] > :first-child,
+.dana-thread a[data-canvas-folder-id] > :first-child,
+.dana-thread .dana-result-mark {
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: calc(var(--dana-thread-x) - var(--icon-size-compact) / 2);
+  top: calc(var(--dana-thread-half) - var(--icon-size-compact) / 2);
+  padding: 0;
+  border-radius: var(--radius-full);
+  background: var(--background);
+  outline: var(--dana-thread-halo) solid var(--background);
+}
+/* Badges are grey (§2.2): a page's own icon colour stays off the rail. The
+   icon's colour is an inline style, so the stroke is set instead, which
+   outranks the drawing's stroke="currentColor". */
+.dana-thread :is(a[data-canvas-page-id], a[data-canvas-folder-id]) > svg:first-child,
+.dana-thread :is(a[data-canvas-page-id], a[data-canvas-folder-id]) > :first-child svg { stroke: var(--quiet-foreground); }
+
+/* A task's glyph sits on the rail; it is the node, and the tick. */
+.dana-thread .dana-thread-glyph {
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: calc(var(--dana-thread-x) - var(--control-height) / 2);
+  top: calc(var(--dana-thread-half) - var(--control-height) / 2);
+  display: flex;
+  width: var(--control-height);
+  height: var(--control-height);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+}
+.dana-thread .dana-thread-glyph > * {
+  border-radius: var(--radius-full);
+  background: var(--background);
+  outline: var(--dana-thread-halo) solid var(--background);
+}
+.dana-thread .dana-thread-glyph:focus-visible { outline: var(--focus-ring-width) solid var(--ring); outline-offset: calc(-1 * var(--focus-ring-width)); }
+/* The quote's bar is the rail's job now. */
+.dana-thread [data-content-type='quote'] blockquote { border-inline-start: 0; padding-inline-start: 0; }
+
+/* The rail's controls: real buttons ThreadLayer lays over the thread (a
+   section's fold, and "Earlier work"), placed by measurement. The fold is
+   see-through over the heading's badge and draws its caret on hover or focus. */
+.dana-thread { position: relative; }
+.dana-thread .dana-thread-fold {
+  --dana-thread-fold: calc(var(--spacing) * 5);
+  position: absolute;
+  z-index: 2;
+  inset-inline-start: calc(var(--dana-at-x) + var(--dana-thread-x) - var(--dana-thread-fold) / 2);
+  top: calc(var(--dana-at-y) - var(--dana-thread-fold) / 2);
+  display: flex;
+  width: var(--dana-thread-fold);
+  height: var(--dana-thread-fold);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+.dana-thread .dana-thread-fold > span {
+  display: none;
+  width: var(--icon-size-compact);
+  height: var(--icon-size-compact);
+  background-color: var(--muted-foreground);
+  -webkit-mask: var(--dana-icon-chevron-down) center / contain no-repeat;
+  mask: var(--dana-icon-chevron-down) center / contain no-repeat;
+}
+.dana-thread .dana-thread-fold[aria-expanded='false'] > span {
+  -webkit-mask-image: var(--dana-icon-chevron-right);
+  mask-image: var(--dana-icon-chevron-right);
+}
+.dana-thread .dana-thread-fold:is(:hover, :focus-visible) { background: var(--background); }
+.dana-thread .dana-thread-fold:is(:hover, :focus-visible) > span { display: block; }
+.dana-thread .dana-thread-fold:focus-visible { outline: var(--focus-ring-width) solid var(--ring); }
+
+/* "Earlier work": the break above a long done stretch's last three. The
+   rule `threadStyle` writes gives the block room above and cuts its line. */
+.dana-thread .dana-thread-break {
+  position: absolute;
+  z-index: 2;
+  inset-inline-start: calc(var(--dana-at-x) + var(--dana-thread-inset));
+  top: var(--dana-at-y);
+  height: var(--row-height);
+  line-height: var(--row-height);
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.dana-thread .dana-thread-break:hover { color: var(--foreground); }
+.dana-thread .dana-thread-break:focus-visible { outline: var(--focus-ring-width) solid var(--ring); border-radius: var(--radius-sm); }
+
+/* The end of the project: one plain line, only when nothing is open. */
+.dana-thread .dana-thread-end {
+  display: block;
+  min-height: var(--row-height);
+  padding-inline-start: var(--dana-thread-inset);
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  text-align: start;
+  cursor: pointer;
+}
+.dana-thread .dana-thread-end:hover { color: var(--foreground); }
+.dana-thread .dana-thread-end:focus-visible { outline: var(--focus-ring-width) solid var(--ring); outline-offset: var(--focus-ring-width); border-radius: var(--radius-sm); }
+.dana-thread:has(> .dana-thread-end) .dana-canvas-tail { min-height: calc(var(--spacing) * 4); }
+
+/* Phone: a narrower rail and a smaller heading badge; meta wraps under the
+   title as one line. The gutter's handle stays until a touch drag exists
+   (canvas.css hides it for touch and at 480px and below). */
+@media (max-width: 767px) {
+  .dana-thread {
+    --dana-thread-rail: calc(var(--spacing) * 6);
+    --dana-thread-gap: calc(var(--spacing) * 2);
+  }
+  .dana-thread .bn-block:has(> .bn-block-content[data-dana-section]) { --dana-badge-size: var(--icon-size-compact); }
+  .dana-thread .dana-thread-row { flex-wrap: wrap; }
+  .dana-thread .dana-thread-meta { flex-basis: 100%; padding-block-end: var(--spacing); }
+}

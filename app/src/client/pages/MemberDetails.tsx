@@ -38,7 +38,7 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
 import { cn } from '../components/ui/utils.js'
-import { ChevronDown, ChevronLeft } from '../lib/icons.js'
+import { ChevronDown } from '../lib/icons.js'
 import { documentToText, textToDocument } from '../lib/responsibility-text.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
@@ -56,7 +56,6 @@ export function MemberDetails({
   viewerId,
   ask,
   onRemove,
-  onBack,
 }: {
   readonly folderId: string
   readonly userId: string
@@ -65,24 +64,16 @@ export function MemberDetails({
   readonly ask: AskConfirm
   /** Remove this member, the list row's own act; absent where not offered. */
   readonly onRemove?: ((name: string) => void) | undefined
-  readonly onBack: () => void
 }): React.JSX.Element {
   const details = useFolderMember(folderId, userId)
   const [showHistory, setShowHistory] = useState(false)
   const history = useFolderMemberHistory(folderId, userId, showHistory)
   const grant = useSetSelfEditGrant()
 
-  const back = (
-    <Button variant="ghost" className="mb-[var(--space-inline)] gap-1 pl-1 text-muted-foreground" onClick={onBack}>
-      <ChevronLeft strokeWidth={1.75} aria-hidden="true" />
-      All members
-    </Button>
-  )
   const member = details.data
   if (member === undefined) {
     return (
       <div>
-        {back}
         {/* Only a 404 means they left; any other failure is the toast's. */}
         {details.error instanceof ApiError && details.error.status === 404 ? (
           <p className="px-2 text-sm text-muted-foreground">This member is no longer on the page.</p>
@@ -95,7 +86,6 @@ export function MemberDetails({
   return (
     <div className="flex flex-col gap-[var(--space-group)]">
       <div>
-        {back}
         <div className="flex items-center gap-[var(--space-inline)] px-2">
           <PersonFace
             id={member.user.id}

@@ -72,8 +72,6 @@ const TOP: SampleFolder = {
     { kind: 'bullet', text: 'Cabin booked for Friday and Saturday night, 6,400 SEK, sauna included.' },
     { kind: 'bullet', text: "Seven people confirmed, including her sister, who is coming from Göteborg." },
     { kind: 'bullet', text: 'Cover story agreed: a work dinner of mine that Sara "has to" come to. See Discussion.' },
-    { kind: 'heading3', text: 'Still open' },
-    { kind: 'bullet', text: 'Four of seven payments are in. Ferry tickets not booked yet.' },
   ],
   tab: {
     name: 'Budget',
@@ -163,6 +161,7 @@ const TOP: SampleFolder = {
     {
       title: 'Get Sara to Årsta brygga',
       notes: 'Leave the flat at 16:15 for the "work dinner". Lucía waits at the pier with the others.',
+      start: 17,
       due: 17,
       time: '16:15',
       reminder: { before: 60 },

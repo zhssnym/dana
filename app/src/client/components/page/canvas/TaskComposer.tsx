@@ -69,6 +69,7 @@ import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
 import type { BlockMenuModel } from './BlockSideMenu.js'
 import { createCanvasCallout } from './CanvasCallout.js'
+import { queryKeys } from '../../../api/keys.js'
 import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
 import { simulateNest } from './turn-into.js'
 import type { TreeBlock } from './turn-into.js'
@@ -470,7 +471,11 @@ function TaskSession({ taskId, folderId, addSubtasks, initialPage, latest, width
         render((value) => value + 1)
         writeStorage(draftKey(taskId), created.state === 'saved' ? null : JSON.stringify({ taskId, revision: created.revision, blocks: editor.document }))
       },
-      (next) => { queryClient.setQueryData(['tasks', taskId, 'document'], next) },
+      (next) => {
+        queryClient.setQueryData(['tasks', taskId, 'document'], next)
+        // The write records "edited the description" (the issue page's "· edited" mark).
+        void queryClient.invalidateQueries({ queryKey: queryKeys.events(`task:${taskId}`) })
+      },
     )
     return created
   })

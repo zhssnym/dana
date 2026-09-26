@@ -626,6 +626,23 @@ export async function createSampleWorkspace(
   )
   const deskId = String(desk[0]?.id)
   for (const task of SAMPLE_WORKSPACE.desk) await writeTask(ctx, deskId, task)
+  for (const folder of SAMPLE_WORKSPACE.folders) {
+    for (const task of folder.tasks ?? []) {
+      for (const blocker of task.waitsOn ?? []) {
+        /* By title: a title that names no sample task says so here, rather
+           than failing every sign-up on a ''::uuid cast. */
+        const dependent = ctx.tasks.get(task.title)
+        const blocking = ctx.tasks.get(blocker)
+        if (dependent === undefined || blocking === undefined) {
+          throw new Error(`Sample waitsOn: "${task.title}" waits on "${blocker}", which is not a sample task`)
+        }
+        await tx.execute(
+          sql`INSERT INTO task_dependencies (dependent_task_id, blocking_task_id, created_by)
+              VALUES (${dependent}::uuid, ${blocking}::uuid, ${userId}::uuid)`,
+        )
+      }
+    }
+  }
 
   // Then the writing and the conversations.
   for (const folder of SAMPLE_WORKSPACE.folders) {

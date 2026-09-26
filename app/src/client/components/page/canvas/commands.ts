@@ -1,5 +1,6 @@
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { isSectionHeading, validateCanvasOutline } from './outline.js'
+import { blockAbove, landOn } from './block-selection.js'
 
 const taskCommands = new WeakMap<CanvasEditor, (block?: CanvasBlock) => void>()
 export function bindTaskCommand(editor: CanvasEditor, command: (block?: CanvasBlock) => void): () => void {
@@ -12,6 +13,94 @@ export function createTaskAtCursor(editor: CanvasEditor): boolean {
   if (!command) return false
   command()
   return true
+}
+
+/** A Task made from this line through the page's own Task act (the same one `[] ` and `/task` use). */
+export function createTaskFrom(editor: CanvasEditor, block: CanvasBlock): boolean {
+  const command = taskCommands.get(editor)
+  if (!command) return false
+  command(block)
+  return true
+}
+
+/** Where the Work thread's last line writes: an empty line to reuse, the block to follow, or the Section to open. */
+export type LinePlace = { readonly reuse: string } | { readonly after: string } | { readonly into: string }
+
+const isEmptyLine = (block: CanvasBlock): boolean =>
+  block.type === 'paragraph' && Array.isArray(block.content) && block.content.length === 0 && block.children.length === 0
+
+/**
+ * The place a line typed in the last line lands. `section` is the Section in
+ * view (the phone's pinned line); without it, or when it is gone, the line
+ * goes where the page ends: after the last block of the innermost last
+ * Section, as clicking below the page writes (`CanvasSurface` `writeBelow`).
+ * An empty last line is reused rather than followed by another.
+ */
+export function lastLinePlace(document: readonly CanvasBlock[], section?: string): LinePlace | null {
+  const inView = section === undefined ? undefined : findBlock(document, section)
+  let holder: CanvasBlock | undefined = inView !== undefined && isSectionHeading(inView) ? inView : undefined
+  let last = holder === undefined ? document.at(-1) : holder.children.at(-1)
+  if (holder === undefined) {
+    while (last !== undefined && isSectionHeading(last)) {
+      holder = last
+      last = last.children.at(-1)
+    }
+  }
+  if (last !== undefined) return isEmptyLine(last) ? { reuse: last.id } : { after: last.id }
+  return holder === undefined ? null : { into: holder.id }
+}
+
+/** A text line at that place, holding `text`; its id, or null where the place is gone. */
+export function openLineAt(editor: CanvasEditor, place: LinePlace, text: string): string | null {
+  const content = text === '' ? [] : [{ type: 'text' as const, text, styles: {} }]
+  if ('reuse' in place) {
+    if (editor.getBlock(place.reuse) === undefined) return null
+    editor.updateBlock(place.reuse, { type: 'paragraph', content } as never)
+    return place.reuse
+  }
+  if ('after' in place) {
+    if (editor.getBlock(place.after) === undefined) return null
+    return editor.insertBlocks([{ type: 'paragraph', content } as never], place.after, 'after')[0]?.id ?? null
+  }
+  const section = editor.getBlock(place.into)
+  if (section === undefined) return null
+  const id = crypto.randomUUID()
+  editor.updateBlock(section, { children: [{ id, type: 'paragraph', content }] } as never)
+  return editor.getBlock(id) === undefined ? null : id
+}
+
+/**
+ * Work (M4 §2.5): Enter on an empty line with nothing under it removes the
+ * line (the first Enter already turned it into text). The caret goes back to
+ * the end of the block before it in reading order (that block picked when it
+ * is a Task row), or, when the line was the page's last, into the thread's
+ * last line (`toLast`). A Section keeps what it holds. The page's only
+ * line cannot go; the caret moves to the last line instead.
+ */
+export function dropEmptyLine(editor: CanvasEditor, toLast: () => boolean): boolean {
+  const { selection } = editor.prosemirrorState
+  if (!selection.empty) return false
+  const block = editor.getTextCursorPosition().block
+  if (!isEmptyLine(block)) return false
+  let final = true
+  for (let at: CanvasBlock | undefined = block; at !== undefined && final; at = editor.getParentBlock(at)) {
+    if (editor.getNextBlock(at) !== undefined) final = false
+  }
+  const before = blockAbove(editor, block.id)
+  if (before === null) return final && toLast()
+  editor.removeBlocks([block.id])
+  if (final && toLast()) return true
+  landOn(editor, before)
+  return true
+}
+
+function findBlock(blocks: readonly CanvasBlock[], id: string): CanvasBlock | undefined {
+  for (const block of blocks) {
+    if (block.id === id) return block
+    const found = findBlock(block.children, id)
+    if (found !== undefined) return found
+  }
+  return undefined
 }
 
 export function ancestorsOf(blocks: readonly CanvasBlock[], id: string, parents: CanvasBlock[] = []): CanvasBlock[] | null {
@@ -132,4 +221,43 @@ export function removeCanvasBlocks(editor: CanvasEditor, blocks: readonly Canvas
     }
     editor.removeBlocks([...ids])
   })
+}
+
+/**
+ * Mod+Shift+↑/↓ (M4 §2.6, BlockNote's own binding): the blocks move one step
+ * as a unit, children and all, and in one undo entry. BlockNote's step drops a
+ * block into the previous sibling's children, which the outline refuses for a
+ * heading and which walks a Task into a Section a row at a time; here a
+ * heading steps past the whole Section beside it, and any other block steps
+ * past its sibling, into the end (↑) or the top (↓) of the Section it meets.
+ * The canvas guard still refuses a shape the page cannot keep.
+ */
+export function moveBlocksBy(editor: CanvasEditor, ids: readonly string[], direction: -1 | 1): boolean {
+  const blocks = ids.flatMap((id) => { const block = editor.getBlock(id); return block === undefined ? [] : [block] })
+  const edge = direction === -1 ? blocks[0] : blocks.at(-1)
+  if (edge === undefined) return false
+  const heading = blocks.some(isSectionHeading)
+  const holds = (block: CanvasBlock | undefined): block is CanvasBlock => block !== undefined && isSectionHeading(block) && block.children.length > 0
+  // The Section met on the way: its end going up, its top going down; a heading stays at the Section's own level.
+  const into = (section: CanvasBlock): { ref: CanvasBlock; placement: 'before' | 'after' } => {
+    if (direction === 1) return { ref: section.children[0]!, placement: 'before' }
+    let ref = section.children.at(-1)!
+    while (!heading && holds(ref)) ref = ref.children.at(-1)!
+    return { ref, placement: 'after' }
+  }
+  const beside = direction === -1 ? editor.getPrevBlock(edge) : editor.getNextBlock(edge)
+  const parent = editor.getParentBlock(edge)
+  let target: { ref: CanvasBlock; placement: 'before' | 'after' }
+  if (beside !== undefined) {
+    target = !heading && holds(beside) ? into(beside) : { ref: beside, placement: direction === -1 ? 'before' : 'after' }
+  } else if (parent !== undefined) {
+    const outer = direction === -1 ? editor.getPrevBlock(parent) : editor.getNextBlock(parent)
+    target = holds(outer) ? into(outer) : { ref: parent, placement: direction === -1 ? 'before' : 'after' }
+  } else return false
+  const before = JSON.stringify(editor.document)
+  editor.transact(() => {
+    editor.removeBlocks(blocks.map((block) => block.id))
+    editor.insertBlocks(blocks as never, target.ref.id, target.placement)
+  })
+  return JSON.stringify(editor.document) !== before
 }
