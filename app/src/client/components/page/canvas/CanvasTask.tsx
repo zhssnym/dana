@@ -7,6 +7,7 @@ import { useTask, useTaskDependencies } from '../../../api/queries.js'
 import { DELETED_USER, taskRowDisplay } from '../../../parts/presenters.js'
 import { formatDate } from '../../../lib/dates.js'
 import { Hourglass } from '../../../lib/icons.js'
+import { isWaiting } from './thread/thread-model.js'
 import { cn } from '../../ui/utils.js'
 import { PersonFace } from '../../person-face.js'
 
@@ -85,7 +86,7 @@ type NodeState = 'open' | 'next' | 'waiting' | 'done' | 'dropped'
  * No star, no labels, no counts: the task page holds those.
  *
  * - open: a ring; the one "next" task wears the accent ring and a bold title
- * - waiting on a blocker: the hourglass, and "waits on <blocker>" in meta
+ * - waiting (a blocker, or a start still ahead): the hourglass; meta names the blocker, or the start day
  * - done: the check, title muted, the day it was done in meta
  * - dropped: the crossed ring, title muted and struck; never drawn as done
  *
@@ -115,7 +116,7 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
       ? 'dropped'
       : listed === undefined && (completedListed !== undefined || known.status === 'completed')
         ? 'done'
-        : (known.blocked_by_count ?? 0) > 0
+        : isWaiting(known, bridge.context.today)
           ? 'waiting'
           : thread.next === taskId ? 'next' : 'open'
     return (
@@ -190,7 +191,7 @@ const GLYPH_LABEL: Record<NodeState, string> = {
 function ThreadRow({ task, state, bridge, thread }: { readonly task: TaskCard; readonly state: NodeState; readonly bridge: TaskBridge; readonly thread: ThreadFacts }): React.JSX.Element {
   const finished = state === 'done' || state === 'dropped'
   const display = finished ? null : taskRowDisplay(task, bridge.context)
-  const blockers = useTaskDependencies(state === 'waiting' ? task.id : null)
+  const blockers = useTaskDependencies(state === 'waiting' && (task.blocked_by_count ?? 0) > 0 ? task.id : null)
   const waitsOn = blockers.data?.depends_on.find((edge) => edge.task !== null && edge.task.status !== 'completed')?.task?.title
   const doneOn = state === 'done' ? thread.completedOn.get(task.id) : undefined
   const day = display?.due?.label ?? display?.starts ?? (doneOn === undefined ? undefined : formatDate(doneOn, bridge.context.today))

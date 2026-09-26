@@ -78,6 +78,10 @@
   pointer-events: none;
 }
 .dana-thread .bn-editor > .bn-block-group > .bn-block-outer:first-child::before { top: var(--dana-thread-half); }
+/* BlockNote draws its nesting guide on this same ::before, in a selector
+   (0,6,1) that outranks the rule above: repeated classes outrank it, so a
+   section's own blocks show the thread's line and nothing else. */
+.dana-thread .bn-block-content[data-dana-section] + .bn-block-group > .bn-block-outer.bn-block-outer.bn-block-outer.bn-block-outer::before { border: 0; }
 /* A divider is a break in the line. */
 :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer:has(> .bn-block > .bn-block-content[data-content-type='divider'])::before { display: none; }
 
@@ -205,6 +209,11 @@
   background: var(--background);
   outline: var(--dana-thread-halo) solid var(--background);
 }
+/* Badges are grey (§2.2): a page's own icon colour stays off the rail. The
+   icon's colour is an inline style, so the stroke is set instead, which
+   outranks the drawing's stroke="currentColor". */
+.dana-thread :is(a[data-canvas-page-id], a[data-canvas-folder-id]) > svg:first-child,
+.dana-thread :is(a[data-canvas-page-id], a[data-canvas-folder-id]) > :first-child svg { stroke: var(--quiet-foreground); }
 
 /* A task's glyph sits on the rail; it is the node, and the tick. */
 .dana-thread .dana-thread-glyph {

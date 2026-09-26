@@ -28,13 +28,15 @@ export interface ThreadTask {
   readonly blocked_by_count?: number | undefined
   readonly start_date: string | null
   readonly assignee: { readonly id: string } | null
+  /** The page's open list also carries dropped tasks; they are closed work. */
+  readonly status?: string | undefined
 }
 
 export type LineStyle = 'solid' | 'frontier' | 'dashed'
 
 export interface ThreadInput {
   readonly blocks: readonly ThreadBlock[]
-  /** The page's open tasks by task id. Anything else is closed. */
+  /** The page's open tasks by task id. Anything else, and a dropped one, is closed. */
   readonly open: ReadonlyMap<string, ThreadTask>
   /** The civil today, `YYYY-MM-DD`. */
   readonly today: string
@@ -69,10 +71,15 @@ function isTask(block: ThreadBlock): boolean {
   return taskIdOf(block) !== null
 }
 
+/** An open task's card: on the open list and not dropped. */
+function openCard(open: ReadonlyMap<string, ThreadTask>, id: string | null): ThreadTask | undefined {
+  const task = id === null ? undefined : open.get(id)
+  return task === undefined || task.status === 'abandoned' ? undefined : task
+}
+
 function isOpenTask(block: ThreadBlock, open: ReadonlyMap<string, ThreadTask>): boolean {
   if (block.type === 'checkListItem') return block.props?.['checked'] !== true
-  const id = taskIdOf(block)
-  return id !== null && open.has(id)
+  return openCard(open, taskIdOf(block)) !== undefined
 }
 
 export function isSection(block: ThreadBlock): boolean {
@@ -96,7 +103,7 @@ function holdsTask(block: ThreadBlock): boolean {
 
 /**
  * Waiting: it has an open blocker, or its start is still ahead. The ring
- * skips it; a blocked one shows the hourglass.
+ * skips it, and it shows the hourglass.
  */
 export function isWaiting(task: ThreadTask, today: string): boolean {
   return (task.blocked_by_count ?? 0) > 0 || (task.start_date !== null && task.start_date > today)
@@ -106,14 +113,20 @@ export function isWaiting(task: ThreadTask, today: string): boolean {
  * The line shows the frontier, per list (the root, and each section's own).
  * Blocks before the first one that holds an open task are solid; that block
  * is solid down to its badge and dashed after ("frontier"); every later one
- * is dashed. A list with nothing open is solid throughout.
+ * is dashed. A list with nothing open is solid throughout. A section that
+ * holds the frontier stays solid itself while it is open: its own list
+ * carries the switch, so the line is solid from the heading down to the
+ * first open task (its children overdraw it). Folded, it is the frontier.
  */
-function drawLine(list: readonly ThreadBlock[], open: ReadonlyMap<string, ThreadTask>, line: Map<string, Exclude<LineStyle, 'solid'>>): void {
+function drawLine(list: readonly ThreadBlock[], input: ThreadInput, line: Map<string, Exclude<LineStyle, 'solid'>>): void {
   let seen = false
   for (const block of list) {
     if (seen) line.set(block.id, 'dashed')
-    else if (holdsOpen(block, open)) { line.set(block.id, 'frontier'); seen = true }
-    drawLine(ownList(block), open, line)
+    else if (holdsOpen(block, input.open)) {
+      if (!isSection(block) || input.folded.has(block.id)) line.set(block.id, 'frontier')
+      seen = true
+    }
+    drawLine(ownList(block), input, line)
   }
 }
 
@@ -127,7 +140,7 @@ function findNext(list: readonly ThreadBlock[], input: ThreadInput): string | nu
     }
     if (block.type !== 'danaTask') continue
     const id = taskIdOf(block)
-    const task = id === null ? undefined : input.open.get(id)
+    const task = openCard(input.open, id)
     if (id === null || task === undefined) continue
     if (isWaiting(task, input.today)) continue
     if (input.shared && task.assignee !== null && task.assignee.id !== input.viewerId) continue
@@ -138,7 +151,7 @@ function findNext(list: readonly ThreadBlock[], input: ThreadInput): string | nu
 
 export function threadModel(input: ThreadInput): ThreadModel {
   const line = new Map<string, Exclude<LineStyle, 'solid'>>()
-  drawLine(input.blocks, input.open, line)
+  drawLine(input.blocks, input, line)
   return {
     line,
     next: findNext(input.blocks, input),

@@ -54,6 +54,9 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   /** Ignored since M4: done work always shows in place on the thread, where
    * finished sections fold and long done stretches elide instead. */
   readonly showCompleted?: boolean
+  /** The viewer may write the Results tab: the Work thread's end line
+   * ("Write what came of it") is offered only then. */
+  readonly resultsWritable?: boolean
 }
 
 /* The Work thread's fold and elision are computed once per opening of the
@@ -108,7 +111,7 @@ function scrollerOf(element: Element | null): Element | null {
 
 const CHANGED_ELSEWHERE = 'This page changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
-function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen }: Props & {
+function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen }: Props & {
   readonly opening: string
   readonly frozen: Frozen
   readonly initialPage: PageView
@@ -131,12 +134,12 @@ function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHea
       else setReloadNote('The page still has no version. Try again in a moment.')
     }) }}>Load the page again</Button>{reloadNote}
   </div>
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen }} width={width} onSaved={(next) => {
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen }} width={width} onSaved={(next) => {
     queryClient.setQueryData(facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId), next)
   }} />}</div>
 }
 
-function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen, width, onSaved }: Props & {
+function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen, width, onSaved }: Props & {
   readonly opening: string
   readonly frozen: Frozen
   readonly initialPage: PageView
@@ -606,7 +609,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     <SavedResults.Provider value={savedResults}>
     <CanvasTaskProvider tasks={tasks} completed={completed} context={context} actions={actions} onAsk={onAsk}>
       {draftStyle === '' ? null : <style>{draftStyle}</style>}
-      <ThreadLayer enabled={facetId === undefined} editor={editor} folderId={folderId} tasks={tasks} context={context} frozen={frozen} finish={workRootId === undefined && arrangeable}>
+      <ThreadLayer enabled={facetId === undefined} editor={editor} folderId={folderId} tasks={tasks} context={context} frozen={frozen} finish={workRootId === undefined && resultsWritable === true}>
       <div
         className="min-w-0"
         onKeyDownCapture={draftKeys}

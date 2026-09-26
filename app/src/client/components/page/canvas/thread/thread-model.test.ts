@@ -59,7 +59,8 @@ describe('AC-1431: the line is solid up to the first open task and dashed after 
     // Section 1 is all done: solid throughout.
     for (const id of ['s1', 'd1', 'n1', 'd2']) expect(line.get(id)).toBeUndefined()
     // The join is solid down to the first section holding an open task.
-    expect(line.get('s2')).toBe('frontier')
+    // A section holding the frontier stays solid; its own list switches.
+    expect(line.get('s2')).toBeUndefined()
     expect(line.get('s3')).toBe('dashed')
     // Inside it: solid to the first open task, dashed from there on.
     expect(line.get('d3')).toBeUndefined()
@@ -68,6 +69,13 @@ describe('AC-1431: the line is solid up to the first open task and dashed after 
     expect(line.get('n3')).toBe('dashed')
     expect(line.get('o2')).toBe('dashed')
     expect([anyOpen, hasTasks]).toEqual([true, true])
+  })
+
+  test('a folded section holding an open task is the frontier itself', () => {
+    const blocks = [section('s1', [task('o1')]), section('s2', [task('o2')])]
+    const { line } = threadModel(input(blocks, { o1: card(), o2: card() }, { folded: new Set(['s1']) }))
+    expect(line.get('s1')).toBe('frontier')
+    expect(line.get('s2')).toBe('dashed')
   })
 
   test('a finished thread is solid everywhere', () => {
@@ -87,6 +95,19 @@ describe('AC-1432: finished sections fold and long done stretches elide', () => 
       section('empty', []),
     ]
     expect([...finishedSections(blocks, new Map([['o1', card()]]))].sort()).toEqual(['done', 'inner'])
+  })
+
+  test('a dropped task is closed: its section is finished, it never rings and the line ignores it', () => {
+    const blocks = [section('s', [task('d1'), task('dropped'), note('n1')]), section('t', [task('o1')])]
+    const open = new Map([['dropped', card({ status: 'abandoned' })], ['o1', card()]])
+    expect([...finishedSections(blocks, open)]).toEqual(['s'])
+    const model = threadModel(input(blocks, Object.fromEntries(open)))
+    expect(model.next).toBe('o1')
+    expect(model.line.get('dropped')).toBeUndefined()
+    expect(model.line.get('o1')).toBe('frontier')
+    expect(threadModel(input([section('s', [task('dropped')])], { dropped: card({ status: 'abandoned' }) })).anyOpen).toBe(false)
+    const long = [task('a'), task('b'), task('c'), task('e'), task('dropped'), task('o1')]
+    expect([...elision(long, new Map([...open])).elided.keys()]).toEqual(['a', 'b'])
   })
 
   test('more than three closed tasks before the first open one keep only the last three', () => {
