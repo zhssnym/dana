@@ -117,15 +117,15 @@ export function selectTab(id: string): string {
 }
 
 /** Close one tab; closing the active tab selects its nearest neighbour. */
-export function closeTab(id: string): string | null {
+export function closeTab(id: string, emptyPath: string): string | null {
   const at = state.tabs.findIndex((tab) => tab.id === id)
   if (at < 0) return null
 
   if (state.tabs.length === 1) {
-    const fresh: Tab = { id: nextId(), path: paths.today }
+    const fresh: Tab = { id: nextId(), path: emptyPath }
     state = { tabs: [fresh], activeId: fresh.id }
     publish()
-    return paths.today
+    return emptyPath
   }
 
   const tabs = state.tabs.filter((tab) => tab.id !== id)
