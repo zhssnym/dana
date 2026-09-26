@@ -20,10 +20,6 @@ const MOVING: SampleFolder = {
     { kind: 'bullet', text: 'Hornsgatan is cleaned, inspected and handed back.' },
     { kind: 'bullet', text: 'The 18 000 SEK deposit is back and split with Sara.' },
     {
-      kind: 'paragraph',
-      text: 'Keys to the new flat in two weeks, move on the Saturday after, hand back Hornsgatan three days later.',
-    },
-    {
       kind: 'callout',
       text: [
         { text: 'Hard limits: ', bold: true },

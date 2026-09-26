@@ -29,14 +29,6 @@ export const HALF_MARATHON: readonly SampleFolder[] = [
         kind: 'bullet',
         text: 'If the knee hurts for more than two runs in a row, I stop and see the physio before anything else.',
       },
-      {
-        kind: 'paragraph',
-        text: [
-          'The last days before the race are planned in ',
-          { text: 'Race week', page: RACE_WEEK },
-          '.',
-        ],
-      },
     ],
     doc: [
       { kind: 'section', text: 'Base: weeks 1–4' },
@@ -280,11 +272,13 @@ export const HALF_MARATHON: readonly SampleFolder[] = [
     tasks: [
       {
         title: 'Pick up the race bib',
+        start: 18,
         due: 18,
         notes: 'Race office at Östermalms IP, open until 19:00 the day before. Bring ID and the confirmation email.',
       },
       {
         title: 'Pack the race bag',
+        start: 18,
         due: 18,
         notes: 'Lay everything out the night before. Only things already tested on a long run.',
       },
