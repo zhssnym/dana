@@ -10,7 +10,6 @@ with another member; the address itself always works.
 import { UserRoundCheck } from '../lib/icons.js'
 
 import { useAllView, useMultiMemberFolderIds } from '../api/queries.js'
-import { NEW_TASK_ROW_PHONE, QuickAdd } from '../components/quick-add.js'
 import { groupRows } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
 import { PlaceGroup, PlaceHead, usePlace } from '../views/usePlace.js'
@@ -72,12 +71,6 @@ export function AssignmentsPage(): React.JSX.Element {
             ))}
           </div>
         </PageBody>
-        <QuickAdd
-          className={NEW_TASK_ROW_PHONE}
-          onAdd={(title) => {
-            place.capture(title)
-          }}
-        />
       </div>
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />
     </div>

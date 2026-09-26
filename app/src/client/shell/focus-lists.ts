@@ -57,15 +57,23 @@ export function isFocusKey(value: string | undefined): value is FocusListKey {
 }
 
 /**
- * Upcoming's rows: from tomorrow on. What is late, started or due today is
- * Today's ("Carried over", "Started", "Today"), and so is a later task the
- * viewer pulled into Today ("Added to Today"): one task is said once.
+ * Upcoming's rows: from tomorrow on, for what Today already lists. Today (Q1)
+ * holds the viewer's own late, started and due-today work, and any task the
+ * viewer pulled in, so those are said once, there. A teammate's or an
+ * unassigned task that is late, started or due today is on no Today, so it
+ * stays here under its own heading rather than vanishing from both lists.
  */
-export function upcomingRows(rows: readonly TaskCard[], today: string): readonly TaskCard[] {
+export function upcomingRows(
+  rows: readonly TaskCard[],
+  today: string,
+  viewerId: string | null,
+): readonly TaskCard[] {
   return rows.filter((task) => {
     if (task.pulled) return false
     const rung = rungForTask(task, today).key
-    return rung !== 'overdue' && rung !== 'started' && rung !== 'today' && rung !== 'undated'
+    if (rung === 'undated') return false
+    const onToday = viewerId !== null && task.assignee?.id === viewerId
+    return !onToday || (rung !== 'overdue' && rung !== 'started' && rung !== 'today')
   })
 }
 

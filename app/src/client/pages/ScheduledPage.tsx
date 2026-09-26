@@ -7,11 +7,9 @@ list or calendar, a single button beside the title.
 */
 import { Button } from '../components/ui/button.js'
 import { CalendarDays, List } from '../lib/icons.js'
-import { addDays } from '../lib/dates.js'
 
 import { usePlannedView, useMultiMemberFolderIds } from '../api/queries.js'
 import { PlannedCalendar } from '../components/calendar/index.js'
-import { NEW_TASK_ROW_PHONE, QuickAdd } from '../components/quick-add.js'
 import { ladderRungs } from '../views/ladder.js'
 import { PLACES } from '../views/place-pages.js'
 import { PlaceGroup, PlaceHead, usePlace } from '../views/usePlace.js'
@@ -37,8 +35,12 @@ export function ScheduledPage(): React.JSX.Element {
   const place = usePlace(SPINE, all)
   useNoStoredLabel(place)
   const context = { ...basis, multiMemberFolderIds }
-  const rows = withoutDropped(upcomingRows(all, place.today))
-  const groups = ladderRungs(rows, place.today)
+  const rows = withoutDropped(upcomingRows(all, place.today, place.viewerId))
+  /* Someone else's started work stays here (upcomingRows) under Today's word
+     for it, "Started", not the ladder's "In progress". */
+  const groups = ladderRungs(rows, place.today).map((group) =>
+    group.key === 'started' ? { ...group, name: 'Started' } : group,
+  )
   const calendar = place.mode === 'calendar'
 
   const toggle = (
@@ -62,7 +64,7 @@ export function ScheduledPage(): React.JSX.Element {
       {calendar ? (
         /* The month grid shows every dated task, today and past days
            included: a calendar with blank cells before tomorrow would read
-           as nothing due. Only the list starts tomorrow (upcomingRows). */
+           as nothing due. The list starts tomorrow for the viewer's own work (upcomingRows). */
         <PlannedCalendar
           onCreate={(title, date) => {
             place.capture(title, { due_date: date })
@@ -95,12 +97,6 @@ export function ScheduledPage(): React.JSX.Element {
               ))}
             </div>
           </PageBody>
-          <QuickAdd
-            className={NEW_TASK_ROW_PHONE}
-            onAdd={(title) => {
-              place.capture(title, { due_date: addDays(place.today, 1) })
-            }}
-          />
         </div>
       )}
 
