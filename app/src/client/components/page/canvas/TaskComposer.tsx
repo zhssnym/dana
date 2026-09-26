@@ -22,7 +22,8 @@ line into one of the Task's subtasks (an empty line opens "Type a subtask"
 there), and a pasted checklist joins them in order, ticks kept, nested items flattened,
 its other children kept in the writing (`liftChecklists`). Over the 50-subtask
 cap, or with a line longer than a title, the paste stays as written. A to-do
-block stored before this still renders, ticks and saves.
+block stored before this still renders, ticks and saves. `/Blocked by` opens
+the dependency picker under the writing.
 
 **Nothing typed is dropped.** Every change is mirrored to
 `sessionStorage['dana-task-draft:<task>']` until the server acknowledges it. A
@@ -326,12 +327,14 @@ function writeStorage(key: string, value: string | null): void {
 // The page's one hint, shown on an empty Work tab unfocused too, as on a page.
 const PLACEHOLDER = "Press '/' for commands"
 
-export default function TaskComposer({ taskId, folderId, notes, addSubtasks }: {
+export default function TaskComposer({ taskId, folderId, notes, addSubtasks, onBlockedBy }: {
   readonly taskId: string
   readonly folderId: string | null
   /** Appends these subtasks, or with none opens the subtask field; false when
       they cannot all be taken (the cap), and then nothing is added. */
   readonly addSubtasks?: (subtasks: readonly NewSubtask[]) => boolean
+  /** `/Blocked by`: opens the dependency picker. */
+  readonly onBlockedBy?: () => void
   /** The plain-text projection, shown while the document loads or if it cannot. */
   readonly notes: string | null
 }): React.JSX.Element {
@@ -358,16 +361,17 @@ export default function TaskComposer({ taskId, folderId, notes, addSubtasks }: {
           </p>
         </div>
       : <CanvasErrorBoundary>
-          <TaskSession key={`${taskId}:${checkpoint?.epoch ?? 0}`} taskId={taskId} folderId={folderId} addSubtasks={addSubtasks} initialPage={page} latest={query.data ?? page} width={width}
+          <TaskSession key={`${taskId}:${checkpoint?.epoch ?? 0}`} taskId={taskId} folderId={folderId} addSubtasks={addSubtasks} onBlockedBy={onBlockedBy} initialPage={page} latest={query.data ?? page} width={width}
             onCheckpoint={(next) => setCheckpoint((old) => ({ page: next, epoch: (old?.epoch ?? 0) + 1 }))} />
         </CanvasErrorBoundary>}
   </div>
 }
 
-function TaskSession({ taskId, folderId, addSubtasks, initialPage, latest, width, onCheckpoint }: {
+function TaskSession({ taskId, folderId, addSubtasks, onBlockedBy, initialPage, latest, width, onCheckpoint }: {
   readonly taskId: string
   readonly folderId: string | null
   readonly addSubtasks: ((subtasks: readonly NewSubtask[]) => boolean) | undefined
+  readonly onBlockedBy: (() => void) | undefined
   readonly initialPage: PageView
   /** The query row, which follows the server; the editor's content comes from `initialPage`. */
   readonly latest: PageView
@@ -560,7 +564,7 @@ function TaskSession({ taskId, folderId, addSubtasks, initialPage, latest, width
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
         {folderId === null ? null : <FilePanelController filePanel={(props) => <CanvasFilePanel {...props} onUpload={(kind: CanvasMediaKind, file: File) => upload(kind, folderId, file)} />} />}
         <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />
-        <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={{ surface: 'task', media: folderId !== null, ...(addSubtasks === undefined ? {} : { onCreateSubtask: () => { subtaskFrom(editor.getTextCursorPosition().block.id) } }) }} />
+        <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={{ surface: 'task', media: folderId !== null, ...(addSubtasks === undefined ? {} : { onCreateSubtask: () => { subtaskFrom(editor.getTextCursorPosition().block.id) } }), ...(onBlockedBy === undefined ? {} : { onCreateBlocker: onBlockedBy }) }} />
         <MentionSuggestions editor={editor as unknown as CanvasEditor} folderId={folderId} />
         <CanvasMarquee />
       </BlockNoteView>

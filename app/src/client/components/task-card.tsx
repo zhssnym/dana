@@ -2,38 +2,22 @@
 The task page's body: everything a task is, in one quiet column (M4: one
 task page, no peek).
 
-The order is the page's: one properties block (Status first, then only what
-is set, and "Add property"), a rule, the task's own document, then Subtasks
-and Dependencies where there are some, a rule, and the task's history (its
-events, never posts) ending in "Discuss" and "Mark done ▾" (Drop in its menu).
-Talk about a task lives in its project's Discussion (M5); "Discuss" opens the
-task's one thread there, and makes it on first use. Nothing here can be dragged or collapsed; a task is not a
-form somebody arranges. Every edit commits as it is made, so there is no Save.
-
-**The properties block shows only what is set.** A task with no date draws no
-Date row; "Add property" offers it, and choosing it reveals the row already
-asking its question. A row dismissed without an answer goes away again.
+Four fixed properties, always shown, in this order: Status, Assignee, Date
+(its start, reminder and repeat live inside the Date picker) and Discussion.
+Then the task's own document, with its subtasks and "Blocked by" drawn
+under the writing (made by the editor's `/Subtask` and `/Blocked by`), and
+the task's quiet history. Every edit commits as it is made, so there is no
+Save.
 
 Files go in the task's document, which takes file and image blocks.
 */
 
 import { Face } from "./person-face.js"
 import { InlineInput } from "./ui/inline-field.js"
-import {
-  Bell,
-  CalendarDays,
-  GripVertical,
-  ListPlus,
-  MoreHorizontal,
-  Plus,
-  Repeat2,
-  UserRound,
-  Workflow,
-  X,
-  type LucideIcon,
-} from "../lib/icons.js"
+import { GripVertical, ListPlus, MoreHorizontal, Plus, X, type LucideIcon } from "../lib/icons.js"
 import { TaskDependencies, isRelatableTask } from "./task-dependencies.js"
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react"
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react"
+import { Link, useNavigate } from "react-router"
 
 import {
   DropdownMenu,
@@ -47,13 +31,17 @@ import {
   PROPERTY_LABEL,
   PROPERTY_ROW,
   PROPERTY_VALUE_OFFSET,
+  PickerSegments,
   PropertyPicker,
   ReminderPanel,
   RepeatPanel,
 } from "./task-pickers.js"
 import { TaskHistory } from "./thread/TaskHistory.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
-import { useMultiMemberFolderIds, useTaskDependencies } from "../api/queries.js"
+import { useFolders, useMe, useTask } from "../api/queries.js"
+import { useDiscussTask } from "../api/consultation.js"
+import { mayDraw } from "../lib/folder-authority.js"
+import { paths } from "../routes.js"
 import { presenterToday } from "../parts/presenters.js"
 import {
   CHIP_ASSIGNEE,
@@ -71,7 +59,6 @@ import {
   parseDueLabel,
   reminderChipValue,
   repeatSummary,
-  stepCount,
   type ConceptStep,
   type ConceptTask,
 } from "../tasks/task-model.js"
@@ -131,30 +118,6 @@ export function Reveal({ open, children }: { open: boolean; children: ReactNode 
     <div className="animate-in fade-in-0 slide-in-from-top-1 duration-150 ease-out">
       {children}
     </div>
-  )
-}
-
-/* A section of the panel: a plain heading and its content. No rule, no
-   toggle, no handle. */
-function Section({
-  title,
-  badge,
-  children,
-}: {
-  title: string
-  badge?: string
-  children: ReactNode
-}) {
-  return (
-    <section aria-label={title} className="flex flex-col gap-1">
-      <h3 className="flex items-baseline gap-2 text-sm font-section text-foreground">
-        {title}
-        {badge ? (
-          <span className="text-xs font-normal text-muted-foreground tabular-nums">{badge}</span>
-        ) : null}
-      </h3>
-      {children}
-    </section>
   )
 }
 
@@ -241,7 +204,7 @@ function StepList({
   onIdle,
 }: {
   task: ConceptTask
-  /* "Add property" > Subtasks: the list opens already asking for the first. */
+  /* `/Subtask` on an empty line: the list opens already asking for the first. */
   startAdding?: boolean
   /* The field closed; the caller hides an empty list again. */
   onIdle?: () => void
@@ -416,8 +379,6 @@ function StepList({
 
 /* ------------------------------------------------------------- properties */
 
-type AddableProperty = "date" | "reminder" | "repeat" | "assignee" | "steps"
-
 /* The Schedule in one line (#215): "Starts Mon", "21 Sep – 30 Sep", or the
    due date alone, which a same-day pair also is. A range names both ends as
    dates: "21 Sep – Wed" left the reader working out which Wednesday. */
@@ -533,17 +494,156 @@ export function useStateMoves(
   }
 }
 
-/* Status is said, not picked: the one place to change it is "Mark done ▾ /
-   Drop / Reopen" under the timeline (DESIGN §4.2), so this row is plain text. */
-function StatusRow({ task }: { task: ConceptTask }) {
+/* What this viewer may do to the task, from the folder's facts (the server
+   stays the authority). mayDraw cannot project an assignment, so an
+   assignee's own reach is added here (folder-actions.ts's
+   whenAssignedToActor). */
+function useTaskMay(taskId: string, folderId: string | null) {
+  const folders = useFolders()
+  const me = useMe()
+  const detail = useTask(taskId).data
+  const row = folders.data?.find((folder) => folder.id === folderId)
+  const viewerId = me.data?.user.id ?? null
+  const mine = viewerId !== null && detail?.assignee?.id === viewerId
+  const facts = row === undefined ? null : { access: row.my_access, isOwner: row.is_owner, isDefault: row.is_default }
+  return {
+    complete:
+      facts !== null &&
+      (mayDraw(facts, "task.status.complete") || (mine && (facts.access === "can_contribute" || facts.access === "assigned_work"))),
+    abandon: facts !== null && (mayDraw(facts, "task.status.abandon") || (mine && facts.access === "can_contribute")),
+    /* Not on the Desk: it has no Discussion tab and nobody else to talk to. */
+    discuss: facts !== null && !facts.isDefault && mayDraw(facts, "discussion.create"),
+    threadId: detail?.discussion_id ?? null,
+  }
+}
+
+/* Status, picked in place: every state this viewer's access reaches. Done
+   and reopening a done task need task.status.complete; Dropped and
+   reopening a dropped one need task.status.abandon. */
+function StatusRow({
+  task,
+  may,
+  onMove,
+}: {
+  task: ConceptTask
+  may: { complete: boolean; abandon: boolean }
+  onMove: (next: TaskState) => void
+}) {
   const current = stateOf(task)
+  const reach: Record<TaskState, boolean> = {
+    open: current === "done" ? may.complete : current === "dropped" ? may.abandon : true,
+    done: may.complete && (current !== "dropped" || may.abandon),
+    dropped: may.abandon,
+  }
+  const value = (
+    <>
+      <StateMark state={current} className="size-3.5" />
+      <span className="truncate">{STATE_WORD[current]}</span>
+    </>
+  )
+  const choices = (["open", "done", "dropped"] as const).filter((state) => state !== current && reach[state])
+  if (choices.length === 0) {
+    return (
+      <div className={cn(PROPERTY_ROW, "hover:bg-transparent")}>
+        <span className={PROPERTY_LABEL}>Status</span>
+        <span className="flex min-w-0 items-center gap-1.5 truncate text-foreground">{value}</span>
+      </div>
+    )
+  }
+  return (
+    <MenuRow label="Status" value={value}>
+      {(["open", "done", "dropped"] as const).map((state) => (
+        <DropdownMenuItem key={state} disabled={state !== current && !reach[state]} onClick={() => onMove(state)}>
+          <StateMark state={state} className="size-3.5" />
+          {STATE_WORD[state]}
+        </DropdownMenuItem>
+      ))}
+    </MenuRow>
+  )
+}
+
+/* The Date picker holds the whole schedule: the date (and its start), then,
+   once there is a due date, its reminder and repeat. */
+function DatePanel({ task, patch }: { task: ConceptTask; patch: (id: string, fields: Partial<ConceptTask>) => void }) {
+  const [view, setView] = useState<"date" | "reminder" | "repeat">("date")
+  const shown = task.due ? view : "date"
+  return (
+    <div className="flex flex-col gap-1">
+      {task.due ? (
+        <PickerSegments
+          name="Schedule"
+          options={[
+            { key: "date", label: DATE_LABEL },
+            { key: "reminder", label: CHIP_REMINDER },
+            { key: "repeat", label: CHIP_REPEAT },
+          ]}
+          active={shown}
+          onPick={(key) => setView(key as typeof view)}
+        />
+      ) : null}
+      {shown === "reminder" ? (
+        <ReminderPanel task={task} patch={patch} />
+      ) : shown === "repeat" ? (
+        <RepeatPanel task={task} patch={patch} />
+      ) : (
+        <DuePanel task={task} patch={patch} />
+      )}
+    </div>
+  )
+}
+
+/* The date row's value: the schedule, then a repeat or reminder when set. */
+function scheduleWords(task: ConceptTask, timeFormat: ReturnType<typeof useTimeFormat>): string {
+  const parts = [dateWords(task)]
+  if (task.recurrence) parts.push(repeatSummary(task))
+  if (task.reminder) parts.push(reminderChipValue(task, timeFormat))
+  return parts.join(" · ")
+}
+
+/* Discussion: a link to the task's one thread, or, with none yet, the act
+   that makes it (`POST /tasks/:id/discussion`) and goes there. */
+function DiscussionRow({
+  taskId,
+  folderId,
+  threadId,
+  mayStart,
+}: {
+  taskId: string
+  folderId: string | null
+  threadId: string | null
+  mayStart: boolean
+}) {
+  const discuss = useDiscussTask()
+  const navigate = useNavigate()
+  const threadAt = (id: string): string => `${paths.folder(folderId ?? "")}?discussion=${id}`
+  const label = <span className={PROPERTY_LABEL}>Discussion</span>
+  if (folderId !== null && threadId !== null) {
+    return (
+      <Link to={threadAt(threadId)} className={PROPERTY_ROW}>
+        {label}
+        <span className="truncate text-foreground">Open</span>
+      </Link>
+    )
+  }
+  if (folderId !== null && mayStart) {
+    return (
+      <button
+        type="button"
+        className={PROPERTY_ROW}
+        disabled={discuss.isPending}
+        onClick={() => {
+          discuss.mutate(taskId, { onSuccess: (thread) => { void navigate(threadAt(thread.id)) } })
+        }}
+      >
+        {label}
+        <span className="truncate text-muted-foreground">Start a discussion</span>
+      </button>
+    )
+  }
   return (
     <div className={cn(PROPERTY_ROW, "hover:bg-transparent")}>
-      <span className={PROPERTY_LABEL}>Status</span>
-      <span className="flex min-w-0 items-center gap-1.5 truncate text-foreground">
-        <StateMark state={current} className="size-3.5" />
-        <span className="truncate">{STATE_WORD[current]}</span>
-      </span>
+      {label}
+      <span className="truncate text-muted-foreground">None</span>
     </div>
   )
 }
@@ -575,164 +675,61 @@ export function TaskCard({
   [unused: string]: unknown
 }) {
   const timeFormat = useTimeFormat()
-  const roster = usePeopleLibrary(task.folder?.id ?? null)
-  /* INV-5: the assignee is hidden in a single-member folder, not disabled. */
-  const shared = useMultiMemberFolderIds()
-  const assignable = task.folder?.id !== undefined && shared.has(task.folder.id)
+  const folderId = task.folder?.id ?? null
+  const roster = usePeopleLibrary(folderId)
   const [inviting, setInviting] = useState(false)
-  /* The one property "Add property" has just revealed, if any. */
-  const [adding, setAdding] = useState<AddableProperty | null>(null)
+  /* `/Subtask` on an empty line, and `/Blocked by`: the block under the
+     writing opens already asking. */
+  const [addingStep, setAddingStep] = useState(false)
   const [depOpening, setDepOpening] = useState(false)
-  const counts = stepCount(task)
-
-  const relatable = isRelatableTask(task.id)
-  const deps = useTaskDependencies(relatable ? task.id : null)
-  const hasDeps =
-    (deps.data?.depends_on.length ?? 0) > 0 || (deps.data?.blocks.length ?? 0) > 0
   const steps = task.steps ?? []
   const move = useStateMoves(task, patch)
-
-  const showDate = Boolean(task.due) || task.start !== undefined || adding === "date"
-  const showReminder = Boolean(task.reminder) || adding === "reminder"
-  const showRepeat = Boolean(task.recurrence) || adding === "repeat"
-  const showAssignee = assignable && (Boolean(task.assignee) || adding === "assignee")
-
-  /* A revealed row that closes without an answer goes away again. */
-  const addProperty = useRef<HTMLButtonElement>(null)
-
-  function settle(which: AddableProperty) {
-    return (open: boolean) => {
-      if (!open) setAdding((current) => (current === which ? null : current))
-    }
-  }
-
-  const addable: { key: string; label: string; icon: LucideIcon; onSelect: () => void }[] = [
-    ...(!task.due && task.start === undefined
-      ? [{ key: "date", label: DATE_LABEL, icon: CalendarDays, onSelect: () => setAdding("date") }]
-      : []),
-    ...(task.due && !task.reminder
-      ? [{ key: "reminder", label: CHIP_REMINDER, icon: Bell, onSelect: () => setAdding("reminder") }]
-      : []),
-    ...(task.due && !task.recurrence
-      ? [{ key: "repeat", label: CHIP_REPEAT, icon: Repeat2, onSelect: () => setAdding("repeat") }]
-      : []),
-    ...(assignable && !task.assignee
-      ? [{ key: "assignee", label: CHIP_ASSIGNEE, icon: UserRound, onSelect: () => setAdding("assignee") }]
-      : []),
-    ...(steps.length === 0 && adding !== "steps"
-      ? [{ key: "steps", label: "Subtasks", icon: ListPlus, onSelect: () => setAdding("steps") }]
-      : []),
-    ...(relatable && deps.data !== undefined && !hasDeps && !depOpening
-      ? [{ key: "dependency", label: "Waits on", icon: Workflow, onSelect: () => setDepOpening(true) }]
-      : []),
-  ]
+  const may = useTaskMay(task.id, folderId)
 
   return (
     <div className="flex flex-col gap-6">
-      {/* The properties block: quiet rows, only what is set. */}
+      {/* The four properties, always in this order. */}
       <div className="-mx-2 flex flex-col">
-        <StatusRow task={task} />
-        {showDate ? (
-          <PropertyPicker
-            label={DATE_LABEL}
-            value={dateWords(task)}
-            empty={!task.due && task.start === undefined}
-            {...(task.due?.overdue ? { tone: "danger" as const } : {})}
-            defaultOpen={adding === "date"}
-            onOpenChange={settle("date")}
-          >
-            <DuePanel task={task} patch={patch} />
-          </PropertyPicker>
-        ) : null}
+        <StatusRow task={task} may={may} onMove={move} />
 
-        {showReminder ? (
-          <PropertyPicker
-            label={CHIP_REMINDER}
-            value={reminderChipValue(task, timeFormat)}
-            empty={!task.reminder}
-            defaultOpen={adding === "reminder"}
-            onOpenChange={settle("reminder")}
-          >
-            <ReminderPanel task={task} patch={patch} />
-          </PropertyPicker>
-        ) : null}
-
-        {showRepeat ? (
-          <PropertyPicker
-            label={CHIP_REPEAT}
-            value={task.recurrence ? repeatSummary(task) : "Empty"}
-            empty={!task.recurrence}
-            defaultOpen={adding === "repeat"}
-            onOpenChange={settle("repeat")}
-          >
-            <RepeatPanel task={task} patch={patch} />
-          </PropertyPicker>
-        ) : null}
-
-        {showAssignee ? (
-          <MenuRow
-            label={CHIP_ASSIGNEE}
-            empty={!task.assignee}
-            {...(adding === "assignee" ? { open: true } : {})}
-            onOpenChange={settle("assignee")}
-            value={
-              task.assignee ? (
-                <>
-                  <Face person={task.assignee} className="size-4 data-[size=sm]:size-4" />
-                  <span className="truncate">{task.assignee.name}</span>
-                </>
-              ) : (
-                "Empty"
-              )
-            }
-          >
-            {roster.map((person) => (
-              <DropdownMenuItem
-                key={person.name}
-                onClick={() => {
-                  setAdding(null)
-                  patch(task.id, { assignee: person })
-                }}
-              >
-                <Face person={person} className="size-4 data-[size=sm]:size-4" />
-                {person.name}
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuItem onClick={() => setInviting(true)}>{INVITE_BY_EMAIL}</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {/* `null`, issue #169: the patch that says "clear the assignee". */}
-            <DropdownMenuItem onClick={() => patch(task.id, { assignee: null })}>
-              {UNASSIGNED}
+        <MenuRow
+          label={CHIP_ASSIGNEE}
+          empty={!task.assignee}
+          value={
+            task.assignee ? (
+              <>
+                <Face person={task.assignee} className="size-4 data-[size=sm]:size-4" />
+                <span className="truncate">{task.assignee.name}</span>
+              </>
+            ) : (
+              "Empty"
+            )
+          }
+        >
+          {roster.map((person) => (
+            <DropdownMenuItem key={person.name} onClick={() => patch(task.id, { assignee: person })}>
+              <Face person={person} className="size-4 data-[size=sm]:size-4" />
+              {person.name}
             </DropdownMenuItem>
-          </MenuRow>
-        ) : null}
+          ))}
+          {folderId === null ? null : (
+            <DropdownMenuItem onClick={() => setInviting(true)}>{INVITE_BY_EMAIL}</DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          {/* `null`, issue #169: the patch that says "clear the assignee". */}
+          <DropdownMenuItem onClick={() => patch(task.id, { assignee: null })}>{UNASSIGNED}</DropdownMenuItem>
+        </MenuRow>
 
-        {addable.length > 0 ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <button
-                  ref={addProperty}
-                  type="button"
-                  className={cn(
-                    "flex h-[var(--control-height)] w-full items-center gap-2 rounded-sm px-2 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground data-popup-open:bg-accent",
-                  )}
-                >
-                  <Plus className="size-3.5" strokeWidth={2} aria-hidden="true" />
-                  Add property
-                </button>
-              }
-            />
-            <DropdownMenuContent align="start" className="w-auto min-w-56">
-              {addable.map((item) => (
-                <DropdownMenuItem key={item.key} onClick={item.onSelect}>
-                  <item.icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                  {item.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : null}
+        <PropertyPicker
+          label={DATE_LABEL}
+          value={scheduleWords(task, timeFormat)}
+          empty={!task.due && task.start === undefined}
+          {...(task.due?.overdue ? { tone: "danger" as const } : {})}
+        >
+          <DatePanel task={task} patch={patch} />
+        </PropertyPicker>
+
+        <DiscussionRow taskId={task.id} folderId={folderId} threadId={may.threadId} mayStart={may.discuss} />
       </div>
 
       {inviting && task.folder?.id !== undefined ? (
@@ -745,76 +742,66 @@ export function TaskCard({
 
       <hr className="border-border" />
 
-      {/* #221: the task's own document, in the folder canvas's writer. The
-          plain-text notes stand in while the writer loads. */}
-      {/* The writer's tall click-to-write tail is a page's; here it is a line.
-          An empty body says what it is for, as the retired issue page did. */}
+      {/* #221: the task's own document, in the folder canvas's writer, with
+          its subtasks and "Blocked by" under the writing. The plain-text
+          notes stand in while the writer loads. */}
       <div
         aria-label="Notes"
         role="region"
-        className='[&_.dana-canvas-tail]:min-h-8! [&_.bn-editor:not(.ProseMirror-focused)_[data-is-only-empty-block]]:[--dana-hint:"Add_notes"]'
+        className='flex flex-col gap-2 [&_.dana-canvas-tail]:min-h-8! [&_.bn-editor:not(.ProseMirror-focused)_[data-is-only-empty-block]]:[--dana-hint:"Add_notes"]'
       >
         <Suspense
           fallback={task.notes ? <p className="whitespace-pre-wrap px-1 text-sm text-foreground">{task.notes}</p> : null}
         >
           <TaskComposer
             taskId={task.id}
-            folderId={task.folder?.id ?? null}
+            folderId={folderId}
             notes={task.notes ?? null}
             addSubtasks={(added) => {
               if (added.length === 0) {
-                setAdding("steps")
+                setAddingStep(true)
                 return true
               }
               if (steps.length + added.length > STEP_CAP) return false
               patch(task.id, { steps: [...steps, ...added] })
               return true
             }}
+            {...(isRelatableTask(task.id) ? { onBlockedBy: () => setDepOpening(true) } : {})}
           />
         </Suspense>
+
+        {steps.length > 0 || addingStep ? (
+          <div role="group" aria-label="Subtasks">
+            <StepList
+              task={task}
+              startAdding={addingStep}
+              onIdle={() => setAddingStep(false)}
+              toggleStep={toggleStep}
+              moveStep={moveStep}
+              {...(moveStepsTo === undefined ? {} : { moveStepsTo })}
+              removeSteps={removeSteps}
+              renameStep={(id, index, title) =>
+                patch(id, {
+                  steps: steps.map((step, i) => (i === index ? { ...step, title } : step)),
+                })
+              }
+              addStep={(id, title) => patch(id, { steps: [...steps, { title, done: false }] })}
+            />
+          </div>
+        ) : null}
+
+        <TaskDependencies
+          taskId={task.id}
+          folderId={task.folder?.id}
+          opening={depOpening}
+          onIdle={() => setDepOpening(false)}
+          section={(_badge, body) => body}
+        />
       </div>
-
-      {steps.length > 0 || adding === "steps" ? (
-        <Section title="Subtasks" {...(counts ? { badge: `${counts.done}/${counts.total}` } : {})}>
-          <StepList
-            task={task}
-            startAdding={adding === "steps"}
-            onIdle={() => setAdding((current) => (current === "steps" ? null : current))}
-            toggleStep={toggleStep}
-            moveStep={moveStep}
-            {...(moveStepsTo === undefined ? {} : { moveStepsTo })}
-            removeSteps={removeSteps}
-            renameStep={(id, index, title) =>
-              patch(id, {
-                steps: steps.map((step, i) => (i === index ? { ...step, title } : step)),
-              })
-            }
-            addStep={(id, title) => patch(id, { steps: [...steps, { title, done: false }] })}
-          />
-        </Section>
-      ) : null}
-
-      <TaskDependencies
-        taskId={task.id}
-        folderId={task.folder?.id}
-        opening={depOpening}
-        onIdle={() => setDepOpening(false)}
-        /* The blocker count it offers is not drawn: counts go (M4). */
-        section={(_badge, body, title) => <Section title={title}>{body}</Section>}
-      />
 
       <hr className="border-border" />
 
-      {/* The history, then "Discuss" and the finishing act. */}
-      <div>
-        <TaskHistory
-          taskId={task.id}
-          folderId={task.folder?.id ?? null}
-          state={stateOf(task)}
-          onFinish={(how) => move(how)}
-          onReopen={() => move("open")}
-        />
-      </div>
+      <TaskHistory taskId={task.id} folderId={folderId} />
     </div>
   )
 }

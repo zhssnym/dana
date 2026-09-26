@@ -36,7 +36,7 @@ import { SuggestionMenuController, getDefaultReactSlashMenuItems, useComponentsC
 import type { DefaultReactSuggestionItem, SuggestionMenuProps } from '@blocknote/react'
 import { SuggestionMenu, insertOrUpdateBlockForSlashMenu } from '@blocknote/core/extensions'
 
-import { CheckCircle2, Code, FileText, Flag, Heading1, Heading2, Heading3, IconMotion, Image as ImageIcon, Lightbulb, Link2, List, ListCollapse, ListOrdered, Minus, Network, Quote, Type } from '../../../lib/icons.js'
+import { CheckCircle2, Code, FileText, Flag, Heading1, Heading2, Heading3, IconMotion, Image as ImageIcon, Lightbulb, Link2, List, ListCollapse, ListOrdered, Minus, Network, Quote, Type, Workflow } from '../../../lib/icons.js'
 import type { LucideIcon } from '../../../lib/icons.js'
 import './slash-menu.css'
 import { linkSlashItem } from '../../links/dana-link-picker.js'
@@ -60,6 +60,8 @@ export interface SlashContext {
   readonly onCreateTask?: () => void
   /** Task only: the line becomes a subtask (#221: a Task's to-do is a Step). */
   readonly onCreateSubtask?: () => void
+  /** Task only: opens the Blocked by picker under the writing. */
+  readonly onCreateBlocker?: () => void
   /** False where no file can be stored (a Task outside a Folder). */
   readonly media?: boolean
   /** The Results tab alone offers Result (#213). */
@@ -198,7 +200,7 @@ function turnItems(editor: AnyEditor): Item[] {
 /* ------------------------------------------------------------ insert */
 
 export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item[] {
-  const { surface, onCreateTask, onCreateSubtask, media = true, results = false } = context
+  const { surface, onCreateTask, onCreateSubtask, onCreateBlocker, media = true, results = false } = context
   const defaults = getDefaultReactSlashMenuItems(editor)
   const byKey = (key: string): DefaultReactSuggestionItem | undefined => defaults.find((item) => 'key' in item && item.key === key)
   const items: Item[] = []
@@ -250,6 +252,7 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
   if (surface === 'work' && onCreateTask !== undefined) add('Basic blocks', 'Task', ['task', 'todo', 'to-do', 'checkbox', 'action', '[]'], () => { onCreateTask() }, glyph(CheckCircle2), { hint: '[]' })
   // Inside a Task the to-do is a subtask, one list above the writing (#221).
   if (surface === 'task' && onCreateSubtask !== undefined) add('Basic blocks', 'Subtask', ['subtask', 'step', 'todo', 'to-do', 'checkbox', '[]'], () => { onCreateSubtask() }, glyph(CheckCircle2), { hint: '[]' })
+  if (surface === 'task' && onCreateBlocker !== undefined) add('Basic blocks', 'Blocked by', ['blocked', 'blocked by', 'waits', 'waits on', 'depends', 'dependency'], () => { onCreateBlocker() }, glyph(Workflow))
   /* A sub-page: its folder is created by the next save (`create_page`), with
      the title the sidebar gives a new page, and then opens with that title
      selected to be typed over (`FolderCanvas`), as Notion opens a new page. */

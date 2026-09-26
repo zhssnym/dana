@@ -1,25 +1,14 @@
 /*
 A task's history (M5): what happened to it (created, assigned, dates moved,
 done, dropped, reopened, dependencies), oldest first. No posts: talk about a
-task lives in its project's Discussion. Under the history, "Discuss" opens the
-task's one thread there (`POST /tasks/:id/discussion` makes it on first use;
-never offered on the Desk, which has no Discussion tab), or, once it exists,
-one quiet link to it; and "Mark done ▾" (Drop in its menu)
-or "Reopen".
+task lives in its project's Discussion, reached from the task's Discussion
+property.
 */
 import { useMemo } from 'react'
-import { Link, useNavigate } from 'react-router'
 
-import { useDiscussTask } from '../../api/consultation.js'
-import { useConnections, useFolder, useFolders, useMe, useSubjectEvents, useTask, useTaskDependencies } from '../../api/queries.js'
-import { mayDraw } from '../../lib/folder-authority.js'
-import { paths } from '../../routes.js'
-import { Button } from '../ui/button.js'
+import { useConnections, useFolder, useMe, useSubjectEvents, useTaskDependencies } from '../../api/queries.js'
 import { openTask } from '../task-open.js'
 import { EventRow } from './timeline/EventRow.js'
-import { StateButtons } from './timeline/StateButtons.js'
-import type { StateMay } from './timeline/StateButtons.js'
-import type { TaskState } from './timeline/state.js'
 import { buildTimeline } from './timeline/timeline.js'
 
 const NO_EVENTS: never[] = []
@@ -27,25 +16,15 @@ const NO_EVENTS: never[] = []
 export function TaskHistory({
   taskId,
   folderId,
-  state,
-  onFinish,
-  onReopen,
 }: {
   readonly taskId: string
   readonly folderId: string | null
-  readonly state: TaskState
-  readonly onFinish: (how: 'done' | 'dropped') => void
-  readonly onReopen: () => void
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const history = useSubjectEvents(`task:${taskId}`).data?.events ?? NO_EVENTS
   const dependencies = useTaskDependencies(taskId).data
-  const detail = useTask(taskId).data
   const me = useMe()
   const connections = useConnections()
-  const folders = useFolders()
   const members = useFolder(folderId ?? '', folderId !== null).data?.members ?? []
-  const discuss = useDiscussTask()
-  const navigate = useNavigate()
 
   const names = useMemo(() => {
     const map = new Map<string, { name: string; image?: string }>()
@@ -69,62 +48,14 @@ export function TaskHistory({
     nameOf: (id) => personOf(id).name,
   })
 
-  /* The finishing buttons follow the server's gates. mayDraw cannot project
-     an assignment, so an assignee's own reach is added here
-     (folder-actions.ts's whenAssignedToActor); the server stays the authority. */
-  const row = folders.data?.find((folder) => folder.id === folderId)
-  const viewerId = me.data?.user.id ?? null
-  const mine = viewerId !== null && detail?.assignee?.id === viewerId
-  const facts = row === undefined ? null : { access: row.my_access, isOwner: row.is_owner, isDefault: row.is_default }
-  const stateMay: StateMay = {
-    complete:
-      facts !== null &&
-      (mayDraw(facts, 'task.status.complete') || (mine && (facts.access === 'can_contribute' || facts.access === 'assigned_work'))),
-    abandon: facts !== null && (mayDraw(facts, 'task.status.abandon') || (mine && facts.access === 'can_contribute')),
-  }
-
-  const threadId = detail?.discussion_id ?? null
-  const threadAt = (id: string): string => `${paths.folder(folderId ?? '')}?discussion=${id}`
-  /* Not on the Desk: it has no Discussion tab and nobody else to talk to.
-     A Desk task's old comments (0059) stay reachable by the link above. */
-  const mayStart = facts !== null && !facts.isDefault && mayDraw(facts, 'discussion.create')
-
+  if (entries.length === 0) return null
   return (
-    <div>
-      {entries.length > 0 ? (
-        <ol className="-mx-2 min-w-0" aria-label="History">
-          {entries.map((entry) => (
-            <li key={entry.key} className="min-w-0 list-none">
-              <EventRow entry={entry} person={personOf} folderId={folderId ?? ''} onOpenTask={(id) => { openTask(id) }} />
-            </li>
-          ))}
-        </ol>
-      ) : null}
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        {folderId === null ? (
-          <span />
-        ) : threadId !== null ? (
-          <Link
-            to={threadAt(threadId)}
-            className="rounded-sm text-sm text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline"
-          >
-            Open the discussion
-          </Link>
-        ) : mayStart ? (
-          <Button
-            variant="ghost"
-            disabled={discuss.isPending}
-            onClick={() => {
-              discuss.mutate(taskId, { onSuccess: (thread) => { void navigate(threadAt(thread.id)) } })
-            }}
-          >
-            Discuss
-          </Button>
-        ) : (
-          <span />
-        )}
-        <StateButtons state={state} may={stateMay} onFinish={onFinish} onReopen={onReopen} />
-      </div>
-    </div>
+    <ol className="-mx-2 min-w-0" aria-label="History">
+      {entries.map((entry) => (
+        <li key={entry.key} className="min-w-0 list-none">
+          <EventRow entry={entry} person={personOf} folderId={folderId ?? ''} onOpenTask={(id) => { openTask(id) }} />
+        </li>
+      ))}
+    </ol>
   )
 }
