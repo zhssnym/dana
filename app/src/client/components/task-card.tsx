@@ -23,7 +23,6 @@ import {
   ArrowUpRight,
   Bell,
   CalendarDays,
-  Check,
   FileText,
   GripVertical,
   Image as ImageIcon,
@@ -718,31 +717,18 @@ export function useStateMoves(
   }
 }
 
-function StatusRow({ task, move }: { task: ConceptTask; move: (next: TaskState) => void }) {
+/* Status is said, not picked: the one place to change it is "Mark done ▾ /
+   Drop / Reopen" under the timeline (DESIGN §4.2), so this row is plain text. */
+function StatusRow({ task }: { task: ConceptTask }) {
   const current = stateOf(task)
   return (
-    <MenuRow
-      label="Status"
-      value={
-        <>
-          <StateMark state={current} className="size-3.5" />
-          <span className="truncate">{STATE_WORD[current]}</span>
-        </>
-      }
-    >
-      {(["open", "done", "dropped"] as const).map((key) => (
-        <DropdownMenuItem key={key} onClick={() => move(key)}>
-          <StateMark state={key} className="size-3.5" />
-          <span className="flex-1">{STATE_WORD[key]}</span>
-          {/* The current state takes the tick every picker uses. */}
-          <Check
-            className={cn("size-3.5 shrink-0", key === current ? "opacity-100" : "opacity-0")}
-            strokeWidth={2.5}
-            aria-hidden="true"
-          />
-        </DropdownMenuItem>
-      ))}
-    </MenuRow>
+    <div className={cn(PROPERTY_ROW, "hover:bg-transparent")}>
+      <span className={PROPERTY_LABEL}>Status</span>
+      <span className="flex min-w-0 items-center gap-1.5 truncate text-foreground">
+        <StateMark state={current} className="size-3.5" />
+        <span className="truncate">{STATE_WORD[current]}</span>
+      </span>
+    </div>
   )
 }
 
@@ -834,7 +820,7 @@ export function TaskCard({
     <div className="flex flex-col gap-6">
       {/* The properties block: quiet rows, only what is set. */}
       <div className="-mx-2 flex flex-col">
-        <StatusRow task={task} move={move} />
+        <StatusRow task={task} />
         {showDate ? (
           <PropertyPicker
             label={DATE_LABEL}
@@ -1003,7 +989,7 @@ export function TaskCard({
         opening={depOpening}
         onIdle={() => setDepOpening(false)}
         /* The blocker count it offers is not drawn: counts go (M4). */
-        section={(_badge, body) => <Section title="Waits on">{body}</Section>}
+        section={(_badge, body, title) => <Section title={title}>{body}</Section>}
       />
 
       {attachments.length > 0 || attaching ? (

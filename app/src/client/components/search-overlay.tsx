@@ -130,13 +130,8 @@ const statusLabels: Record<SearchResultStatus, string> = {
 }
 
 function StatusBadge({ status }: { status: SearchResultStatus }) {
-  /* Pending is announced, not drawn: a word saying "ordinary" says nothing. */
-  if (status === "pending") return <span className="sr-only">{statusLabels[status]}</span>
-  return (
-    <span className="shrink-0 text-xs font-normal text-muted-foreground">
-      {statusLabels[status]}
-    </span>
-  )
+  /* Announced, not drawn: the StateMark beside the title already shows it. */
+  return <span className="sr-only">{statusLabels[status]}</span>
 }
 
 function SearchSkeleton() {

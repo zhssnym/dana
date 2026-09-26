@@ -39,6 +39,7 @@ import { Face } from '../person-face.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
 import { ConfirmDialog } from '../ui/ConfirmDialog.js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu.js'
+import { TRY_AGAIN } from '../ui/copy.js'
 import { cn } from '../ui/utils.js'
 import { localClock, localDay, placePosts } from './grouping.js'
 import { PostView } from './PostView.js'
@@ -320,8 +321,12 @@ export function ThreadPosts({
     })
   }
 
-  if (failed) return <InlineError onRetry={onRetry} />
-  if (loading) return <SkeletonList />
+  /* Only a first read that fails or waits replaces the thread. A later poll
+     that fails keeps what was read, the draft and the composer's actions,
+     and says so in one line above the composer. */
+  if (comments === undefined && failed) return <InlineError onRetry={onRetry} />
+  if (comments === undefined && loading) return <SkeletonList />
+  const stale = failed
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -533,6 +538,15 @@ export function ThreadPosts({
           New posts
           <ArrowDown className="size-3" strokeWidth={1.75} aria-hidden="true" />
         </button>
+      ) : null}
+
+      {stale ? (
+        <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
+          Couldn't refresh the timeline.
+          <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={onRetry}>
+            {TRY_AGAIN}
+          </button>
+        </p>
       ) : null}
 
       {closed !== undefined ? (

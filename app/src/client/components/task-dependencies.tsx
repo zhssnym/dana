@@ -56,7 +56,8 @@ interface DependenciesProps {
   folderId: string | undefined
   /* The card's own block chrome, handed in so this file needs nothing from
      `task-card.tsx` and the two never import each other. */
-  section: (badge: string | undefined, body: ReactNode) => ReactNode
+  /** `title` names the relation the block leads with: "Waits on", or "Blocks" when it only blocks. */
+  section: (badge: string | undefined, body: ReactNode, title: string) => ReactNode
   /** "Add property → Dependency" was chosen: open on the picker. */
   opening?: boolean
   /** The block went back to having nothing to show. */
@@ -167,14 +168,19 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
     (edge) => edge.state === "active" || edge.state === "unresolved",
   ).length
 
+  const title =
+    dependsOn.length > 0 || (blocks.length === 0 && mode !== "blocks")
+      ? BLOCKED_BY_HEADING
+      : BLOCKS_HEADING
+
   return section(
     activeBlockers > 0 ? `Blocked · ${activeBlockers}` : undefined,
     <div className="flex flex-col gap-2 pt-1">
       {dependsOn.length > 0 ? (
         <EdgeList
           heading={BLOCKED_BY_HEADING}
-          /* The section is titled "Waits on"; its own line only when "Blocks" sits beside it. */
-          showHeading={blocks.length > 0}
+          /* The section is titled "Waits on" already. */
+          showHeading={false}
           edges={dependsOn}
           folderId={folderId}
           direction="depends_on"
@@ -184,6 +190,8 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
       {blocks.length > 0 ? (
         <EdgeList
           heading={BLOCKS_HEADING}
+          /* Its own line only under a "Waits on" title; alone, the section is titled "Blocks". */
+          showHeading={dependsOn.length > 0}
           edges={blocks}
           folderId={folderId}
           direction="blocks"
@@ -193,6 +201,7 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
       <div className="-ml-1.5">{actions}</div>
       {picker}
     </div>,
+    title,
   )
 }
 
