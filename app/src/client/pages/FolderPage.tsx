@@ -168,7 +168,7 @@ import { VIEW_LABELS } from '../views/ViewSwitch.js'
 import { LabelChoice, LabelFilterClear } from '../views/FilterControl.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
-import { FolderSharingPanel } from './FolderSharingPanel.js'
+import { FolderSharingPanel, MEMBER_PARAM } from './FolderSharingPanel.js'
 import { PersonFace } from '../components/person-face.js'
 import { cn } from '../components/ui/utils.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
@@ -475,6 +475,17 @@ export function FolderPage({
       /* An open issue page too: the Work tab is GitHub's Issues tab, the way
          back to the list from a shared or reloaded ?issue= link. */
       next.delete('issue')
+      return next
+    }, { replace: true })
+  }, [setSearch])
+
+  /* Drops one parameter in place: a stale ?member= or ?issue= would reopen
+     that member or issue later without being asked. */
+  const dropParam = useCallback((name: string): void => {
+    setSearch((current) => {
+      if (!current.has(name)) return current
+      const next = new URLSearchParams(current)
+      next.delete(name)
       return next
     }, { replace: true })
   }, [setSearch])
@@ -974,6 +985,7 @@ export function FolderPage({
           className="text-muted-foreground"
           onClick={() => {
             setSharing(!sharing)
+            dropParam(MEMBER_PARAM)
           }}
         >
           {/* The word matches the panel's title: a member who can add
@@ -1101,7 +1113,7 @@ export function FolderPage({
               onHide={hideFolderFacet}
               onDelete={removeFolderFacet}
               onShare={exposeFolderFacet}
-              trailing={activeFacet?.kind === 'main' ? <FolderViewToggle view={folderView} onView={setFolderView} /> : undefined}
+              trailing={activeFacet?.kind === 'main' ? <FolderViewToggle view={folderView} onView={(next) => { setFolderView(next); dropParam('issue') }} /> : undefined}
             />
           ) : facets.isError ? (
             <p role="alert" className="text-sm text-muted-foreground">
