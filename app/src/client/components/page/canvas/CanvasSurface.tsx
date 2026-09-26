@@ -21,7 +21,7 @@ import { installCanvasGuard, removingPages } from './guard.js'
 import { pendingPages } from './adapters.js'
 import { publishedFolders } from '../../../lib/folder-library.js'
 import { pushUndo, undoLabel } from '../../../shell/undo.js'
-import { bindTaskCommand, moveBlocksBy, removeCanvasBlocks } from './commands.js'
+import { bindTaskCommand, dropEmptyLine, moveBlocksBy, removeCanvasBlocks } from './commands.js'
 import { CanvasSlashMenu, blockMenuTargets, headingTogglesFor } from './slash-items.js'
 import { isSectionHeading, shelfOutlineFailure, validateCanvasOutline } from './outline.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
@@ -244,7 +244,11 @@ export function CanvasSurface({
       const next = simulateNest(editor.document as unknown as TreeBlock[], block.id)
       if (next === null || !admits(next)) stop()
     } else if (event.key === 'Enter' && !event.shiftKey) {
-      if (inList && Array.isArray(block.content) && block.content.length === 0) { stop(); editor.unnestBlock() }
+      if (inList && Array.isArray(block.content) && block.content.length === 0) { stop(); editor.unnestBlock(); return }
+      // Work: a second Enter on an empty line removes it (M4 §2.5, `dropEmptyLine`).
+      const host = event.currentTarget
+      const toLast = (): boolean => { const line = host.querySelector<HTMLInputElement>('.dana-add-task-line input'); line?.focus(); return line !== null }
+      if (lastLine && dropEmptyLine(editor, toLast)) stop()
     } else if (event.key === 'Backspace' && !event.shiftKey && selection.$from.parentOffset === 0) {
       if (inList) { stop(); editor.unnestBlock(); return }
       if (block.type === 'paragraph' || !TEXT_TYPES.has(block.type)) return

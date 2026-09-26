@@ -272,12 +272,6 @@
    TaskComposer). It is the lower part of the screen, as in Notion, in every
    editor: a Task's notes live only in its peek or page, never in a list. */
 .dana-canvas-tail { min-height: max(calc(var(--spacing) * 16), 30vh); cursor: text; }
-/* Work on an empty page: the editor's one empty line is not drawn above
-   "Add a task…" (AddTaskLine), so the page shows that one line. It comes back
-   as soon as the editor has the caret (a "/" or "# " from the line). */
-.dana-writing-canvas.dana-last-line .bn-container:not(:focus-within):has([data-is-only-empty-block="true"]) { height: 0; overflow: hidden; }
-/* Nor is BlockNote's trailing line, a second click target below the thread. */
-.dana-writing-canvas.dana-last-line .bn-trailing-block { display: none; }
 
 /* ---- r3-slash: a Section is a plain heading (schema.ts draws it without the
    toggle). What it holds sits at the heading's own indent, as under a Notion

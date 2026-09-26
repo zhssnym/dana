@@ -1,5 +1,6 @@
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { isSectionHeading, validateCanvasOutline } from './outline.js'
+import { blockAbove, landOn } from './block-selection.js'
 
 const taskCommands = new WeakMap<CanvasEditor, (block?: CanvasBlock) => void>()
 export function bindTaskCommand(editor: CanvasEditor, command: (block?: CanvasBlock) => void): () => void {
@@ -66,6 +67,31 @@ export function openLineAt(editor: CanvasEditor, place: LinePlace, text: string)
   const id = crypto.randomUUID()
   editor.updateBlock(section, { children: [{ id, type: 'paragraph', content }] } as never)
   return editor.getBlock(id) === undefined ? null : id
+}
+
+/**
+ * Work (M4 §2.5): Enter on an empty line with nothing under it removes the
+ * line (the first Enter already turned it into text). The caret goes back to
+ * the end of the block before it in reading order (that block picked when it
+ * is a Task row), or, when the line was the page's last, into the thread's
+ * last line (`toLast`). A Section keeps what it holds. The page's only
+ * line cannot go; the caret moves to the last line instead.
+ */
+export function dropEmptyLine(editor: CanvasEditor, toLast: () => boolean): boolean {
+  const { selection } = editor.prosemirrorState
+  if (!selection.empty) return false
+  const block = editor.getTextCursorPosition().block
+  if (!isEmptyLine(block)) return false
+  let final = true
+  for (let at: CanvasBlock | undefined = block; at !== undefined && final; at = editor.getParentBlock(at)) {
+    if (editor.getNextBlock(at) !== undefined) final = false
+  }
+  const before = blockAbove(editor, block.id)
+  if (before === null) return final && toLast()
+  editor.removeBlocks([block.id])
+  if (final && toLast()) return true
+  landOn(editor, before)
+  return true
 }
 
 function findBlock(blocks: readonly CanvasBlock[], id: string): CanvasBlock | undefined {

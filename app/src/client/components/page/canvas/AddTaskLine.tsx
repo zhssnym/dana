@@ -19,8 +19,10 @@ import { useEffect, useRef, useState } from 'react'
 import { SuggestionMenu } from '@blocknote/core/extensions'
 import { createTaskFrom, hasTaskCommand, lastLinePlace, openLineAt } from './commands.js'
 import { headingLine } from './markdown.js'
+import { enterFromBelow } from './block-selection.js'
 import { isSectionHeading } from './outline.js'
 import type { CanvasEditor } from './schema.js'
+import './add-task-line.css'
 
 interface Held {
   text: string
@@ -207,8 +209,8 @@ export function AddTaskLine({ editor, page, editable }: {
       ref={line}
       className="dana-add-task-line flex min-h-8 cursor-text items-center gap-0.5 max-md:sticky max-md:min-h-11 max-md:bottom-0 max-md:z-10 max-md:bg-background max-md:pb-[env(safe-area-inset-bottom)]"
     >
-      {/* Where a Task row's checkbox stands: its control box, hung into the gutter as the row's is. */}
-      <span aria-hidden="true" className="-ms-[calc((var(--control-height)-var(--checkbox-size))/2)] flex size-[var(--control-height)] shrink-0 items-center justify-center">
+      {/* Where a Task row's checkbox stands (add-task-line.css places it, on the thread's rail too). */}
+      <span aria-hidden="true" className="dana-add-task-glyph flex size-[var(--control-height)] shrink-0 items-center justify-center">
         <span className="size-[var(--checkbox-size)] rounded-xs border border-dashed border-quiet-foreground" />
       </span>
       <input
@@ -241,6 +243,12 @@ export function AddTaskLine({ editor, page, editable }: {
           if (event.nativeEvent.isComposing) return
           if (event.key === 'Enter') { event.preventDefault(); submit() }
           else if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.blur() }
+          // Up from an empty line goes back into the page, at its last block (`enterFromBelow`).
+          else if (event.key === 'ArrowUp' && state.text === '' && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey) {
+            event.preventDefault()
+            event.currentTarget.blur()
+            if (!enterFromBelow(editor)) event.currentTarget.focus()
+          }
         }}
       />
     </label>
