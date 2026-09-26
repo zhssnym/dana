@@ -1,8 +1,6 @@
 /*
-A page's tabs (its facets): a row of plain text tabs, and nothing else. The
-row is the one place tabs are managed. A page gets no new tabs (M4: "Add tab"
-went; a chunk that needs its own tab is a sub-page), and the custom tabs a
-page already has still render and keep their acts.
+A page's tabs (its facets): a row of plain text tabs and one "+", and nothing
+else. The row is the one place tabs are managed.
 
 **The row reads intro, work, conclusion** (round 2): Purpose · Work · Results ·
 Discussion, then the custom tabs in their stored order (`tabOrder`). `main` is
@@ -14,8 +12,9 @@ so the four built-in tabs keep their places and only custom tabs move.
 key) for Rename (where the server allows it), Hide (Purpose, Results,
 Discussion), Share (a private tab) and Delete (a custom tab), and nothing else.
 Work can be neither renamed nor hidden (the server answers 422), so it has no
-menu. **The "+"** is drawn only while a tab is hidden, and lists the hidden
-tabs to show again. Drag, or Alt+←/→, reorders. Arrow keys move between tabs.
+menu. "New tab" lives on the "+" alone. **The "+"** lists the hidden tabs to show again above
+"New tab"; with nothing hidden it goes straight to the name field. Drag, or
+Alt+←/→, reorders. Arrow keys move between tabs.
 
 **Every act is gated by the same table the routes resolve against**
 (`FacetCapabilities`, built by FolderPage from `shared/folder-actions.ts`), so
@@ -34,6 +33,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu.js'
 import { Tab, TabList } from './ui/tabs.js'
@@ -133,6 +133,7 @@ export function FolderTabs({
   canMove,
   onReorder,
   capabilities,
+  onAdd,
   onRename,
   onHide,
   onShare,
@@ -150,6 +151,8 @@ export function FolderTabs({
   readonly onReorder?: (dragged: Facet, orderedVisible: readonly Facet[]) => void
   /** The gate for every act; absent offers no add, rename, hide or delete. */
   readonly capabilities?: (facet: Facet | null) => FacetCapabilities
+  /** The "+": a blank shared tab with this name. */
+  readonly onAdd?: (name: string) => void
   /** Rename in place; null gives a built-in tab its own name back. */
   readonly onRename?: (facet: Facet, name: string | null) => void
   /** Hide a built-in tab, or show it again from the "+". */
@@ -170,7 +173,8 @@ export function FolderTabs({
   const pressTimer = useRef<number | null>(null)
   /* A drag's release is not also a click on the tab under it. */
   const swallowClick = useRef(false)
-  /* The tab being renamed in place. */
+  /* The "+" field while it is open, and the tab being renamed in place. */
+  const [adding, setAdding] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   /* Right-click's menu: the tab it is for, opened where the pointer was. */
   const [menu, setMenu] = useState<{ readonly facet: Facet; readonly x: number; readonly y: number } | null>(null)
@@ -246,6 +250,7 @@ export function FolderTabs({
     else if (at.right > box.right) row.scrollLeft += at.right - box.right
   }, [activeId])
 
+  const canAdd = onAdd !== undefined && capabilities?.(null).createShared === true
   const mayRename = (facet: Facet): boolean =>
     onRename !== undefined && isRenameable(facet) && capabilities?.(facet).rename === true
   const mayHide = (facet: Facet): boolean =>
@@ -256,10 +261,10 @@ export function FolderTabs({
     onDelete !== undefined && isCustom(facet) && capabilities?.(facet).delete === true
   /* The tabs "+" can bring back. */
   const showable = ordered.filter((facet) => facet.hidden && mayHide(facet))
-  const plusOffers = showable.length > 0
+  const plusOffers = canAdd || showable.length > 0
 
   /* One tab is not a choice: a page showing only Work draws no row, unless
-     the "+" is there to show a hidden one. */
+     the "+" is there to make or show a second. */
   if (visible.length < 2 && !plusOffers) return null
   const active = visible.find((facet) => facet.id === activeId) ?? visible[0]
 
@@ -292,12 +297,23 @@ export function FolderTabs({
     )
   }
 
-  /* What "+" offers: the hidden tabs to show again. */
-  const plusItems = showable.map((facet) => (
-    <DropdownMenuItem key={facet.id} onClick={() => onHide?.(facet, false)}>
-      Show {facet.name}
-    </DropdownMenuItem>
-  ))
+  const startAdding = (): void => {
+    fieldOpening.current = true
+    setAdding(true)
+  }
+
+  /* What "+" offers: the hidden tabs to show again, then "New tab". */
+  const plusItems = (
+    <>
+      {showable.map((facet) => (
+        <DropdownMenuItem key={facet.id} onClick={() => onHide?.(facet, false)}>
+          Show {facet.name}
+        </DropdownMenuItem>
+      ))}
+      {showable.length > 0 && canAdd ? <DropdownMenuSeparator /> : null}
+      {canAdd ? <DropdownMenuItem onClick={startAdding}>New tab</DropdownMenuItem> : null}
+    </>
+  )
 
   const target = menu?.facet
   const tabActs = target !== undefined && (mayRename(target) || mayHide(target) || mayShare(target) || mayDelete(target))
@@ -482,12 +498,23 @@ export function FolderTabs({
         })}
       </TabList>
       {/* The "+" sits outside the scroller, so a narrow screen never clips it. */}
-      {plusOffers ? (
+      {adding ? (
+        <TabNameField
+          initial=""
+          label="New tab name"
+          placeholder="Tab name"
+          onDone={(name) => {
+            setAdding(false)
+            fieldOpening.current = false
+            if (name !== null && name !== '') onAdd?.(name)
+          }}
+        />
+      ) : showable.length > 0 ? (
         <DropdownMenu>
           <DropdownMenuTrigger
             render={<Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" />}
-            aria-label="Show a hidden tab"
-            title="Show a hidden tab"
+            aria-label="Add tab"
+            title="Add tab"
           >
             <Plus strokeWidth={1.75} aria-hidden="true" />
           </DropdownMenuTrigger>
@@ -495,6 +522,17 @@ export function FolderTabs({
             {plusItems}
           </DropdownMenuContent>
         </DropdownMenu>
+      ) : canAdd ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Add tab"
+          title="Add tab"
+          onClick={startAdding}
+          className="shrink-0 text-muted-foreground"
+        >
+          <Plus strokeWidth={1.75} aria-hidden="true" />
+        </Button>
       ) : null}
       {/* Always drawn, at the control height, so the row is the same height on
           every tab whether or not the tab has anything here. */}
