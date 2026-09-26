@@ -473,3 +473,12 @@
 .dana-writing-canvas .bn-block-content[data-content-type='danaTask']:has([data-canvas-task-id]:focus-visible)::before {
   background: var(--dana-block-selection);
 }
+/* A Task row picked with Ctrl/Cmd/Shift+click (task-row.tsx's own bulk
+   selection, `bg-primary/10` on its listitem) is tinted in the selection's
+   shape too, not on the row's smaller box: the row's own tint is cleared and
+   the block's ::before wears the selection. `!important` so it still shows
+   beside a block or node selection, which clear every row's hover. */
+.dana-writing-canvas [data-canvas-task-id] [role='listitem'][class~='bg-primary/10'] { background-color: transparent; }
+.dana-writing-canvas .bn-block-content[data-content-type='danaTask']:has([role='listitem'][class~='bg-primary/10'])::before {
+  background: var(--dana-block-selection) !important;
+}
