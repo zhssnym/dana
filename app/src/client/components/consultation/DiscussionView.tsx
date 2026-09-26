@@ -17,7 +17,10 @@ and the steps already taken stay (a task with no link post yet, or a linked
 thread still open), each visible where it landed. There is no Undo of the
 whole act: the thread's own Reopen and the task's own delete undo each half,
 and deleting the task later leaves the thread resolved with its link, which
-is intended: the talk did end in a task.
+is intended: the talk did end in a task. A retry after a failed step goes on
+from that step (the view remembers the task it made), so it never makes a
+second task. The General discussion is never converted: it is the page's
+catch-all, not one subject.
 
 The thread fills the window: the posts sit at the bottom just above the
 composer, the history scrolls in its own region, and the composer stays at
@@ -126,6 +129,13 @@ function ThreadBody(props: {
   const createTask = useCreateTask()
   const resolve = useResolveDiscussion()
   const [turning, setTurning] = useState(false)
+  /* What a conversion has already done in this view, so a retry after a
+     failed step goes on from that step instead of making a second task. */
+  const made = useRef<{ taskId: string; title: string; linked: boolean } | null>(null)
+  /* After a conversion resolves the thread its button is gone; the focus
+     goes to Reopen, which takes its place. */
+  const reopenButton = useRef<HTMLButtonElement>(null)
+  const [focusReopen, setFocusReopen] = useState(false)
   const [closing, setClosing] = useState(false)
   const [box, height] = useFillHeight()
   const [renaming, setRenaming] = useState(false)
@@ -188,7 +198,13 @@ function ThreadBody(props: {
   /* It writes three things, so it is drawn only for someone who may write
      all three: resolve this thread, post in it, and create a task here. */
   const convertible =
-    resolvable && may.createComment && viewer !== null && mayDraw(viewer.facts, 'task.create')
+    resolvable && !d.is_general && may.createComment && viewer !== null && mayDraw(viewer.facts, 'task.create')
+
+  useEffect(() => {
+    if (!focusReopen || reopenButton.current === null) return
+    reopenButton.current.focus()
+    setFocusReopen(false)
+  })
 
   const refused = (error: unknown): void => {
     if (error instanceof ApiError && (error.status === 403 || error.status === 409)) onRefused()
@@ -198,9 +214,16 @@ function ThreadBody(props: {
     if (turning) return
     setTurning(true)
     try {
-      const task = await createTask.mutateAsync({ title: d.title.slice(0, TASK_TITLE_LIMIT), folder_id: folderId })
-      await postComment.mutateAsync({ discussionId: d.id, body: { content: taskLinkPost(task.id, task.title) } })
+      if (made.current === null) {
+        const task = await createTask.mutateAsync({ title: d.title.slice(0, TASK_TITLE_LIMIT), folder_id: folderId })
+        made.current = { taskId: task.id, title: task.title, linked: false }
+      }
+      if (!made.current.linked) {
+        await postComment.mutateAsync({ discussionId: d.id, body: { content: taskLinkPost(made.current.taskId, made.current.title) } })
+        made.current.linked = true
+      }
       await resolve.mutateAsync({ id: d.id, body: {} })
+      setFocusReopen(true)
     } catch (error) {
       refused(error)
     } finally {
@@ -246,7 +269,7 @@ function ThreadBody(props: {
         {renaming ? (
           <Rename discussion={d} onDone={() => { setRenaming(false) }} />
         ) : (
-          <h1 data-page-title="" className="min-w-0 flex-1 truncate text-[length:var(--text-title-size)] leading-8 font-title text-foreground max-md:line-clamp-2 max-md:whitespace-normal">{d.title}</h1>
+          <h1 data-page-title="" className="line-clamp-2 min-w-0 flex-1 break-words text-[length:var(--text-title-size)] leading-8 font-title text-foreground">{d.title}</h1>
         )}
         {/* On a phone the acts take their own line under the title, so the
             title is never squeezed to a few letters. */}
@@ -258,7 +281,7 @@ function ThreadBody(props: {
             <Button type="button" variant="ghost" disabled={turning} onClick={() => { setClosing(true) }}>Resolve</Button>
           ) : null}
           {resolved && powers.reopen && !trashed ? (
-            <Button type="button" variant="ghost" disabled={reopen.isPending} onClick={() => { reopen.mutate(d.id) }}>Reopen</Button>
+            <Button ref={reopenButton} type="button" variant="ghost" disabled={reopen.isPending} onClick={() => { reopen.mutate(d.id) }}>Reopen</Button>
           ) : null}
           {hasMenu ? (
             <DropdownMenu>
@@ -315,8 +338,10 @@ function ThreadBody(props: {
   )
 }
 
-/** The thread's last post once it becomes a task: one line, the task's
- * title linking to its page. */
+/** The thread's last post once it becomes a task: one line, a Dana link to
+ * the task. A post draws a Dana link as a chip carrying the task's live
+ * name (thread/PostView.tsx), so a renamed task reads renamed here; the
+ * stored title is only the offline fallback. */
 function taskLinkPost(taskId: string, title: string): PostContent {
   return {
     version: 1,
