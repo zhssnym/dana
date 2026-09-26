@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteEditor } from '@blocknote/core'
 import { en } from '@blocknote/core/locales'
 import { useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import '@blocknote/shadcn/style.css'
 import type { PageView } from '../../../../shared/pages.js'
 import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
@@ -11,11 +12,16 @@ import { getPageResponse } from '../../../../shared/pages.js'
 import { documentTransaction } from '../../../../shared/page-document.js'
 import { getPlain, mutateApi, uploadFile as uploadDanaFile } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
+import { useFolderCompletedTasks, useFolderFacets, useMultiMemberFolderIds } from '../../../api/queries.js'
 import { paths } from '../../../routes.js'
 import { FOLDER_ACTION_PARAM } from '../../../shell/app-sidebar.js'
 import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
-import { CanvasTaskProvider } from './CanvasTask.js'
+import { CanvasTaskProvider, ThreadFactsProvider } from './CanvasTask.js'
+import type { ThreadFacts } from './CanvasTask.js'
+import { elision, finishedSections, foldableSections, threadModel, threadStyle } from './thread/thread-model.js'
+import type { Elision, ThreadBlock } from './thread/thread-model.js'
+import './thread/thread.css'
 import { SavedResults } from './CanvasResult.js'
 import { CanvasSurface } from './CanvasSurface.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
@@ -45,9 +51,15 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   /** The folder's completed task cards the page already loaded; a placement
    * found here draws as its real row, checked and muted. */
   readonly completed?: Rows['tasks']
-  /** False hides completed placements in place (the View menu's "Show completed"). */
+  /** Ignored since M4: done work always shows in place on the thread, where
+   * finished sections fold and long done stretches elide instead. */
   readonly showCompleted?: boolean
 }
+
+/* The Work thread's fold and elision are computed once per opening of the
+   page (M4 §2.9, "ticks linger"): a task ticked now stays where it is. Held
+   above the checkpoint remount, so making a task does not refold the page. */
+interface Frozen { current: { finished: ReadonlySet<string>; elision: Elision } | null }
 
 /** Reset history only at identity-changing checkpoints or explicit server reconciliation. */
 export default function FolderCanvas(props: Props): React.JSX.Element {
@@ -55,8 +67,9 @@ export default function FolderCanvas(props: Props): React.JSX.Element {
   /* One id for this opening of the page, kept across checkpoint remounts: a
      draft stamped with it was written by this opening, not "from before". */
   const [opening] = useState(() => crypto.randomUUID())
+  const [frozen] = useState<Frozen>(() => ({ current: null }))
   return <CanvasErrorBoundary>
-    <PersistedCanvas key={`${props.folderId}:${checkpoint.epoch}`} {...props} opening={opening} initialPage={checkpoint.page} onCheckpoint={(page) => setCheckpoint((old) => ({ page, epoch: old.epoch + 1 }))} />
+    <PersistedCanvas key={`${props.folderId}:${checkpoint.epoch}`} {...props} opening={opening} frozen={frozen} initialPage={checkpoint.page} onCheckpoint={(page) => setCheckpoint((old) => ({ page, epoch: old.epoch + 1 }))} />
   </CanvasErrorBoundary>
 }
 
@@ -95,8 +108,9 @@ function scrollerOf(element: Element | null): Element | null {
 
 const CHANGED_ELSEWHERE = 'This page changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
-function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint, opening }: Props & {
+function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen }: Props & {
   readonly opening: string
+  readonly frozen: Frozen
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
 }): React.JSX.Element {
@@ -117,13 +131,14 @@ function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHea
       else setReloadNote('The page still has no version. Try again in a moment.')
     }) }}>Load the page again</Button>{reloadNote}
   </div>
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint, opening }} width={width} onSaved={(next) => {
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen }} width={width} onSaved={(next) => {
     queryClient.setQueryData(facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId), next)
   }} />}</div>
 }
 
-function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, showCompleted = true, context, actions, onAsk, arrangeable, onCheckpoint, opening, width, onSaved }: Props & {
+function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen, width, onSaved }: Props & {
   readonly opening: string
+  readonly frozen: Frozen
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
   readonly width: number
@@ -507,6 +522,23 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     }, 0)
     return () => { cancelAnimationFrame(frame); window.clearTimeout(done) }
   }, [editor, draftKey])
+  /* "Write what came of it" opened this Results tab: the cursor goes in it. */
+  useEffect(() => {
+    if (results !== true || focusResultsOf !== folderId) return
+    // The view mounts a frame or so after this session does, and the editor
+    // may be made twice on the way; the request is let go once it lands.
+    let frame = 0
+    let tries = 0
+    const land = (): void => {
+      if (editor.domElement?.isConnected !== true) { if (++tries < 30) frame = requestAnimationFrame(land); return }
+      const last = editor.document.at(-1)
+      if (last !== undefined) editor.setTextCursorPosition(last, 'end')
+      editor.focus()
+      focusResultsOf = null
+    }
+    frame = requestAnimationFrame(land)
+    return () => { cancelAnimationFrame(frame) }
+  }, [editor, results, folderId])
   const draftKeys = (event: React.KeyboardEvent<HTMLDivElement>): void => {
     if (draftRef.current === null) return
     const drafting = editor.getBlock(draftRef.current)
@@ -570,8 +602,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     <SavedResults.Provider value={savedResults}>
     <CanvasTaskProvider tasks={tasks} completed={completed} context={context} actions={actions} onAsk={onAsk}>
       {draftStyle === '' ? null : <style>{draftStyle}</style>}
+      <ThreadLayer enabled={facetId === undefined} editor={editor} folderId={folderId} tasks={tasks} context={context} frozen={frozen} finish={workRootId === undefined && arrangeable}>
       <div
-        className={showCompleted ? 'min-w-0' : 'dana-hide-completed min-w-0'}
+        className="min-w-0"
         onKeyDownCapture={draftKeys}
         onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) settleDraftTask() }}
       >
@@ -596,6 +629,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
         onNotice={setNotice}
       />
       </div>
+      </ThreadLayer>
     </CanvasTaskProvider>
     </SavedResults.Provider>
     <SaveFailure
@@ -604,4 +638,140 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       onLoadLatest={writer.state === 'failed' || error === CHANGED_ELSEWHERE ? () => { void loadLatest() } : undefined}
     />
   </>
+}
+
+/** The folder whose Results tab "Write what came of it" just opened, to put the cursor in. */
+let focusResultsOf: string | null = null
+
+/* What the viewer opened on the thread, for this session only (M4 §2.9):
+   auto-folded sections they unfolded and "Earlier work" breaks they expanded.
+   Never stored: `toggle-<id>` holds only what the user closed. */
+const threadSession = new Map<string, { opened: Set<string>; expanded: Set<string> }>()
+function sessionOf(folderId: string): { opened: Set<string>; expanded: Set<string> } {
+  let found = threadSession.get(folderId)
+  if (found === undefined) { found = { opened: new Set(), expanded: new Set() }; threadSession.set(folderId, found) }
+  return found
+}
+function closedByUser(id: string): boolean {
+  try { return window.localStorage.getItem(`toggle-${id}`) === 'false' } catch { return false }
+}
+
+type Card = Rows['tasks'][number]
+const noFacts: ThreadFacts = { next: null, shared: false, completedOn: new Map() }
+
+/**
+ * The Work thread (M4 §2): the same document, drawn on a rail. It reads the
+ * document on every change and turns `thread-model` into one style element,
+ * keyed by block id, so nothing is written into ProseMirror's DOM. Task nodes
+ * read the ring and meta facts through `ThreadFactsProvider`; the editor
+ * itself does not re-render.
+ *
+ * Folding and "Earlier work" are handled by delegation on this container, not
+ * by widgets in the document, so drag, selection and undo are untouched.
+ */
+function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish, children }: {
+  readonly enabled: boolean
+  readonly editor: CanvasEditor
+  readonly folderId: string
+  readonly tasks: readonly Card[]
+  readonly context: Rows['context']
+  readonly frozen: Frozen
+  /** The end line may be offered: the page's own Work, to a writer. */
+  readonly finish: boolean
+  readonly children: ReactNode
+}): React.JSX.Element {
+  const [, bump] = useState(0)
+  useEffect(() => enabled ? editor.onChange(() => { bump((value) => value + 1) }) : undefined, [editor, enabled])
+  const shared = useMultiMemberFolderIds().has(folderId)
+  const done = useFolderCompletedTasks(folderId, enabled)
+  const facets = useFolderFacets(folderId, enabled && finish)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const completedOn = useMemo(() => {
+    const on = new Map<string, string>()
+    for (const page of done.data?.pages ?? []) for (const day of page.days) for (const row of day.rows) if (!on.has(row.id)) on.set(row.id, day.date)
+    return on
+  }, [done.data])
+  const open = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
+  const blocks = editor.document as unknown as readonly ThreadBlock[]
+  if (enabled && frozen.current === null) frozen.current = { finished: finishedSections(blocks, open), elision: elision(blocks, open) }
+  const session = sessionOf(folderId)
+  const sections = enabled ? foldableSections(blocks) : []
+  const folded = new Set(sections.filter((id) => closedByUser(id) || (frozen.current?.finished.has(id) === true && !session.opened.has(id))))
+  const model = threadModel({ blocks: enabled ? blocks : [], open, today: context.today, viewerId: context.viewerId, shared, folded })
+  const elided = new Set<string>()
+  const breaks = new Set<string>()
+  for (const [id, at] of frozen.current?.elision.elided ?? []) if (!session.expanded.has(at)) { elided.add(id); breaks.add(at) }
+  const css = enabled ? threadStyle(model, folded, elided, breaks) : ''
+  const facts = useMemo<ThreadFacts>(() => ({ next: model.next, shared, completedOn }), [model.next, shared, completedOn])
+  const results = facets.data?.facets.find((facet) => facet.kind === 'results')
+  const toggle = useCallback((id: string, isFolded: boolean): void => {
+    const session = sessionOf(folderId)
+    try {
+      if (isFolded) { if (closedByUser(id)) window.localStorage.removeItem(`toggle-${id}`); session.opened.add(id) }
+      else { window.localStorage.setItem(`toggle-${id}`, 'false'); session.opened.delete(id) }
+    } catch { /* storage is optional: the fold holds for this render only */ }
+    bump((value) => value + 1)
+  }, [folderId])
+  /* A press on a heading's badge (drawn on the rail, left of its text) folds
+     or unfolds it; a press on an "Earlier work" break shows what it holds.
+     Heard on the window, before the marquee (CanvasMarquee), which takes any
+     press outside a block's row for a band selection. */
+  const host = useRef<HTMLDivElement>(null)
+  const live = useRef({ sections, folded, breaks, toggle })
+  live.current = { sections, folded, breaks, toggle }
+  useEffect(() => {
+    if (!enabled) return undefined
+    const onPress = (event: MouseEvent): void => {
+      if (event.button !== 0 || !(event.target instanceof HTMLElement) || host.current?.contains(event.target) !== true) return
+      const target = event.target
+      const { sections: foldable, folded: shut, breaks: gaps, toggle: flip } = live.current
+      const claim = (): void => { event.preventDefault(); event.stopPropagation() }
+      if (target.classList.contains('bn-block-outer')) {
+        const id = target.getAttribute('data-id')
+        const row = target.querySelector(':scope > .bn-block')
+        if (id !== null && gaps.has(id) && row !== null && event.clientY < row.getBoundingClientRect().top) {
+          claim()
+          sessionOf(folderId).expanded.add(id)
+          bump((value) => value + 1)
+        }
+        return
+      }
+      const block = target.closest('.bn-block')
+      const heading = block?.querySelector(':scope > .bn-block-content[data-dana-section]')
+      if (block === null || block === undefined || heading === null || heading === undefined) return
+      if (target !== block && target !== heading) return
+      const inset = parseFloat(getComputedStyle(heading).paddingInlineStart) || 0
+      if (event.clientX >= heading.getBoundingClientRect().left + inset) return
+      const id = block.getAttribute('data-id')
+      if (id === null || !foldable.includes(id)) return
+      claim()
+      flip(id, shut.has(id))
+    }
+    window.addEventListener('mousedown', onPress, true)
+    return () => window.removeEventListener('mousedown', onPress, true)
+  }, [enabled, folderId])
+  if (!enabled) return <ThreadFactsProvider value={noFacts}>{children}</ThreadFactsProvider>
+  return (
+    <ThreadFactsProvider value={facts}>
+      <style>{css}</style>
+      <div ref={host} className="dana-thread min-w-0">
+        {children}
+        {finish && model.hasTasks && !model.anyOpen && results !== undefined ? (
+          <button
+            type="button"
+            className="dana-thread-end"
+            onClick={() => {
+              const search = new URLSearchParams(location.search)
+              search.set('facet', results.id)
+              focusResultsOf = folderId
+              void navigate({ search: `?${search.toString()}` })
+            }}
+          >
+            Write what came of it
+          </button>
+        ) : null}
+      </div>
+    </ThreadFactsProvider>
+  )
 }

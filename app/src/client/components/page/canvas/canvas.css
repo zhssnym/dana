@@ -126,11 +126,7 @@
 /* r5-views: a Task block is one --row-height row, the same as in every list;
    the block's own 3px padding would make it 42px apart. */
 .dana-writing-canvas .bn-block-content[data-content-type='danaTask'] { padding-block: 0; }
-/* A completed Task is its real row, muted in place; "Show completed" off hides
-   it (`FolderCanvas`). The guard's refusal outline (#314) follows. */
-/* Only the placement's own block: a section heading's outer block holds its
-   children too, so a bare `:has()` hid the whole section for one done task. */
-.dana-hide-completed .bn-block-outer:has(> .bn-block > :not(.bn-block-group) [data-canvas-task-done]) { display: none; }
+/* The guard's refusal outline (#314). Finished Tasks always show in place (M4: the thread). */
 .dana-writing-canvas [data-canvas-task-refused] { outline: 2px solid var(--destructive); outline-offset: 2px; border-radius: var(--radius-sm); }
 .dana-writing-canvas .bn-drag-handle-menu { font-size: var(--text-body-size); line-height: var(--text-body-line); }
 .dana-writing-canvas img { max-width: 100%; height: auto; }
@@ -265,9 +261,6 @@
   font-weight: 400;
   color: var(--muted-foreground);
 }
-/* A Task on the canvas has one menu, the gutter's ⋮⋮ (Delete, Copy link):
-   the row's own "More actions" is not drawn here. */
-.dana-writing-canvas [data-canvas-task-id] button[aria-label="More actions"] { display: none; }
 /* Space below the last block: a click there writes on (CanvasSurface,
    TaskComposer). It is the lower part of the screen, as in Notion, in every
    editor: a Task's notes live only in its peek or page, never in a list. */
@@ -280,8 +273,9 @@
   margin-inline-start: 0;
 }
 /* r4-freeform: a Section's heading and spacing already group its tasks, so
-   BlockNote's nesting guide is not drawn beside them. */
-.dana-writing-canvas .bn-block:has(> .bn-block-content[data-dana-section]) > .bn-block-group > .bn-block-outer::before {
+   BlockNote's nesting guide is not drawn beside them. On the Work thread
+   that ::before is the rail's line (thread/thread.css). */
+.dana-writing-canvas:not(.dana-thread *) .bn-block:has(> .bn-block-content[data-dana-section]) > .bn-block-group > .bn-block-outer::before {
   display: none;
 }
 
@@ -392,19 +386,9 @@
 /* ---- r7-editor: Notion's to-do rhythm at Dana's body size.
    Every one-line text block is one --row-height tall, as a Task row is, so
    tasks, text and the empty line after them step at one pitch instead of
-   32 / 27 / 28. A Task's checkbox sits on the text's left edge (not 6px in)
-   with 8px to its title, centred on the title's first line (the row is one
-   line; both centre on it). */
+   32 / 27 / 28. (A Task's glyph sits on the Work thread's rail: thread.css.) */
 .dana-writing-canvas:not(.dana-post-editor) .bn-block-content:is([data-content-type='paragraph'], [data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='checkListItem'], [data-content-type='toggleListItem'], [data-content-type='quote']) {
   padding-block: calc((var(--row-height) - var(--text-body-line)) / 2);
-}
-.dana-writing-canvas [data-canvas-task-id] button[aria-label="Complete task"],
-.dana-writing-canvas [data-canvas-task-id] button[aria-label="Mark as not done"] {
-  margin-inline-start: calc((var(--checkbox-size) - var(--control-height)) / 2);
-}
-.dana-writing-canvas [data-canvas-task-id] button[aria-label="Complete task"] + span,
-.dana-writing-canvas [data-canvas-task-id] button[aria-label="Mark as not done"] + span {
-  margin-inline-start: calc(var(--checkbox-size) + var(--spacing) * 2 - var(--control-height));
 }
 
 /* ---- r9-caret: Notion's writing line. Canvas body text is 16px on a 24px
@@ -472,13 +456,4 @@
 /* Keyboard focus on a Task row: the selection's tint, in the selection's shape. */
 .dana-writing-canvas .bn-block-content[data-content-type='danaTask']:has([data-canvas-task-id]:focus-visible)::before {
   background: var(--dana-block-selection);
-}
-/* A Task row picked with Ctrl/Cmd/Shift+click (task-row.tsx's own bulk
-   selection, `bg-primary/10` on its listitem) is tinted in the selection's
-   shape too, not on the row's smaller box: the row's own tint is cleared and
-   the block's ::before wears the selection. `!important` so it still shows
-   beside a block or node selection, which clear every row's hover. */
-.dana-writing-canvas [data-canvas-task-id] [role='listitem'][class~='bg-primary/10'] { background-color: transparent; }
-.dana-writing-canvas .bn-block-content[data-content-type='danaTask']:has([role='listitem'][class~='bg-primary/10'])::before {
-  background: var(--dana-block-selection) !important;
 }
