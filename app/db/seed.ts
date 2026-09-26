@@ -73,6 +73,7 @@ export const seedIds = {
   shelfNadiaReading: '20202020-2020-4020-8020-202020202020',
   fileNadiaSketch: '30303030-3030-4030-8030-303030303030',
   commentNadiaNote: '40404040-4040-4040-8040-404040404040',
+  discussionNadiaDraft: '41414141-4141-4141-8141-414141414141',
   eventNadiaCreated: '50505050-5050-4050-8050-505050505050',
   viewNadiaThisWeek: '60606060-6060-4060-8060-606060606060',
   blockNadiaSection: '70707070-7070-4070-8070-707070707070',
@@ -339,9 +340,15 @@ export async function seed(): Promise<void> {
        'Sits under a section, so 4.15 has a row too.', 'pending', false,
        ${tomorrow}, ${seedIds.nadia}, ${seedIds.nadia}, ${seedIds.blockNadiaSection})
   `)
+  // Talk about a task lives in its Discussion (M5), not on the task.
   await db.execute(sql`
-    INSERT INTO comments (id, folder_id, task_id, parent_id, author_id, body) VALUES
-      (${seedIds.commentNadiaNote}, ${seedIds.nadiaStudio}, ${seedIds.taskNadiaDraft},
+    INSERT INTO discussions (id, folder_id, task_id, title, created_by) VALUES
+      (${seedIds.discussionNadiaDraft}, ${seedIds.nadiaStudio}, ${seedIds.taskNadiaDraft},
+       'Draft the opening', ${seedIds.nadia})
+  `)
+  await db.execute(sql`
+    INSERT INTO comments (id, folder_id, discussion_id, parent_id, author_id, body) VALUES
+      (${seedIds.commentNadiaNote}, ${seedIds.nadiaStudio}, ${seedIds.discussionNadiaDraft},
        NULL, ${seedIds.nadia}, 'A note to self on the draft.')
   `)
   await db.execute(sql`
