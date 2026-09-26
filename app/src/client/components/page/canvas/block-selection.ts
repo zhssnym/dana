@@ -81,15 +81,24 @@ export function useBlockSelection(editor: AnyEditor): readonly string[] {
 export function BlockSelectionStyle({ editor, scope }: { readonly editor: AnyEditor; readonly scope: string }): React.JSX.Element | null {
   const ids = useBlockSelection(editor)
   if (ids.length === 0) return null
-  const block = (id: string): string => `.${scope} .bn-block-outer[data-id="${CSS.escape(id)}"] > .bn-block`
-  const all = ids.map(block)
+  /* On the Work thread a block's own ::after is its rail badge (thread.css),
+     so the tint is drawn on the block's outer box there instead. */
+  const block = (id: string): string => `.${scope} .bn-block-outer[data-id="${CSS.escape(id)}"]:not(.dana-thread *) > .bn-block`
+  const threaded = (id: string): string => `.dana-thread .${scope} .bn-block-outer[data-id="${CSS.escape(id)}"]`
+  const all = ids.flatMap((id) => [block(id), threaded(id)])
   // No caret, and no text highlight over the picked blocks: they are picked whole.
   // No row hover either (canvas.css m3-hover): it reaches past its row, so it
   // would paint over a neighbour's tint and show through a picked row's.
   return createElement('style', null, `${all.join(', ')} { position: relative; }
+/* A rail badge on a picked block sits above the tint, so its halo is the
+   tint laid over the page; what a row draws inside its content (a glyph, an
+   icon) sits under the tint, so its halo stays the page and takes the tint
+   once. No hover halo under a pick either (the hover is off, below). */
+.${scope} .bn-block-content { --dana-thread-surface: var(--background) !important; }
+${ids.map(threaded).join(', ')} { --dana-thread-surface: var(--dana-block-selection-surface); }
 ${all.map((selector) => `${selector}::after`).join(', ')} { content: ''; position: absolute; inset: 0 calc(-1 * var(--dana-block-selection-inset-x)); background: var(--dana-block-selection); pointer-events: none; animation: dana-block-selection-in var(--duration-fast) var(--ease-enter); }
-${block(ids[0]!)}::after { top: calc(-1 * var(--dana-block-selection-inset-y)); border-start-start-radius: var(--dana-block-selection-radius); border-start-end-radius: var(--dana-block-selection-radius); }
-${block(ids.at(-1)!)}::after { bottom: calc(-1 * var(--dana-block-selection-inset-y)); border-end-start-radius: var(--dana-block-selection-radius); border-end-end-radius: var(--dana-block-selection-radius); }
+${block(ids[0]!)}::after, ${threaded(ids[0]!)}::after { top: calc(-1 * var(--dana-block-selection-inset-y)); border-start-start-radius: var(--dana-block-selection-radius); border-start-end-radius: var(--dana-block-selection-radius); }
+${block(ids.at(-1)!)}::after, ${threaded(ids.at(-1)!)}::after { bottom: calc(-1 * var(--dana-block-selection-inset-y)); border-end-start-radius: var(--dana-block-selection-radius); border-end-end-radius: var(--dana-block-selection-radius); }
 ${hangs(scope, ids)} { inset-inline-start: calc(-1 * (var(--dana-block-selection-inset-x) + var(--dana-block-selection-hang))); }
 .${scope} .bn-editor { caret-color: transparent; }
 .${scope} .bn-block-content::before { background: transparent !important; }
@@ -101,7 +110,7 @@ ${hangs(scope, ids)} { inset-inline-start: calc(-1 * (var(--dana-block-selection
    block turned into a toggle while picked widens it as well). */
 function hangs(scope: string, ids: readonly string[]): string {
   const toggle = ids.map((id) => `.bn-block-outer[data-id="${CSS.escape(id)}"] > .bn-block > :not(.bn-block-group) .bn-toggle-button`).join(', ')
-  return ids.map((id) => `.${scope}:has(${toggle}) .bn-block-outer[data-id="${CSS.escape(id)}"] > .bn-block::after`).join(', ')
+  return ids.map((id) => `.${scope}:has(${toggle}) .bn-block-outer[data-id="${CSS.escape(id)}"]:not(.dana-thread *) > .bn-block::after`).join(', ')
 }
 
 export interface BlockSelectionActions {
@@ -260,6 +269,12 @@ const anchors = new WeakMap<object, string>()
 /** A block's own row: its content line, never the children nested under it. */
 const OWN_ROW = ':scope > .bn-block > .bn-block-content, :scope > .bn-block > .react-renderer > .bn-block-content'
 
+/** A block with no text of its own to put a caret in. */
+function isRow(view: EditorView, id: string): boolean {
+  const own = outerOf(view, id)?.querySelector(OWN_ROW)
+  return own !== null && own !== undefined && own.querySelector('.bn-inline-content') === null
+}
+
 function outerOf(view: EditorView, id: string): HTMLElement | null {
   return view.dom.querySelector<HTMLElement>(`.bn-block-outer[data-id="${CSS.escape(id)}"]`)
 }
@@ -291,6 +306,11 @@ function arrowSelection(editor: AnyEditor, view: EditorView, ids: readonly strin
   if (!extend) {
     const next = neighbour(view, direction === -1 ? ids[0]! : ids.at(-1)!, direction, false)?.getAttribute('data-id')
     if (next === null || next === undefined) return
+    /* A row (a Task, sub-page, divider or image) is picked as the arrow keys
+       pick it from text (`pickRow`): out of the editor's DOM selection, which
+       Chrome would otherwise move off the row and ProseMirror read back as
+       the page's first line. */
+    if (isRow(view, next)) { pickRow(editor, view, next); return }
     anchors.set(editor, next)
     setBlockSelection(editor, [next])
     reveal(view, [next], 'first')

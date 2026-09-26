@@ -17,7 +17,7 @@ per page and picked up by the next mount. Held in memory only, never storage.
 */
 import { useEffect, useRef, useState } from 'react'
 import { SuggestionMenu } from '@blocknote/core/extensions'
-import { createTaskFrom, hasTaskCommand, lastLinePlace, openLineAt } from './commands.js'
+import { createTaskFrom, hasTaskCommand, lastLinePlace, lineTitles, openLineAt } from './commands.js'
 import { headingLine } from './markdown.js'
 import { enterFromBelow } from './block-selection.js'
 import { isSectionHeading } from './outline.js'
@@ -169,6 +169,16 @@ export function AddTaskLine({ editor, page, editable }: {
     const block = id === null ? undefined : editor.getBlock(id)
     // Nowhere to write it: the title goes back on the line, never lost.
     if (block === undefined) { state.queue.length = 0; keep(title); return }
+    /* A refused Task (the page's writing has not saved) hands its title back
+       here, with what is still queued, instead of leaving it on the page. */
+    lineTitles.set(block.id, {
+      reused: where !== null && 'reuse' in where,
+      giveBack: (back) => {
+        const rest = state.queue.splice(0)
+        keep([back, ...rest].join(' '))
+      },
+    })
+    window.setTimeout(() => { lineTitles.delete(block.id) }, 15_000)
     createTaskFrom(editor, block)
   }
 

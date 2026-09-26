@@ -34,6 +34,13 @@ export interface ThreadTask {
 
 export type LineStyle = 'solid' | 'frontier' | 'dashed'
 
+/**
+ * The done stretch of the rail (AC-1510): drawn in the done colour from the
+ * first completed task's badge ('done-start') to the global frontier's badge
+ * ('done-frontier'), every item between them 'done'.
+ */
+export type ProgressState = 'done' | 'done-start' | 'done-frontier'
+
 export interface ThreadInput {
   readonly blocks: readonly ThreadBlock[]
   /** The page's open tasks by task id. Anything else, and a dropped one, is closed. */
@@ -45,6 +52,8 @@ export interface ThreadInput {
   readonly shared: boolean
   /** Section heading ids folded right now (auto or by the user). */
   readonly folded: ReadonlySet<string>
+  /** Blocks hidden behind an "Earlier work" break right now → that break's id. */
+  readonly elided?: ReadonlyMap<string, string>
 }
 
 export interface ThreadModel {
@@ -56,6 +65,14 @@ export interface ThreadModel {
   readonly hasTasks: boolean
   /** At least one task is open. */
   readonly anyOpen: boolean
+  /**
+   * The done stretch, by block id; absent means not on it. Nothing is on it
+   * before a task is done. It belongs to the project, not to the viewer: it
+   * stops at the first open task in document order, whoever's it is.
+   */
+  readonly progress: ReadonlyMap<string, ProgressState>
+  /** Folded sections that still hold open work: they keep normal ink. */
+  readonly foldedOpen: ReadonlySet<string>
 }
 
 function taskIdOf(block: ThreadBlock): string | null {
@@ -82,6 +99,12 @@ function isOpenTask(block: ThreadBlock, open: ReadonlyMap<string, ThreadTask>): 
   return openCard(open, taskIdOf(block)) !== undefined
 }
 
+/** Finished and not dropped: a closed task that can start the done stretch. */
+function isCompletedTask(block: ThreadBlock, open: ReadonlyMap<string, ThreadTask>): boolean {
+  if (!isTask(block) || isOpenTask(block, open)) return false
+  return block.type !== 'danaTask' || open.get(taskIdOf(block) ?? '')?.status !== 'abandoned'
+}
+
 export function isSection(block: ThreadBlock): boolean {
   return block.type === 'heading' && isSectionHeading({ type: block.type, props: (block.props ?? {}) as Record<string, unknown> })
 }
@@ -101,6 +124,11 @@ function holdsTask(block: ThreadBlock): boolean {
   return ownList(block).some(holdsTask)
 }
 
+function holdsCompleted(block: ThreadBlock, open: ReadonlyMap<string, ThreadTask>): boolean {
+  if (isCompletedTask(block, open)) return true
+  return ownList(block).some((child) => holdsCompleted(child, open))
+}
+
 /**
  * Waiting: it has an open blocker, or its start is still ahead. The ring
  * skips it, and it shows the hourglass.
@@ -110,30 +138,77 @@ export function isWaiting(task: ThreadTask, today: string): boolean {
 }
 
 /**
- * The line shows the frontier, per list (the root, and each section's own).
+ * The line shows the frontier, once for the whole document (the walk goes
+ * in document order through every section's own list, one `seen` for all).
  * Blocks before the first one that holds an open task are solid; that block
- * is solid down to its badge and dashed after ("frontier"); every later one
- * is dashed. A list with nothing open is solid throughout. A section that
- * holds the frontier stays solid itself while it is open: its own list
- * carries the switch, so the line is solid from the heading down to the
- * first open task (its children overdraw it). Folded, it is the frontier.
+ * is solid down to its badge and dashed after ("frontier"); every later
+ * block, at any depth, is dashed. A thread with nothing open is solid
+ * throughout. A section that holds the frontier stays solid itself while it
+ * is open: its own list carries the switch, so the line is solid from the
+ * heading down to the first open task (its children overdraw it). Folded, it
+ * is the frontier.
  */
-function drawLine(list: readonly ThreadBlock[], input: ThreadInput, line: Map<string, Exclude<LineStyle, 'solid'>>): void {
-  let seen = false
+function drawLine(list: readonly ThreadBlock[], input: ThreadInput, line: Map<string, Exclude<LineStyle, 'solid'>>, state: { seen: boolean }): void {
   for (const block of list) {
-    if (seen) line.set(block.id, 'dashed')
-    else if (holdsOpen(block, input.open)) {
-      if (!isSection(block) || input.folded.has(block.id)) line.set(block.id, 'frontier')
-      seen = true
+    if (state.seen) line.set(block.id, 'dashed')
+    else if (holdsOpen(block, input.open) && (!isSection(block) || input.folded.has(block.id))) {
+      line.set(block.id, 'frontier')
+      state.seen = true
     }
-    drawLine(ownList(block), input, line)
+    drawLine(ownList(block), input, line, state)
   }
 }
 
+/**
+ * The done stretch, in one document-order walk of the thread's items (a
+ * folded section is one item: its heading stands for what it holds). It
+ * starts at the first completed task (a dropped one never starts it, but the
+ * stretch runs through one) and stops at the first open task; with nothing
+ * open, at the last task. A section holding the frontier is 'done' while open
+ * (its own list carries the stop) and is the stop itself while folded. When
+ * the start is hidden behind "Earlier work", the break block starts it
+ * instead, green over its whole length.
+ */
+function drawProgress(input: ThreadInput): Map<string, ProgressState> {
+  type Kind = 'open' | 'done' | 'closed' | 'other'
+  const items: { readonly id: string; readonly kind: Kind }[] = []
+  const kindOf = (block: ThreadBlock, folded: boolean): Kind => {
+    if (folded) return holdsOpen(block, input.open) ? 'open' : holdsCompleted(block, input.open) ? 'done' : holdsTask(block) ? 'closed' : 'other'
+    if (!isTask(block)) return 'other'
+    return isOpenTask(block, input.open) ? 'open' : isCompletedTask(block, input.open) ? 'done' : 'closed'
+  }
+  const walk = (list: readonly ThreadBlock[]): void => {
+    for (const block of list) {
+      const folded = isSection(block) && input.folded.has(block.id)
+      items.push({ id: block.id, kind: kindOf(block, folded) })
+      if (!folded) walk(ownList(block))
+    }
+  }
+  walk(input.blocks)
+  const progress = new Map<string, ProgressState>()
+  const start = items.findIndex((item) => item.kind === 'done')
+  if (start === -1) return progress
+  const frontier = items.findIndex((item) => item.kind === 'open')
+  if (frontier !== -1 && frontier < start) return progress
+  let end = frontier
+  for (let at = items.length - 1; end === -1 && at >= 0; at -= 1) if (items[at]!.kind !== 'other') end = at
+  if (end <= start) return progress
+  for (let at = start; at <= end; at += 1) progress.set(items[at]!.id, at === start ? 'done-start' : at === end ? 'done-frontier' : 'done')
+  const breakId = input.elided?.get(items[start]!.id)
+  if (breakId !== undefined) {
+    for (const id of [...progress.keys()]) if (input.elided?.has(id) === true) progress.delete(id)
+    if (progress.get(breakId) !== 'done-frontier') progress.set(breakId, 'done')
+  }
+  return progress
+}
+
+/**
+ * The next ring is a fact about the work: folding a section never moves it,
+ * so the walk goes into folded sections too.
+ */
 function findNext(list: readonly ThreadBlock[], input: ThreadInput): string | null {
   for (const block of list) {
     if (isSection(block)) {
-      if (input.folded.has(block.id)) continue
       const inner = findNext(ownList(block), input)
       if (inner !== null) return inner
       continue
@@ -151,12 +226,22 @@ function findNext(list: readonly ThreadBlock[], input: ThreadInput): string | nu
 
 export function threadModel(input: ThreadInput): ThreadModel {
   const line = new Map<string, Exclude<LineStyle, 'solid'>>()
-  drawLine(input.blocks, input, line)
+  drawLine(input.blocks, input, line, { seen: false })
+  const foldedOpen = new Set<string>()
+  const walk = (list: readonly ThreadBlock[]): void => {
+    for (const block of list) {
+      if (isSection(block) && input.folded.has(block.id) && holdsOpen(block, input.open)) foldedOpen.add(block.id)
+      walk(ownList(block))
+    }
+  }
+  walk(input.blocks)
   return {
     line,
     next: findNext(input.blocks, input),
     hasTasks: input.blocks.some(holdsTask),
     anyOpen: input.blocks.some((block) => holdsOpen(block, input.open)),
+    progress: drawProgress(input),
+    foldedOpen,
   }
 }
 
@@ -188,8 +273,8 @@ export interface Elision {
 }
 
 /**
- * A long leading done stretch: more than three closed tasks before the first
- * open one in a list shows only its last three. Everything from the first
+ * A long leading done stretch: five or more closed tasks before the first
+ * open one in a list show only their last three. Everything from the first
  * closed task up to the third-last one is elided (notes between them too);
  * what sits above the first closed task (a section's intro) stays.
  */
@@ -201,7 +286,8 @@ export function elision(blocks: readonly ThreadBlock[], open: ReadonlyMap<string
     const end = frontier === -1 ? list.length : frontier
     const closed: number[] = []
     for (let at = 0; at < end; at += 1) if (isTask(list[at]!) && !isOpenTask(list[at]!, open)) closed.push(at)
-    if (closed.length > KEEP_VISIBLE) {
+    // Only a run that would hide at least two rows is worth a break.
+    if (closed.length > KEEP_VISIBLE + 1) {
       const keepFrom = closed[closed.length - KEEP_VISIBLE]!
       const breakId = list[keepFrom]!.id
       breaks.add(breakId)
@@ -234,8 +320,18 @@ const outer = (id: string): string => `.dana-thread .bn-block-outer[data-id="${q
  */
 export function threadStyle(model: ThreadModel, folded: ReadonlySet<string>, elided: ReadonlySet<string>, breaks: ReadonlySet<string>): string {
   const rules: string[] = []
-  for (const [id, style] of model.line) rules.push(`${outer(id)}{--dana-thread-line:var(--dana-thread-${style})}`)
-  for (const id of folded) rules.push(`${outer(id)}>.bn-block>.bn-block-group{display:none}${outer(id)}>.bn-block{--dana-thread-caret:var(--dana-icon-chevron-right)}${outer(id)}>.bn-block>.bn-block-content{color:var(--muted-foreground)}`)
+  for (const [id, style] of model.line) if (!model.progress.has(id)) rules.push(`${outer(id)}{--dana-thread-line:var(--dana-thread-${style})}`)
+  /* The done stretch: the done colour down to the badge ('done-start' from
+     it, 'done-frontier' to it), over the block's own grey line. */
+  for (const [id, state] of model.progress) {
+    const fill = state === 'done-frontier' ? 'var(--dana-thread-knee)' : '100%'
+    rules.push(`${outer(id)}{--dana-thread-line:var(--dana-thread-${state});--dana-thread-under:var(--dana-thread-${model.line.get(id) ?? 'solid'});--dana-thread-fill:${fill}}`)
+  }
+  for (const id of folded) {
+    rules.push(`${outer(id)}>.bn-block>.bn-block-group{display:none}${outer(id)}>.bn-block{--dana-thread-caret:var(--dana-icon-chevron-right)}`)
+    // A finished section folds grey; one that still holds open work keeps its ink.
+    if (!model.foldedOpen.has(id)) rules.push(`${outer(id)}>.bn-block{--dana-badge-ink:var(--muted-foreground)}${outer(id)}>.bn-block>.bn-block-content{color:var(--muted-foreground)}`)
+  }
   if (elided.size > 0) rules.push(`${[...elided].map(outer).join(',')}{display:none}`)
   for (const id of breaks) rules.push(`${outer(id)}{padding-block-start:var(--row-height);--dana-thread-line-top:var(--row-height)}`)
   return rules.join('\n')

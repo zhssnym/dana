@@ -6,21 +6,21 @@
    used here as masks so they take the quiet ink. */
 
 .dana-thread {
-  --dana-icon-milestone: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 13v8'/%3E%3Cpath d='M12 3v3'/%3E%3Cpath d='M18.172 6a2 2 0 0 1 1.414.586l2.06 2.06a1.207 1.207 0 0 1 0 1.708l-2.06 2.06a2 2 0 0 1-1.414.586H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z'/%3E%3C/svg%3E");
-  --dana-icon-text-align-start: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 5H3'/%3E%3Cpath d='M15 12H3'/%3E%3Cpath d='M17 19H3'/%3E%3C/svg%3E");
-  --dana-icon-list: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 5h.01'/%3E%3Cpath d='M3 12h.01'/%3E%3Cpath d='M3 19h.01'/%3E%3Cpath d='M8 5h13'/%3E%3Cpath d='M8 12h13'/%3E%3Cpath d='M8 19h13'/%3E%3C/svg%3E");
-  --dana-icon-list-ordered: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 5h10'/%3E%3Cpath d='M11 12h10'/%3E%3Cpath d='M11 19h10'/%3E%3Cpath d='M4 4h1v5'/%3E%3Cpath d='M4 9h2'/%3E%3Cpath d='M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02'/%3E%3C/svg%3E");
-  --dana-icon-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='3' rx='2' ry='2'/%3E%3Ccircle cx='9' cy='9' r='2'/%3E%3Cpath d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'/%3E%3C/svg%3E");
-  --dana-icon-video: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5'/%3E%3Crect x='2' y='6' width='14' height='12' rx='2'/%3E%3C/svg%3E");
-  --dana-icon-paperclip: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551'/%3E%3C/svg%3E");
-  --dana-icon-audio-lines: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 10v3'/%3E%3Cpath d='M6 6v11'/%3E%3Cpath d='M10 3v18'/%3E%3Cpath d='M14 8v7'/%3E%3Cpath d='M18 5v13'/%3E%3Cpath d='M22 10v3'/%3E%3C/svg%3E");
-  --dana-icon-link: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'/%3E%3Cpath d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'/%3E%3C/svg%3E");
-  --dana-icon-code: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 18 6-6-6-6'/%3E%3Cpath d='m8 6-6 6 6 6'/%3E%3C/svg%3E");
-  --dana-icon-quote: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z'/%3E%3Cpath d='M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z'/%3E%3C/svg%3E");
-  --dana-icon-lightbulb: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5'/%3E%3Cpath d='M9 18h6'/%3E%3Cpath d='M10 22h4'/%3E%3C/svg%3E");
-  --dana-icon-workflow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='8' height='8' x='3' y='3' rx='2'/%3E%3Cpath d='M7 11v4a2 2 0 0 0 2 2h4'/%3E%3Crect width='8' height='8' x='13' y='13' rx='2'/%3E%3C/svg%3E");
-  --dana-icon-chevron-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E");
-  --dana-icon-chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  --dana-icon-milestone: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 13v8'/%3E%3Cpath d='M12 3v3'/%3E%3Cpath d='M18.172 6a2 2 0 0 1 1.414.586l2.06 2.06a1.207 1.207 0 0 1 0 1.708l-2.06 2.06a2 2 0 0 1-1.414.586H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z'/%3E%3C/svg%3E");
+  --dana-icon-text-align-start: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 5H3'/%3E%3Cpath d='M15 12H3'/%3E%3Cpath d='M17 19H3'/%3E%3C/svg%3E");
+  --dana-icon-list: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 5h.01'/%3E%3Cpath d='M3 12h.01'/%3E%3Cpath d='M3 19h.01'/%3E%3Cpath d='M8 5h13'/%3E%3Cpath d='M8 12h13'/%3E%3Cpath d='M8 19h13'/%3E%3C/svg%3E");
+  --dana-icon-list-ordered: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 5h10'/%3E%3Cpath d='M11 12h10'/%3E%3Cpath d='M11 19h10'/%3E%3Cpath d='M4 4h1v5'/%3E%3Cpath d='M4 9h2'/%3E%3Cpath d='M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02'/%3E%3C/svg%3E");
+  --dana-icon-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='3' rx='2' ry='2'/%3E%3Ccircle cx='9' cy='9' r='2'/%3E%3Cpath d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'/%3E%3C/svg%3E");
+  --dana-icon-video: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5'/%3E%3Crect x='2' y='6' width='14' height='12' rx='2'/%3E%3C/svg%3E");
+  --dana-icon-paperclip: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551'/%3E%3C/svg%3E");
+  --dana-icon-audio-lines: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 10v3'/%3E%3Cpath d='M6 6v11'/%3E%3Cpath d='M10 3v18'/%3E%3Cpath d='M14 8v7'/%3E%3Cpath d='M18 5v13'/%3E%3Cpath d='M22 10v3'/%3E%3C/svg%3E");
+  --dana-icon-link: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'/%3E%3Cpath d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'/%3E%3C/svg%3E");
+  --dana-icon-code: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 18 6-6-6-6'/%3E%3Cpath d='m8 6-6 6 6 6'/%3E%3C/svg%3E");
+  --dana-icon-quote: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z'/%3E%3Cpath d='M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z'/%3E%3C/svg%3E");
+  --dana-icon-lightbulb: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5'/%3E%3Cpath d='M9 18h6'/%3E%3Cpath d='M10 22h4'/%3E%3C/svg%3E");
+  --dana-icon-workflow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='8' height='8' x='3' y='3' rx='2'/%3E%3Cpath d='M7 11v4a2 2 0 0 0 2 2h4'/%3E%3Crect width='8' height='8' x='13' y='13' rx='2'/%3E%3C/svg%3E");
+  --dana-icon-chevron-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E");
+  --dana-icon-chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --dana-thread-rail: calc(var(--spacing) * 8);
   --dana-thread-gap: calc(var(--spacing) * 3);
   --dana-thread-inset: calc(var(--dana-thread-rail) + var(--dana-thread-gap));
@@ -30,28 +30,56 @@
   --dana-thread-hairline: calc(var(--spacing) / 4);
   /* BlockNote pads a heading 18px above; the thread says it in a step. */
   --dana-thread-heading-pad: calc(var(--spacing) * 4);
-  /* The line is the hairline token (§2.1); the metrics above are steps of
-     --spacing, named here only so the rules below read. */
+  /* The line is the hairline token (§2.1), and the done stretch is the done
+     colour at twice its weight (AC-1510): the checks, joined up. Neither is
+     a new value; the metrics above are steps of --spacing, named here only
+     so the rules below read. */
   --dana-thread-ink: var(--line);
-  --dana-thread-solid: linear-gradient(var(--dana-thread-ink), var(--dana-thread-ink));
-  /* Opaque gaps: a dashed stretch hides the section line drawn beneath it. */
-  --dana-thread-dashed: repeating-linear-gradient(to bottom, var(--dana-thread-ink) 0 var(--spacing), var(--background) var(--spacing) calc(var(--spacing) * 2));
-  --dana-thread-frontier: linear-gradient(var(--dana-thread-ink), var(--dana-thread-ink)) top / 100% var(--dana-thread-half) no-repeat, var(--dana-thread-dashed);
+  --dana-thread-done-ink: var(--color-success-600);
+  --dana-thread-weight: calc(var(--spacing) / 2);
+  /* Every line is --dana-thread-weight wide; a grey one is a hairline down
+     its middle. */
+  --dana-thread-solid: linear-gradient(var(--dana-thread-ink), var(--dana-thread-ink)) 50% 0 / var(--dana-thread-hairline) 100% no-repeat;
+  /* Opaque gaps, the line's full width: a dashed stretch hides the section
+     line drawn beneath it, done or not. */
+  --dana-thread-dashed: repeating-linear-gradient(to bottom, var(--dana-thread-ink) 0 var(--spacing), transparent var(--spacing) calc(var(--spacing) * 2)) 50% 0 / var(--dana-thread-hairline) 100% no-repeat, linear-gradient(var(--background), var(--background));
+}
+
+/* How far the done colour reaches down an item's line: 0 when it is off
+   the stretch. Registered, so the one motion (a tick by this viewer, below)
+   can grow it. */
+@property --dana-thread-fill {
+  syntax: '<length-percentage>';
+  inherits: false;
+  initial-value: 0px;
 }
 
 /* Every block starts from no badge and a solid line; the rules below and the
    ones `threadStyle` writes say otherwise. Set on every block, so nothing a
-   section heading says is inherited by what it holds. */
+   section heading says is inherited by what it holds. The tokens that read
+   the knee are declared here, per item, so each reads its own. */
 .dana-thread .bn-block-outer {
   --dana-thread-line: var(--dana-thread-solid);
+  --dana-thread-under: var(--dana-thread-solid);
   --dana-thread-line-top: calc(var(--spacing) * 0);
+  --dana-thread-center: var(--dana-thread-half);
+  --dana-thread-knee: var(--dana-thread-center);
+  --dana-thread-frontier: linear-gradient(var(--dana-thread-ink), var(--dana-thread-ink)) 50% 0 / var(--dana-thread-hairline) var(--dana-thread-knee) no-repeat, var(--dana-thread-dashed);
+  /* The done stretch: the done colour down to --dana-thread-fill, over the
+     item's own grey line (`--dana-thread-under`, which threadStyle sets). */
+  --dana-thread-done: linear-gradient(var(--dana-thread-done-ink), var(--dana-thread-done-ink)) 50% 0 / 100% var(--dana-thread-fill) no-repeat, var(--dana-thread-under);
+  --dana-thread-done-frontier: var(--dana-thread-done);
+  --dana-thread-done-start: linear-gradient(var(--dana-thread-done-ink), var(--dana-thread-done-ink)) 50% var(--dana-thread-knee) / 100% calc(var(--dana-thread-fill) - var(--dana-thread-knee)) no-repeat, var(--dana-thread-under);
 }
+/* A section heading's badge is its heading's centre, not a row's. */
+.dana-thread .bn-block-outer:has(> .bn-block > .bn-block-content[data-dana-section]) { --dana-thread-center: calc(var(--text-h1-line) / 2 + var(--dana-thread-heading-pad)); }
+.dana-thread .bn-block-outer:has(> .bn-block > .bn-block-content[data-dana-section][data-level='2']) { --dana-thread-center: calc(var(--text-h2-line) / 2 + var(--dana-thread-heading-pad)); }
+.dana-thread .bn-block-outer:has(> .bn-block > .bn-block-content[data-dana-section][data-level='3']) { --dana-thread-center: calc(var(--text-h3-line) / 2 + var(--dana-thread-heading-pad)); }
 .dana-thread .bn-block {
   --dana-badge: none;
   --dana-badge-on: none;
   --dana-badge-size: var(--icon-size-compact);
   --dana-badge-ink: var(--quiet-foreground);
-  --dana-thread-center: var(--dana-thread-half);
   --dana-thread-caret: initial;
 }
 
@@ -67,23 +95,35 @@
   content: '';
   display: block;
   position: absolute;
-  inset-inline-start: calc(var(--dana-thread-x) - var(--dana-thread-hairline) / 2);
+  inset-inline-start: calc(var(--dana-thread-x) - var(--dana-thread-weight) / 2);
   top: var(--dana-thread-line-top);
   bottom: 0;
-  width: var(--dana-thread-hairline);
+  width: var(--dana-thread-weight);
   height: auto;
   border: 0;
   transition: none;
   background: var(--dana-thread-line);
   pointer-events: none;
 }
-.dana-thread .bn-editor > .bn-block-group > .bn-block-outer:first-child::before { top: var(--dana-thread-half); }
+/* The first item's line starts at its badge, whatever the badge's height. */
+.dana-thread .bn-editor > .bn-block-group > .bn-block-outer:first-child {
+  --dana-thread-line-top: var(--dana-thread-center);
+  --dana-thread-knee: calc(var(--spacing) * 0);
+}
 /* BlockNote draws its nesting guide on this same ::before, in a selector
-   (0,6,1) that outranks the rule above: repeated classes outrank it, so a
-   section's own blocks show the thread's line and nothing else. */
-.dana-thread .bn-block-content[data-dana-section] + .bn-block-group > .bn-block-outer.bn-block-outer.bn-block-outer.bn-block-outer::before { border: 0; }
-/* A divider is a break in the line. */
-:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer:has(> .bn-block > .bn-block-content[data-content-type='divider'])::before { display: none; }
+   (0,6,1) that outranks the rules above: repeated classes outrank it, so no
+   block on the thread shows a guide beside the rail, at any depth. */
+.dana-thread .bn-block-group .bn-block-group > .bn-block-outer.bn-block-outer.bn-block-outer.bn-block-outer::before { border: 0; }
+/* A divider is a break in the line: opaque, so a section's line beneath it
+   breaks too. */
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer:has(> .bn-block > .bn-block-content[data-content-type='divider'])::before { background: linear-gradient(var(--background), var(--background)); }
+
+/* The one motion (AC-1510): when this viewer ticks a task, the done colour
+   grows down to the new frontier. Only while ThreadLayer marks the tick:
+   nothing moves on load, on someone else's tick, or on an untick. */
+@media (prefers-reduced-motion: no-preference) {
+  .dana-thread[data-thread-filling] .bn-block-outer { transition: --dana-thread-fill var(--duration-slow) var(--ease-standard); }
+}
 
 /* The content column starts past the rail. */
 :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block > .bn-block-content,
@@ -97,10 +137,9 @@
 :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block:not(:has(> .bn-block-content[data-dana-section])) > .bn-block-group {
   margin-inline-start: calc(var(--dana-thread-inset) + var(--space-group));
 }
-/* A sub-section's rail branches off its parent's, one step in. */
-.dana-thread .bn-block:has(> .bn-block-content[data-dana-section]:is([data-level='2'], [data-level='3'])) > .bn-block-group {
-  margin-inline-start: var(--space-group);
-}
+/* A sub-section's blocks stay on its parent's rail (canvas.css gives a
+   section's own list no indent): one line, and the heading's badge says the
+   level. */
 
 /* The badge: a halo that cuts the line, and the drawing on it. */
 :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block { position: relative; }
@@ -120,7 +159,7 @@
   padding: var(--dana-thread-halo);
   box-sizing: content-box;
   border-radius: var(--radius-full);
-  background: var(--background);
+  background: var(--dana-thread-surface, var(--background));
   pointer-events: none;
 }
 :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block::after {
@@ -157,11 +196,12 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-full);
-  background: var(--background);
+  background: var(--dana-thread-surface, var(--background));
 }
-/* Consecutive prose and lists share one badge, on the first. */
-:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer:has(> .bn-block > :is(.react-renderer > [data-content-type='paragraph'], [data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='toggleListItem'])):not(:has(> .bn-block > .react-renderer > [data-content-type='paragraph'] .ProseMirror-trailingBreak:only-child))
-  + .bn-block-outer:has(> .bn-block > :is(.react-renderer > [data-content-type='paragraph'], [data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='toggleListItem'])) > .bn-block {
+/* Consecutive prose and lists share one badge, on the first. (A paragraph's
+   content sits one level down, in its node view's wrapper.) */
+:is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer:has(> .bn-block > .react-renderer > [data-content-type='paragraph'], > .bn-block > :is([data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='toggleListItem'])):not(:has(> .bn-block > .react-renderer > [data-content-type='paragraph'] .ProseMirror-trailingBreak:only-child))
+  + .bn-block-outer:has(> .bn-block > .react-renderer > [data-content-type='paragraph'], > .bn-block > :is([data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='toggleListItem'])) > .bn-block {
   --dana-badge-on: none;
 }
 
@@ -173,22 +213,21 @@
   --dana-badge-on: block;
   --dana-badge-size: calc(var(--spacing) * 5);
   --dana-badge-ink: var(--text);
-  --dana-thread-center: calc(var(--text-h1-line) / 2 + var(--dana-thread-heading-pad));
 }
 .dana-thread .bn-block:has(> .bn-block-content[data-dana-section]:is([data-level='2'], [data-level='3'])) {
   --dana-badge: var(--dana-thread-caret, none);
   --dana-badge-size: calc(var(--spacing) * 3);
   --dana-badge-ink: var(--quiet-foreground);
 }
-.dana-thread .bn-block:has(> .bn-block-content[data-dana-section][data-level='2']) { --dana-thread-center: calc(var(--text-h2-line) / 2 + var(--dana-thread-heading-pad)); }
-.dana-thread .bn-block:has(> .bn-block-content[data-dana-section][data-level='3']) { --dana-thread-center: calc(var(--text-h3-line) / 2 + var(--dana-thread-heading-pad)); }
+/* A section with no title yet is not a milestone. */
+.dana-thread .bn-block:has(> .bn-block-content[data-dana-section] .ProseMirror-trailingBreak:only-child) { --dana-badge-on: none; }
 @media (hover: hover) {
   /* Keyed on the block, so the caret stays while the pointer is on the
-     badge itself; not while it is on what the section holds. */
+     badge itself; not while it is on what the section holds. The badge
+     keeps its size: only the drawing and its ink change. */
   .dana-thread .bn-block:has(> .bn-block-content[data-dana-section]):has(> .bn-block-group):hover:not(:has(> .bn-block-group:hover)) {
     --dana-badge: var(--dana-thread-caret, var(--dana-icon-chevron-down));
-    --dana-badge-size: var(--icon-size-compact);
-    --dana-badge-ink: var(--muted-foreground);
+    --dana-badge-ink: var(--foreground);
   }
 }
 :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block:has(> .bn-block-content[data-dana-section]):has(> .bn-block-group)::after { cursor: pointer; }
@@ -196,7 +235,19 @@
 /* Rows that draw their own icon (a sub-page, a folder, a Result's flag)
    put it on the rail instead of beside the text: said once. */
 .dana-thread a[data-canvas-page-id],
-.dana-thread a[data-canvas-folder-id] { padding-inline-start: 0; }
+.dana-thread a[data-canvas-folder-id] {
+  min-height: var(--row-height);
+  padding-block: 0;
+  padding-inline-start: 0;
+  display: flex;
+  align-items: center;
+  font-size: var(--text-editor-size);
+  line-height: var(--text-editor-line);
+}
+.dana-thread :is(a[data-canvas-page-id], a[data-canvas-folder-id]) > span { font-size: inherit; line-height: inherit; }
+/* One --row-height, as a Task row is: BlockNote pads every block 3px above
+   and below, which made these rows 38px with the icon off their text. */
+.dana-thread .bn-block-content:is([data-content-type='danaPage'], [data-content-type='danaFolder']) { padding-block: 0; }
 .dana-thread a[data-canvas-page-id] > :first-child,
 .dana-thread a[data-canvas-folder-id] > :first-child,
 .dana-thread .dana-result-mark {
@@ -206,14 +257,21 @@
   top: calc(var(--dana-thread-half) - var(--icon-size-compact) / 2);
   padding: 0;
   border-radius: var(--radius-full);
-  background: var(--background);
-  outline: var(--dana-thread-halo) solid var(--background);
+  background: var(--dana-thread-surface, var(--background));
+  outline: var(--dana-thread-halo) solid var(--dana-thread-surface, var(--background));
 }
 /* Badges are grey (§2.2): a page's own icon colour stays off the rail. The
    icon's colour is an inline style, so the stroke is set instead, which
    outranks the drawing's stroke="currentColor". */
 .dana-thread :is(a[data-canvas-page-id], a[data-canvas-folder-id]) > svg:first-child,
 .dana-thread :is(a[data-canvas-page-id], a[data-canvas-folder-id]) > :first-child svg { stroke: var(--quiet-foreground); }
+
+/* What sits on the rail (a task's glyph, a row's icon, a Result's flag) is
+   placed from its block. BlockNote makes a selected block's child
+   `position: relative` (for its own selection ::after, which canvas.css turns
+   off), and that child starts past the rail: a clicked row drew its glyph on
+   its title. On the thread it stays static. */
+.dana-thread .bn-block-outer :is(.ProseMirror-selectednode > .bn-block-content, .bn-block-content.ProseMirror-selectednode) > * { position: static; }
 
 /* A task's glyph sits on the rail; it is the node, and the tick. */
 .dana-thread .dana-thread-glyph {
@@ -230,10 +288,12 @@
 }
 .dana-thread .dana-thread-glyph > * {
   border-radius: var(--radius-full);
-  background: var(--background);
-  outline: var(--dana-thread-halo) solid var(--background);
+  background: var(--dana-thread-surface, var(--background));
+  outline: var(--dana-thread-halo) solid var(--dana-thread-surface, var(--background));
 }
 .dana-thread .dana-thread-glyph:focus-visible { outline: var(--focus-ring-width) solid var(--ring); outline-offset: calc(-1 * var(--focus-ring-width)); }
+/* A dropped task is struck in its own quiet ink, at the rail's weight. */
+.dana-thread .dana-thread-dropped { text-decoration-thickness: var(--dana-thread-hairline); }
 /* The quote's bar is the rail's job now. */
 .dana-thread [data-content-type='quote'] blockquote { border-inline-start: 0; padding-inline-start: 0; }
 
@@ -310,6 +370,13 @@
     --dana-thread-gap: calc(var(--spacing) * 2);
   }
   .dana-thread .bn-block:has(> .bn-block-content[data-dana-section]) { --dana-badge-size: var(--icon-size-compact); }
-  .dana-thread .dana-thread-row { flex-wrap: wrap; }
+  /* The title's first line sits where a one-line row's would, so the glyph,
+     centred on --row-height, stays on it whether or not meta wraps below. */
+  .dana-thread .dana-thread-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    align-content: flex-start;
+    padding-block-start: calc((var(--row-height) - var(--text-editor-line)) / 2);
+  }
   .dana-thread .dana-thread-meta { flex-basis: 100%; padding-block-end: var(--spacing); }
 }

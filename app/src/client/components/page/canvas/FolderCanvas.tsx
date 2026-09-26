@@ -33,6 +33,7 @@ import { CanvasWriter } from './saving.js'
 import { isSectionHeading } from './outline.js'
 import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
 import { pasteIntoCanvas } from './paste.js'
+import { lineTitles } from './commands.js'
 import type { TaskRows } from '../../../pages/task-rows.js'
 
 type Rows = Parameters<typeof TaskRows>[0]
@@ -71,10 +72,25 @@ export default function FolderCanvas(props: Props): React.JSX.Element {
      draft stamped with it was written by this opening, not "from before". */
   const [opening] = useState(() => crypto.randomUUID())
   const [frozen] = useState<Frozen>(() => ({ current: null }))
-  return <CanvasErrorBoundary>
-    <PersistedCanvas key={`${props.folderId}:${checkpoint.epoch}`} {...props} opening={opening} frozen={frozen} initialPage={checkpoint.page} onCheckpoint={(page) => setCheckpoint((old) => ({ page, epoch: old.epoch + 1 }))} />
-  </CanvasErrorBoundary>
+  /* A checkpoint remounts the editor, which is empty for a few frames: the
+     page would lose its height and the browser its scroll, so a tick on a
+     repeating task (the server rewrites the document) threw the reader to
+     the top. The page keeps its height until the new editor has drawn. */
+  const shell = useRef<HTMLDivElement>(null)
+  const onCheckpoint = useCallback((page: PageView): void => {
+    const box = shell.current
+    if (box !== null) {
+      box.style.minHeight = `${box.offsetHeight}px`
+      window.setTimeout(() => { box.style.minHeight = '' }, HOLD_HEIGHT_FOR)
+    }
+    setCheckpoint((old) => ({ page, epoch: old.epoch + 1 }))
+  }, [])
+  return <div ref={shell} className="min-w-0"><CanvasErrorBoundary>
+    <PersistedCanvas key={`${props.folderId}:${checkpoint.epoch}`} {...props} opening={opening} frozen={frozen} initialPage={checkpoint.page} onCheckpoint={onCheckpoint} />
+  </CanvasErrorBoundary></div>
 }
+/** How long a checkpoint remount keeps the page's height (ms): the new editor draws well within it. */
+const HOLD_HEIGHT_FOR = 1500
 
 /** The one error "Load latest" answers besides a failed save. */
 /* A Task made with Enter keeps the person writing Tasks: the save remounts
@@ -394,11 +410,24 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
   }
   /* Takes its block and title as arguments rather than reading state, because
      the slash menu calls it in the same tick it would have set that state. A
-     refusal leaves the title where it was typed, on the page, so it is never
-     lost, and says why below the canvas. */
+     refusal leaves the title where it was typed, so it is never lost, and
+     says why below the canvas: on the page, or back in "Add a task…" when
+     that line wrote it (`lineTitles`). */
   async function createTask(blockId: string | null, taskTitle: string): Promise<void> {
     if (!blockId || !taskTitle.trim()) return
-    const refuse = (message: string): void => { resumeAfter.delete(draftKey); setError(message) }
+    const line = lineTitles.get(blockId)
+    lineTitles.delete(blockId)
+    const refuse = (message: string): void => {
+      resumeAfter.delete(draftKey)
+      setError(message)
+      if (line === undefined || editor.getBlock(blockId) === undefined) return
+      editor.transact((tr) => {
+        tr.setMeta('addToHistory', false)
+        if (line.reused || editor.document.length === 1) editor.updateBlock(blockId, { type: 'paragraph', content: [] } as never)
+        else editor.removeBlocks([blockId])
+      })
+      line.giveBack(taskTitle.trim())
+    }
     if (writer.state === 'failed') { refuse(taskBlocked); return }
     setCreating(true)
     await writer.flush()
@@ -437,7 +466,8 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       if ((writer.state as string) === 'failed') resumeAfter.delete(draftKey)
     }
   }
-  const taskBlocked = 'Your writing has not saved, so a task cannot be created yet. Use Retry save or Download writing below.'
+  // A failed save's line offers "Load latest" beside this sentence (SaveFailure): name that control, not ones it lacks.
+  const taskBlocked = 'Your writing has not saved, so a task cannot be made yet. Use Load latest below; your writing is kept.'
   /* A paragraph with text becomes its task at once. An empty line becomes a
      task being titled right there: the line takes a checkbox and a "Task
      title" placeholder, Enter or leaving it creates the task from what was
@@ -669,6 +699,10 @@ interface RailMark { readonly id: string; readonly kind: 'fold' | 'break'; reado
 
 type Card = Rows['tasks'][number]
 const noFacts: ThreadFacts = { next: null, shared: false, completedOn: new Map() }
+/** How long after a tick the lists' answer still counts as that tick's (ms). */
+const TICK_ANSWERS_WITHIN = 4000
+/** How long the done stretch may grow for: --duration-slow, and a frame to spare (ms). */
+const FILL_FOR = 400
 
 /**
  * The Work thread (M4 §2): the same document, drawn on a rail. It reads the
@@ -711,12 +745,30 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
   const session = sessionOf(folderId)
   const sections = enabled ? foldableSections(blocks) : []
   const folded = foldedNow(sections, still?.finished ?? new Set(), session.opened, foldStore())
-  const model = threadModel({ blocks: enabled ? blocks : [], open, today: context.today, viewerId: context.viewerId, shared, folded })
-  const elided = new Set<string>()
+  const elided = new Map<string, string>()
   const breaks = new Set<string>()
-  for (const [id, at] of still?.elision.elided ?? []) if (!session.expanded.has(at)) { elided.add(id); breaks.add(at) }
-  const css = enabled ? threadStyle(model, folded, elided, breaks) : ''
-  const facts = useMemo<ThreadFacts>(() => ({ next: model.next, shared, completedOn }), [model.next, shared, completedOn])
+  for (const [id, at] of still?.elision.elided ?? []) if (!session.expanded.has(at)) { elided.set(id, at); breaks.add(at) }
+  const model = threadModel({ blocks: enabled ? blocks : [], open, today: context.today, viewerId: context.viewerId, shared, folded, elided })
+  const css = enabled ? threadStyle(model, folded, new Set(elided.keys()), breaks) : ''
+  /* The one motion (AC-1510): a tick by this viewer grows the done stretch
+     down to the new frontier. The tick is heard first (`onTick`); the stretch
+     moves when the page's lists answer, which may be a moment later, and
+     only a move that follows the viewer's own tick is animated. */
+  const tickedAt = useRef(0)
+  const lastStop = useRef<string | null>(null)
+  const [filling, setFilling] = useState(0)
+  const stop = [...model.progress].find(([, state]) => state === 'done-frontier')?.[0] ?? null
+  if (stop !== lastStop.current) {
+    lastStop.current = stop
+    if (performance.now() - tickedAt.current < TICK_ANSWERS_WITHIN) { tickedAt.current = 0; setFilling((value) => value + 1) }
+  }
+  useEffect(() => {
+    if (filling === 0) return undefined
+    const timer = window.setTimeout(() => { setFilling(0) }, FILL_FOR)
+    return () => { window.clearTimeout(timer) }
+  }, [filling])
+  const onTick = useCallback((): void => { tickedAt.current = performance.now() }, [])
+  const facts = useMemo<ThreadFacts>(() => ({ next: model.next, shared, completedOn, onTick }), [model.next, shared, completedOn, onTick])
   const results = facets.data?.facets.find((facet) => facet.kind === 'results')
   const toggle = useCallback((id: string, isFolded: boolean): void => {
     toggleFold(foldStore(), sessionOf(folderId).opened, id, isFolded)
@@ -804,6 +856,7 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
       <div
         ref={host}
         className="dana-thread min-w-0"
+        {...(filling > 0 ? { 'data-thread-filling': '' } : {})}
         onKeyDownCapture={(event) => {
           /* Enter in a folded heading writes its first child: open the
              section first, so the new line is not hidden. */

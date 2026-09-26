@@ -226,3 +226,17 @@ export function positionAtSectionEnd(
     without[beforeIndex]?.pagePosition ?? null,
   )
 }
+
+/** Directly after `anchor` in page order (a repeating Task's next occurrence
+ * after the one just completed), or null when the anchor is not on the page.
+ */
+export function positionAfter(
+  items: readonly PositionedItem[],
+  moving: PageItemRef | null,
+  anchor: PageItemRef,
+): string | null {
+  const without = moving === null ? [...items] : items.filter((item) => !sameItem(item, moving))
+  const at = without.findIndex((item) => sameItem(item, anchor))
+  if (at < 0) return null
+  return keyBetween(without[at]?.pagePosition ?? null, without[at + 1]?.pagePosition ?? null)
+}

@@ -465,6 +465,21 @@ async function writeMainDocument(
     if ('task' in item) {
       const id = ownTasks.get(item.task)
       if (id === undefined || id === '') continue
+      /* A repeating task's history stands just above its live occurrence,
+         oldest first: done work reads as progress above what is next. */
+      if ((folder.tasks ?? []).some((task) => task.title === item.task && (task.history ?? []).length > 0)) {
+        const earlier = await rowsOf(
+          tx,
+          sql`SELECT id FROM tasks
+               WHERE folder_id = ${folderId}::uuid AND title = ${item.task}
+                 AND status = 'completed' AND id <> ${id}::uuid
+               ORDER BY due_date ASC, id ASC`,
+        )
+        for (const row of earlier) {
+          placed.add(String(row.id))
+          outline.push({ kind: 'task', id: String(row.id), section_block_id: section, list_parent_block_id: null })
+        }
+      }
       placed.add(id)
       outline.push({ kind: 'task', id, section_block_id: section, list_parent_block_id: null })
     } else if ('page' in item) {
@@ -476,7 +491,7 @@ async function writeMainDocument(
       putBlock(item, null)
     }
   }
-  // Whatever the document did not name (a repeating task's history) goes last.
+  // Whatever the document did not name goes last.
   for (const item of await positionedItems(tx, folderId)) {
     if (placed.has(item.id)) continue
     outline.push({ kind: item.kind, id: item.id, section_block_id: section, list_parent_block_id: null })

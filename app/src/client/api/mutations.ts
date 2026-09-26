@@ -22,7 +22,9 @@ for them; each call site that needs one asks for it, and the two that do are the
 ones section 7 names.
 */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { UseMutationResult } from '@tanstack/react-query'
+import type { InfiniteData, UseMutationResult } from '@tanstack/react-query'
+import type { GetDoneResponse, GetFolderTasksOpenResponse } from '../../shared/views.js'
+import { todayInBrowserZone } from './tz.js'
 
 
 import {
@@ -546,12 +548,79 @@ export interface TransitionVariables {
   readonly event: TransitionEvent
 }
 
+/** A folder's two task lists as they stood before an optimistic tick. */
+type TickSnapshot = ReadonlyArray<readonly [readonly unknown[], unknown]>
+
+/*
+A tick on a folder's own lists moves the card at once (the Work thread's ring,
+line and check follow the click, not the round trip), and the lists are put
+back as they were if the server refuses. The success path is unchanged: the
+mutation cache's invalidation reads the server's answer afterwards.
+*/
+function tickFolderLists(client: ReturnType<typeof useQueryClient>, { id, event }: TransitionVariables): TickSnapshot | undefined {
+  if (event !== 'complete' && event !== 'uncomplete') return undefined
+  const isTasks = (section: string) => (query: { queryKey: readonly unknown[] }): boolean =>
+    query.queryKey[0] === 'folders' && query.queryKey[2] === 'tasks' && query.queryKey[3] === section
+  const opens = client.getQueriesData<GetFolderTasksOpenResponse>({ predicate: isTasks('open') })
+  const dones = client.getQueriesData<InfiniteData<GetDoneResponse>>({ predicate: isTasks('completed') })
+  const snapshot: (readonly [readonly unknown[], unknown])[] = [...opens, ...dones]
+  if (event === 'complete') {
+    for (const [key, open] of opens) {
+      const card = open === undefined ? undefined : [...open.scheduled, ...open.unscheduled].find((row) => row.id === id)
+      // A repeating task waits for the server: its next occurrence is what comes next, and only the server makes it.
+      if (open === undefined || card === undefined || card.is_recurring) continue
+      client.setQueryData<GetFolderTasksOpenResponse>(key, {
+        ...open,
+        scheduled: open.scheduled.filter((row) => row.id !== id),
+        unscheduled: open.unscheduled.filter((row) => row.id !== id),
+      })
+      const doneKey = [...key.slice(0, 3), 'completed']
+      const done = client.getQueryData<InfiniteData<GetDoneResponse>>(doneKey)
+      const first = done?.pages[0]
+      if (done === undefined || first === undefined) continue
+      const today = todayInBrowserZone()
+      const moved = { ...card, status: 'completed' as const }
+      const head = first.days[0]
+      const days = head?.date === today
+        ? [{ ...head, rows: [moved, ...head.rows] }, ...first.days.slice(1)]
+        : [{ date: today, rows: [moved] }, ...first.days]
+      client.setQueryData<InfiniteData<GetDoneResponse>>(doneKey, { ...done, pages: [{ ...first, days }, ...done.pages.slice(1)] })
+    }
+  } else {
+    for (const [key, done] of dones) {
+      const card = done?.pages.flatMap((page) => page.days.flatMap((day) => day.rows)).find((row) => row.id === id)
+      if (done === undefined || card === undefined || card.is_recurring) continue
+      client.setQueryData<InfiniteData<GetDoneResponse>>(key, {
+        ...done,
+        pages: done.pages.map((page) => ({
+          ...page,
+          days: page.days.map((day) => ({ ...day, rows: day.rows.filter((row) => row.id !== id) })).filter((day) => day.rows.length > 0),
+        })),
+      })
+      const openKey = [...key.slice(0, 3), 'open']
+      const open = client.getQueryData<GetFolderTasksOpenResponse>(openKey)
+      if (open === undefined) continue
+      const back = { ...card, status: 'pending' as const }
+      client.setQueryData<GetFolderTasksOpenResponse>(openKey, card.due_date === null
+        ? { ...open, unscheduled: [...open.unscheduled, back] }
+        : { ...open, scheduled: [...open.scheduled, back] })
+    }
+  }
+  return snapshot
+}
+
 export function useTransitionTask(): UseMutationResult<
   TaskTransitionResponse,
   Error,
-  TransitionVariables
+  TransitionVariables,
+  TickSnapshot | undefined
 > {
+  const client = useQueryClient()
   return useMutation({
+    onMutate: (variables) => tickFolderLists(client, variables),
+    onError: (_error, _variables, snapshot) => {
+      for (const [key, data] of snapshot ?? []) client.setQueryData(key, data)
+    },
     mutationFn: ({ id, event }: TransitionVariables) =>
       mutateApi(taskTransitionResponse, {
         method: 'POST',
