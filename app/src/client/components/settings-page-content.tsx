@@ -36,7 +36,6 @@ import { signOut } from '../shell/session.js'
 import { ImagePlus } from '../lib/icons.js'
 import { setTheme, useTheme } from '../lib/theme.js'
 import { setClock, useTimeFormat } from '../lib/time-format.js'
-import { setTaskOpen, useTaskOpenPreference } from '../lib/task-surface-preference.js'
 import {
   clearViewerImage,
   setViewerImage,
@@ -50,7 +49,6 @@ import { InlineError } from './state-patterns.js'
 import { isOwnPicture, PersonFace } from './person-face.js'
 import { Button } from './ui/button.js'
 import { Combobox } from './ui/combobox.js'
-import { useIsMobile } from './ui/use-mobile.js'
 import { Skeleton } from './ui/skeleton.js'
 
 /* The viewer's picture, name and address. The circle is the button. */
@@ -125,9 +123,6 @@ export function SettingsPageContent({
 }) {
   const theme = useTheme()
   const clock = useTimeFormat()
-  const taskOpen = useTaskOpenPreference()
-  /* A phone always opens a task full page, so the choice would do nothing. */
-  const phone = useIsMobile()
 
   /* /app/people and other deep links arrive as /app/settings#<section>; the
      sections draw after the bundle, so scroll once they exist. */
@@ -173,25 +168,6 @@ export function SettingsPageContent({
                 />
               }
             />
-            {phone ? null : (
-              <StackingRow
-                label="Open tasks in"
-                control={
-                  <Choice
-                    label="Open tasks in"
-                    value={taskOpen}
-                    options={[
-                      { value: 'dialog', label: 'Center peek' },
-                      { value: 'panel', label: 'Side peek' },
-                      { value: 'tab', label: 'Full page' },
-                    ]}
-                    onValueChange={(next) => {
-                      setTaskOpen(next as typeof taskOpen)
-                    }}
-                  />
-                }
-              />
-            )}
             <StackingRow label="Timezone" control={<TimezoneSelect />} />
             <StackingRow
               label="Clock"
@@ -224,11 +200,7 @@ export function SettingsPageContent({
             {sample ? (
               <StackingRow
                 label="Sample workspace"
-                description={
-                  sample.present
-                    ? `${String(sample.folders)} pages and ${String(sample.tasks)} tasks to show you around`
-                    : undefined
-                }
+                description={sample.present ? 'To show you around.' : undefined}
                 control={
                   /* The client cannot tell removed from never had, so one neutral label. */
                   <Button

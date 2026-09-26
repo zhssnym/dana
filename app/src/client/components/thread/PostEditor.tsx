@@ -174,6 +174,9 @@ export default function PostEditor({
     if (sent !== null) {
       editor.replaceBlocks(editor.document, [{ type: 'paragraph' }])
       setEmpty(true)
+      /* A pressed "Post" disables itself as the composer empties, which would
+         drop focus to the page; the cursor goes back to the composer instead. */
+      editor.focus()
     }
     try {
       await onSubmit(content)
