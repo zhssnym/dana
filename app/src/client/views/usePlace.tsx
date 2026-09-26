@@ -239,6 +239,7 @@ export function PlaceHead({
   fact,
   bare = false,
   identityKey,
+  controls,
 }: {
   readonly place: Place
   /** Today's "N of M done". */
@@ -247,6 +248,8 @@ export function PlaceHead({
   readonly bare?: boolean
   /** Durable place-cover key for an added Focus list, where one exists. */
   readonly identityKey?: string
+  /** What stands in for the View menu, where a page draws its own (or null for none). */
+  readonly controls?: ReactNode
 }): React.JSX.Element {
   const nativeIdentityKey =
     place.spine.key === 'today' ||
@@ -286,7 +289,7 @@ export function PlaceHead({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <PlaceControls place={place} bare={bare} />
+          {controls === undefined ? <PlaceControls place={place} bare={bare} /> : controls}
         </div>
       </div>
     </header>

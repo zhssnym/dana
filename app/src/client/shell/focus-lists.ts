@@ -1,18 +1,23 @@
 /*
-The Focus lists (round 8): the cross-project lists under the sidebar's Focus
-heading. Today, Upcoming and Assigned are the defaults and keep their own
-pages; the rest are saved filters over the open tasks of every page, drawn by
-`pages/FocusListPage.tsx` at `/app/lists/<key>`.
+The Focus lists under the sidebar's Focus heading (M4): Today and Upcoming for
+everyone, and Assigned only for a viewer on a page that has another member,
+because for someone alone it is every task they have. The order is fixed and
+nothing is added, hidden or reordered.
 
-The viewer's choice and order live on the account (`focus_lists`, migration
-0050). A key left out is a hidden list, and the heading's "+" offers it back.
+`focus_lists` on the account (migration 0050) is no longer read to decide the
+rows. Its stored keys, removed lists included (Important, Overdue, No date,
+All open), are left exactly as they are: never rewritten, never an error.
+`/app/lists/<key>` redirects to Today (`pages/FocusListPage.tsx`).
 */
+import { useEffect } from 'react'
+
 import type { TaskCard } from '../../shared/tasks.js'
-import { DEFAULT_FOCUS_LISTS, FOCUS_LISTS } from '../../shared/bundle.js'
 import type { FocusListKey } from '../../shared/bundle.js'
 import type { LucideIcon } from '../lib/icons.js'
 import { CalendarDays, CalendarX, CircleAlert, ListTodo, Star, SunMedium, UserRoundCheck } from '../lib/icons.js'
 import { paths } from '../routes.js'
+import { rungForTask } from '../views/ladder.js'
+import type { Place } from '../views/usePlace.js'
 
 export type { FocusListKey }
 
@@ -21,28 +26,11 @@ export interface FocusList {
   readonly name: string
   readonly path: string
   readonly icon: LucideIcon
-  /** A default is hidden rather than removed: its page stays, only the row goes. */
-  readonly isDefault: boolean
 }
 
-/** A filtered list's rows out of every open task, given today's date. */
-export type FocusFilter = (task: TaskCard, today: string) => boolean
-
-export const FOCUS_FILTERS: Partial<Record<FocusListKey, FocusFilter>> = {
-  important: (task) => task.important,
-  overdue: (task, today) => task.due_date !== null && task.due_date < today,
-  undated: (task) => task.due_date === null && task.start_date === null,
-  open: () => true,
-}
-
-export const FOCUS_EMPTY: Partial<Record<FocusListKey, string>> = {
-  important: 'Nothing is starred. Star a task and it appears here.',
-  overdue: 'Nothing is overdue.',
-  undated: 'Every open task has a date.',
-  open: 'No open tasks.',
-}
-
-const TABLE: Record<FocusListKey, Omit<FocusList, 'key' | 'isDefault'>> = {
+/* Every stored key keeps a name, so an old in-app tab on a retired list still
+   has a title; only the first three are ever drawn in the sidebar. */
+const TABLE: Record<FocusListKey, Omit<FocusList, 'key'>> = {
   today: { name: 'Today', path: paths.today, icon: SunMedium },
   scheduled: { name: 'Upcoming', path: paths.scheduled, icon: CalendarDays },
   assignments: { name: 'Assigned', path: paths.assignments, icon: UserRoundCheck },
@@ -53,37 +41,45 @@ const TABLE: Record<FocusListKey, Omit<FocusList, 'key' | 'isDefault'>> = {
 }
 
 export function focusList(key: FocusListKey): FocusList {
-  return { key, ...TABLE[key], isDefault: DEFAULT_FOCUS_LISTS.includes(key) }
+  return { key, ...TABLE[key] }
+}
+
+/** The sidebar's Focus rows: Assigned only when somebody else could assign. */
+export function focusRows(shared: boolean): readonly FocusList[] {
+  const keys: FocusListKey[] = shared ? ['today', 'scheduled', 'assignments'] : ['today', 'scheduled']
+  return keys.map(focusList)
+}
+
+const KNOWN = Object.keys(TABLE)
+
+export function isFocusKey(value: string | undefined): value is FocusListKey {
+  return KNOWN.includes(value ?? '')
 }
 
 /**
- * Existing 4.20 place rows that are semantically the same Focus destination.
- * `anytime` is the former No date page and `all` the former All open page, so
- * those durable per-viewer stores can keep serving the renamed Focus lists.
- * Overdue never had its own place row; returning undefined is the backend
- * boundary rather than inventing local-only identity state.
+ * Upcoming's rows: from tomorrow on. What is late, started or due today is
+ * Today's ("Carried over", "Started", "Today"), and one task is said once.
  */
-export function focusIdentityKey(key: FocusListKey): string | undefined {
-  switch (key) {
-    case 'today':
-    case 'scheduled':
-    case 'assignments':
-    case 'important':
-      return key
-    case 'undated':
-      return 'anytime'
-    case 'open':
-      return 'all'
-    case 'overdue':
-      return undefined
-  }
+export function upcomingRows(rows: readonly TaskCard[], today: string): readonly TaskCard[] {
+  return rows.filter((task) => {
+    const rung = rungForTask(task, today).key
+    return rung !== 'overdue' && rung !== 'started' && rung !== 'today' && rung !== 'undated'
+  })
 }
 
-/** Every list the "+" can offer, in its order, less the ones already shown. */
-export function focusOffers(shown: readonly FocusListKey[]): readonly FocusList[] {
-  return FOCUS_LISTS.filter((key) => !shown.includes(key)).map(focusList)
+/** An open list's rows: a dropped task leaves the list; a done one lingers until the list refreshes. */
+export function withoutDropped(rows: readonly TaskCard[]): readonly TaskCard[] {
+  return rows.filter((task) => task.status !== 'abandoned')
 }
 
-export function isFocusKey(value: string | undefined): value is FocusListKey {
-  return (FOCUS_LISTS as readonly string[]).includes(value ?? '')
+/**
+ * The Focus pages keep no View settings (M4: no Group by, Sort, Label or
+ * Show completed). A Label narrowing stored by an older client would still
+ * put that Label on every task made here, unseen, so it is cleared.
+ */
+export function useNoStoredLabel(place: Pick<Place, 'filter' | 'setFilter'>): void {
+  const { filter, setFilter } = place
+  useEffect(() => {
+    if (filter.label !== null) setFilter({ ...filter, label: null })
+  }, [filter, setFilter])
 }
