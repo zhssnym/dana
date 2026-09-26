@@ -1100,6 +1100,7 @@ function FolderPageBody({
                     actions={actions}
                     onAsk={confirm.ask}
                     arrangeable
+                    resultsWritable={sharedPageEditable}
                   /> : page.isError ? <p role="alert" className="text-sm text-muted-foreground">Could not load writing. Reload to try again.</p> : null}
                 </Suspense>
               </PageBody>
