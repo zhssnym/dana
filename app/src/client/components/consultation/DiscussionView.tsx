@@ -10,18 +10,18 @@ show.
 "Turn into a task" is an open thread's main act (M4 §4.4): talk that has
 found its task ends there. One press creates the task, titled as the thread,
 at the foot of the page's Work (`POST /tasks` appends a folder's new task to
-its composed page), links the thread to it (`PATCH` `task_id`, M5), and
-resolves the thread without a decision. A thread about a task (made by
-"Discuss" on the task, or linked here) shows the task under its title and is
-not offered the act again. The three are separate writes, in that order,
-because each has its own route: a failure stops the chain where it failed
-and the steps already taken stay (a task with no link yet, or a linked
-thread still open), each visible where it landed; a failure after the task
-exists says so ("The task was made. The thread was not closed."), never the
-generic "Nothing was saved". The task is filed into the section the foot of
+its composed page) and links the thread to it (`PATCH` `task_id`, M5). The
+thread stays open: from then on it is the task's conversation, where anyone
+who may comment keeps talking about the task (a resolved thread takes no
+posts). A thread about a task (made by "Discuss" on the task, or linked
+here) shows the task under its title and is not offered the act again. The
+two are separate writes, in that order, because each has its own route: a
+failure of the link leaves the task standing, unlinked, and says so ("The
+task was made. The thread was not linked to it."), never the generic
+"Nothing was saved". The task is filed into the section the foot of
 Work belongs to, so it folds and moves with the heading it sits under. There is no Undo of the
-whole act: the thread's own Reopen and the task's own delete undo each half,
-and a deleted task stops showing under the thread. A retry after a failed
+whole act: the task's own delete undoes it, and a deleted task stops showing
+under the thread. A retry after a failed
 step goes on from that step (the view remembers the task it made), so it
 never makes a second task. The General discussion is never converted: it is the page's
 catch-all, not one subject.
@@ -143,11 +143,9 @@ function ThreadBody(props: {
   const [turning, setTurning] = useState(false)
   /* What a conversion has already done in this view, so a retry after a
      failed step goes on from that step instead of making a second task. */
-  const made = useRef<{ taskId: string; linked: boolean } | null>(null)
+  const made = useRef<{ taskId: string } | null>(null)
   /* After a conversion resolves the thread its button is gone; the focus
      goes to Reopen, which takes its place. */
-  const reopenButton = useRef<HTMLButtonElement>(null)
-  const [focusReopen, setFocusReopen] = useState(false)
   const [closing, setClosing] = useState(false)
   const [box, height] = useFillHeight()
   const [renaming, setRenaming] = useState(false)
@@ -207,18 +205,12 @@ function ThreadBody(props: {
   const trashed = d.trashed_at !== null
   const trashable = powers.trash && !d.is_general
   const resolvable = powers.resolve && d.state === 'open' && !trashed
-  /* It writes three things, so it is drawn only for someone who may do all
-     three: create a task here, link this thread to it, and resolve it. A
-     thread already linked to a task is not offered it, even while that task
-     is in Trash (the link is set once). */
+  /* It writes two things, so it is drawn only for someone who may do both:
+     create a task here and link this thread to it. A thread already linked
+     to a task is not offered it, even while that task is in Trash (the link
+     is set once). */
   const convertible =
-    resolvable && powers.edit && !d.is_general && d.task_id === null && viewer !== null && mayDraw(viewer.facts, 'task.create')
-
-  useEffect(() => {
-    if (!focusReopen || reopenButton.current === null) return
-    reopenButton.current.focus()
-    setFocusReopen(false)
-  })
+    d.state === 'open' && !trashed && powers.edit && !d.is_general && d.task_id === null && viewer !== null && mayDraw(viewer.facts, 'task.create')
 
   const refused = (error: unknown): void => {
     if (error instanceof ApiError && (error.status === 403 || error.status === 409)) onRefused()
@@ -235,7 +227,7 @@ function ThreadBody(props: {
           folder_id: folderId,
           ...(section === null ? {} : { section_block_id: section }),
         })
-        made.current = { taskId: task.id, linked: false }
+        made.current = { taskId: task.id }
       }
     } catch (error) {
       /* Nothing was made: the mutation cache's own toast says so, truly. */
@@ -244,31 +236,25 @@ function ThreadBody(props: {
       return
     }
     /* A task now exists, so the generic "Nothing was saved" would be false:
-       the link and the resolve are plain writes that speak for themselves
-       when they fail. The link is the thread's own `task_id`, drawn under
-       its title and on the task page, both ways. */
+       the link is a plain write that speaks for itself when it fails. The
+       link is the thread's own `task_id`, drawn under its title and on the
+       task page, both ways. The thread stays open: it is now the task's
+       conversation, and a resolved thread takes no posts (M5). */
     try {
-      if (!made.current.linked) {
-        await mutateApi(discussionSchema, {
-          method: 'PATCH',
-          path: `/discussions/${d.id}`,
-          body: { task_id: made.current.taskId },
-        })
-        made.current.linked = true
-      }
-      await mutateApi(discussionSchema, { method: 'POST', path: `/discussions/${d.id}/resolve`, body: {} })
-      /* Done: the memory is for a failed chain only, so a Reopen and a second
-         press make a second task, as the button says. */
+      await mutateApi(discussionSchema, {
+        method: 'PATCH',
+        path: `/discussions/${d.id}`,
+        body: { task_id: made.current.taskId },
+      })
       made.current = null
-      setFocusReopen(true)
     } catch (error) {
       refused(error)
       showToast(
         error instanceof ApiError && (error.status === 403 || error.status === 409)
           ? writeFailureMessage(error)
           : error instanceof OfflineError
-            ? "The task was made. The thread was not closed: you're offline."
-            : 'The task was made. The thread was not closed. Try again.',
+            ? "The task was made. The thread was not linked to it: you're offline."
+            : 'The task was made. The thread was not linked to it. Try again.',
       )
     } finally {
       void client.invalidateQueries()
@@ -326,7 +312,7 @@ function ThreadBody(props: {
             <Button type="button" variant="ghost" disabled={turning} onClick={() => { setClosing(true) }}>Resolve</Button>
           ) : null}
           {resolved && powers.reopen && !trashed ? (
-            <Button ref={reopenButton} type="button" variant="ghost" disabled={reopen.isPending} onClick={() => { reopen.mutate(d.id) }}>Reopen</Button>
+            <Button type="button" variant="ghost" disabled={reopen.isPending} onClick={() => { reopen.mutate(d.id) }}>Reopen</Button>
           ) : null}
           {hasMenu ? (
             <DropdownMenu>
@@ -385,7 +371,7 @@ function ThreadBody(props: {
         focusOnLand={pointer}
         openAt={justStarted ? undefined : openAt}
         onRefused={refused}
-        post={(body) => postComment.mutateAsync({ discussionId: d.id, body })}
+        post={(body) => postComment.mutateAsync({ discussionId: d.id, body, taskId: d.task_id })}
         {...(frozen
           ? { closed: closedNote }
           : closing

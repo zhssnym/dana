@@ -5,7 +5,8 @@ Folder, linked both ways.
 - AC-1511: `POST /tasks/:id/discussion` finds or makes the task's one live
   Discussion (201 once, 200 after, one stored row); a stranger is 404 and a
   Can view member 403, neither storing a row; the task reads `discussion_id`;
-  a post there reaches the task's creator.
+  a post there reaches the task's creator; a post or an input round there
+  starts it, so the list shows it and the task links it.
 - AC-1512: `PATCH /discussions/:id {task_id}` ("Turn into a task") stores the
   link; a task outside the Discussion's Folder is 422 and a task that already
   has a live Discussion is 409, the row unchanged either way.
@@ -154,6 +155,40 @@ describe('AC-1511 Discuss finds or makes the task\'s one Discussion', () => {
       'a trashed task',
     )
     expect(await linked(other)).toEqual([])
+  })
+})
+
+describe('AC-1511 an input round starts a task thread', () => {
+  test('a thread whose only activity is a round is listed and linked', async () => {
+    const folderId = await folder(owner, 'ac1511 rounds')
+    const taskId = await task(owner, folderId, 'ac1511 pick a date')
+    const made = await owner.browser.json(`/tasks/${taskId}/discussion`, 'POST')
+    expectStatus(made, 201, 'Discuss')
+    const discussionId = (made.json() as { discussion: { id: string } }).discussion.id
+    expectStatus(
+      await owner.browser.json(`/discussions/${discussionId}/input-rounds`, 'POST', {
+        mode: 'choose',
+        prompt: 'ac1511 which weekend?',
+        options: ['first', 'second'],
+      }),
+      201,
+      'open a round',
+    )
+    expect(
+      await rows(
+        app.db,
+        sql`SELECT count(*)::int AS n FROM discussion_input_rounds
+             WHERE discussion_id = ${discussionId}::uuid`,
+      ),
+    ).toEqual([{ n: 1 }])
+    const read = await owner.browser.json(`/tasks/${taskId}`, 'GET')
+    expectStatus(read, 200, 'GET /tasks/:id')
+    expect((read.json() as { discussion_id?: unknown }).discussion_id).toBe(discussionId)
+    const list = await owner.browser.json(`/folders/${folderId}/discussions?state=all`, 'GET')
+    expectStatus(list, 200, 'the list')
+    expect(
+      (list.json() as { discussions: { id: string }[] }).discussions.map((d) => d.id),
+    ).toContain(discussionId)
   })
 })
 

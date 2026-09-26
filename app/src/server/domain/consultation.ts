@@ -111,14 +111,16 @@ const DISCUSSION_COLUMNS = sql`
    cannot open. */
 /**
  * A thread "Discuss" made on a task that nobody has written in yet (M5): no
- * post, no context, no decision, and made after its task (a thread turned
- * into a task is older than the task, so it never matches). The list and the
+ * post, no input round, no context, no decision, and made after its task (a
+ * thread turned into a task is older than the task, so it never matches). The list and the
  * task page's link skip it, and the next "Discuss" reuses it, so looking
  * without talking leaves nothing behind. Reads `d`.
  */
 export const UNSTARTED_TASK_THREAD = sql`(
   d.task_id IS NOT NULL AND d.context IS NULL AND d.current_outcome_id IS NULL
   AND NOT EXISTS (SELECT 1 FROM comments uc WHERE uc.discussion_id = d.id)
+  AND NOT EXISTS (SELECT 1 FROM discussion_input_rounds ur
+                   WHERE ur.discussion_id = d.id)
   AND EXISTS (SELECT 1 FROM tasks ut
                WHERE ut.id = d.task_id AND ut.created_at <= d.created_at))`
 

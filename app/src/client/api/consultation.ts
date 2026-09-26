@@ -250,13 +250,16 @@ export function useDestroyTrashedDiscussion(): UseMutationResult<void, Error, st
 export function usePostDiscussionComment(): UseMutationResult<
   CommentLine,
   Error,
-  { readonly discussionId: string; readonly body: PostCommentBody }
+  { readonly discussionId: string; readonly body: PostCommentBody; readonly taskId?: string | null }
 > {
   const client = useQueryClient()
   return useMutation({
     meta: CHAT_WRITE,
-    onSuccess: (line, { discussionId }) => {
+    onSuccess: (line, { discussionId, taskId }) => {
       client.setQueryData<GetThreadResponse>(queryKeys.discussionThread(discussionId), (thread) => withPost(thread, line))
+      /* A task's thread is linked from the task page once someone has
+         written in it (M5), so its first post changes that page. */
+      if (taskId != null) void client.invalidateQueries({ queryKey: queryKeys.task(taskId) })
     },
     mutationFn: ({ discussionId, body }) =>
       mutateApi(commentLine, {
@@ -272,7 +275,11 @@ export function usePostDiscussionComment(): UseMutationResult<
  * use and found after that (201, then 200). The caller goes to it.
  */
 export function useDiscussTask(): UseMutationResult<Discussion, Error, string> {
+  const client = useQueryClient()
   return useMutation({
+    onSuccess: (_thread, taskId) => {
+      void client.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+    },
     mutationFn: (taskId: string) =>
       mutateApi(z.object({ discussion: discussionSchema }), {
         method: 'POST',

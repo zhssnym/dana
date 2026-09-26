@@ -144,9 +144,11 @@ beforeAll(async () => {
     INSERT INTO discussions (id, folder_id, title, created_by, is_general) VALUES
       (${ids.generalDiscussion}::uuid, ${ids.folder}::uuid, 'General discussion', ${ids.owner}::uuid, true)`)
   await db.execute(sql`
-    INSERT INTO discussions (id, folder_id, title, created_by, created_at, last_activity_at) VALUES
+    INSERT INTO discussions (id, folder_id, title, created_by, created_at, last_activity_at,
+                             state, resolved_at, resolved_by) VALUES
       (${ids.photographer}::uuid, ${ids.folder}::uuid, 'Photographer?', ${ids.owner}::uuid,
-       '2026-03-04 00:00:00+00', '2026-03-05 00:00:00+00')`)
+       '2026-03-04 00:00:00+00', '2026-03-05 00:00:00+00',
+       'resolved', '2026-03-05 00:00:00+00', ${ids.owner}::uuid)`)
   await db.execute(sql`
     INSERT INTO comments (id, folder_id, task_id, discussion_id, parent_id, author_id, body, content, created_at, edited_at) VALUES
       (${ids.root}::uuid, ${ids.folder}::uuid, ${ids.live}::uuid, NULL, NULL, ${ids.member}::uuid,
@@ -278,14 +280,17 @@ describe('AC-1510 migration 0059 moves task threads into linked Discussions', ()
         folder_id: ids.folder,
         title: 'Pack',
         created_by: ids.member,
-        state: 'resolved',
+        // Open although the task is done: a resolved thread would freeze
+        // its commenters out of their own words.
+        state: 'open',
         is_general: false,
         created_at: '2026-04-05 00:00:00',
         last_activity_at: '2026-04-05 00:00:00',
         trashed_at: null,
       },
       {
-        // Converted before M5: the old thread is linked, not a new one made.
+        // Converted before M5: the old thread is linked, not a new one made,
+        // and the conversion's resolve is undone.
         task_id: ids.converted,
         folder_id: ids.folder,
         title: 'Photographer?',
@@ -304,9 +309,12 @@ describe('AC-1510 migration 0059 moves task threads into linked Discussions', ()
       await rows(
         db,
         sql`SELECT (resolved_at AT TIME ZONE 'UTC')::text AS resolved_at, resolved_by, current_outcome_id
-              FROM discussions WHERE task_id = ${ids.done}::uuid`,
+              FROM discussions WHERE task_id IN (${ids.done}::uuid, ${ids.converted}::uuid)`,
       ),
-    ).toEqual([{ resolved_at: '2026-04-05 00:00:00', resolved_by: null, current_outcome_id: null }])
+    ).toEqual([
+      { resolved_at: null, resolved_by: null, current_outcome_id: null },
+      { resolved_at: null, resolved_by: null, current_outcome_id: null },
+    ])
   })
 
   test('every task comment sits in its task\'s Discussion; the General one is untouched', async () => {

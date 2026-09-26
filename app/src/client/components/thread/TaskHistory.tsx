@@ -2,8 +2,9 @@
 A task's history (M5): what happened to it (created, assigned, dates moved,
 done, dropped, reopened, dependencies), oldest first. No posts: talk about a
 task lives in its project's Discussion. Under the history, "Discuss" opens the
-task's one thread there (`POST /tasks/:id/discussion` makes it on first use),
-or, once it exists, one quiet link to it; and "Mark done ▾" (Drop in its menu)
+task's one thread there (`POST /tasks/:id/discussion` makes it on first use;
+never offered on the Desk, which has no Discussion tab), or, once it exists,
+one quiet link to it; and "Mark done ▾" (Drop in its menu)
 or "Reopen".
 */
 import { useMemo } from 'react'
@@ -84,7 +85,9 @@ export function TaskHistory({
 
   const threadId = detail?.discussion_id ?? null
   const threadAt = (id: string): string => `${paths.folder(folderId ?? '')}?discussion=${id}`
-  const mayStart = facts !== null && mayDraw(facts, 'discussion.create')
+  /* Not on the Desk: it has no Discussion tab and nobody else to talk to.
+     A Desk task's old comments (0059) stay reachable by the link above. */
+  const mayStart = facts !== null && !facts.isDefault && mayDraw(facts, 'discussion.create')
 
   return (
     <div>

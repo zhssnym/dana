@@ -14,13 +14,18 @@
 -- 4. A thread turned into a task before M5 ended in a post "Turned into a
 --    task: <link>". Where that task is live and in the thread's Folder, the
 --    thread is linked to it, so both directions hold for old conversions
---    too. The latest such post wins, and a task takes one thread.
+--    too. The latest such post wins, and a task takes one thread. The
+--    conversion resolved that thread; it is reopened here (unless someone
+--    recorded a decision on it), because a task's thread is where its
+--    talk goes on, and a resolved thread takes no post, edit, delete or
+--    like -- not even an author's own.
 -- 5. Every other task with comments gets one Discussion, titled with the
 --    task and linked to it. It is created live even for a trashed task: the
 --    link hides a trashed task, restoring the task finds it again, and a
---    purge leaves it standing, so nothing is purged with the task. A done or
---    dropped task's Discussion is created resolved (no decision), so the
---    open list does not fill with finished talk. Every comment is then
+--    purge leaves it standing, so nothing is purged with the task. It is
+--    created open whatever the task's status, as "Discuss" makes one, so
+--    every commenter keeps editing and deleting their own words and can
+--    still talk about a finished task. Every comment is then
 --    re-pointed in place: ids, authors, bodies, content, timestamps,
 --    replies, likes, files and mention notices all hang on `comments.id` and
 --    are untouched. Desk tasks are included; the task page is their way in.
@@ -66,6 +71,11 @@ UPDATE discussions d
          ORDER BY conv.task_id, conv.created_at DESC) link
  WHERE d.id = link.discussion_id;
 --> statement-breakpoint
+UPDATE discussions
+   SET state = 'open', resolved_at = NULL, resolved_by = NULL
+ WHERE task_id IS NOT NULL AND state = 'resolved'
+   AND current_outcome_id IS NULL;
+--> statement-breakpoint
 INSERT INTO discussions
   (folder_id, task_id, title, created_by, state, resolved_at,
    last_activity_at, created_at, updated_at)
@@ -73,13 +83,12 @@ SELECT t.folder_id, t.id,
        COALESCE(NULLIF(btrim(left(btrim(t.title), 200)), ''), 'Untitled task'),
        (SELECT c1.author_id FROM comments c1 WHERE c1.task_id = t.id
          ORDER BY c1.created_at, c1.id LIMIT 1),
-       CASE WHEN t.status = 'pending' THEN 'open' ELSE 'resolved' END,
-       CASE WHEN t.status = 'pending' THEN NULL ELSE max(c.created_at) END,
+       'open', NULL,
        max(c.created_at), min(c.created_at), min(c.created_at)
   FROM tasks t
   JOIN comments c ON c.task_id = t.id
  WHERE NOT EXISTS (SELECT 1 FROM discussions d WHERE d.task_id = t.id)
- GROUP BY t.id, t.folder_id, t.title, t.status;
+ GROUP BY t.id, t.folder_id, t.title;
 --> statement-breakpoint
 UPDATE comments c
    SET discussion_id = d.id, task_id = NULL
