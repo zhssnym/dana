@@ -26,7 +26,13 @@
   --dana-thread-inset: calc(var(--dana-thread-rail) + var(--dana-thread-gap));
   --dana-thread-x: calc(var(--dana-thread-rail) / 2);
   --dana-thread-half: calc(var(--row-height) / 2);
-  --dana-thread-halo: calc(var(--spacing) * 0.5);
+  /* The ground under a badge hides the line only where the drawing is, so
+     the line runs up to the ink itself, as on a GitHub timeline. A round
+     glyph is a disc one hairline inside its box, which is where Dana's task
+     glyphs draw their edge; a Lucide drawing is a band between its top and
+     bottom ink (Lucide draws within 3 of 24 of the edge). */
+  --dana-thread-surface-ink: var(--dana-thread-surface, var(--background));
+  --dana-thread-disc: radial-gradient(closest-side, var(--dana-thread-surface-ink) calc(100% - var(--dana-thread-hairline)), transparent calc(100% - var(--dana-thread-hairline)));
   --dana-thread-hairline: calc(var(--spacing) / 4);
   /* BlockNote pads a heading 18px above; the thread says it in a step. */
   --dana-thread-heading-pad: calc(var(--spacing) * 4);
@@ -90,6 +96,8 @@
   --dana-badge-on: none;
   --dana-badge-size: var(--icon-size-compact);
   --dana-badge-ink: var(--quiet-foreground);
+  /* Where the ground under the drawing starts and ends, down the badge. */
+  --dana-badge-ground: 12.5%;
   --dana-thread-caret: initial;
 }
 
@@ -149,7 +157,8 @@
    section's own list no indent): one line, and the heading's badge says the
    level. */
 
-/* The badge: a halo that cuts the line, and the drawing on it. */
+/* The badge: a ground that hides the line under the drawing, and the
+   drawing on it. The line touches the ink above and below. */
 :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block { position: relative; }
 :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block::before,
 :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block::after {
@@ -163,11 +172,7 @@
   height: var(--dana-badge-size);
 }
 :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block::before {
-  margin: calc(-1 * var(--dana-thread-halo));
-  padding: var(--dana-thread-halo);
-  box-sizing: content-box;
-  border-radius: var(--radius-full);
-  background: var(--dana-thread-surface, var(--background));
+  background: linear-gradient(to bottom, transparent var(--dana-badge-ground), var(--dana-thread-surface-ink) var(--dana-badge-ground) calc(100% - var(--dana-badge-ground)), transparent calc(100% - var(--dana-badge-ground)));
   pointer-events: none;
 }
 :is(.dana-thread .bn-editor > .bn-block-group, .dana-thread .bn-block-content[data-dana-section] + .bn-block-group) > .bn-block-outer > .bn-block::after {
@@ -225,6 +230,9 @@
   --dana-badge-on: block;
   --dana-badge-size: calc(var(--spacing) * 5);
   --dana-badge-ink: var(--text);
+  /* The milestone's pole is on the line: the ground covers only its sign
+     (and a caret, which sits in the same band). */
+  --dana-badge-ground: 25%;
 }
 .dana-thread .bn-block:has(> .bn-block-content[data-dana-section]:is([data-level='2'], [data-level='3'])) {
   --dana-badge: var(--dana-thread-caret, none);
@@ -269,8 +277,7 @@
   top: calc(var(--dana-thread-half) - var(--icon-size-compact) / 2);
   padding: 0;
   border-radius: var(--radius-full);
-  background: var(--dana-thread-surface, var(--background));
-  outline: var(--dana-thread-halo) solid var(--dana-thread-surface, var(--background));
+  background: var(--dana-thread-disc);
 }
 /* Badges are grey (§2.2): a page's own icon colour stays off the rail. The
    icon's colour is an inline style, so the stroke is set instead, which
@@ -300,8 +307,7 @@
 }
 .dana-thread .dana-thread-glyph > * {
   border-radius: var(--radius-full);
-  background: var(--dana-thread-surface, var(--background));
-  outline: var(--dana-thread-halo) solid var(--dana-thread-surface, var(--background));
+  background: var(--dana-thread-disc);
 }
 .dana-thread .dana-thread-glyph:focus-visible { outline: var(--focus-ring-width) solid var(--ring); outline-offset: calc(-1 * var(--focus-ring-width)); }
 /* A dropped task is struck in its own quiet ink, at the rail's weight. */
