@@ -23,7 +23,7 @@ import { useTransitionTask, useUpdateTask } from '../api/mutations.js'
 import { useFolder, useFolderCompletedTasks, useMe, mergeCompletedDays } from '../api/queries.js'
 import { cn } from '../components/ui/utils.js'
 import { personDisplay, taskRowDisplay } from '../parts/presenters.js'
-import { RowMeta } from '../components/task-meta.js'
+import { TaskMeta } from '../components/task-meta.js'
 import { Face } from '../components/person-face.js'
 import { formatDayInline } from '../lib/dates.js'
 import { agoFor } from '../lib/history.js'
@@ -115,7 +115,6 @@ export function LinearView(props: {
   const setLabel = useSetTaskLabel()
   const transition = useTransitionTask()
   const update = useUpdateTask()
-  const keys = useRowKeys<HTMLDivElement>()
   const table = useRef<HTMLDivElement>(null)
   const composer = useRef<HTMLDivElement>(null)
 
@@ -128,6 +127,8 @@ export function LinearView(props: {
   const anchor = useRef<string | null>(null)
   /* A drop draws where it landed at once; the page's next revision replaces it. */
   const [held, setHeld] = useState<{ page: PageView; rows: ListRow[] } | null>(null)
+  /* The row an Alt+arrow moved, to focus again once its write has landed. */
+  const refocus = useRef<string | null>(null)
 
   /* Every closed issue, not the first page of them: under Closed and All each
      sits in its place, and the counts count them all. One page's tasks. */
@@ -194,16 +195,24 @@ export function LinearView(props: {
     })
   }
 
+  /* The scroll before the first paint; the focus after the row keys have
+     attached to the list that just mounted (a child's effects run first), so
+     they see the focus and hand out the Tab stop from that row. */
+  const landing = useRef<{ scroller: HTMLElement | null; top: number; id: string } | null>(null)
   useLayoutEffect(() => {
     const was = backTo.get(folderId)
     if (issueId !== null || was === undefined) return
     backTo.delete(folderId)
+    landing.current = was
+    if (was.scroller !== null) was.scroller.scrollTop = was.top
+  }, [issueId, folderId])
+  useEffect(() => {
+    const was = landing.current
+    if (issueId !== null || was === null) return
+    landing.current = null
     const land = (): void => {
       if (was.scroller !== null) was.scroller.scrollTop = was.top
-      const row = table.current?.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(was.id)}"]`)
-      /* Row keys hand out tabindex after this; a row needs one to take focus. */
-      if (row !== null && row !== undefined && !row.hasAttribute('tabindex')) row.setAttribute('tabindex', '-1')
-      row?.focus({ preventScroll: true })
+      table.current?.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(was.id)}"]`)?.focus({ preventScroll: true })
     }
     land()
     /* Once more after the frame, in case the list grew as it settled. */
@@ -242,13 +251,14 @@ export function LinearView(props: {
   }
 
   /* ---- drag ---- */
-  const reorder = (from: number, to: number): void => {
+  /* True when it wrote a move. */
+  const reorder = (from: number, to: number): boolean => {
     const row = rows[from]
-    if (!manual || row?.kind !== 'task' || from === to) return
+    if (!manual || row?.kind !== 'task' || from === to) return false
     const next = moved(rows, from, to)
     const place = dropPlacement(next, to)
     const was = dropPlacement(rows, from)
-    if (place.section === was.section && place.before === was.before) return
+    if (place.section === was.section && place.before === was.before) return false
     const home = placementOf(page, row.task.id)
     setHeld({ page, rows: next.map((each, index) => (index === to && each.kind === 'task' ? { ...each, section: place.section } : each)) })
     const id = row.task.id
@@ -256,10 +266,11 @@ export function LinearView(props: {
       () => pushUndo(undoLabel('Moved', row.task.title), () => void writer.write({ op: 'move_step', id, ...home }).catch(() => undefined)),
       () => setHeld(null),
     )
+    return true
   }
   const drag = useSortableList({
     count: rows.length,
-    onReorder: reorder,
+    onReorder: (from, to) => void reorder(from, to),
     disabled: !manual,
     describe: (index) => {
       const row = rows[index]
@@ -269,6 +280,13 @@ export function LinearView(props: {
   useEffect(() => {
     if (held !== null && held.page !== page) setHeld(null)
   }, [held, page])
+  /* Once the move has landed (nothing held), focus the moved row again, by id. */
+  useEffect(() => {
+    if (held !== null || refocus.current === null) return
+    const id = refocus.current
+    refocus.current = null
+    table.current?.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(id)}"]`)?.focus()
+  }, [held])
 
   /* ---- bulk ----
      Each act is one undo entry that puts every task back as it was, and
@@ -352,8 +370,11 @@ export function LinearView(props: {
   }
 
   /* ---- page keys: C, M, A, L, Esc ---- */
-  const latest = useRef({ focusNew, clearSelection, setMenu, selecting: selectedTasks.length > 0 })
-  latest.current = { focusNew, clearSelection, setMenu, selecting: selectedTasks.length > 0 }
+  /* L opens a Label menu only where one is drawn: the bulk bar's, or the
+     filter's when the page has labels or a Label filter is on. */
+  const labelMenu = selectedTasks.length > 0 || label !== null || (pageLabels ?? []).some((row) => !row.archived)
+  const latest = useRef({ focusNew, clearSelection, setMenu, selecting: selectedTasks.length > 0, labelMenu })
+  latest.current = { focusNew, clearSelection, setMenu, selecting: selectedTasks.length > 0, labelMenu }
   useEffect(() => {
     if (issueId !== null) return
     const onKey = (event: KeyboardEvent): void => {
@@ -364,13 +385,17 @@ export function LinearView(props: {
       else if ((key === 'c' || key === 'n') && !event.shiftKey) now.focusNew()
       else if (key === 'm') now.setMenu('milestone')
       else if (key === 'a') now.setMenu('assignee')
-      else if (key === 'l') now.setMenu('label')
+      else if (key === 'l' && now.labelMenu) now.setMenu('label')
       else return
       event.preventDefault()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [issueId])
+  /* The header swaps between the filter bar and the bulk bar: a menu open in
+     one never opens by itself in the other. */
+  const selectingNow = selectedTasks.length > 0
+  useEffect(() => setMenu(null), [selectingNow])
 
   if (issueId !== null) {
     return (
@@ -412,8 +437,8 @@ export function LinearView(props: {
     const open = state === 'open' || state === 'in-progress'
     const drawn = drag.itemState(index)
     /* A closed row's dates are over; its byline says when it closed. */
-    const { steps, due, starts, ...rest } = taskRowDisplay(task, rowContext)
-    const display = open ? { ...rest, ...(due === undefined ? {} : { due }), ...(starts === undefined ? {} : { starts }) } : rest
+    const { steps, due, starts, labels: _labels, ...rest } = taskRowDisplay(task, rowContext)
+    const display = rest
     const labels = labelsOf(task)
     const checked = selected.has(task.id)
     const assignee = task.assignee === null ? null : { ...personDisplay(task.assignee), id: task.assignee.id }
@@ -455,11 +480,12 @@ export function LinearView(props: {
               siblingRow(event.currentTarget, key === 'j' ? 1 : -1)?.focus()
             } else if (event.altKey && manual && (key === 'ArrowUp' || key === 'ArrowDown')) {
               event.preventDefault()
+              /* One move at a time: the next one is computed from where the
+                 last one landed, never from rows its write has not returned. */
+              if (held !== null) return
               const target = index + (key === 'ArrowDown' ? 1 : -1)
               if (target >= 0 && target < rows.length) {
-                const self = event.currentTarget
-                reorder(index, target)
-                requestAnimationFrame(() => self.isConnected && self.focus())
+                refocus.current = reorder(index, target) ? task.id : null
               }
             } else if (event.shiftKey && (key === 'ArrowUp' || key === 'ArrowDown')) {
               const other = siblingRow(event.currentTarget, key === 'ArrowDown' ? 1 : -1)?.dataset.taskId
@@ -515,21 +541,36 @@ export function LinearView(props: {
                   <LabelChip name={each.name} color={each.color} />
                 </span>
               ))}
+              {open && (display.blockedBy ?? 0) > 0 && (
+                <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground max-sm:hidden">Blocked</span>
+              )}
             </div>
             {density === 'comfortable' && (
               <p className="truncate text-xs leading-4 text-muted-foreground">{byline(task, section)}</p>
             )}
           </div>
+          {/* Fixed columns, right-aligned, so every row's date, subtasks,
+              repeat and star line up; an empty slot keeps its width. */}
           <div className="flex h-6 shrink-0 items-center gap-2 self-start">
-            <RowMeta
-              className="shrink-0 max-sm:hidden"
-              source={{
-                ...display,
-                ...(steps === undefined ? {} : { steps: { done: steps.complete, total: steps.total } }),
-              }}
-              given={{ assignee: true }}
-              onToggleImportant={() => actions.onToggleImportant(task)}
-            />
+            <span className="flex w-32 justify-end max-sm:hidden">
+              {open && <TaskMeta {...(due === undefined ? {} : { due })} {...(starts === undefined ? {} : { starts })} />}
+            </span>
+            <span className="flex w-8 justify-end max-sm:hidden">
+              {steps !== undefined && <TaskMeta steps={{ done: steps.complete, total: steps.total }} />}
+            </span>
+            <span className="flex w-4 justify-end max-sm:hidden">
+              {display.recurrence !== undefined && <TaskMeta recurrence={display.recurrence} />}
+            </span>
+            <span className="flex w-6 justify-end max-sm:hidden">
+              <TaskMeta
+                className="gap-0"
+                star={{
+                  important: Boolean(display.important),
+                  ...(display.importantTooltip === undefined ? {} : { tooltip: display.importantTooltip }),
+                  onToggle: () => actions.onToggleImportant(task),
+                }}
+              />
+            </span>
             <span className="flex w-9 justify-end">
               <CommentCount count={counts.get(task.id)} />
             </span>
@@ -579,12 +620,17 @@ export function LinearView(props: {
     }
     /* Under a Milestone filter it goes into that milestone; under a Label
        filter it wears that label, or it would vanish the moment it was made. */
-    const section = filters.milestone.kind === 'section' ? filters.milestone.id : null
+    /* Otherwise at the end of the table, where the add line is: the end of
+       the last milestone (the page's end when it has none). */
+    const section =
+      filters.milestone.kind === 'section' ? filters.milestone.id : filters.milestone.kind === 'none' ? null : (sections.at(-1)?.id ?? null)
     const assignee = filters.assignee.kind === 'person' ? filters.assignee.id : null
     /* A new issue is open, so Closed would hide it: show Open. */
     if (state === 'closed') setState('open')
     const id = crypto.randomUUID()
     void writer.write({ op: 'add_step', title: text, section, id }).then(() => {
+      /* In another sort it may land away from the add line: show it. */
+      if (!manual) requestAnimationFrame(() => table.current?.querySelector(`[data-task-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest' }))
       wearFilterLabel(id, label)
       if (assignee !== null) update.mutate({ id, body: { assignee_id: assignee } })
     })
@@ -594,8 +640,7 @@ export function LinearView(props: {
   const peopleChoices = (members ?? []).map((member) => ({ id: member.user.id, name: person(member.user.id).name }))
 
   return (
-    <div
-      ref={keys}
+    <RowScope
       className="pb-2"
       onKeyDown={(event) => {
         if (event.key === 'Escape' && selected.size > 0 && !typing(event.target)) {
@@ -662,6 +707,21 @@ export function LinearView(props: {
       <p aria-live="polite" className="sr-only">
         {drag.announcement}
       </p>
+    </RowScope>
+  )
+}
+
+/* The list's row-key scope. Its own component, so the keys attach to the
+   element that mounts each time the list comes back from an issue. */
+function RowScope(props: {
+  readonly className: string
+  readonly onKeyDown: React.KeyboardEventHandler<HTMLDivElement>
+  readonly children: React.ReactNode
+}): React.JSX.Element {
+  const keys = useRowKeys<HTMLDivElement>()
+  return (
+    <div ref={keys} className={props.className} onKeyDown={props.onKeyDown}>
+      {props.children}
     </div>
   )
 }
