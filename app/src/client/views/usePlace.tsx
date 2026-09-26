@@ -83,8 +83,7 @@ export function usePlace(
 
   const seedMode = modeFromSearch(search.toString())
   useEffect(() => {
-    /* Only a layout this page offers is seeded here; a folder page seeds its
-       own view (`useFolderView`). */
+    /* Only a layout this page offers is seeded here. */
     if (seedMode === null || !spine.views.includes(seedMode)) return
     if (modeFromSearch(liveSearch().toString()) !== seedMode) return
     writeViewMode(seedMode)

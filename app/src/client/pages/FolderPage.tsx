@@ -239,6 +239,9 @@ function useThreadScroll(folderId: string, ready: boolean): void {
       /* Marked done only here: an effect cancelled mid-wait (a re-run, or
          React's development double mount) tries again. */
       restoredFor.current = key
+      /* Used once: a later Back into this page, after leaving it some other
+         way, keeps wherever the reader had scrolled to since. */
+      threadScroll.delete(folderId)
       scroller.scrollTop = saved.top
       task?.scrollIntoView({ block: 'nearest' })
     }
@@ -274,13 +277,24 @@ export function FolderPage({
 }: {
   readonly folderId?: string
 } = {}): React.JSX.Element {
+  const [search] = useSearchParams()
+  /* An old Linear issue address (`?issue=<task id>`) is the one task page now.
+     Answered before any of the page's reads start, and only for a real id. */
+  const issueId = search.get('issue') ?? ''
+  if (issueId !== '') return <Navigate to={paths.task(encodeURIComponent(issueId))} replace />
+  return <FolderPageBody folderId={folderId} />
+}
+
+function FolderPageBody({
+  folderId,
+}: {
+  readonly folderId?: string
+}): React.JSX.Element {
   const { id: routeId = '' } = useParams<{ id: string }>()
   const id = folderId ?? routeId
   const navigate = useNavigate()
   const importFile = usePageImport()
   const [search, setSearch] = useSearchParams()
-  /* An old Linear issue address (`?issue=<task id>`) is the one task page now. */
-  const issueId = search.get('issue')
   /* Set as this page is trashed: its reads stop, so the delete's
      invalidation refetches none of them against a 404 while the page is
      still mounted, the navigation away not yet committed. */
@@ -991,7 +1005,6 @@ export function FolderPage({
   /* Trashed: nothing of the page stays mounted to read it again while the
      navigation away commits. */
   if (leaving) return <div />
-  if (issueId !== null) return <Navigate to={paths.task(issueId)} replace />
 
   return (
     <div className="space-y-6">
@@ -1059,7 +1072,7 @@ export function FolderPage({
 
         {activeFacet?.kind === 'main' ? (
           <div className="space-y-2">
-            <PageSection name="All open tasks">
+            <PageSection name="Work">
               <PageBody
                 query={open}
                 /* The thread ends in its own add line, which an empty page

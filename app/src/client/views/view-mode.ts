@@ -2,17 +2,19 @@
 The place pages' layout (List, Board, Calendar, as each offers): one remembered
 preference across Today, Upcoming and Assigned, in localStorage. A page that
 cannot draw the remembered layout shows a list without forgetting it; `?mode=`
-seeds the preference. A folder page's view (Linear, Board, Freeform) is its
-own preference, below.
+seeds the preference. A page's own Work has one rendering (the thread) and no
+layout to remember; its retired keys are listed below.
 */
 import { useCallback, useSyncExternalStore } from 'react'
 
 /** 9.1's three views. List is the ground and every page offers it. */
-export type ViewMode = 'list' | 'linear' | 'board' | 'calendar'
+export type ViewMode = 'list' | 'board' | 'calendar'
 
 const MODE_KEY = 'dana.view-mode'
 
-const MODES: readonly ViewMode[] = ['list', 'linear', 'board', 'calendar']
+/* 'linear' is gone (M4): a device that stored it reads as list, as any
+   unknown value does. */
+const MODES: readonly ViewMode[] = ['list', 'board', 'calendar']
 
 function isMode(value: string | null): value is ViewMode {
   return value !== null && (MODES as readonly string[]).includes(value)
@@ -98,7 +100,8 @@ is nothing to choose and nothing to remember.
 `dana.folder-view` (Linear, Board or Freeform, round 5) and Linear's
 `dana.linear.state`, `dana.linear.density` and `dana.linear.sort`. Whatever a
 device stored under them simply stops mattering; every stored value lands on
-the thread. They are named here so nobody takes them for free names.
+the thread. They are named here so nobody takes them for free names; nothing
+imports this list, on purpose.
 */
 export const RETIRED_STORAGE_KEYS = [
   'dana.folder-view',
@@ -111,9 +114,10 @@ export const RETIRED_STORAGE_KEYS = [
 export type FolderView = 'linear' | 'board' | 'freeform'
 
 /**
- * Always the thread (Freeform's document). Kept only so a caller that still
- * asks (the window bar's `?issue=` trail) compiles until it stops asking;
- * it reads no storage.
+ * Always the thread (Freeform's document), reading no storage. Kept only so
+ * app-shell's `?issue=` trail compiles; that branch can no longer fire (the
+ * folder page redirects `?issue=` to the task page), and it and this stub go
+ * together in the integration pass.
  */
 export function useFolderView(): [FolderView, (next: FolderView) => void] {
   return ['freeform', () => {}]

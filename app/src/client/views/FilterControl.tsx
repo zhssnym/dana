@@ -27,7 +27,6 @@ import type { ViewMode } from './view-mode.js'
    rendering (the thread) and no name to choose. */
 const VIEW_LABELS: Record<ViewMode, string> = {
   list: 'List',
-  linear: 'Linear',
   board: 'Board',
   calendar: 'Calendar',
 }
