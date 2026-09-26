@@ -130,7 +130,7 @@ function SidebarProvider({
 
   /*
   Focus follows the toggle on a laptop. Collapsing makes the sidebar inert and
-  expanding unmounts the top-bar "Expand sidebar", so the pressed control
+  expanding unmounts the floating "Expand sidebar", so the pressed control
   vanishes and focus would fall to the body. When it has (or sits in an inert
   subtree the browser has not blurred yet), it moves to whichever toggle is now
   showing. Focus anywhere else, an editor under Ctrl+B, is left alone. A phone's
