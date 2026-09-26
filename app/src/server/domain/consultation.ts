@@ -34,6 +34,7 @@ import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import {
+  DISCUSSION_TITLE_MAX,
   decodeDiscussionCursor,
   encodeDiscussionCursor,
 } from '../../shared/consultation.js'
@@ -102,11 +103,17 @@ const DISCUSSION_COLUMNS = sql`
   to_char(d.last_activity_at AT TIME ZONE 'UTC',
           'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS activity_key,
   o.id AS o_id, o.statement AS o_statement, o.actor_id AS o_actor_id,
-  o.source_comment_id AS o_source_comment_id, o.created_at AS o_created_at`
+  o.source_comment_id AS o_source_comment_id, o.created_at AS o_created_at,
+  lt.id AS lt_id, lt.title AS lt_title, lt.status AS lt_status`
 
+/* The linked task (M5) is shown only while it is live and in the
+   Discussion's own Folder, so the link never names a task its readers
+   cannot open. */
 const DISCUSSION_FROM = sql`
   discussions d
-  LEFT JOIN discussion_outcomes o ON o.id = d.current_outcome_id`
+  LEFT JOIN discussion_outcomes o ON o.id = d.current_outcome_id
+  LEFT JOIN tasks lt
+    ON lt.id = d.task_id AND lt.folder_id = d.folder_id AND lt.deleted_at IS NULL`
 
 function discussionFromRow(row: Record<string, unknown>): Discussion {
   const currentOutcome: Outcome | null =
@@ -137,6 +144,17 @@ function discussionFromRow(row: Record<string, unknown>): Discussion {
     updated_at: toIso(row.updated_at),
     trashed_at: isoOrNull(row.trashed_at),
     is_general: row.is_general === true,
+    task:
+      row.lt_id === null || row.lt_id === undefined
+        ? null
+        : {
+            id: String(row.lt_id),
+            title: String(row.lt_title),
+            status:
+              row.lt_status === 'completed' || row.lt_status === 'abandoned'
+                ? row.lt_status
+                : 'pending',
+          },
   }
 }
 
@@ -201,6 +219,8 @@ interface LockedDiscussion {
   trashed: boolean
   /** The Folder's General discussion: the deployed client's Folder thread. */
   isGeneral: boolean
+  /** The task it is about (M5), live or not; null when none. */
+  taskId: string | null
 }
 
 /**
@@ -214,7 +234,8 @@ async function lockedDiscussion(
 ): Promise<LockedDiscussion | null> {
   const rows = await rowsOf(
     tx,
-    sql`SELECT id, folder_id, title, created_by, state, trashed_at, is_general
+    sql`SELECT id, folder_id, title, created_by, state, trashed_at, is_general,
+               task_id
           FROM discussions WHERE id = ${discussionId}::uuid
          FOR UPDATE`,
   )
@@ -228,6 +249,7 @@ async function lockedDiscussion(
     state: row.state === 'resolved' ? 'resolved' : 'open',
     trashed: row.trashed_at !== null && row.trashed_at !== undefined,
     isGeneral: row.is_general === true,
+    taskId: stringOrNull(row.task_id),
   }
 }
 
@@ -299,7 +321,7 @@ export async function folderOfDiscussion(
 }
 
 /**
- * The Folder a live task belongs to, for `PUT /tasks/:id/thread/read`'s 404
+ * The Folder a live task belongs to, for `POST /tasks/:id/discussion`'s 404
  * before anything else. Null when the id names no task, or a deleted one.
  * Like `folderOfDiscussion` it says nothing about access.
  */
@@ -557,50 +579,6 @@ export async function markDiscussionRead(
   })
 }
 
-/**
- * `PUT /tasks/:id/thread/read`: the viewer has opened the task's thread now.
- * The task-thread twin of `markDiscussionRead`: upserts their
- * `task_thread_reads` row and, in the same transaction, marks read their
- * unread notifications about posts in this task's thread. Whoever may read
- * the thread may mark it, and the thread's read (`GET /folders/:id/comments
- * ?task=`) asks only membership of the task's live Folder. A deleted task,
- * or one gone since the route looked, is `not_found`. Answers the viewer's
- * previous `read_at`, null when they had never opened the thread.
- */
-export async function markTaskThreadRead(
-  db: Db,
-  viewerId: string,
-  taskId: string,
-): Promise<ConsultationOutcome<{ read_at: string | null }>> {
-  return inTransaction(db, async (tx) => {
-    const folderId = await folderOfTask(tx, taskId)
-    if (folderId === null) return notFound
-    if ((await folderActorFacts(tx, viewerId, folderId)) === null) return notFound
-    const previous = await rowsOf(
-      tx,
-      sql`SELECT read_at FROM task_thread_reads
-           WHERE task_id = ${taskId}::uuid AND user_id = ${viewerId}::uuid`,
-    )
-    await tx.execute(
-      sql`INSERT INTO task_thread_reads (task_id, user_id, read_at)
-          VALUES (${taskId}::uuid, ${viewerId}::uuid, now())
-          ON CONFLICT (task_id, user_id)
-          DO UPDATE SET read_at = excluded.read_at`,
-    )
-    await tx.execute(
-      sql`UPDATE notifications n SET read_at = now()
-            FROM events e, comments c
-           WHERE n.user_id = ${viewerId}::uuid
-             AND n.read_at IS NULL
-             AND e.id = n.event_id
-             AND e.subject_kind = 'comment'
-             AND c.id = e.subject_id
-             AND c.task_id = ${taskId}::uuid`,
-    )
-    return ok({ read_at: isoOrNull(previous[0]?.read_at) })
-  })
-}
-
 /** `GET /discussions/:id/outcomes`: every Outcome, newest first, current or
  * not. Nothing here is ever edited, so each id reads what it always said. */
 export async function listOutcomes(
@@ -673,6 +651,12 @@ export async function updateDiscussion(
     if (discussion.state !== 'open') {
       return conflict('A resolved Discussion is reopened before it is edited.')
     }
+    let taskId = discussion.taskId
+    if (body.task_id !== undefined && body.task_id !== discussion.taskId) {
+      const link = await linkableTask(tx, discussion, body.task_id)
+      if (link.kind !== 'ok') return link
+      taskId = body.task_id
+    }
     const title = body.title === undefined ? sql`title` : sql`${body.title}`
     const context =
       body.context === undefined
@@ -681,6 +665,7 @@ export async function updateDiscussion(
     await tx.execute(
       sql`UPDATE discussions
              SET title = ${title}, context = ${context},
+                 task_id = ${taskId}::uuid,
                  updated_at = now(), last_activity_at = now()
            WHERE id = ${discussionId}::uuid`,
     )
@@ -695,6 +680,117 @@ export async function updateDiscussion(
     })
     const updated = await discussionById(tx, discussionId)
     return updated === null ? notFound : ok(updated)
+  })
+}
+
+/**
+ * Whether `discussion` may be linked to `taskId` (PATCH `task_id`, M5): the
+ * link is set once, never on the General discussion, only to a live task of
+ * the Discussion's own Folder (the id arrives in the body, so this check is
+ * its authorization gate: a task elsewhere is one 422 whether or not it
+ * exists), and only when that task has no other live Discussion. The task
+ * row is locked as `discussTask` locks it, so the two cannot both link.
+ */
+async function linkableTask(
+  tx: Executor,
+  discussion: LockedDiscussion,
+  taskId: string,
+): Promise<ConsultationOutcome<null>> {
+  if (discussion.taskId !== null) {
+    return conflict('This discussion is already about a task.')
+  }
+  if (discussion.isGeneral) {
+    return invalid('task_id', 'the General discussion is about the whole page')
+  }
+  const task = await rowsOf(
+    tx,
+    sql`SELECT 1 FROM tasks
+         WHERE id = ${taskId}::uuid AND folder_id = ${discussion.folderId}::uuid
+           AND deleted_at IS NULL
+         FOR NO KEY UPDATE`,
+  )
+  if (task.length === 0) {
+    return invalid('task_id', 'must name a task of this folder')
+  }
+  if ((await liveDiscussionOfTask(tx, taskId)) !== null) {
+    return conflict(TASK_HAS_DISCUSSION)
+  }
+  return ok(null)
+}
+
+const TASK_HAS_DISCUSSION = 'This task already has a discussion.'
+
+async function liveDiscussionOfTask(
+  tx: Executor,
+  taskId: string,
+  except: string | null = null,
+): Promise<string | null> {
+  const rows = await rowsOf(
+    tx,
+    sql`SELECT id FROM discussions
+         WHERE task_id = ${taskId}::uuid AND trashed_at IS NULL
+           AND id IS DISTINCT FROM ${except}::uuid`,
+  )
+  return rows[0] === undefined ? null : String(rows[0].id)
+}
+
+/**
+ * `POST /tasks/:id/discussion` (M5): the task's one live Discussion, made on
+ * first use. The route has answered 404 for a task the caller cannot see;
+ * this re-resolves both under the task row's lock, which every link writer
+ * takes, so two calls at once make one Discussion and the second answers it.
+ *
+ * An existing live Discussion (open or resolved) is answered to any member,
+ * `created: false`. Otherwise `discussion.create` decides, and the new one is
+ * titled with the task as it reads now (cut to 4.31's 200); a later rename
+ * of the task does not follow, because the link shows the live title.
+ */
+export async function discussTask(
+  db: Db,
+  viewerId: string,
+  taskId: string,
+): Promise<ConsultationOutcome<{ created: boolean; discussion: Discussion }>> {
+  return inTransaction(db, async (tx) => {
+    const task = await rowsOf(
+      tx,
+      sql`SELECT folder_id, title FROM tasks
+           WHERE id = ${taskId}::uuid AND deleted_at IS NULL
+           FOR NO KEY UPDATE`,
+    )
+    const row = task[0]
+    if (row === undefined) return notFound
+    const folderId = String(row.folder_id)
+    const facts = await folderActorFacts(tx, viewerId, folderId)
+    if (facts === null) return notFound
+    const readable = mayPerform(facts, 'discussion.read')
+    if (!readable.allowed) return forbidden(readable.reason)
+    const existing = await liveDiscussionOfTask(tx, taskId)
+    if (existing !== null) {
+      const found = await discussionById(tx, existing)
+      return found === null ? notFound : ok({ created: false, discussion: found })
+    }
+    const decision = mayPerform(facts, 'discussion.create')
+    if (!decision.allowed) return forbidden(decision.reason)
+    const title =
+      Array.from(String(row.title).trim()).slice(0, DISCUSSION_TITLE_MAX).join('').trim() ||
+      'Untitled task'
+    const inserted = await rowsOf(
+      tx,
+      sql`INSERT INTO discussions (folder_id, task_id, title, created_by)
+          VALUES (${folderId}::uuid, ${taskId}::uuid, ${title}, ${viewerId}::uuid)
+          RETURNING id`,
+    )
+    await recordEvent(tx, {
+      actorId: viewerId,
+      verb: 'created',
+      subjectKind: 'folder',
+      subjectId: folderId,
+      subjectName: facts.name,
+      folderId,
+      detail: 'started a discussion',
+    })
+    const made = await discussionById(tx, String(inserted[0]?.id))
+    return made === null ? notFound : ok({ created: true, discussion: made })
   })
 }
 
@@ -973,6 +1069,17 @@ export async function restoreDiscussion(
     if (discussion.state === 'open' && (await anotherOpenGeneral(tx, discussion))) {
       return conflict(ANOTHER_GENERAL)
     }
+    // M5: a task has one live Discussion; this one waits while another is.
+    // The task row's lock is the one `discussTask` takes before it creates.
+    if (discussion.taskId !== null) {
+      await tx.execute(
+        sql`SELECT 1 FROM tasks WHERE id = ${discussion.taskId}::uuid
+            FOR NO KEY UPDATE`,
+      )
+      if ((await liveDiscussionOfTask(tx, discussion.taskId, discussion.id)) !== null) {
+        return conflict(TASK_HAS_DISCUSSION)
+      }
+    }
     await tx.execute(
       sql`UPDATE discussions SET trashed_at = NULL, updated_at = now()
            WHERE id = ${discussionId}::uuid`,
@@ -1135,6 +1242,7 @@ export async function trashedDiscussions(
             state: row.state === 'resolved' ? 'resolved' : 'open',
             trashed: true,
             isGeneral: row.is_general === true,
+            taskId: null,
           },
           'discussion.restore',
         )

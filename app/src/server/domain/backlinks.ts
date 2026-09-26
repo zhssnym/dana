@@ -247,20 +247,15 @@ export async function backlinksOf(
   const postRows = await rowsOf(
     executor,
     sql`SELECT c.id, c.content, c.folder_id,
-               COALESCE(d.id, t.id) AS home_id,
-               CASE WHEN d.id IS NOT NULL THEN 'discussion' ELSE 'task' END AS home,
-               COALESCE(d.title, t.title) AS label
+               d.id AS home_id, d.title AS label
           FROM comments c
           JOIN folders fo ON fo.id = c.folder_id AND fo.deleted_at IS NULL
           JOIN folder_members m
             ON m.folder_id = c.folder_id AND m.user_id = ${viewerId}
-          LEFT JOIN discussions d
+          JOIN discussions d
             ON d.id = c.discussion_id AND d.trashed_at IS NULL
-          LEFT JOIN tasks t
-            ON t.id = c.task_id AND t.deleted_at IS NULL
          WHERE c.content IS NOT NULL
            AND c.content::text LIKE ${pattern}
-           AND (d.id IS NOT NULL OR t.id IS NOT NULL)
          ORDER BY c.created_at ASC, c.id ASC
          LIMIT ${SCAN_BOUND}`,
   )
@@ -268,7 +263,8 @@ export async function backlinksOf(
     if (!documentReferences(row.content, target, origin)) continue
     hits.push({
       surface: 'post',
-      home: row.home === 'discussion' ? 'discussion' : 'task',
+      // Every post is a Discussion's since M5 (migration 0059).
+      home: 'discussion',
       homeId: String(row.home_id),
       folderId: String(row.folder_id),
       memberId: null,

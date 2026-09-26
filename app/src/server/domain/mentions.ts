@@ -98,11 +98,10 @@ export async function syncMentions(tx: Executor, input: MentionSource): Promise<
   if (input.commentId !== undefined) {
     const rows = await rowsOf(
       tx,
-      sql`SELECT c.id, c.content, c.body, t.title AS task_title,
+      sql`SELECT c.id, c.content, c.body,
                  d.title AS discussion_title, f.name AS folder_name
             FROM comments c
             JOIN folders f ON f.id = c.folder_id
-            LEFT JOIN tasks t ON t.id = c.task_id
             LEFT JOIN discussions d ON d.id = c.discussion_id
            WHERE c.id = ${input.commentId}::uuid`,
     )
@@ -112,7 +111,7 @@ export async function syncMentions(tx: Executor, input: MentionSource): Promise<
       const words = String(row.body ?? '')
       subject = { kind: 'comment', id: String(row.id), name: words.length > 120 ? `${words.slice(0, 119)}…` : words }
       // The thread's name, as the `commented` event's detail names it.
-      const place = String(row.task_title ?? row.discussion_title ?? row.folder_name ?? '')
+      const place = String(row.discussion_title ?? row.folder_name ?? '')
       detail = `mentioned you in "${place}"`.slice(0, 200)
     }
   } else {

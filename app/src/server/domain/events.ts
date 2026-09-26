@@ -185,7 +185,7 @@ export async function listNotifications(
   const rows = await rowsOf(
     db,
     sql`SELECT n.id AS notification_id, n.read_at,
-               n.created_at AS notified_at, c.task_id AS comment_task_id,
+               n.created_at AS notified_at,
                c.discussion_id AS comment_discussion_id,
                ${EVENT_COLUMNS}
         FROM notifications n
@@ -201,10 +201,9 @@ export async function listNotifications(
       id: String(row.notification_id),
       read_at: nullableIso(row.read_at),
       created_at: toIso(row.notified_at),
-      /* The task a comment sits on, so the bell can land
-         on the task with its thread open rather than on the folder. Null
-         for a folder-level comment and for every other subject. */
-      task_id: nullableString(row.comment_task_id),
+      /* Always null since M5 (migration 0059): a task has no thread of its
+         own, and a post about a task lives in its Discussion. */
+      task_id: null,
       /* Issue #320: the Discussion a Folder-level comment sits in, so the
          bell can open that conversation. Null otherwise. */
       discussion_id: nullableString(row.comment_discussion_id),

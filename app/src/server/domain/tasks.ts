@@ -373,7 +373,10 @@ export async function taskView(
                  AS pending_invite_email,
                r.task_id AS reminder_task_id, r.offset_minutes,
                to_char(r.time_of_day, 'HH24:MI') AS reminder_time_of_day,
-               t.section_block_id
+               t.section_block_id,
+               (SELECT d.id FROM discussions d
+                 WHERE d.task_id = t.id AND d.folder_id = t.folder_id
+                   AND d.trashed_at IS NULL) AS discussion_id
         FROM tasks t
         JOIN folder_members m
           ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
@@ -448,6 +451,7 @@ export async function taskView(
     steps: await stepsOf(executor, taskId),
     completed_at: row.completed_at === null ? null : toIso(row.completed_at),
     completed_by: nullableString(row.completed_by),
+    discussion_id: nullableString(row.discussion_id),
   }
 }
 
@@ -468,6 +472,7 @@ function cardOf(detail: TaskDetail): TaskCard {
     steps: _steps,
     completed_at: _completedAt,
     completed_by: _completedBy,
+    discussion_id: _discussionId,
     ...card
   } = detail
   return card
@@ -1272,11 +1277,13 @@ async function patchTaskIn(
       // and therefore touches nothing.
       sets.push(sql`updated_at = now()`)
       if (moving) {
-        // 4.15's pair FK holds a comment's scope to its task's folder, so
-        // the conversation moves with the task, and the pair's check is
+        // M5: the task's Discussions (4.31 `task_id`, live or trashed) move
+        // with it, and their comments with them. 4.15's pair FK holds a
+        // comment's scope to its Discussion's folder, so its check is
         // deferred to the commit because neither UPDATE can satisfy it
-        // while the other has not run (migration 0007).
-        await tx.execute(sql`SET CONSTRAINTS comments_task_scope_fkey DEFERRED`)
+        // while the other has not run (migration 0059, as 0007 did for the
+        // task pair).
+        await tx.execute(sql`SET CONSTRAINTS comments_discussion_scope_fkey DEFERRED`)
         /* The Folder Labels go, and they go rather than moving because they
            belong to the folder the task is leaving (issue #226, #208 R6A:
            "Personal Labels remain, source Folder Labels are removed, no
@@ -1308,8 +1315,13 @@ async function patchTaskIn(
       )
       if (moving) {
         await tx.execute(
-          sql`UPDATE comments SET folder_id = ${folderId}::uuid
+          sql`UPDATE discussions SET folder_id = ${folderId}::uuid
               WHERE task_id = ${taskId}::uuid`,
+        )
+        await tx.execute(
+          sql`UPDATE comments SET folder_id = ${folderId}::uuid
+              WHERE discussion_id IN (SELECT id FROM discussions
+                                       WHERE task_id = ${taskId}::uuid)`,
         )
       }
     }

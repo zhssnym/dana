@@ -31,9 +31,10 @@ NOT NULL and asserted behaviorally, not by name.
 Deferrability is recorded on foreign keys only, and its absence means
 immediate, which is asserted rather than skipped: a constraint that quietly
 became deferrable would let a transaction hold a broken state across
-statements, which is the opposite of what section 4 promises. Migration 0007
-made one constraint deferrable on purpose and it is the only entry carrying
-the flag. Nothing else in this schema is deferrable, and Postgres does not
+statements, which is the opposite of what section 4 promises. Migrations 0007
+and 0059 made one constraint each deferrable on purpose (the two comment
+scope pairs, so a task's move can carry its conversation) and they are the
+only entries carrying the flag. Nothing else in this schema is deferrable, and Postgres does not
 admit a deferrable CHECK at all, so the other three kinds are compared
 against immediate without a field to say so.
 */
@@ -883,6 +884,9 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'comments_content_check', columns: ['content'] },
       // Migration 0029 (#320): never both Task- and Discussion-scoped.
       { name: 'comments_one_scope_check', columns: ['discussion_id', 'task_id'] },
+      // Migration 0059 (M5): task threads moved into Discussions; nothing
+      // writes a task-scoped comment again.
+      { name: 'comments_no_task_scope_check', columns: ['task_id'] },
     ],
     foreignKeys: [
       {
@@ -897,6 +901,10 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         columns: ['folder_id', 'discussion_id'],
         references: { table: 'discussions', columns: ['folder_id', 'id'] },
         onDelete: 'cascade',
+        // Migration 0059: deferrable, so a task's move carries its linked
+        // Discussion and that Discussion's comments in one transaction.
+        deferrable: true,
+        initiallyDeferred: false,
       },
       {
         name: 'comments_folder_id_fkey',
@@ -990,6 +998,14 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         references: { table: 'users', columns: ['id'] },
         onDelete: 'restrict',
       },
+      {
+        // Migration 0059 (M5): the task a Discussion is about. A purged task
+        // leaves its conversation standing, unlinked.
+        name: 'discussions_task_id_fkey',
+        columns: ['task_id'],
+        references: { table: 'tasks', columns: ['id'] },
+        onDelete: 'set null',
+      },
     ],
     indexes: [
       {
@@ -1005,6 +1021,13 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         name: 'discussions_one_open_general_key',
         unique: true,
         columns: ['folder_id'],
+        partial: true,
+      },
+      // Migration 0059 (M5): at most one live Discussion per task.
+      {
+        name: 'discussions_one_live_per_task_key',
+        unique: true,
+        columns: ['task_id'],
         partial: true,
       },
     ],
