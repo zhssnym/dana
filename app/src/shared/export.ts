@@ -125,7 +125,14 @@ also gain 0038's `toggleable`. Workflow files record a `page` block as
 omitted, as they do a `folder_ref` (see WORKFLOW_OMITTED_BLOCK_KINDS). Read the next number off
 the open branches, as above.
 */
-export const EXPORT_VERSION = 8
+/*
+**8 to 9 on 2026-09-26, issue #353.** `settings.focus_appearance` carries the
+viewer's durable sparse icon/colour overrides for Focus destinations. Version
+8 readers do not declare that key and would otherwise strip the personal
+identity choices while claiming to have read the export, which is exactly the
+failure the version number prevents.
+*/
+export const EXPORT_VERSION = 9
 
 /**
  * 10.3's "List responses capped at 1000 rows with truncated flag", applied
@@ -515,6 +522,13 @@ export const exportSettings = z.object({
   sidebar_order: z.array(z.string()),
   arrangements: z.record(z.string(), z.string()),
   focus_lists: z.array(z.string()),
+  /** Version 9, issue #353: the viewer's sparse Focus identity overrides.
+   * Missing keys use Dana's native identity; exported entries are already
+   * canonicalized by `readBundle`, so at least one field is non-null. */
+  focus_appearance: z.record(
+    z.string(),
+    z.object({ icon: z.string().nullable(), color: z.string().nullable() }),
+  ),
   show_important: z.boolean(),
   show_all: z.boolean(),
   show_done: z.boolean(),
