@@ -1045,8 +1045,9 @@ export function useCardWiring(props: TaskRowProps) {
 
 /*
 The row: one line, 32–36px. Checkbox · title · muted meta on the right (date,
-folder where the page spans folders, assignee face, steps n/m, repeat glyph),
-then the star, which shows on hover and whenever it is set.
+folder where the page spans folders, assignee face, repeat glyph), then the
+star, which shows on hover and whenever it is set. No subtask count and no
+Labels (M4): the task page says both.
 
 Clicking anywhere on the row opens the task; the checkbox and the star are the
 only controls inside it. No chevron, no row "…", no rename in the row: those
@@ -1054,7 +1055,7 @@ live in the task's own panel (the redesign's control map). Shift/Cmd-click
 selects, see `useRowSelection`.
 */
 export function TaskRow(props: TaskRowProps) {
-  const { task, patch, counts } = useCardWiring(props)
+  const { task, patch } = useCardWiring(props)
 
   /* The row tells its list how to open it; the list's drag engine calls back
      on a tap, so tap-to-open is the row's property rather than each screen's. */
@@ -1123,9 +1124,7 @@ export function TaskRow(props: TaskRowProps) {
           ...(props.starts === undefined ? {} : { starts: props.starts }),
           ...(task.folder === undefined ? {} : { folder: task.folder }),
           ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
-          ...(counts === null ? {} : { steps: counts }),
           ...(task.recurrence ? { recurrence: repeatShort(task) } : {}),
-          ...(props.labels === undefined ? {} : { labels: props.labels }),
           blockedBy: props.blockedBy ?? 0,
           finished,
           important: Boolean(task.important),
