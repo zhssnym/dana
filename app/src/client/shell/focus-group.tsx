@@ -6,6 +6,7 @@ added list. Either one comes back from the "+".
 */
 import { useRef } from 'react'
 
+import { useBundle } from '../api/queries.js'
 import { Button } from '../components/ui/button.js'
 import { MORE_ACTIONS } from '../components/ui/copy.js'
 import {
@@ -25,8 +26,8 @@ import { cn } from '../components/ui/utils.js'
 import { EyeOff, MoreHorizontal, Plus, Trash2 } from '../lib/icons.js'
 import { moved, swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
 import type { SortableItemState } from '../lib/use-sortable-list.js'
-import { focusList, focusOffers } from './focus-lists.js'
-import type { FocusList, FocusListKey } from './focus-lists.js'
+import { focusList, focusMark, focusOffers } from './focus-lists.js'
+import type { FocusList, FocusListKey, FocusMark } from './focus-lists.js'
 import { grip } from './library-drag.js'
 
 const ROW =
@@ -47,6 +48,7 @@ export function FocusGroup({
   /** The router link a row renders as (the sidebar's `routerLink`). */
   readonly link: (to: string) => React.ReactElement
 }): React.JSX.Element {
+  const appearance = useBundle().data?.focus_appearance
   const shown = lists.map(focusList)
   const offers = focusOffers(lists)
   const sortable = useSortableList({
@@ -79,17 +81,25 @@ export function FocusGroup({
               <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-auto min-w-40">
-              {offers.map((offer) => (
-                <DropdownMenuItem
-                  key={offer.key}
-                  onClick={() => {
-                    onChange([...lists, offer.key])
-                  }}
-                >
-                  <offer.icon strokeWidth={1.75} aria-hidden="true" />
-                  {offer.name}
-                </DropdownMenuItem>
-              ))}
+              {offers.map((offer) => {
+                const mark = focusMark(offer.key, appearance)
+                const Icon = mark.icon
+                return (
+                  <DropdownMenuItem
+                    key={offer.key}
+                    onClick={() => {
+                      onChange([...lists, offer.key])
+                    }}
+                  >
+                    <Icon
+                      strokeWidth={1.75}
+                      style={mark.color === undefined ? undefined : { color: mark.color }}
+                      aria-hidden="true"
+                    />
+                    {offer.name}
+                  </DropdownMenuItem>
+                )
+              })}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -100,6 +110,7 @@ export function FocusGroup({
             <FocusRow
               key={list.key}
               list={list}
+              mark={focusMark(list.key, appearance)}
               link={link}
               active={currentPath === list.path}
               itemRef={sortable.setItemRef(index)}
@@ -118,6 +129,7 @@ export function FocusGroup({
 
 function FocusRow({
   list,
+  mark,
   link,
   active,
   itemRef,
@@ -126,6 +138,7 @@ function FocusRow({
   onDrop,
 }: {
   readonly list: FocusList
+  readonly mark: FocusMark
   readonly link: (to: string) => React.ReactElement
   readonly active: boolean
   readonly itemRef: (element: HTMLElement | null) => void
@@ -151,7 +164,7 @@ function FocusRow({
           position: state.isActive ? 'relative' : undefined,
           pointerEvents: state.isActive ? 'none' : undefined,
         }
-  const Icon = list.icon
+  const Icon = mark.icon
   return (
     <SidebarMenuItem
       ref={itemRef}
@@ -170,7 +183,11 @@ function FocusRow({
         aria-current={active ? 'page' : undefined}
         className={ROW}
       >
-        <Icon strokeWidth={1.75} aria-hidden="true" />
+        <Icon
+          strokeWidth={1.75}
+          style={mark.color === undefined ? undefined : { color: mark.color }}
+          aria-hidden="true"
+        />
         <span className="min-w-0 flex-1 truncate">{list.name}</span>
       </SidebarMenuButton>
       <div
