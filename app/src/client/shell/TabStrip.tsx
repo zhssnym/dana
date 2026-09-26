@@ -12,11 +12,14 @@ old New folder / New shelf / New task menu.
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 
-import { useBundle, useFolders, useShelves } from '../api/queries.js'
-import { Plus, Search, X } from '../lib/icons.js'
+import { useBundle, useFolders, useShelves, useTask } from '../api/queries.js'
+import { CheckCircle2, FileText, Plus, Search, Settings, Trash2, X } from '../lib/icons.js'
+import type { LucideIcon } from '../lib/icons.js'
 import { SHORTCUTS_RESULT, useSearchAnswer, type SearchAnswer } from '../lib/search-items.js'
 import { useSortableList } from '../lib/use-sortable-list.js'
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover.js'
+import { HistoryArrows } from '../components/breadcrumb-trail.js'
+import { folderMark, shelfMark } from '../parts/presenters.js'
 import { navPages, paths } from '../routes.js'
 import { DEFAULT_FOCUS_LISTS } from '../../shared/bundle.js'
 import type { Folder } from '../../shared/folders.js'
@@ -44,6 +47,12 @@ interface OpenPlace {
   readonly hint: string
 }
 
+interface TabIdentity {
+  readonly title: string
+  readonly icon: LucideIcon
+  readonly color?: string
+}
+
 function titleFor(path: string, folders: readonly Folder[], shelves: readonly Shelf[]): string {
   const key = tabKey(path)
   const fixed = navPages.find((page) => page.path === key)
@@ -68,6 +77,82 @@ function titleFor(path: string, folders: readonly Folder[], shelves: readonly Sh
   if (key === paths.settings) return 'Settings'
   if (key === paths.trash) return 'Trash'
   return 'Dana'
+}
+
+/*
+One tab face, resolved from the metadata the rest of Dana already uses.
+
+Pages and collections go through the same identity resolvers as their sidebar
+rows, so a chosen mark and colour cannot drift here. Focus pages reuse their
+Focus metadata, and fixed pages reuse `navPages`. A Task's title is the only
+piece the tab store itself does not know, so the face reads that one Task while
+its tab is open; passing null keeps the hook inert for every other destination.
+*/
+function TabFace({
+  path,
+  folders,
+  shelves,
+  labelId,
+}: {
+  readonly path: string
+  readonly folders: readonly Folder[]
+  readonly shelves: readonly Shelf[]
+  readonly labelId: string
+}): React.JSX.Element {
+  const key = tabKey(path)
+  const taskId = key.startsWith('/app/tasks/') ? key.slice('/app/tasks/'.length) : null
+  const task = useTask(taskId)
+
+  let identity: TabIdentity
+  const fixed = navPages.find((page) => page.path === key)
+  if (fixed !== undefined) {
+    identity = { title: fixed.name, icon: fixed.icon }
+  } else if (key.startsWith('/app/lists/')) {
+    const listKey = key.slice('/app/lists/'.length)
+    if (isFocusKey(listKey)) {
+      const list = focusList(listKey)
+      identity = { title: list.name, icon: list.icon }
+    } else {
+      identity = { title: 'Dana', icon: FileText }
+    }
+  } else if (key.startsWith('/app/folders/')) {
+    const id = key.slice('/app/folders/'.length)
+    const folder = folders.find((candidate) => candidate.id === id)
+    const mark = folderMark(folder)
+    identity = { title: folder?.name ?? 'Page', icon: mark.icon, color: mark.color }
+  } else if (key.startsWith('/app/shelves/')) {
+    const id = key.slice('/app/shelves/'.length)
+    const shelf = shelves.find((candidate) => candidate.id === id)
+    if (shelf === undefined) {
+      identity = { title: 'Collection', icon: FileText }
+    } else {
+      const mark = shelfMark(shelf)
+      identity = { title: shelf.name, icon: mark.icon, color: mark.color }
+    }
+  } else if (taskId !== null) {
+    identity = { title: task.data?.title ?? 'Task', icon: CheckCircle2 }
+  } else if (key === paths.settings || key === paths.people) {
+    identity = { title: 'Settings', icon: Settings }
+  } else if (key === paths.trash) {
+    identity = { title: 'Trash', icon: Trash2 }
+  } else {
+    identity = { title: 'Dana', icon: FileText }
+  }
+
+  const Icon = identity.icon
+  return (
+    <>
+      <Icon
+        className="size-4 shrink-0"
+        strokeWidth={1.75}
+        style={identity.color === undefined ? undefined : { color: identity.color }}
+        aria-hidden="true"
+      />
+      <span id={labelId} className="min-w-0 flex-1 truncate">
+        {identity.title}
+      </span>
+    </>
+  )
 }
 
 function searchPlace(item: SearchItem): OpenPlace | null {
@@ -321,6 +406,12 @@ export function TabStrip() {
 
   return (
     <div className="hidden h-8 shrink-0 items-stretch border-b border-border bg-sidebar md:flex">
+      {/* Browser history belongs with the working-set navigation. The same
+          component is moved here intact, so its back/forward semantics do not
+          fork from the former window-bar placement. */}
+      <div className="flex shrink-0 items-center px-1">
+        <HistoryArrows />
+      </div>
       <div
         ref={tablist}
         role="tablist"
@@ -329,17 +420,17 @@ export function TabStrip() {
         style={{ scrollbarWidth: 'none' }}
       >
         {tabs.map((tab, index) => {
-          const title = titleFor(tab.path, folders, shelves)
           const active = tab.id === activeId
           const state = drag.itemState(index)
           const closable = !(tabs.length === 1 && tabKey(tab.path) === paths.today)
+          const labelId = `dana-workspace-tab-${tab.id}`
           return (
             <div
               key={tab.id}
               ref={drag.setItemRef(index)}
               role="tab"
               aria-selected={active}
-              aria-label={title}
+              aria-labelledby={labelId}
               tabIndex={active ? 0 : -1}
               data-sort-handle
               {...drag.surfaceProps(index, () => go(selectTab(tab.id)))}
@@ -397,13 +488,13 @@ export function TabStrip() {
                       zIndex: state.isActive ? 30 : undefined,
                     }),
               }}
-              className={`group/tab relative flex w-52 min-w-32 max-w-52 cursor-default items-center self-stretch px-3 pr-7 text-left text-sm transition-colors ${
+              className={`group/tab relative flex w-52 min-w-32 max-w-52 cursor-default items-center gap-2 self-stretch px-3 pr-7 text-left text-sm transition-colors ${
                 active
                   ? 'bg-background font-medium text-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               } ${state.isActive ? 'opacity-70 shadow-sm' : ''}`}
             >
-              <span className="min-w-0 flex-1 truncate">{title}</span>
+              <TabFace path={tab.path} folders={folders} shelves={shelves} labelId={labelId} />
               {closable ? (
                 <button
                   type="button"
