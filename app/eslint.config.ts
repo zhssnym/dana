@@ -31,7 +31,7 @@ sets the same rule replaces its options for the files it matches, so a block
 without it would silently lift the server-to-client wall for those files.
 */
 const BRICKS: ReadonlyArray<readonly [string, readonly string[]]> = [
-  ['kernel', ['fractional-index', 'document-hash', 'document-outline']],
+  ['kernel', ['fractional-index', 'document-hash', 'document-outline', 'document-body']],
   ['activity', ['events', 'mentions']],
   ['access', ['folder-access', 'responsibility', 'invites', 'connections']],
   ['files', ['files']],

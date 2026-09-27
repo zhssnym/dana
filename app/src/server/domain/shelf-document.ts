@@ -36,17 +36,15 @@ reader drops it exactly as the legacy screen does.
 */
 import { sql } from 'drizzle-orm'
 
-import type { DocumentOperation, DocumentTransaction } from '../../shared/pages.js'
+import type { DocumentTransaction } from '../../shared/pages.js'
 import { BLOCK_FILE_KINDS, isMediaKind } from '../../shared/page-document.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { documentHash, hashableBlocks } from './document-hash.js'
-import { nestingProblem } from './document-outline.js'
+import { applyFlatBody } from './document-body.js'
+import type { Refuse } from './document-body.js'
 import { readableFileScope } from './files.js'
 import { resolveScoped } from './folder-access.js'
-import { initialKeys } from './fractional-index.js'
-
-type BlockOp = Extract<DocumentOperation, { op: 'put_block' }>
 
 /** Why a Shelf document transaction was refused. `stale` is 7.16's 409,
  * `not_found` its 404, `invalid` the 422 the route addresses at `field`. */
@@ -79,6 +77,8 @@ export async function shelfDocumentMetadata(
     task_placements: [],
   }
 }
+
+const refuse: Refuse = (outcome, message, field) => new ShelfDocumentRefusal(outcome, message, field)
 
 export interface ShelfMutation {
   mutation_id: string
@@ -126,197 +126,63 @@ export async function applyShelfDocument(
     )
   }
 
-  const stored = await rowsOf(
+  await applyFlatBody(
     tx,
-    sql`SELECT id, kind, ref_folder_id FROM page_blocks
-         WHERE shelf_id = ${shelfId}::uuid FOR UPDATE`,
-  )
-  const original = new Set(stored.map((row) => String(row.id)))
-  const blocks = new Set(original)
-  const refOf = new Map(
-    stored.map((row) => [String(row.id), row.ref_folder_id == null ? null : String(row.ref_folder_id)]),
-  )
-  const writes = new Map<string, BlockOp>()
-  /* Every id the operations mention, audited against the rest of Dana below
-     whether or not it survives the merge -- the hole the adversarial review of
-     16ce81b found in the facet applier, closed here the same way. */
-  const named = new Set<string>()
-  let outline: { id: string; kind: 'block' | 'task'; section: string | null; listParent: string | null }[] = []
-
-  for (const op of body.operations) {
-    if (op.op === 'create_task') {
-      throw new ShelfDocumentRefusal('invalid', 'a Shelf holds no Tasks; create it in a Folder instead')
-    }
-    // Wave 2: sub-pages live in a Folder's Main document alone.
-    if (
-      op.op === 'create_page' ||
-      op.op === 'trash_page' ||
-      (op.op === 'put_block' && op.block_kind === 'page')
-    ) {
-      throw new ShelfDocumentRefusal('invalid', "A page block lives only on a folder's page.")
-    }
-    if (op.op === 'put_block' && op.block_kind === 'result') {
-      throw new ShelfDocumentRefusal('invalid', 'A Result lives on the Results tab.')
-    }
-    if (op.op === 'put_block') {
-      writes.set(op.id, {
-        ...op,
-        checked: op.block_kind === 'checklist' ? (op.checked ?? false) : null,
-        toggleable: op.toggleable === true ? true : null,
-      })
-      blocks.add(op.id)
-      named.add(op.id)
-      refOf.set(op.id, op.block_kind === 'folder_ref' ? op.ref_folder_id : null)
-      continue
-    }
-    if (op.op === 'delete_block') {
-      if (!blocks.delete(op.id)) throw new ShelfDocumentRefusal('not_found', 'Block not found.')
-      writes.delete(op.id)
-      named.add(op.id)
-      continue
-    }
-    outline = op.items.map((item) => ({
-      id: item.id,
-      kind: item.kind,
-      section: item.section_block_id,
-      listParent: item.list_parent_block_id,
-    }))
-  }
-
-  if (blocks.size > 500) {
-    throw new ShelfDocumentRefusal('invalid', 'A page holds at most 500 blocks.')
-  }
-
-  const seen = new Set<string>()
-  for (const item of outline) {
-    if (item.kind !== 'block' || !blocks.has(item.id) || seen.has(item.id)) {
-      throw new ShelfDocumentRefusal('invalid', 'The outline has unknown or repeated identities.')
-    }
-    if (item.section !== null) {
-      throw new ShelfDocumentRefusal('invalid', 'a Shelf document has no Section membership', 'section_block_id')
-    }
-    seen.add(item.id)
-  }
-  if (seen.size !== blocks.size) {
-    throw new ShelfDocumentRefusal('invalid', 'The outline must retain every undeleted block.')
-  }
-  // Block nesting (0038), the rule every document home shares.
-  const storedKinds = new Map(stored.map((row) => [String(row.id), String(row.kind)]))
-  const nesting = nestingProblem(
-    outline.map((item) => ({
-      kind: item.kind,
-      id: item.id,
-      section_block_id: null,
-      list_parent_block_id: item.listParent,
-    })),
-    (id) => (blocks.has(id) ? (writes.get(id)?.block_kind ?? storedKinds.get(id)) : undefined),
-  )
-  if (nesting !== null) {
-    throw new ShelfDocumentRefusal('invalid', nesting, 'list_parent_block_id')
-  }
-
-  // One placement per Folder row, asked of the final document.
-  const placed = new Map<string, number>()
-  for (const id of blocks) {
-    const ref = refOf.get(id)
-    if (ref != null) placed.set(ref, (placed.get(ref) ?? 0) + 1)
-  }
-
-  for (const write of writes.values()) {
-    /* A file: the scope a shelf page has always used (`fileScopeCondition`'s
-       shelf clause, 7.15's serving predicate), then #220's treatment rule. A
-       file elsewhere and a file that does not exist answer alike (10.2). */
-    if (write.file_id !== null) {
-      const files = await rowsOf(
-        tx,
-        sql`SELECT f.kind FROM files f
-             WHERE f.id = ${write.file_id}::uuid AND ${readableFileScope(viewerId)}`,
-      )
-      const file = files[0]
-      if (file === undefined) throw new ShelfDocumentRefusal('invalid', 'must name a file you can reach', 'file_id')
-      if (
-        isMediaKind(write.block_kind) &&
-        !(BLOCK_FILE_KINDS[write.block_kind] as readonly string[]).includes(String(file.kind))
-      ) {
-        throw new ShelfDocumentRefusal(
-          'invalid',
-          `This ${write.block_kind} block names a file uploaded as ${String(file.kind)}. Upload it again as the kind you mean to insert.`,
-          'file_id',
+    {
+      home: 'shelf',
+      scope: { column: 'shelf_id', id: shelfId },
+      refuse,
+      noTasks: 'a Shelf holds no Tasks; create it in a Folder instead',
+      foreignId: 'An inserted identity already exists.',
+      audit: async ({ stored, blocks, writes }) => {
+        // One placement per Folder row, asked of the final document.
+        const storedRef = new Map(
+          stored.map((row) => [String(row.id), row.ref_folder_id == null ? null : String(row.ref_folder_id)]),
         )
-      }
-    }
-    if (write.ref_folder_id !== null) {
-      const onShelf = await resolveScoped(tx, 'folder', write.ref_folder_id, viewerId, {
-        where: sql`m.shelf_name = ${shelfName}`,
-      })
-      if (onShelf === null) {
-        throw new ShelfDocumentRefusal('invalid', 'must name a Folder on this Shelf', 'ref_folder_id')
-      }
-      if ((placed.get(write.ref_folder_id) ?? 0) > 1) {
-        throw new ShelfDocumentRefusal('invalid', 'a Folder is placed on a Shelf once', 'ref_folder_id')
-      }
-    }
-  }
-
-  // Ids are one space across page_blocks and tasks (7.16's applier's rule).
-  const foreign = [...named].filter((id) => !original.has(id))
-  if (foreign.length > 0) {
-    const ids = sql.join(foreign.map((id) => sql`${id}::uuid`), sql`, `)
-    const clashes = await rowsOf(
-      tx,
-      sql`SELECT id FROM page_blocks WHERE id IN (${ids})
-          UNION ALL
-          SELECT id FROM tasks WHERE id IN (${ids})`,
-    )
-    if (clashes.length > 0) {
-      throw new ShelfDocumentRefusal('invalid', 'An inserted identity already exists.')
-    }
-  }
-
-  // Writes. Every statement carries `shelf_id`, belt and braces over the merge.
-  for (const id of original) {
-    if (!blocks.has(id)) {
-      await tx.execute(sql`DELETE FROM page_blocks WHERE id = ${id}::uuid AND shelf_id = ${shelfId}::uuid`)
-    }
-  }
-  for (const write of writes.values()) {
-    const rich = write.rich_content === null ? null : JSON.stringify(write.rich_content)
-    if (original.has(write.id)) {
-      await tx.execute(
-        sql`UPDATE page_blocks
-               SET kind = ${write.block_kind}, text = ${write.text},
-                   rich_content = ${rich}::jsonb, file_id = ${write.file_id}::uuid,
-                   ref_folder_id = ${write.ref_folder_id}::uuid, width_pct = ${write.width_pct},
-                   checked = ${write.checked}, toggleable = ${write.toggleable},
-                   list_parent_block_id = CASE WHEN ${write.block_kind} <> 'section'
-                     THEN list_parent_block_id END,
-                   file_reclaimed_at = CASE
-                     WHEN ${write.file_id}::uuid IS NULL AND kind = ${write.block_kind}
-                     THEN file_reclaimed_at END,
-                   updated_at = now()
-             WHERE id = ${write.id}::uuid AND shelf_id = ${shelfId}::uuid`,
-      )
-    } else {
-      await tx.execute(
-        sql`INSERT INTO page_blocks
-              (id, shelf_id, kind, position, text, rich_content, file_id, ref_folder_id, width_pct, checked, toggleable)
-            VALUES (${write.id}::uuid, ${shelfId}::uuid, ${write.block_kind}, 0, ${write.text},
-                    ${rich}::jsonb, ${write.file_id}::uuid, ${write.ref_folder_id}::uuid,
-                    ${write.width_pct}, ${write.checked}, ${write.toggleable})`,
-      )
-    }
-  }
-  // `position` is rewritten with the key so the legacy reader, which orders
-  // by it, keeps agreeing with the document.
-  const keys = initialKeys(outline.length)
-  for (const [index, item] of outline.entries()) {
-    await tx.execute(
-      sql`UPDATE page_blocks SET page_position = ${keys[index] as string}, position = ${index},
-                                 list_parent_block_id = ${item.listParent}::uuid
-           WHERE id = ${item.id}::uuid AND shelf_id = ${shelfId}::uuid`,
-    )
-  }
-
+        const placed = new Map<string, number>()
+        for (const id of blocks) {
+          const write = writes.get(id)
+          const ref =
+            write === undefined ? storedRef.get(id) : write.block_kind === 'folder_ref' ? write.ref_folder_id : null
+          if (ref != null) placed.set(ref, (placed.get(ref) ?? 0) + 1)
+        }
+        for (const write of writes.values()) {
+          /* A file: the scope a shelf page has always used (`fileScopeCondition`'s
+             shelf clause, 7.15's serving predicate), then #220's treatment rule. A
+             file elsewhere and a file that does not exist answer alike (10.2). */
+          if (write.file_id !== null) {
+            const files = await rowsOf(
+              tx,
+              sql`SELECT f.kind FROM files f
+                   WHERE f.id = ${write.file_id}::uuid AND ${readableFileScope(viewerId)}`,
+            )
+            const file = files[0]
+            if (file === undefined) throw refuse('invalid', 'must name a file you can reach', 'file_id')
+            if (
+              isMediaKind(write.block_kind) &&
+              !(BLOCK_FILE_KINDS[write.block_kind] as readonly string[]).includes(String(file.kind))
+            ) {
+              throw refuse(
+                'invalid',
+                `This ${write.block_kind} block names a file uploaded as ${String(file.kind)}. Upload it again as the kind you mean to insert.`,
+                'file_id',
+              )
+            }
+          }
+          if (write.ref_folder_id !== null) {
+            const onShelf = await resolveScoped(tx, 'folder', write.ref_folder_id, viewerId, {
+              where: sql`m.shelf_name = ${shelfName}`,
+            })
+            if (onShelf === null) throw refuse('invalid', 'must name a Folder on this Shelf', 'ref_folder_id')
+            if ((placed.get(write.ref_folder_id) ?? 0) > 1) {
+              throw refuse('invalid', 'a Folder is placed on a Shelf once', 'ref_folder_id')
+            }
+          }
+        }
+      },
+    },
+    body.operations,
+  )
   const committed = await shelfDocumentMetadata(tx, shelfId)
   await tx.execute(
     sql`INSERT INTO shelf_document_receipts (shelf_id, mutation_id, payload_hash, committed_revision)
