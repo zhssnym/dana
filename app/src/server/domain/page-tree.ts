@@ -30,7 +30,7 @@ import type { FolderCrumb } from '../../shared/folders.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
-import { folderActorFacts, mayPerform, visibleFolder } from './folder-access.js'
+import { folderActorFacts, mayPerform, presetOf, recordAccessTransition, visibleFolder } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import { keyBetween } from './fractional-index.js'
 import { seededItems } from './page-order.js'
@@ -246,12 +246,9 @@ export async function moveFolder(
   if (parentId === null) {
     /* Step 7: a sub-page moved to the top level becomes a project of its
        own, and `folders_parent_same_project_fkey`'s ON UPDATE CASCADE
-       carries its sub-pages into it. */
-    await tx.execute(
-      sql`UPDATE folders SET parent_folder_id = NULL, child_position = NULL,
-                             project_id = id, tab_position = 'a0'
-           WHERE id = ${folderId}::uuid`,
-    )
+       carries its sub-pages into it. Step 8: it keeps its people, the old
+       project's, each recorded as added by the mover. */
+    await promoteToProjects(tx, [{ id: folderId, projectId }], actorId)
     await removeHomeBlock(tx, folderId)
     await recordMove(tx, actorId, page)
     return { kind: 'moved' }
@@ -318,6 +315,7 @@ export async function moveFolder(
     const upper = keys.slice(index + 1).find((key) => lower === null || key > lower)
     position = keyBetween(lower, upper ?? null)
   }
+  if (targetProject !== projectId) await leaveProject(tx, folderId, targetProject, isRoot)
   /* Step 7: the page joins the parent's project; ON UPDATE CASCADE carries
      its sub-pages. A project root becoming a sub-page stops being a tab,
      and an unpicked one becomes a Doc. */
@@ -329,12 +327,53 @@ export async function moveFolder(
                            kind = COALESCE(kind, 'doc')
          WHERE id = ${folderId}::uuid`,
   )
+  if (targetProject !== projectId) {
+    /* Step 8: a project root that became a sub-page holds no people of its
+       own now, and every page of the project has the project's owner. */
+    if (isRoot) await tx.execute(sql`DELETE FROM folder_members WHERE folder_id = ${folderId}::uuid`)
+    await tx.execute(
+      sql`UPDATE folders f SET owner_id = p.owner_id FROM folders p
+           WHERE p.id = ${targetProject}::uuid AND f.project_id = p.id AND f.owner_id <> p.owner_id`,
+    )
+  }
   if (oldParent !== parentId) {
     await removeHomeBlock(tx, folderId)
     await appendHomeBlock(tx, parentId, folderId)
   }
   await recordMove(tx, actorId, page)
   return { kind: 'moved' }
+}
+
+/**
+ * Step 8, before `folderId` and its sub-pages move into `targetProject`:
+ * people belong to the project, so a task there may only be assigned to one
+ * of its members. A task assigned to anyone else is unassigned (the
+ * assignee no longer sees it). A project root that moves also leaves its
+ * pending invites behind: accepting one would join the other project.
+ */
+async function leaveProject(
+  tx: Executor,
+  folderId: string,
+  targetProject: string,
+  isRoot: boolean,
+): Promise<void> {
+  await tx.execute(
+    sql`WITH RECURSIVE sub(id) AS (
+          SELECT ${folderId}::uuid
+          UNION ALL
+          SELECT f.id FROM folders f JOIN sub ON f.parent_folder_id = sub.id
+        )
+        UPDATE tasks t SET assignee_id = NULL, updated_at = now()
+         WHERE t.folder_id IN (SELECT id FROM sub) AND t.assignee_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM folder_members m
+                            WHERE m.folder_id = ${targetProject}::uuid AND m.user_id = t.assignee_id)`,
+  )
+  if (isRoot) {
+    await tx.execute(
+      sql`UPDATE invites SET status = 'invalidated', responded_at = now()
+           WHERE folder_id = ${folderId}::uuid AND status = 'pending'`,
+    )
+  }
 }
 
 /**
@@ -579,7 +618,8 @@ export async function trashPageSubtree(
     const id = String(row.id)
     const members = await rowsOf(
       tx,
-      sql`SELECT user_id FROM folder_members WHERE folder_id = ${id}::uuid`,
+      sql`SELECT m.user_id FROM folders f JOIN folder_members m ON m.folder_id = f.project_id
+           WHERE f.id = ${id}::uuid`,
     )
     await recordEvent(tx, {
       actorId,
@@ -683,18 +723,93 @@ export async function destroyableTrashedWith(
  * but would be taken by `folders_project_id_fkey`'s cascade -- a sub-page
  * whose parent goes, a tab of a project whose root goes -- becomes a project
  * of its own, with its sub-pages (ON UPDATE CASCADE). That is what a purged
- * parent always did to a surviving child: it became a root. Until step 8 a
- * page's people may differ from its project's, so such survivors exist.
+ * parent always did to a surviving child: it became a root. Such a
+ * survivor was trashed or kept apart from the pages destroyed; step 8 has it
+ * keep the people who saw it (`promoteToProjects`).
  */
 export async function releaseSurvivors(tx: Executor, ids: readonly string[]): Promise<void> {
   if (ids.length === 0) return
   const list = sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)
+  const released = await rowsOf(
+    tx,
+    sql`SELECT id, project_id FROM folders
+         WHERE id NOT IN (${list})
+           AND (parent_folder_id IN (${list})
+                OR (parent_folder_id IS NULL AND id <> project_id AND project_id IN (${list})))
+         FOR UPDATE`,
+  )
+  await promoteToProjects(
+    tx,
+    released.map((row) => ({ id: String(row.id), projectId: String(row.project_id) })),
+    null,
+  )
+}
+
+/**
+ * Step 8: each page becomes a project of its own with its sub-pages (ON
+ * UPDATE CASCADE carries them and their tasks), and keeps the people who saw
+ * it: its old project's members, with their presets, on its new root. With
+ * `actorId`, each copied membership is recorded as `member_added` by them;
+ * without, the caller's act (a purge) is the record.
+ *
+ * The assignee foreign key is checked per statement against the task's
+ * project, and the new project has no people until the rows are copied onto
+ * the new root, which only a root may hold. So the old projects' assignments
+ * are held aside for the two statements and put back unchanged.
+ */
+export async function promoteToProjects(
+  tx: Executor,
+  pages: readonly { id: string; projectId: string }[],
+  actorId: string | null,
+): Promise<void> {
+  if (pages.length === 0) return
+  const projects = [...new Set(pages.map((page) => page.projectId))]
+  const held = await rowsOf(
+    tx,
+    sql`WITH old AS (
+          SELECT id, assignee_id FROM tasks
+           WHERE assignee_id IS NOT NULL
+             AND project_id IN (${sql.join(projects.map((id) => sql`${id}::uuid`), sql`, `)})
+           FOR UPDATE
+        )
+        UPDATE tasks t SET assignee_id = NULL FROM old WHERE t.id = old.id
+        RETURNING old.id, old.assignee_id`,
+  )
   await tx.execute(
     sql`UPDATE folders
            SET parent_folder_id = NULL, child_position = NULL,
-               project_id = id, tab_position = 'a0', kind = COALESCE(kind, 'doc')
-         WHERE id NOT IN (${list})
-           AND (parent_folder_id IN (${list})
-                OR (parent_folder_id IS NULL AND id <> project_id AND project_id IN (${list})))`,
+               project_id = id, tab_position = COALESCE(tab_position, 'a0'), kind = COALESCE(kind, 'doc')
+         WHERE id IN (${sql.join(pages.map((page) => sql`${page.id}::uuid`), sql`, `)})`,
   )
+  for (const page of pages) {
+    const copied = await rowsOf(
+      tx,
+      sql`INSERT INTO folder_members (folder_id, user_id, access, can_edit_own_responsibilities, created_at)
+          SELECT ${page.id}::uuid, m.user_id, m.access, m.can_edit_own_responsibilities, m.created_at
+            FROM folder_members m WHERE m.folder_id = ${page.projectId}::uuid
+          ON CONFLICT DO NOTHING
+          RETURNING user_id, access`,
+    )
+    if (actorId === null) continue
+    for (const row of copied) {
+      const access = presetOf(row.access)
+      if (access === null) throw new Error(`folder_members.access holds an unknown preset in ${page.projectId}`)
+      await recordAccessTransition(tx, {
+        folderId: page.id,
+        memberId: String(row.user_id),
+        previousAccess: null,
+        newAccess: access,
+        actorId,
+        transition: 'member_added',
+      })
+    }
+  }
+  if (held.length > 0) {
+    const back = JSON.stringify(held.map((row) => ({ t: String(row.id), a: String(row.assignee_id) })))
+    await tx.execute(
+      sql`UPDATE tasks t SET assignee_id = (h->>'a')::uuid
+            FROM jsonb_array_elements(${back}::jsonb) AS h
+           WHERE t.id = (h->>'t')::uuid`,
+    )
+  }
 }

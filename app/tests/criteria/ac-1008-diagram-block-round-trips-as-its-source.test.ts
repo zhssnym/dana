@@ -85,7 +85,7 @@ describe('AC-1008 a diagram round-trips as its source', () => {
       'the usual project: Purpose, Work, Results and Discussion',
     )
     const purposeOf = async (id: string): Promise<string> => {
-      const listed = await owner.browser.json('/folders', 'GET')
+      const listed = await owner.browser.json('/folders?tabs=1', 'GET')
       expectStatus(listed, 200, 'the owner lists the folders (7.4)')
       const all = listed.json() as { id: string; project_id: string; kind: string | null; tab_position: string | null }[]
       const root = all.find((f) => f.id === id)

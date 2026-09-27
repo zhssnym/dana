@@ -1,13 +1,11 @@
 /*
-AC-1523: until members move to the project (step 8), a project's other tabs
-have exactly its root's people. Adding someone to the root adds them to every
-tab, lowering their preset on the root lowers it on every tab, and removing
-them from the root removes them from every tab, so they get 404 on the
-Purpose tab they could read before (spec 4.3, 5.3). A membership or invite
-write aimed at a tab alone is refused (422), so the next write on the root
-cannot quietly undo it. When the owner's account is deleted, every tab
-follows the root's heir (8.10 step 2's automatic transfer), so no Can view
-member inherits a tab and with it owner recovery (8.9). Asserted on the stored rows and on the read.
+AC-1523: people belong to the project (step 8, spec 4.4, 7.4). A membership
+act named on any page of a project -- a tab or a sub-page -- acts on the
+project: an add, a preset change, a removal and an invite are stored on the
+project root, and no page but the root holds a membership row. When the
+owner's account is deleted, every page of a shared project follows the
+project's heir (8.10 step 2's automatic transfer). Asserted on the stored
+rows.
 */
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
@@ -33,99 +31,63 @@ afterAll(async () => {
   await app.close()
 })
 
-/** The member's preset on each tab of the project, root first, in tab order. */
-async function presets(projectId: string, userId: string): Promise<unknown[]> {
+/** Every membership row of the project's pages, as [folder, user, access]. */
+async function stored(projectId: string): Promise<unknown[]> {
   const found = await rows(app.db, sql`
-    SELECT t.name, m.access FROM folders t
-      LEFT JOIN folder_members m ON m.folder_id = t.id AND m.user_id = ${userId}::uuid
-     WHERE t.project_id = ${projectId}::uuid AND t.tab_position IS NOT NULL
-     ORDER BY t.tab_position, t.id`)
-  return found.map((row) => [row.name, row.access])
+    SELECT m.folder_id, m.user_id, m.access FROM folder_members m
+      JOIN folders f ON f.id = m.folder_id
+     WHERE f.project_id = ${projectId}::uuid
+     ORDER BY m.folder_id, m.user_id`)
+  return found.map((row) => [row.folder_id, row.user_id, row.access])
 }
 
 describe("AC-1523 a project's tabs have its people", () => {
-  test('AC-1523: add, lower and remove on the root reach every tab', async () => {
-    const [owner, member] = (await cast.of(app)) as [Actor, Actor]
-    const made = await owner.browser.json('/folders', 'POST', { name: 'ac1523 trip', kind: null })
-    expectStatus(made, 201, 'an unpicked project')
-    const project = (made.json() as { id: string }).id
-    expectStatus(await owner.browser.json(`/folders/${project}/tabs`, 'POST', { kind: 'usual' }), 201, 'the usual project')
-    const purpose = String((await rows(app.db, sql`
-      SELECT id FROM folders WHERE project_id = ${project}::uuid AND name = 'Purpose'`))[0]?.id)
-
-    await connect(app.db, owner.id, member.id)
-    await addMemberOk(owner, project, member.id, 'can_edit')
-    expect(await presets(project, member.id)).toEqual([
-      ['Purpose', 'can_edit'], ['ac1523 trip', 'can_edit'], ['Results', 'can_edit'], ['Discussion', 'can_edit'],
-    ])
-    expectStatus(await member.browser.json(`/folders/${purpose}/page`, 'GET'), 200, 'a member reads Purpose')
-
-    expectStatus(
-      await owner.browser.json(`/folders/${project}/members/${member.id}`, 'PATCH', { access: 'can_view' }),
-      200,
-      'lowered on the root',
-    )
-    expect(await presets(project, member.id)).toEqual([
-      ['Purpose', 'can_view'], ['ac1523 trip', 'can_view'], ['Results', 'can_view'], ['Discussion', 'can_view'],
-    ])
-
-    expectStatus(await removeMember(owner, project, member.id), 204, 'removed from the root')
-    expect(await presets(project, member.id)).toEqual([
-      ['Purpose', null], ['ac1523 trip', null], ['Results', null], ['Discussion', null],
-    ])
-    expectStatus(await member.browser.json(`/folders/${purpose}/page`, 'GET'), 404, 'Purpose is gone with the project')
-    // The owner kept every tab.
-    expect(await presets(project, owner.id)).toEqual([
-      ['Purpose', 'full_control'], ['ac1523 trip', 'full_control'], ['Results', 'full_control'],
-      ['Discussion', 'full_control'],
-    ])
-  }, 60_000)
-
-  test('AC-1523: a tab alone takes no membership write, and a root write leaves the tabs as the root', async () => {
+  test('AC-1523: an add, a preset change, a removal and an invite named on a tab or a sub-page land on the project', async () => {
     const [owner, member, third] = (await cast.of(app)) as [Actor, Actor, Actor]
-    const made = await owner.browser.json('/folders', 'POST', { name: 'ac1523 tab refusal', kind: null })
+    const made = await owner.browser.json('/folders', 'POST', { name: 'ac1523 trip', kind: null })
     expectStatus(made, 201, 'an unpicked project')
     const project = (made.json() as { id: string }).id
     expectStatus(await owner.browser.json(`/folders/${project}/tabs`, 'POST', { kind: 'usual' }), 201, 'the usual project')
     const results = String((await rows(app.db, sql`
       SELECT id FROM folders WHERE project_id = ${project}::uuid AND name = 'Results'`))[0]?.id)
+    const sub = await owner.browser.json('/folders', 'POST', { name: 'ac1523 sub', parent_folder_id: results })
+    expectStatus(sub, 201, 'a sub-page under Results')
+    const subId = (sub.json() as { id: string }).id
     await connect(app.db, owner.id, member.id)
     await connect(app.db, owner.id, third.id)
-    await addMemberOk(owner, project, member.id, 'can_edit')
+
+    await addMemberOk(owner, results, member.id, 'can_edit')
+    await addMemberOk(owner, subId, third.id, 'can_view')
+    expect(await stored(project)).toEqual([
+      [project, owner.id, 'full_control'], [project, member.id, 'can_edit'], [project, third.id, 'can_view'],
+    ].sort((x, y) => String(x[1]).localeCompare(String(y[1]))))
 
     expectStatus(
-      await owner.browser.json(`/folders/${results}/members`, 'POST', { user_id: third.id, access: 'can_view' }),
-      422,
-      'no add to a tab alone',
+      await owner.browser.json(`/folders/${subId}/members/${member.id}`, 'PATCH', { access: 'can_comment' }),
+      200,
+      'lowered from the sub-page',
     )
-    expect((await rows(app.db, sql`
-      SELECT user_id FROM folder_members WHERE folder_id = ${results}::uuid AND user_id = ${third.id}::uuid`)).length).toBe(0)
-    expectStatus(await removeMember(owner, results, member.id), 422, 'no removal from a tab alone')
-    expectStatus(
-      await owner.browser.json(`/folders/${results}/members/${member.id}`, 'PATCH', { access: 'can_view' }),
-      422,
-      'no preset change on a tab alone',
-    )
-    expectStatus(await member.browser.json(`/folders/${results}/my-membership`, 'DELETE'), 422, 'no leaving a tab alone')
+    expect(await rows(app.db, sql`SELECT access FROM folder_members
+      WHERE folder_id = ${project}::uuid AND user_id = ${member.id}::uuid`)).toEqual([{ access: 'can_comment' }])
+
+    expectStatus(await removeMember(owner, results, third.id), 204, 'removed from the Results tab')
+    expect(await rows(app.db, sql`SELECT user_id FROM folder_members m JOIN folders f ON f.id = m.folder_id
+      WHERE f.project_id = ${project}::uuid AND m.user_id = ${third.id}::uuid`)).toEqual([])
+
     const invited = await owner.browser.json('/invites', 'POST', {
       email: 'ac1523-tab-invite@example.test',
-      folder_id: results,
+      folder_id: subId,
       access: 'can_view',
     })
-    expectStatus(invited, 422, 'no invite to a tab alone')
-    expect((await rows(app.db, sql`SELECT id FROM invites WHERE folder_id = ${results}::uuid`)).length).toBe(0)
-
-    await addMemberOk(owner, project, third.id, 'can_view')
-    expect(await presets(project, member.id)).toEqual([
-      ['Purpose', 'can_edit'], ['ac1523 tab refusal', 'can_edit'], ['Results', 'can_edit'], ['Discussion', 'can_edit'],
-    ])
-    expect(await presets(project, third.id)).toEqual([
-      ['Purpose', 'can_view'], ['ac1523 tab refusal', 'can_view'], ['Results', 'can_view'], ['Discussion', 'can_view'],
-    ])
-    expectStatus(await member.browser.json(`/folders/${results}/page`, 'GET'), 200, 'the member still reads Results')
+    expectStatus(invited, 201, 'an invite from the sub-page')
+    expect(await rows(app.db, sql`SELECT folder_id FROM invites
+      WHERE email = 'ac1523-tab-invite@example.test' AND status = 'pending'`)).toEqual([{ folder_id: project }])
+    expectStatus(await member.browser.json(`/folders/${subId}/my-membership`, 'DELETE'), 204, 'leaving from the sub-page')
+    expect(await rows(app.db, sql`SELECT user_id FROM folder_members
+      WHERE folder_id = ${project}::uuid AND user_id = ${member.id}::uuid`)).toEqual([])
   }, 60_000)
 
-  test("AC-1523: a removed owner's tabs follow the root's heir, not their own earliest member", async () => {
+  test("AC-1523: a removed owner's pages all follow the project's heir", async () => {
     const [, , , leaver, heir, viewer] = (await cast.of(app)) as [Actor, Actor, Actor, Actor, Actor, Actor]
     const made = await leaver.browser.json('/folders', 'POST', { name: 'ac1523 heir', kind: null })
     expectStatus(made, 201, 'an unpicked project')
@@ -135,11 +97,8 @@ describe("AC-1523 a project's tabs have its people", () => {
     await connect(app.db, leaver.id, viewer.id)
     await addMemberOk(leaver, project, heir.id, 'full_control')
     await addMemberOk(leaver, project, viewer.id, 'can_view')
-    // A tab whose rows order differently from the root's (as rows copied
-    // without their join time did): the viewer looks earliest there.
-    await app.db.execute(sql`UPDATE folder_members SET created_at = now() - interval '1 day'
-      WHERE user_id = ${viewer.id}::uuid
-        AND folder_id IN (SELECT id FROM folders WHERE project_id = ${project}::uuid AND id <> ${project}::uuid)`)
+    const sub = await leaver.browser.json('/folders', 'POST', { name: 'ac1523 heir sub', parent_folder_id: project })
+    expectStatus(sub, 201, 'a sub-page')
 
     // 8.10 step 2's automatic transfer: the interactive DELETE /me refuses a
     // shared project first, so this is the forced-removal path it keeps.

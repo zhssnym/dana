@@ -576,12 +576,23 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'tasks_title_length_check', columns: ['title'] },
     ],
     foreignKeys: [
+      /* Migration 0062 (step 8): people belong to the project, so the
+         assignee is a member of the task's project (replacing 0000's
+         tasks_assignee_membership_fkey on the folder), and project_id is the
+         folder's, carried by ON UPDATE CASCADE (not recorded here) when a
+         page moves to another project. */
       {
-        name: 'tasks_assignee_membership_fkey',
-        columns: ['folder_id', 'assignee_id'],
+        name: 'tasks_assignee_project_member_fkey',
+        columns: ['project_id', 'assignee_id'],
         references: { table: 'folder_members', columns: ['folder_id', 'user_id'] },
         onDelete: 'set null',
         onDeleteSetColumns: ['assignee_id'],
+      },
+      {
+        name: 'tasks_folder_project_fkey',
+        columns: ['folder_id', 'project_id'],
+        references: { table: 'folders', columns: ['id', 'project_id'] },
+        onDelete: 'cascade',
       },
       {
         name: 'tasks_completed_by_fkey',
@@ -646,6 +657,13 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         name: 'tasks_folder_page_position_idx',
         unique: false,
         columns: ['folder_id', 'page_position', 'id'],
+        partial: false,
+      },
+      /* Migration 0062: a project's tasks by assignee. */
+      {
+        name: 'tasks_project_assignee_idx',
+        unique: false,
+        columns: ['project_id', 'assignee_id'],
         partial: false,
       },
       { name: 'tasks_deleted_at_idx', unique: false, columns: ['deleted_at'], partial: true },
@@ -1408,7 +1426,7 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       /* Migration 0057 (#213): a native Result lives only in a facet
          document, at most 4000 characters. `page_blocks_kind_check` and
          `page_blocks_rich_content_check` gained `result` in place. */
-      { name: 'page_blocks_result_home_check', columns: ['facet_id', 'kind', 'text'] },
+      { name: 'page_blocks_result_home_check', columns: ['folder_id', 'kind', 'text'] },
     ],
     foreignKeys: [
       /* Migration 0027 (#210): the third home. CASCADE because a facet's

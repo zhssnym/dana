@@ -88,7 +88,6 @@ describe('AC-875 the Results document and link refuse a stranger', () => {
       Actor,
       Actor,
     ]
-    // The viewer joins first: until step 8 a new tab copies the root's people.
     const made = await owner.browser.json('/folders', 'POST', { name: 'ac875 outcomes', kind: null })
     expectStatus(made, 201, 'an unpicked project (7.4)')
     const folderId = (made.json() as { id: string }).id

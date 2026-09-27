@@ -402,10 +402,10 @@ export async function exportForViewer(
                f.cover_file_id, f.cover_preset, f.cover_focal_y,
                f.created_at, f.deleted_at, f.parent_folder_id,
                f.project_id, f.kind, f.tab_position,
-               m.shelf_name AS my_shelf, m.color AS my_color
+               CASE WHEN f.id = f.project_id THEN m.shelf_name END AS my_shelf, m.color AS my_color
         FROM folders f
         LEFT JOIN folder_members m
-          ON m.folder_id = f.id AND m.user_id = ${viewerId}
+          ON m.folder_id = f.project_id AND m.user_id = ${viewerId}
         WHERE f.owner_id = ${viewerId}
         ORDER BY f.created_at ASC, f.id ASC
         LIMIT ${FETCH}`,
@@ -416,12 +416,13 @@ export async function exportForViewer(
   const memberRows = await rowsOf(
     db,
     cappedPerParent(
-      sql`fm.folder_id, u.display_name`,
-      sql`FROM folder_members fm
-          JOIN folders f ON f.id = fm.folder_id AND f.owner_id = ${viewerId}
+      /* Step 8: a page's people are its project's. */
+      sql`f.id AS folder_id, u.display_name`,
+      sql`FROM folders f
+          JOIN folder_members fm ON fm.folder_id = f.project_id
           JOIN users u ON u.id = fm.user_id
-          WHERE fm.folder_id IN ${idSet(folderIds)}`,
-      sql`fm.folder_id`,
+          WHERE f.owner_id = ${viewerId} AND f.id IN ${idSet(folderIds)}`,
+      sql`f.id`,
       sql`fm.created_at ASC, fm.user_id ASC`,
     ),
   )
@@ -476,7 +477,7 @@ export async function exportForViewer(
     sql`SELECT ${TASK_COLUMNS}, f.name AS folder_name
         FROM tasks t
         JOIN folder_members m
-          ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
+          ON m.folder_id = t.project_id AND m.user_id = ${viewerId}
         JOIN folders f ON f.id = t.folder_id AND f.deleted_at IS NULL
         ${TASK_JOINS}
         WHERE f.owner_id <> ${viewerId}
@@ -521,7 +522,7 @@ export async function exportForViewer(
           JOIN tasks t ON t.id = s.task_id
           JOIN folders f ON f.id = t.folder_id
           LEFT JOIN folder_members m
-            ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
+            ON m.folder_id = t.project_id AND m.user_id = ${viewerId}
           WHERE s.task_id IN ${idSet(cappedTaskIds)} AND s.kind = 'checklist'
             AND (f.owner_id = ${viewerId}
                  OR (m.user_id IS NOT NULL
@@ -547,7 +548,7 @@ export async function exportForViewer(
           JOIN tasks t ON t.id = b.task_id
           JOIN folders f ON f.id = t.folder_id
           LEFT JOIN folder_members m
-            ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
+            ON m.folder_id = t.project_id AND m.user_id = ${viewerId}
           WHERE b.task_id IN ${idSet(cappedTaskIds)}
             AND (f.owner_id = ${viewerId}
                  OR (m.user_id IS NOT NULL
@@ -651,7 +652,7 @@ export async function exportForViewer(
   const exportedTaskScope = sql`JOIN tasks t ON t.id = tfl.task_id
       JOIN folders f ON f.id = t.folder_id
       LEFT JOIN folder_members m
-        ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
+        ON m.folder_id = t.project_id AND m.user_id = ${viewerId}
      WHERE tfl.task_id IN ${idSet(cappedTaskIds)}
        AND (f.owner_id = ${viewerId}
             OR (m.user_id IS NOT NULL

@@ -55,7 +55,6 @@ async function usualProject(owner: Actor, name: string): Promise<string> {
 describe('AC-1015 a dragged tab lands where it was dropped', () => {
   test('AC-1015: a tab moves along its row, the same row for every member', async () => {
     const [owner, member] = (await cast.of(app)) as [Actor, Actor]
-    // The member joins first: until step 8 a new tab copies the root's people.
     const made = await owner.browser.json('/folders', 'POST', { name: 'ac1015 tabs', kind: null })
     expectStatus(made, 201, 'an unpicked project (7.4)')
     const project = (made.json() as { id: string }).id

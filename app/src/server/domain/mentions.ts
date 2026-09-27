@@ -165,7 +165,8 @@ export async function syncMentions(tx: Executor, input: MentionSource): Promise<
       await rowsOf(
         tx,
         sql`SELECT user_id FROM folder_members
-             WHERE folder_id = ${input.pageFolderId}::uuid AND user_id IN (${list})`,
+             WHERE folder_id = (SELECT project_id FROM folders WHERE id = ${input.pageFolderId}::uuid)
+               AND user_id IN (${list})`,
       )
     ).map((row) => String(row.user_id)),
   )

@@ -288,7 +288,9 @@ async function folderMemberIds(
 ): Promise<string[]> {
   const found = await rowsOf(
     executor,
-    sql`SELECT user_id FROM folder_members WHERE folder_id = ${folderId}
+    // Step 8: a task's people are its project's.
+    sql`SELECT user_id FROM folder_members
+         WHERE folder_id = (SELECT project_id FROM folders WHERE id = ${folderId}::uuid)
         ORDER BY user_id`,
   )
   return found.map((row) => String(row.user_id))

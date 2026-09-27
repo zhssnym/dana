@@ -62,8 +62,9 @@ describe('AC-1526 a page added inside Work', () => {
     expect(
       await rows(app.db, sql`SELECT count(*)::int AS n FROM page_blocks WHERE folder_id = ${project}::uuid AND kind = 'page'`),
     ).toEqual([{ n: 0 }])
+    // Step 8: the Pages tab's people are the project's; it stores none.
     expect(
       await rows(app.db, sql`SELECT user_id, access FROM folder_members WHERE folder_id = ${pages}::uuid ORDER BY user_id`),
-    ).toEqual(await rows(app.db, sql`SELECT user_id, access FROM folder_members WHERE folder_id = ${project}::uuid ORDER BY user_id`))
+    ).toEqual([])
   }, 60_000)
 })

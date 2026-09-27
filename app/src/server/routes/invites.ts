@@ -40,7 +40,7 @@ import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { createSecurityLogger } from '../security/log.js'
 import type { SecurityLogger } from '../security/log.js'
-import { mayPerform, TAB_HAS_PROJECT_PEOPLE } from '../domain/folder-access.js'
+import { mayPerform } from '../domain/folder-access.js'
 import { folderView, membersOf } from '../domain/folders.js'
 import {
   acceptInvite,
@@ -181,9 +181,6 @@ export function createInvitesRouter(
             'conflict',
             'The default folder cannot be shared.',
           )
-          return
-        case 'project_tab':
-          sendError(res, 422, 'validation_failed', TAB_HAS_PROJECT_PEOPLE)
           return
         case 'already_member':
           sendError(

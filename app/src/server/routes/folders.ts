@@ -62,10 +62,9 @@ import {
   accessHistoryOf,
   accessOf,
   atLeast,
-  isProjectTab,
   mayPerform,
   otherFullControlCount,
-  TAB_HAS_PROJECT_PEOPLE,
+  projectOf,
 } from '../domain/folder-access.js'
 import type { FolderAccess } from '../domain/folder-access.js'
 import type { FolderAction } from '../domain/folder-access.js'
@@ -153,13 +152,13 @@ export function createFoldersRouter(
   const STRANDED =
     'This folder would be left with nobody in Full control. Give another member Full control first.'
 
-  /** Step 7: a tab's people are its project's, so a membership write on a
-   * tab alone is refused (422) after the caller's own gate, which keeps a
-   * stranger's answer the 404 of AC-397. */
-  const refusedOnTab = async (db: Db, res: Response, folderId: string): Promise<boolean> => {
-    if (!(await isProjectTab(db, folderId))) return false
-    sendError(res, 422, 'validation_failed', TAB_HAS_PROJECT_PEOPLE)
-    return true
+  /** Step 8: people belong to the project, so a membership act named on any
+   * page of it acts on its project root. Called after the caller's own gate
+   * on the page, which keeps a stranger's answer the 404 of AC-397. */
+  const projectFor = async (db: Db, res: Response, folderId: string): Promise<string | null> => {
+    const project = await projectOf(db, folderId)
+    if (project === null) sendError(res, 404, 'not_found', 'Not found.')
+    return project
   }
 
   /** Whether `targetId` is the structural owner of `folderId`. */
@@ -182,7 +181,8 @@ export function createFoldersRouter(
   ): Promise<boolean> => {
     const held = await accessOf(db, userId, folderId)
     if (held === null || held.access !== 'full_control') return false
-    return (await otherFullControlCount(db, folderId, userId)) === 0
+    const project = (await projectOf(db, folderId)) ?? folderId
+    return (await otherFullControlCount(db, project, userId)) === 0
   }
 
   /*
@@ -248,7 +248,7 @@ export function createFoldersRouter(
       sendError(res, 409, 'conflict', STRANDED)
       return
     }
-    await removeMembership(db, folderId, actorId, {
+    await removeMembership(db, (await projectOf(db, folderId)) ?? folderId, actorId, {
       transferOwnership: false,
       actorId,
     })
@@ -590,7 +590,9 @@ export function createFoldersRouter(
       if (access === null) return
       // Any member, own row only (5.4): the viewer id scopes the UPDATE,
       // so another member's row is unreachable by construction.
-      await setMyMembership(db, viewer(req), folderId, parsed)
+      const projectId = await projectFor(db, res, folderId)
+      if (projectId === null) return
+      await setMyMembership(db, viewer(req), projectId, parsed)
       const folder = await folderView(db, viewer(req), folderId)
       res.status(200).json(folder)
     },
@@ -618,11 +620,12 @@ export function createFoldersRouter(
          explicitly cannot administer people. AC-024 drives it. */
       const access = await gate(req, res, folderId, 'member.add')
       if (access === null) return
-      if (await refusedOnTab(db, res, folderId)) return
+      const projectId = await projectFor(db, res, folderId)
+      if (projectId === null) return
       const result = await addMember(
         db,
         actorId,
-        folderId,
+        projectId,
         parsed.user_id,
         access,
         parsed.access,
@@ -720,8 +723,9 @@ export function createFoldersRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      if (await refusedOnTab(db, res, folderId)) return
-      if (!(await isMember(db, folderId, targetId))) {
+      const projectId = await projectFor(db, res, folderId)
+      if (projectId === null) return
+      if (!(await isMember(db, projectId, targetId))) {
         // The membership named by the path does not exist; 404 is 7.0's
         // word for that, and it holds for the leave-again repeat too.
         sendError(res, 404, 'not_found', 'Not found.')
@@ -753,7 +757,7 @@ export function createFoldersRouter(
           sendError(res, 409, 'conflict', STRANDED)
           return
         }
-        await removeMembership(db, folderId, targetId, {
+        await removeMembership(db, projectId, targetId, {
           transferOwnership: false,
           actorId,
         })
@@ -783,7 +787,6 @@ export function createFoldersRouter(
       const actorId = viewer(req)
       const access = await gate(req, res, folderId, 'member.leave')
       if (access === null) return
-      if (await refusedOnTab(db, res, folderId)) return
       await leave(res, folderId, actorId, access)
     },
   )
@@ -860,11 +863,12 @@ export function createFoldersRouter(
       } else if ((await gate(req, res, folderId, 'member.access.change')) === null) {
         return
       }
-      if (await refusedOnTab(db, res, folderId)) return
+      const projectId = await projectFor(db, res, folderId)
+      if (projectId === null) return
       const outcome = await changeMemberAccess(
         db,
         actorId,
-        folderId,
+        projectId,
         targetId,
         parsed.access,
         { expected: parsed.expected_access },
@@ -933,11 +937,12 @@ export function createFoldersRouter(
       if (folderId === null) return
       const access = await gate(req, res, folderId, 'owner.custody_recovery')
       if (access === null) return
-      if (await refusedOnTab(db, res, folderId)) return
+      const projectId = await projectFor(db, res, folderId)
+      if (projectId === null) return
       const outcome = await recoverOwnerFullControl(
         db,
         viewer(req),
-        folderId,
+        projectId,
       )
       if (outcome.kind === 'not_member') {
         sendError(res, 404, 'not_found', 'Not found.')
@@ -980,8 +985,10 @@ export function createFoldersRouter(
       'member.access.history.read',
     )
     if (access === null) return
+    const projectId = await projectFor(db, res, folderId)
+    if (projectId === null) return
     const body: GetFolderAccessHistoryResponse = {
-      entries: await accessHistoryOf(db, folderId, { memberId }),
+      entries: await accessHistoryOf(db, projectId, { memberId }),
     }
     res.status(200).json(body)
   }
@@ -1055,6 +1062,8 @@ export function createFoldersRouter(
       if (ids === null) return
       const access = await gate(req, res, ids.folderId, 'responsibility.read')
       if (access === null) return
+      const projectId = await projectFor(db, res, ids.folderId)
+      if (projectId === null) return
       /* No membership check on the *subject*. A document belonging to a
          membership that ended is not an active member's Responsibility and
          `activeStandingOf` will not return it, so this answers the empty
@@ -1064,7 +1073,7 @@ export function createFoldersRouter(
          prober can tell apart. */
       const body: GetResponsibilityResponse = {
         member_id: ids.memberId,
-        responsibility: await activeStandingOf(db, ids.folderId, ids.memberId),
+        responsibility: await activeStandingOf(db, projectId, ids.memberId),
       }
       res.status(200).json(body)
     },
@@ -1087,7 +1096,9 @@ export function createFoldersRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      const outcome = await commitResponsibility(db, facts, ids.memberId, {
+      const projectId = await projectFor(db, res, ids.folderId)
+      if (projectId === null) return
+      const outcome = await commitResponsibility(db, { ...facts, folderId: projectId }, ids.memberId, {
         content: parsed.content,
         base_revision: parsed.base_revision,
       })
@@ -1142,7 +1153,9 @@ export function createFoldersRouter(
          404 here because they are no longer in the folder, not because
          anything hides their own entries from them. Being the subject of a
          record is not a route back into a folder. */
-      const page = await responsibilityHistoryOf(db, ids.folderId, {
+      const projectId = await projectFor(db, res, ids.folderId)
+      if (projectId === null) return
+      const page = await responsibilityHistoryOf(db, projectId, {
         memberId: ids.memberId,
       })
       const body: GetResponsibilityHistoryResponse = {
@@ -1172,11 +1185,12 @@ export function createFoldersRouter(
         'responsibility.self_edit_grant.manage',
       )
       if (access === null) return
-      if (await refusedOnTab(db, res, ids.folderId)) return
+      const projectId = await projectFor(db, res, ids.folderId)
+      if (projectId === null) return
       const outcome = await setSelfEditGrant(
         db,
         viewer(req),
-        ids.folderId,
+        projectId,
         ids.memberId,
         parsed.enabled,
       )
@@ -1227,7 +1241,9 @@ export function createFoldersRouter(
       if (ids === null) return
       const access = await gate(req, res, ids.folderId, 'folder.read')
       if (access === null) return
-      const details = await memberDetailsOf(db, ids.folderId, [ids.memberId])
+      const projectId = await projectFor(db, res, ids.folderId)
+      if (projectId === null) return
+      const details = await memberDetailsOf(db, projectId, [ids.memberId])
       const member = details.get(ids.memberId)
       if (member === undefined) {
         sendError(res, 404, 'not_found', 'Not found.')

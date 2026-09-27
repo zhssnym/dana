@@ -2,15 +2,15 @@
 AC-1522: Discuss on a task in a project with no Discussion tab adds that tab
 (one, however often it is pressed) and answers its id beside the thread, and
 the tab lists the project's threads though they live on other pages (spec
-7.28, 4.3). A member of a sub-page who cannot see the project root adds no
-tab there and is never answered its id. Asserted on the stored rows.
+7.28, 4.3). Asserted on the stored rows. (Since step 8 nobody sees a
+sub-page without its project root, so the case of one who did is gone.)
 */
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
-import { addMemberOk, Cast, connect, createFolder, expectStatus } from '../support/folders-harness.js'
+import { Cast, createFolder, expectStatus } from '../support/folders-harness.js'
 import type { Actor } from '../support/folders-harness.js'
 import { rows } from '../support/helpers.js'
 import { createTaskOk } from '../support/tasks-harness.js'
@@ -61,30 +61,5 @@ describe('AC-1522 Discuss adds the Discussion tab', () => {
     const listed = await owner.browser.json(`/folders/${answer.discussion_tab_id}/discussions`, 'GET')
     expectStatus(listed, 200, 'the Discussion tab lists the project')
     expect((listed.json() as { discussions: { id: string }[] }).discussions.map((d) => d.id)).toContain(threadId)
-  }, 60_000)
-
-  test("AC-1522: a sub-page's member who cannot see the root adds no tab and learns no id", async () => {
-    const [owner, outsider] = (await cast.of(app)) as [Actor, Actor]
-    const project = await createFolder(owner, 'ac1522 hidden root')
-    const sub = await owner.browser.json('/folders', 'POST', { name: 'ac1522 shared sub', parent_folder_id: project })
-    expectStatus(sub, 201, 'a sub-page')
-    const subId = (sub.json() as { id: string }).id
-    await connect(app.db, owner.id, outsider.id)
-    await addMemberOk(owner, subId, outsider.id, 'can_edit')
-    const task = await createTaskOk(owner, { title: 'ac1522 fix the gate', folder_id: subId }, 'a task on the sub-page')
-
-    const discussed = await outsider.browser.json(`/tasks/${task.id}/discussion`, 'POST')
-    expectStatus(discussed, 201, 'the sub-page member starts the thread')
-    expect((discussed.json() as { discussion_tab_id: unknown }).discussion_tab_id).toBeNull()
-    expect(await rows(app.db, sql`SELECT id FROM folders
-      WHERE project_id = ${project}::uuid AND kind = 'discussion'`), 'no tab added to a root they cannot see').toEqual([])
-
-    // Once the owner has added it, the outsider is still not told its id.
-    const added = await owner.browser.json(`/tasks/${task.id}/discussion`, 'POST')
-    expectStatus(added, 200, 'the owner finds the thread')
-    expect((added.json() as { discussion_tab_id: unknown }).discussion_tab_id).toEqual(expect.any(String))
-    const again = await outsider.browser.json(`/tasks/${task.id}/discussion`, 'POST')
-    expectStatus(again, 200, 'the outsider finds the thread')
-    expect((again.json() as { discussion_tab_id: unknown }).discussion_tab_id).toBeNull()
   }, 60_000)
 })

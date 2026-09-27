@@ -114,9 +114,7 @@ export async function trashView(
              of the initiating page), so it never vanishes from the one
              Trash that could bring it back. */
           (f.trashed_with_folder_id IS NULL
-               OR NOT EXISTS (SELECT 1 FROM folder_members im
-                               WHERE im.folder_id = f.trashed_with_folder_id
-                                 AND im.user_id = ${viewerId}))
+               OR NOT ${visibleFolder(sql`f.trashed_with_folder_id`, viewerId, { trashed: 'any' })})
         ORDER BY f.deleted_at DESC, f.id DESC`,
   )
   /* The third kind (issue #210). Since step 7 (migration 0061) a facet is a tab, and a trashed tab is

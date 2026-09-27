@@ -353,6 +353,12 @@ function FolderPageBody({
     () => (herePage === undefined ? [] : projectTabs(allPages.data ?? [], herePage.project_id)),
     [allPages.data, herePage],
   )
+  /* Step 8: people belong to the project. On a sub-page, Share and Leave
+     name the project they act on; on a tab the header already is it. */
+  const projectName =
+    herePage === undefined || herePage.project_id === headId
+      ? undefined
+      : allPages.data?.find((page) => page.id === herePage.project_id)?.name
   /* "Save as workflow" reads each row's 7.6 detail before it writes the
      file, through the cache the row already stores one in. */
   const cache = useQueryClient()
@@ -642,7 +648,7 @@ function FolderPageBody({
   }
 
   function askLeave(): void {
-    confirm.ask(leaveFolderConfirm(detail?.name ?? ''), () => {
+    confirm.ask(leaveFolderConfirm(projectName ?? detail?.name ?? ''), () => {
       leave.mutate(headId, { onSuccess: () => navigate(paths.today) })
     })
   }
@@ -1127,6 +1133,7 @@ function FolderPageBody({
       {sharing && detail !== undefined ? (
         <FolderSharingPanel
           folder={detail}
+          projectName={projectName}
           connections={connections.data}
           viewer={facts}
           viewerId={basis.viewerId}

@@ -544,24 +544,27 @@ async function writeFolderRow(
   await register(tx, userId, 'folder', folderId)
   /* The sample workspace is the new account's own: owner plus Full control,
      with the baseline transition beside it (issue #228). The sample people
-     are ordinary members who can edit. */
-  await tx.execute(
-    sql`INSERT INTO folder_members (folder_id, user_id, access)
-        VALUES (${folderId}::uuid, ${userId}::uuid, 'full_control')`,
-  )
-  await recordAccessTransition(tx, {
-    folderId,
-    memberId: userId,
-    previousAccess: null,
-    newAccess: 'full_control',
-    actorId: userId,
-    transition: 'created_owner',
-  })
-  for (const key of people) {
+     are ordinary members who can edit. Step 8: people belong to the
+     project, so only a project root gets rows. */
+  if (parentId === null) {
     await tx.execute(
       sql`INSERT INTO folder_members (folder_id, user_id, access)
-          VALUES (${folderId}::uuid, ${personId(ctx, key)}::uuid, 'can_edit')`,
+          VALUES (${folderId}::uuid, ${userId}::uuid, 'full_control')`,
     )
+    await recordAccessTransition(tx, {
+      folderId,
+      memberId: userId,
+      previousAccess: null,
+      newAccess: 'full_control',
+      actorId: userId,
+      transition: 'created_owner',
+    })
+    for (const key of people) {
+      await tx.execute(
+        sql`INSERT INTO folder_members (folder_id, user_id, access)
+            VALUES (${folderId}::uuid, ${personId(ctx, key)}::uuid, 'can_edit')`,
+      )
+    }
   }
   await recordEvent(tx, {
     actorId: userId,
@@ -580,7 +583,7 @@ async function writeFolderRow(
  * One more page of a sample project: a tab of the root (`tabPosition`) or a
  * child Doc page of a sub-page (`parentId`, with its home block when that
  * sub-page is a Doc: a Work page makes no page links). It has
- * `source`'s people, as a tab or a sub-page does.
+ * its project's people, as every page does (step 8).
  */
 async function writeSamplePage(
   ctx: SampleContext,
@@ -597,19 +600,6 @@ async function writeSamplePage(
                ${page.parentId}::uuid, ${childPosition}, s.project_id, ${page.kind}, ${page.tabPosition}
           FROM folders s WHERE s.id = ${source}::uuid`,
   )
-  await tx.execute(
-    sql`INSERT INTO folder_members (folder_id, user_id, access, created_at)
-        SELECT ${id}::uuid, m.user_id, m.access, m.created_at FROM folder_members m
-         WHERE m.folder_id = ${source}::uuid`,
-  )
-  await recordAccessTransition(tx, {
-    folderId: id,
-    memberId: userId,
-    previousAccess: null,
-    newAccess: 'full_control',
-    actorId: userId,
-    transition: 'created_owner',
-  })
   if (page.parentId !== null) {
     await register(tx, userId, 'folder', id)
     const parent = await rowsOf(tx, sql`SELECT kind FROM folders WHERE id = ${page.parentId}::uuid`)
@@ -870,7 +860,7 @@ export async function removeSampleWorkspace(
                     FROM folders pp WHERE pp.id = f.parent_folder_id) AS parent_folder_id,
                  f.deleted_at IS NOT NULL AS trashed,
                  (SELECT count(*)::int FROM folder_members m
-                   WHERE m.folder_id = f.id AND m.user_id <> ${userId}::uuid
+                   WHERE m.folder_id = f.project_id AND m.user_id <> ${userId}::uuid
                      AND m.user_id NOT IN (${idList(SAMPLE_PERSON_IDS)})) AS others,
                  ${ownWriting(sql`f.id`, sql`s.created_at`)} AS own_work
           FROM sample_objects s
@@ -940,7 +930,7 @@ export async function removeSampleWorkspace(
              WHERE project_id IN (${idList(doomedFolders)}) AND id <> project_id
                AND tab_position IS NOT NULL AND owner_id = ${userId}::uuid
                AND NOT EXISTS (SELECT 1 FROM folder_members m
-                                WHERE m.folder_id = folders.id AND m.user_id <> ${userId}::uuid
+                                WHERE m.folder_id = folders.project_id AND m.user_id <> ${userId}::uuid
                                   AND m.user_id NOT IN (${idList(SAMPLE_PERSON_IDS)}))`,
       )
       for (const row of tabs) {

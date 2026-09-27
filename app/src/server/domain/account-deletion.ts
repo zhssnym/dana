@@ -444,35 +444,19 @@ export async function deleteAccountData(
   // The default folder is excluded by INV-2, which never lets one transfer,
   // and by INV-3, which never lets one hold a second member.
   //
-  // Step 7: a project's tabs have its root's owner, so a tab follows its
-  // root's heir rather than picking its own (a tab's member rows can tie
-  // where the root's do not). Roots and other pages go first; a tab whose
-  // root stayed with this account (nobody else on it) still picks its own.
+  // Step 8: ownership and people are the project's. Each shared project
+  // goes to its heir, and `transferOwnership` moves every page of it.
   const transferable = await rowsOf(
     tx,
-    sql`SELECT id, (f.tab_position IS NOT NULL AND f.id <> f.project_id) AS is_tab
-        FROM folders f
-        WHERE f.owner_id = ${userId} AND NOT f.is_default
+    sql`SELECT id FROM folders f
+        WHERE f.owner_id = ${userId} AND NOT f.is_default AND f.id = f.project_id
           AND EXISTS (SELECT 1 FROM folder_members m
                        WHERE m.folder_id = f.id AND m.user_id <> ${userId}
                          AND ${notSamplePerson(sql`m.user_id`)})
-        ORDER BY is_tab`,
+        ORDER BY f.id`,
   )
   for (const row of transferable) {
-    const id = String(row.id)
-    if (row.is_tab === true) {
-      const followed = await rowsOf(
-        tx,
-        sql`UPDATE folders t SET owner_id = r.owner_id
-              FROM folders r
-             WHERE t.id = ${id}::uuid AND r.id = t.project_id AND r.owner_id <> ${userId}
-               AND EXISTS (SELECT 1 FROM folder_members m
-                            WHERE m.folder_id = t.id AND m.user_id = r.owner_id)
-            RETURNING t.id`,
-      )
-      if (followed.length > 0) continue
-    }
-    await transferOwnership(tx, id, userId)
+    await transferOwnership(tx, String(row.id), userId)
   }
 
   // 3. Everything still owned after the transfers: the default folder, which

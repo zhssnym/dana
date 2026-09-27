@@ -32,9 +32,9 @@ import {
   transferOwnershipTo,
 } from '../domain/acts.js'
 import { isEligibleSuccessor } from '../domain/folders.js'
-import { accessOf, isProjectTab, mayPerform, TAB_HAS_PROJECT_PEOPLE } from '../domain/folder-access.js'
+import { accessOf, mayPerform, projectOf } from '../domain/folder-access.js'
 import { PAGE_TREE_EDIT_ACTION } from '../domain/page-tree.js'
-import { legacyFacets, projectOf } from '../domain/project-tabs.js'
+import { legacyFacets } from '../domain/project-tabs.js'
 import type { FolderAction } from '../domain/folder-access.js'
 import { WorkflowLabelNameConflict } from '../domain/labels.js'
 import { today } from '../time/today.js'
@@ -965,9 +965,10 @@ export function createWorkshopRouter(
         )
         return
       }
-      // Step 7: a tab has its project's owner; the project is transferred.
-      if (await isProjectTab(db, folderId)) {
-        sendError(res, 422, 'validation_failed', TAB_HAS_PROJECT_PEOPLE)
+      // Step 8: ownership is the project's, whichever page was named.
+      const projectId = await projectOf(db, folderId)
+      if (projectId === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
         return
       }
       /*
@@ -983,7 +984,7 @@ export function createWorkshopRouter(
       not qualify, which is a fact about the body, and it is the same 422 the
       non-member case already answered.
       */
-      if (!(await isEligibleSuccessor(db, folderId, parsed.to))) {
+      if (!(await isEligibleSuccessor(db, projectId, parsed.to))) {
         sendError(
           res,
           422,
@@ -995,7 +996,7 @@ export function createWorkshopRouter(
       const outcome = await transferOwnershipTo(
         db,
         viewer(req),
-        folderId,
+        projectId,
         parsed.to,
       )
       if (outcome.kind === 'target_not_member') {

@@ -69,7 +69,7 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { documentHash } from './document-hash.js'
 import { recordEvent } from './events.js'
-import { copyRootMembersToTabs, lockedMembership, mayPerform } from './folder-access.js'
+import { lockedMembership, mayPerform } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
 
@@ -781,7 +781,6 @@ export async function setSelfEditGrant(
              SET can_edit_own_responsibilities = ${enabled}
            WHERE folder_id = ${folderId}::uuid AND user_id = ${memberId}::uuid`,
     )
-    await copyRootMembersToTabs(tx, folderId, actorId)
     const document = await rowsOf(
       tx,
       sql`SELECT id FROM folder_responsibilities
@@ -876,7 +875,7 @@ export async function memberDetailsOf(
           FROM tasks t
           JOIN jsonb_array_elements_text(${ids}::jsonb) AS wanted(member_id)
             ON wanted.member_id::uuid = t.assignee_id
-         WHERE t.folder_id = ${folderId}::uuid
+         WHERE t.project_id = ${folderId}::uuid
            AND t.deleted_at IS NULL
            AND t.status = 'pending'
          GROUP BY t.assignee_id`,

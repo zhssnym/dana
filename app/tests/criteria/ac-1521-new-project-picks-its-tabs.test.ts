@@ -75,9 +75,10 @@ describe('AC-1521 a new project and its tabs', () => {
       { name: 'Results', kind: 'doc', root: false, parent_folder_id: null, trashed: false },
       { name: 'Discussion', kind: 'discussion', root: false, parent_folder_id: null, trashed: false },
     ])
-    // Until step 8, every tab has the root's people.
+    // Step 8: a tab's people are the project's; it stores none of its own.
     const purposeId = (picked.json() as { id: string; name: string }[]).find((tab) => tab.name === 'Purpose')!.id
-    expect(await members(purposeId)).toEqual(await members(project))
+    expect(await members(purposeId)).toEqual([])
+    expectStatus(await viewer.browser.json(`/folders/${purposeId}`, 'GET'), 200, "the project's viewer reads the tab")
 
     expectStatus(await owner.browser.json(`/folders/${project}/tabs`, 'POST', { kind: 'usual' }), 422, 'usual only picks')
     expectStatus(await owner.browser.json(`/folders/${project}/tabs`, 'POST', { kind: 'discussion' }), 409, 'one Discussion per project')

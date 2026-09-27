@@ -97,22 +97,28 @@ export async function accessOf(
   return folderActorFacts(executor, viewerId, folderId)
 }
 
-/** Step 7, until step 8 moves people to the project: a tab carries its
- * project root's people, copied from the root on every write there, so a
- * membership or invite written on a tab alone would be undone by the next
- * one. Those writes are refused with this sentence. */
-export const TAB_HAS_PROJECT_PEOPLE = "A tab has its project's people. Share the project."
-
-/** True when `folderId` is a project's tab other than its root. */
-export async function isProjectTab(executor: Executor, folderId: string): Promise<boolean> {
+/**
+ * Step 8: people belong to the project. A membership row lives on the
+ * project root only, and a person is a member of every page of a project
+ * they are a member of. The project of `folderId`, or null when there is no
+ * such page; every membership read and write (members, invites, Access,
+ * Responsibility, ownership) acts on this id, whichever page the path named.
+ * Callers gate on the page first, so a stranger's answer stays 404.
+ */
+export async function projectOf(executor: Executor, folderId: string): Promise<string | null> {
   const rows = await rowsOf(
     executor,
-    sql`SELECT 1 FROM folders
-         WHERE id = ${folderId}::uuid AND tab_position IS NOT NULL AND id <> project_id`,
+    sql`SELECT project_id FROM folders WHERE id = ${folderId}::uuid`,
   )
-  return rows.length > 0
+  const project = rows[0]?.project_id
+  return project === undefined || project === null ? null : String(project)
 }
 
+/** `folderId`'s project as SQL, for a statement that reads membership rows
+ * of whatever page it is given. */
+export function projectIdOf(folderId: string): SQL {
+  return sql`(SELECT pr_f.project_id FROM folders pr_f WHERE pr_f.id = ${folderId}::uuid)`
+}
 
 /* ------------------------------------------------------------------ *
  * Reading the facts
@@ -148,8 +154,8 @@ export async function folderActorFacts(
  * ------------------------------------------------------------------ */
 
 /*
-Who sees a row is one sentence: the viewer is a member of the row's Folder,
-and that Folder is not in Trash unless the caller is one of 7.13's acts on
+Who sees a row is one sentence: the viewer is a member of the row's project
+(step 8: its Folder's project root), and that Folder is not in Trash unless the caller is one of 7.13's acts on
 Trash. Lists, search and single-row reads say it through the three helpers
 below rather than writing the join again, so a query cannot drop half of it.
 
@@ -190,7 +196,7 @@ export function visibleFolder(
 ): SQL {
   const trashed = trashClause(sql`vis_f`, options.trashed ?? 'live')
   return sql`EXISTS (SELECT 1 FROM folders vis_f
-      JOIN folder_members vis_m ON vis_m.folder_id = vis_f.id
+      JOIN folder_members vis_m ON vis_m.folder_id = vis_f.project_id
      WHERE vis_f.id = ${folderId} AND vis_m.user_id = ${viewerId}${trashed})`
 }
 
@@ -216,7 +222,7 @@ export function joinVisibleFolder(
   const m = alias(options.member ?? 'm')
   const trashed = trashClause(f, options.trashed ?? 'live')
   const membership = sql`JOIN folder_members ${m}
-      ON ${m}.folder_id = ${f}.id AND ${m}.user_id = ${viewerId}`
+      ON ${m}.folder_id = ${f}.project_id AND ${m}.user_id = ${viewerId}`
   return options.folderId === undefined
     ? sql`${membership}${trashed}`
     : sql`JOIN folders ${f} ON ${f}.id = ${options.folderId}${trashed}
@@ -568,95 +574,5 @@ export async function lockedMembership(
     access,
     isOwner: row.is_owner === true,
     canEditOwnResponsibilities: row.can_edit_own_responsibilities === true,
-  }
-}
-
-/**
- * Step 7, until step 8 moves members to the project: a project root's other
- * tabs (Purpose, Results, Discussion, Pages and added tabs, trashed ones
- * included) carry the root's owner, and everyone on the root is on each tab
- * with the root's preset, as the facets they replace were. Called after a
- * membership or owner write on `folderId`, in its transaction; on a page that
- * is not a project root it does nothing. Removal needs R-CLEAN and lives in
- * `folders.ts` (`mirrorRootMembersToTabs`), which calls this too. Each change
- * is recorded against the tab with `actorId`.
- */
-export async function copyRootMembersToTabs(
-  tx: Executor,
-  folderId: string,
-  actorId: string,
-): Promise<void> {
-  const tabs = await rowsOf(
-    tx,
-    sql`SELECT t.id FROM folders r
-          JOIN folders t ON t.project_id = r.id AND t.id <> r.id AND t.tab_position IS NOT NULL
-         WHERE r.id = ${folderId}::uuid AND r.project_id = r.id
-         ORDER BY t.id
-         FOR UPDATE OF t`,
-  )
-  for (const row of tabs) {
-    const tabId = String(row.id)
-    await tx.execute(
-      sql`UPDATE folders t SET owner_id = r.owner_id
-            FROM folders r
-           WHERE t.id = ${tabId}::uuid AND r.id = ${folderId}::uuid
-             AND t.owner_id <> r.owner_id`,
-    )
-    const changed = await rowsOf(
-      tx,
-      sql`SELECT tm.user_id, tm.access AS was, rm.access AS now FROM folder_members tm
-            JOIN folder_members rm ON rm.folder_id = ${folderId}::uuid AND rm.user_id = tm.user_id
-           WHERE tm.folder_id = ${tabId}::uuid
-             AND (tm.access <> rm.access
-                  OR tm.can_edit_own_responsibilities <> rm.can_edit_own_responsibilities)`,
-    )
-    for (const member of changed) {
-      const memberId = String(member.user_id)
-      await tx.execute(
-        sql`UPDATE folder_members tm
-               SET access = rm.access, can_edit_own_responsibilities = rm.can_edit_own_responsibilities
-              FROM folder_members rm
-             WHERE tm.folder_id = ${tabId}::uuid AND tm.user_id = ${memberId}::uuid
-               AND rm.folder_id = ${folderId}::uuid AND rm.user_id = tm.user_id`,
-      )
-      const was = presetOf(member.was)
-      const now = presetOf(member.now)
-      if (was !== null && now !== null && was !== now) {
-        await recordAccessTransition(tx, {
-          folderId: tabId,
-          memberId,
-          previousAccess: was,
-          newAccess: now,
-          actorId,
-          transition:
-            actorId !== memberId
-              ? 'access_changed'
-              : now === 'full_control'
-                ? 'owner_recovered_full_control'
-                : 'self_demoted',
-        })
-      }
-    }
-    const added = await rowsOf(
-      tx,
-      sql`INSERT INTO folder_members (folder_id, user_id, access, can_edit_own_responsibilities, created_at)
-          SELECT ${tabId}::uuid, rm.user_id, rm.access, rm.can_edit_own_responsibilities, rm.created_at
-            FROM folder_members rm
-           WHERE rm.folder_id = ${folderId}::uuid
-          ON CONFLICT DO NOTHING
-          RETURNING user_id, access`,
-    )
-    for (const member of added) {
-      const access = presetOf(member.access)
-      if (access === null) throw new Error(`folder_members.access holds an unknown preset in ${folderId}`)
-      await recordAccessTransition(tx, {
-        folderId: tabId,
-        memberId: String(member.user_id),
-        previousAccess: null,
-        newAccess: access,
-        actorId,
-        transition: 'member_added',
-      })
-    }
   }
 }

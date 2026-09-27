@@ -29,11 +29,11 @@ import {
   lockedMembership,
   mayPerform,
   otherFullControlCount,
-  copyRootMembersToTabs,
+  projectIdOf,
   presetOf,
   recordAccessTransition,
 } from './folder-access.js'
-import { joinVisibleFolder, visibleFolder } from './folder-access.js'
+import { joinVisibleFolder } from './folder-access.js'
 import type { FolderAccess } from './folder-access.js'
 import { folderPersonalLabelsFor } from './labels.js'
 import {
@@ -162,24 +162,20 @@ function folderSelect(viewerId: string, folderId?: string) {
            (f.owner_id = ${viewerId}) AS is_owner,
            f.icon, f.color, f.cover_file_id, f.cover_preset, f.cover_focal_y,
            f.description, f.kind,
-           -- Step 7: the project as this viewer may see it. Until step 8 a
-           -- page's people may differ from its project's; a viewer who is not
-           -- a member of the project root reads the page as a project of its
-           -- own, as a hidden parent already reads as no parent, so the root's
-           -- id never leaks (10.2).
-           CASE WHEN f.id = f.project_id OR ${visibleFolder(sql`f.project_id`, viewerId)}
-                THEN f.project_id ELSE f.id END AS project_id,
-           CASE WHEN f.id = f.project_id OR ${visibleFolder(sql`f.project_id`, viewerId)}
-                THEN f.tab_position ELSE 'a0' END AS tab_position,
+           -- Step 8: whoever sees a page sees its project.
+           f.project_id, f.tab_position,
            -- Wave 2: a hidden or trashed parent is no parent to this viewer.
            CASE WHEN ${visibleParentPredicate(viewerId)}
                 THEN f.parent_folder_id END AS parent_folder_id,
            CASE WHEN ${visibleParentPredicate(viewerId)}
                 THEN f.child_position END AS child_position,
-           m.shelf_name AS my_shelf, m.color AS my_color,
+           -- Step 8: the membership row is the project's. A shelf holds
+           -- projects; colour is the project's for every page of it.
+           CASE WHEN f.id = f.project_id THEN m.shelf_name END AS my_shelf,
+           m.color AS my_color,
            m.access AS my_access,
            (SELECT count(*)::int FROM folder_members mm
-             WHERE mm.folder_id = f.id) AS member_count,
+             WHERE mm.folder_id = f.project_id) AS member_count,
            c.pending, c.completed, c.one_off_done, c.one_off_total,
            c.recurring_active
     FROM folders f
@@ -402,7 +398,7 @@ export async function createFolder(
 
 /**
  * The insert every new owned page shares, root or sub-page, in the caller's
- * transaction: the cap behind the owner's row lock, the row, the owner's
+ * transaction: the cap behind the owner's row lock, the row, a new project's
  * Full-control membership and its transition, and the `created` event.
  * Answers the new id, or null at the 10.3 cap.
  *
@@ -446,18 +442,39 @@ async function insertOwnedFolder(
       ? sql`${newId}::uuid`
       : sql`(SELECT p.project_id FROM folders p WHERE p.id = ${input.parentId}::uuid)`
   const kind = input.parentId === null ? input.kind : (input.kind ?? 'doc')
+  /* Step 8: a page's owner is its project's, so 8.10's deletion of owned
+     folders never takes a page out of a project that survives. */
+  const owner =
+    input.parentId === null
+      ? sql`${viewerId}::uuid`
+      : sql`(SELECT p.owner_id FROM folders p WHERE p.id = ${input.parentId}::uuid)`
   const inserted = await rowsOf(
     tx,
     sql`INSERT INTO folders (id, owner_id, name, description,
                              parent_folder_id, child_position,
                              project_id, kind, tab_position)
-        VALUES (${newId}::uuid, ${viewerId}::uuid, ${input.name},
+        VALUES (${newId}::uuid, ${owner}, ${input.name},
                 ${input.description}, ${input.parentId}::uuid,
                 ${input.childPosition}, ${project}, ${kind},
                 ${input.parentId === null ? 'a0' : null})
         RETURNING id`,
   )
   const id = String(inserted[0]?.id)
+  if (input.parentId === null) await insertCreatorMembership(tx, viewerId, id)
+  await recordEvent(tx, {
+    actorId: viewerId,
+    verb: 'created',
+    subjectKind: 'folder',
+    subjectId: id,
+    subjectName: input.name,
+    folderId: id,
+  })
+  return id
+}
+
+/** A new project's creator: owner and Full control. Step 8: only a project
+ * root holds membership rows; a sub-page's people are its project's. */
+async function insertCreatorMembership(tx: Executor, viewerId: string, id: string): Promise<void> {
   /* R8A and R5: the creator starts owner *and* Full control, and the two
      are separate facts from this line onward -- the owner may later be
      lowered, and a Full-control member who is not the owner may later
@@ -478,15 +495,6 @@ async function insertOwnedFolder(
     actorId: viewerId,
     transition: 'created_owner',
   })
-  await recordEvent(tx, {
-    actorId: viewerId,
-    verb: 'created',
-    subjectKind: 'folder',
-    subjectId: id,
-    subjectName: input.name,
-    folderId: id,
-  })
-  return id
 }
 
 export type CreateSubPageResult =
@@ -507,12 +515,8 @@ export type CreateSubPageResult =
  * A new page under `parentId`, in the caller's transaction (POST /folders
  * with `parent_folder_id` today, the document's `create_page` op later).
  *
- * Wave 2, Hassan's decision 1: the new page **copies the parent's members
- * and their Access presets at this moment**, and nothing links the two
- * afterwards. The creator becomes owner with Full control whatever they
- * hold on the parent. Each copied membership is recorded as `member_added`
- * by the creator, in this transaction, as a direct add would be. Personal
- * membership fields (shelf, colour) are the member's own and are not copied.
+ * Step 8: the new page's people are its project's; nothing is copied, and
+ * its owner is the project's owner.
  *
  * Needs `folder.page.edit` on the parent (adding a sub-page edits that
  * page's structure). The tree lock is taken before anything is read, so a
@@ -556,45 +560,7 @@ export async function createSubPage(
   })
   if (id === null) return { kind: 'folder_cap' }
   if (input.homeBlock !== false) await appendHomeBlock(tx, parentId, id)
-  await copyParentMembers(tx, actorId, parentId, id)
   return { kind: 'created', id }
-}
-
-/** Wave 2, decision 1: the new sub-page `childId` copies `parentId`'s live
- * members other than the actor, with their Access presets, each recorded as
- * `member_added` by the actor. `createSubPage` and the import into a page
- * (POST /folders/:id/import) both call it. */
-export async function copyParentMembers(
-  tx: Executor,
-  actorId: string,
-  parentId: string,
-  childId: string,
-): Promise<void> {
-  const copied = await rowsOf(
-    tx,
-    sql`INSERT INTO folder_members (folder_id, user_id, access)
-        SELECT ${childId}::uuid, m.user_id, m.access
-          FROM folder_members m
-          JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL
-         WHERE m.folder_id = ${parentId}::uuid AND m.user_id <> ${actorId}::uuid
-        RETURNING user_id, access`,
-  )
-  for (const row of copied) {
-    const access = presetOf(row.access)
-    if (access === null) {
-      throw new Error(
-        `folder_members.access holds an unknown preset in ${parentId}`,
-      )
-    }
-    await recordAccessTransition(tx, {
-      folderId: childId,
-      memberId: String(row.user_id),
-      previousAccess: null,
-      newAccess: access,
-      actorId,
-      transition: 'member_added',
-    })
-  }
 }
 
 /** `createSubPage` in its own transaction, for POST /folders. */
@@ -798,7 +764,7 @@ export async function memberIdsOf(
 ): Promise<string[]> {
   const rows = await rowsOf(
     executor,
-    sql`SELECT user_id FROM folder_members WHERE folder_id = ${folderId}`,
+    sql`SELECT user_id FROM folder_members WHERE folder_id = ${projectIdOf(folderId)}`,
   )
   return rows.map((row) => String(row.user_id))
 }
@@ -938,7 +904,7 @@ export async function membersOf(
         FROM folder_members m
         JOIN folders f ON f.id = m.folder_id
         JOIN users u ON u.id = m.user_id
-        WHERE m.folder_id = ${folderId}
+        WHERE m.folder_id = ${projectIdOf(folderId)}
         ORDER BY m.created_at ASC, u.id ASC`,
   )
   return found.map((row) => {
@@ -974,7 +940,7 @@ export async function pendingInvitesOf(
     db,
     sql`SELECT id, email, task_id, access, created_at, last_sent_at
         FROM invites
-        WHERE folder_id = ${folderId} AND status = 'pending'
+        WHERE folder_id = ${projectIdOf(folderId)} AND status = 'pending'
         ORDER BY created_at ASC, id ASC`,
   )
   return found.map((row) => ({
@@ -1094,7 +1060,6 @@ export async function addMember(
       actorId,
       transition: 'member_added',
     })
-    await mirrorRootMembersToTabs(tx, folderId, actorId)
 
     /* R10 and #230: the initial document and the membership standing commit
        together, and the actor recorded on the first revision is the
@@ -1153,7 +1118,7 @@ export async function isMember(
   const found = await rowsOf(
     db,
     sql`SELECT 1 AS present FROM folder_members
-        WHERE folder_id = ${folderId} AND user_id = ${userId}`,
+        WHERE folder_id = ${projectIdOf(folderId)} AND user_id = ${userId}`,
   )
   return found.length > 0
 }
@@ -1166,7 +1131,7 @@ export async function otherMemberCount(
   const found = await rowsOf(
     db,
     sql`SELECT count(*)::int AS n FROM folder_members
-        WHERE folder_id = ${folderId} AND user_id <> ${excludingUserId}
+        WHERE folder_id = ${projectIdOf(folderId)} AND user_id <> ${excludingUserId}
           AND ${notSamplePerson(sql`user_id`)}`,
   )
   return Number(found[0]?.n ?? 0)
@@ -1231,7 +1196,6 @@ export async function removeMembership(
       })
     }
     await runRClean(tx, folderId, leaverId, { actorId: options.actorId })
-    await mirrorRootMembersToTabs(tx, folderId, options.actorId)
     // 'left' when the leaver acted, 'removed' when someone removed them
     // (4.13's two verbs for the two directions of the same row change).
     const named = await rowsOf(
@@ -1316,14 +1280,16 @@ export async function runRClean(
   always did, until the contract migration drops the table.
   */
   await deletePrivateFacetsOf(tx, folderId, leaverId)
+  /* Step 8: `folderId` is a project root, and the membership is the whole
+     project's: its tasks on every page go with it. */
   await tx.execute(
     sql`UPDATE tasks SET assignee_id = NULL, updated_at = now()
-        WHERE folder_id = ${folderId} AND assignee_id = ${leaverId}`,
+        WHERE project_id = ${folderId} AND assignee_id = ${leaverId}`,
   )
   await tx.execute(
     sql`DELETE FROM my_day_entries
         WHERE user_id = ${leaverId}
-          AND task_id IN (SELECT id FROM tasks WHERE folder_id = ${folderId})`,
+          AND task_id IN (SELECT id FROM tasks WHERE project_id = ${folderId})`,
   )
   await tx.execute(
     sql`DELETE FROM folder_members
@@ -1338,7 +1304,7 @@ export async function runRClean(
   if (only !== undefined) {
     await tx.execute(
       sql`UPDATE tasks SET assignee_id = ${String(only.user_id)}, updated_at = now()
-          WHERE folder_id = ${folderId} AND assignee_id IS NULL`,
+          WHERE project_id = ${folderId} AND assignee_id IS NULL`,
     )
   }
 }
@@ -1368,53 +1334,11 @@ export async function transferOwnership(
     // the guard was bypassed, and violating INV-2's RESTRICT is worse.
     throw new Error(`folder ${folderId} has no member to transfer to (8.9)`)
   }
+  // Step 8: every page of the project has the project's owner.
   await tx.execute(
     sql`UPDATE folders SET owner_id = ${String(heir.user_id)}
-        WHERE id = ${folderId}`,
+        WHERE project_id = ${folderId}`,
   )
-}
-
-/**
- * Step 7, until step 8 moves members to the project: a project root's other
- * tabs have exactly the root's people (`copyRootMembersToTabs`, which the
- * access brick's invites also call). This adds the other direction, which
- * needs R-CLEAN: someone gone from the root goes from each tab, recorded
- * against the tab with `actorId`. Every writer of a membership or an owner in
- * this brick calls it after its own write, in its transaction; on a page that
- * is not a project root it does nothing.
- */
-export async function mirrorRootMembersToTabs(
-  tx: Executor,
-  folderId: string,
-  actorId: string,
-): Promise<void> {
-  const gone = await rowsOf(
-    tx,
-    sql`SELECT tm.folder_id, tm.user_id, tm.access FROM folders r
-          JOIN folders t ON t.project_id = r.id AND t.id <> r.id AND t.tab_position IS NOT NULL
-          JOIN folder_members tm ON tm.folder_id = t.id
-         WHERE r.id = ${folderId}::uuid AND r.project_id = r.id
-           AND NOT EXISTS (SELECT 1 FROM folder_members rm
-                            WHERE rm.folder_id = r.id AND rm.user_id = tm.user_id)
-         ORDER BY tm.folder_id, tm.user_id`,
-  )
-  for (const member of gone) {
-    const tabId = String(member.folder_id)
-    const memberId = String(member.user_id)
-    const held = presetOf(member.access)
-    if (held !== null) {
-      await recordAccessTransition(tx, {
-        folderId: tabId,
-        memberId,
-        previousAccess: held,
-        newAccess: null,
-        actorId,
-        transition: actorId === memberId ? 'member_left' : 'member_removed',
-      })
-    }
-    await runRClean(tx, tabId, memberId, { actorId })
-  }
-  await copyRootMembersToTabs(tx, folderId, actorId)
 }
 
 /* ------------------------------------------------------------------ *
@@ -1506,7 +1430,6 @@ export async function changeMemberAccess(
       sql`UPDATE folder_members SET access = ${next}
           WHERE folder_id = ${folderId} AND user_id = ${targetId}`,
     )
-    await mirrorRootMembersToTabs(tx, folderId, actorId)
     await recordAccessTransition(tx, {
       folderId,
       memberId: targetId,
@@ -1577,7 +1500,6 @@ export async function recoverOwnerFullControl(
       sql`UPDATE folder_members SET access = 'full_control'
           WHERE folder_id = ${folderId} AND user_id = ${ownerId}`,
     )
-    await mirrorRootMembersToTabs(tx, folderId, ownerId)
     await recordAccessTransition(tx, {
       folderId,
       memberId: ownerId,
@@ -1656,8 +1578,8 @@ export async function ownedSharedFolders(
         FROM folders f
         WHERE f.owner_id = ${ownerId} AND NOT f.is_default
           AND f.deleted_at IS NULL
-          -- Step 7: a tab follows its project's owner, so only the project is named.
-          AND NOT (f.tab_position IS NOT NULL AND f.id <> f.project_id)
+          -- Step 8: every page follows its project's owner, so only the project is named.
+          AND f.id = f.project_id
           AND EXISTS (SELECT 1 FROM folder_members m
                        WHERE m.folder_id = f.id AND m.user_id <> ${ownerId}
                          AND ${notSamplePerson(sql`m.user_id`)})

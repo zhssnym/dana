@@ -204,7 +204,7 @@ async function seed(db: Db): Promise<{ viewer: string; folder: string }> {
     INSERT INTO my_day_entries (task_id, user_id, added_on)
     SELECT t.id, ${viewer}::uuid, CURRENT_DATE
       FROM tasks t
-      JOIN folder_members m ON m.folder_id = t.folder_id
+      JOIN folder_members m ON m.folder_id = t.project_id
      WHERE m.user_id = ${viewer}::uuid AND t.status = 'pending'
      LIMIT 300
   `)
@@ -212,7 +212,7 @@ async function seed(db: Db): Promise<{ viewer: string; folder: string }> {
     INSERT INTO page_blocks (task_id, kind, position, page_position, text, checked)
     SELECT t.id, 'checklist', 0, 'a0', 'step', false
       FROM tasks t
-      JOIN folder_members m ON m.folder_id = t.folder_id
+      JOIN folder_members m ON m.folder_id = t.project_id
      WHERE m.user_id = ${viewer}::uuid
      LIMIT 2000
   `)

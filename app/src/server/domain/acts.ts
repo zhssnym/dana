@@ -53,7 +53,6 @@ import { inTransaction, pairSet, rowsOf } from '../database.js'
 import type { Executor, IdPair } from '../database.js'
 import { recordEvent } from './events.js'
 import { folderActorFacts, mayPerform, recordAccessTransition } from './folder-access.js'
-import { copyParentMembers, mirrorRootMembersToTabs } from './folders.js'
 import { addDocPage, purposeTabOf } from './project-tabs.js'
 import { copyCoverFile, copyPageFile, readableFileScope } from './files.js'
 import {
@@ -347,7 +346,9 @@ export async function duplicateFolder(
                                  cover_file_id, cover_preset, cover_focal_y,
                                  parent_folder_id, child_position,
                                  project_id, kind, tab_position)
-            VALUES (${newId}::uuid, ${viewerId}::uuid, ${name}, ${source?.icon ?? null},
+            VALUES (${newId}::uuid,
+                    ${place === null ? sql`${viewerId}::uuid` : sql`(SELECT p.owner_id FROM folders p WHERE p.id = ${place.parentId}::uuid)`},
+                    ${name}, ${source?.icon ?? null},
                     ${source?.color ?? null}, ${source?.description ?? null},
                     ${coverFileId}::uuid,
                     ${coverFileId === null ? (source?.cover_preset ?? null) : null},
@@ -364,26 +365,26 @@ export async function duplicateFolder(
          control, and **nothing about the source's
          Access travels** -- R10B says member identities, Access standing and
          Responsibility documents are not copied by duplication or workflows
-         (issue #228). */
-      await tx.execute(
-        sql`INSERT INTO folder_members (folder_id, user_id, access)
-            VALUES (${copyId}::uuid, ${viewerId}::uuid, 'full_control')`,
-      )
-      await recordAccessTransition(tx, {
-        folderId: copyId,
-        memberId: viewerId,
-        previousAccess: null,
-        newAccess: 'full_control',
-        actorId: viewerId,
-        transition: 'created_owner',
-      })
+         (issue #228). Step 8: a sub-page copy's people and owner are its
+         project's, so only a top-level copy gets a membership row. */
+      if (place === null) {
+        await tx.execute(
+          sql`INSERT INTO folder_members (folder_id, user_id, access)
+              VALUES (${copyId}::uuid, ${viewerId}::uuid, 'full_control')`,
+        )
+        await recordAccessTransition(tx, {
+          folderId: copyId,
+          memberId: viewerId,
+          previousAccess: null,
+          newAccess: 'full_control',
+          actorId: viewerId,
+          transition: 'created_owner',
+        })
+      }
       /* Beside the original: a sub-page as `createSubPage` makes one, or a
          top-level page next to it in the duplicator's own Library. */
       if (place === null) await placeBesideInLibrary(tx, viewerId, sourceFolderId, copyId)
-      else {
-        await appendHomeBlock(tx, place.parentId, copyId)
-        await copyParentMembers(tx, viewerId, place.parentId, copyId)
-      }
+      else await appendHomeBlock(tx, place.parentId, copyId)
       if (coverFileId !== null) {
         // The scope, now that there is a folder to name (4.16, 7.15).
         await tx.execute(
@@ -964,7 +965,9 @@ export async function importWorkflow(
         sql`INSERT INTO folders (id, owner_id, name, created_at,
                                  parent_folder_id, child_position,
                                  project_id, kind, tab_position)
-            VALUES (${newId}::uuid, ${viewerId}::uuid, ${folder.name}, ${clock()},
+            VALUES (${newId}::uuid,
+                    ${parentId === undefined ? sql`${viewerId}::uuid` : sql`(SELECT p.owner_id FROM folders p WHERE p.id = ${parentId}::uuid)`},
+                    ${folder.name}, ${clock()},
                     ${parentId ?? null}::uuid, ${childPosition},
                     ${parentId === undefined ? sql`${newId}::uuid` : sql`(SELECT p.project_id FROM folders p WHERE p.id = ${parentId}::uuid)`},
                     'work', ${parentId === undefined ? 'a0' : null})
@@ -974,25 +977,25 @@ export async function importWorkflow(
       /* #228's account-state boundary: importing a workflow is an
          account-level creation act, so the importer becomes owner and Full
          control of the Folder it
-         creates, and the file carries no member standing to restore. */
-      await tx.execute(
-        sql`INSERT INTO folder_members (folder_id, user_id, access)
-            VALUES (${folderId}::uuid, ${viewerId}::uuid, 'full_control')`,
-      )
-      await recordAccessTransition(tx, {
-        folderId,
-        memberId: viewerId,
-        previousAccess: null,
-        newAccess: 'full_control',
-        actorId: viewerId,
-        transition: 'created_owner',
-      })
-      /* Into a page, the new page is a sub-page as `createSubPage` makes one:
-         a home block at the end of the parent's Main document, and the
-         parent's members copied with their presets. */
-      if (parentId !== undefined) {
+         creates, and the file carries no member standing to restore.
+         Step 8: into a page, the new page is a sub-page as `createSubPage`
+         makes one: its project's people and owner, and a home block at the
+         end of the parent's Main document. */
+      if (parentId === undefined) {
+        await tx.execute(
+          sql`INSERT INTO folder_members (folder_id, user_id, access)
+              VALUES (${folderId}::uuid, ${viewerId}::uuid, 'full_control')`,
+        )
+        await recordAccessTransition(tx, {
+          folderId,
+          memberId: viewerId,
+          previousAccess: null,
+          newAccess: 'full_control',
+          actorId: viewerId,
+          transition: 'created_owner',
+        })
+      } else {
         await appendHomeBlock(tx, parentId, folderId)
-        await copyParentMembers(tx, viewerId, parentId, folderId)
       }
       const taskMap = new Map<string,string>()
       /*
@@ -1377,11 +1380,11 @@ export async function transferOwnershipTo(
           WHERE folder_id = ${folderId} AND user_id = ${targetId}`,
     )
     if (member.length === 0) return { kind: 'target_not_member' } as const
+    // Step 8: every page of the project has the project's owner.
     await tx.execute(
       sql`UPDATE folders SET owner_id = ${targetId}::uuid
-          WHERE id = ${folderId}::uuid`,
+          WHERE project_id = ${folderId}::uuid`,
     )
-    await mirrorRootMembersToTabs(tx, folderId, actorId)
     const named = await namesFor(tx, folderId, targetId)
     await recordEvent(tx, {
       actorId,

@@ -11,9 +11,8 @@ a Discuss on the same project queue rather than race, and "one live
 Discussion per project" is decided under that lock
 (`folders_one_discussion_per_project_idx` is the backstop).
 
-Until step 8 moves members to the project, a new tab copies the root's
-members and presets, each recorded as `member_added` by the actor, as a
-sub-page copies its parent's.
+Since step 8 people belong to the project: a new tab or page stores no
+membership rows, and its owner is the project's.
 */
 import { randomUUID } from 'node:crypto'
 
@@ -27,7 +26,7 @@ import type { Facet } from '../../shared/facets.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
-import { folderActorFacts, mayPerform, presetOf, recordAccessTransition } from './folder-access.js'
+import { folderActorFacts, mayPerform } from './folder-access.js'
 import { keyBetween } from './fractional-index.js'
 import { PAGE_TREE_EDIT_ACTION, appendHomeBlock, lastChildPosition } from './page-tree.js'
 
@@ -78,7 +77,7 @@ async function lastTabPosition(tx: Executor, projectId: string): Promise<string 
   return last === null || last === undefined ? null : String(last)
 }
 
-/** One tab row, owned by the project's owner, with the root's people. */
+/** One tab row, owned by the project's owner; its people are the project's (step 8). */
 async function insertTab(
   tx: Executor,
   actorId: string,
@@ -93,27 +92,6 @@ async function insertTab(
     sql`INSERT INTO folders (id, owner_id, name, project_id, kind, tab_position)
         VALUES (${id}::uuid, ${root.ownerId}::uuid, ${name}, ${root.id}::uuid, ${kind}, ${position})`,
   )
-  const copied = await rowsOf(
-    tx,
-    sql`INSERT INTO folder_members (folder_id, user_id, access, can_edit_own_responsibilities, created_at)
-        SELECT ${id}::uuid, m.user_id, m.access, m.can_edit_own_responsibilities, m.created_at
-          FROM folder_members m
-          JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL
-         WHERE m.folder_id = ${root.id}::uuid
-        RETURNING user_id, access`,
-  )
-  for (const row of copied) {
-    const access = presetOf(row.access)
-    if (access === null) throw new Error(`folder_members.access holds an unknown preset in ${root.id}`)
-    await recordAccessTransition(tx, {
-      folderId: id,
-      memberId: String(row.user_id),
-      previousAccess: null,
-      newAccess: access,
-      actorId,
-      transition: 'member_added',
-    })
-  }
   if (quiet) return id
   await recordEvent(tx, {
     actorId,
@@ -235,11 +213,8 @@ export async function pagesTabFor(tx: Executor, actorId: string, workTabId: stri
   return insertTab(tx, actorId, root, 'doc', 'Pages', keyBetween(at, after))
 }
 
-/** The project a page belongs to, or null for no such page. */
-export async function projectOf(tx: Executor, pageId: string): Promise<string | null> {
-  const rows = await rowsOf(tx, sql`SELECT project_id FROM folders WHERE id = ${pageId}::uuid`)
-  return rows[0] === undefined ? null : String(rows[0].project_id)
-}
+/** The project a page belongs to (defined beside the access resolver). */
+export { projectOf } from './folder-access.js'
 
 /**
  * The live Discussion tab of `pageId`'s project, added after the last tab
@@ -289,7 +264,7 @@ export async function purposeTabOf(
  * A new Doc page beside `pageId`, in the caller's transaction, for a copy
  * or an import: on a project root, a Doc tab first or last in the tab row;
  * on a sub-page, a child Doc page with its home block. It has `pageId`'s
- * people. Records no event: the caller's act is the event.
+ * project's people (step 8). Records no event: the caller's act is the event.
  */
 export async function addDocPage(
   tx: Executor,
@@ -314,28 +289,9 @@ export async function addDocPage(
   const id = randomUUID()
   await tx.execute(
     sql`INSERT INTO folders (id, owner_id, name, parent_folder_id, child_position, project_id, kind)
-        VALUES (${id}::uuid, ${actorId}::uuid, ${name}, ${pageId}::uuid,
+        VALUES (${id}::uuid, ${root.ownerId}::uuid, ${name}, ${pageId}::uuid,
                 ${await lastChildPosition(tx, pageId)}, ${root.id}::uuid, 'doc')`,
   )
-  const copied = await rowsOf(
-    tx,
-    sql`INSERT INTO folder_members (folder_id, user_id, access, can_edit_own_responsibilities, created_at)
-        SELECT ${id}::uuid, m.user_id, m.access, m.can_edit_own_responsibilities, m.created_at
-          FROM folder_members m WHERE m.folder_id = ${pageId}::uuid
-        RETURNING user_id, access`,
-  )
-  for (const row of copied) {
-    const access = presetOf(row.access)
-    if (access === null) throw new Error(`folder_members.access holds an unknown preset in ${pageId}`)
-    await recordAccessTransition(tx, {
-      folderId: id,
-      memberId: String(row.user_id),
-      previousAccess: null,
-      newAccess: access,
-      actorId,
-      transition: String(row.user_id) === actorId ? 'created_owner' : 'member_added',
-    })
-  }
   await appendHomeBlock(tx, pageId, id)
   return id
 }
