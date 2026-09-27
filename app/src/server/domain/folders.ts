@@ -1628,6 +1628,8 @@ export async function ownedSharedFolders(
         FROM folders f
         WHERE f.owner_id = ${ownerId} AND NOT f.is_default
           AND f.deleted_at IS NULL
+          -- Step 7: a tab follows its project's owner, so only the project is named.
+          AND NOT (f.tab_position IS NOT NULL AND f.id <> f.project_id)
           AND EXISTS (SELECT 1 FROM folder_members m
                        WHERE m.folder_id = f.id AND m.user_id <> ${ownerId}
                          AND ${notSamplePerson(sql`m.user_id`)})

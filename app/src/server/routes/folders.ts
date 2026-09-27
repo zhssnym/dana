@@ -60,8 +60,10 @@ import {
   accessHistoryOf,
   accessOf,
   atLeast,
+  isProjectTab,
   mayPerform,
   otherFullControlCount,
+  TAB_HAS_PROJECT_PEOPLE,
 } from '../domain/folder-access.js'
 import type { FolderAccess } from '../domain/folder-access.js'
 import type { FolderAction } from '../domain/folder-access.js'
@@ -148,6 +150,15 @@ export function createFoldersRouter(
 
   const STRANDED =
     'This folder would be left with nobody in Full control. Give another member Full control first.'
+
+  /** Step 7: a tab's people are its project's, so a membership write on a
+   * tab alone is refused (422) after the caller's own gate, which keeps a
+   * stranger's answer the 404 of AC-397. */
+  const refusedOnTab = async (db: Db, res: Response, folderId: string): Promise<boolean> => {
+    if (!(await isProjectTab(db, folderId))) return false
+    sendError(res, 422, 'validation_failed', TAB_HAS_PROJECT_PEOPLE)
+    return true
+  }
 
   /** Whether `targetId` is the structural owner of `folderId`. */
   const targetIsOwner = async (
@@ -700,6 +711,7 @@ export function createFoldersRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
+      if (await refusedOnTab(db, res, folderId)) return
       if (!(await isMember(db, folderId, targetId))) {
         // The membership named by the path does not exist; 404 is 7.0's
         // word for that, and it holds for the leave-again repeat too.
@@ -762,6 +774,7 @@ export function createFoldersRouter(
       const actorId = viewer(req)
       const access = await gate(req, res, folderId, 'member.leave')
       if (access === null) return
+      if (await refusedOnTab(db, res, folderId)) return
       await leave(res, folderId, actorId, access)
     },
   )
@@ -838,6 +851,7 @@ export function createFoldersRouter(
       } else if ((await gate(req, res, folderId, 'member.access.change')) === null) {
         return
       }
+      if (await refusedOnTab(db, res, folderId)) return
       const outcome = await changeMemberAccess(
         db,
         actorId,
@@ -910,6 +924,7 @@ export function createFoldersRouter(
       if (folderId === null) return
       const access = await gate(req, res, folderId, 'owner.custody_recovery')
       if (access === null) return
+      if (await refusedOnTab(db, res, folderId)) return
       const outcome = await recoverOwnerFullControl(
         db,
         viewer(req),
@@ -1148,6 +1163,7 @@ export function createFoldersRouter(
         'responsibility.self_edit_grant.manage',
       )
       if (access === null) return
+      if (await refusedOnTab(db, res, ids.folderId)) return
       const outcome = await setSelfEditGrant(
         db,
         viewer(req),

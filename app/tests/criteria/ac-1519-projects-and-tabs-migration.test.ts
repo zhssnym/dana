@@ -547,5 +547,16 @@ describe('AC-1519 migration 0061 turns roots into projects and facets into tabs'
     await db.exec(sql`INSERT INTO page_blocks (id, facet_id, kind, position, page_position, text)
       VALUES (${written}::uuid, ${A.purpose}::uuid, 'paragraph', 1, 'a1', 'late')`)
     expect(await homeOf(written)).toEqual({ folder_id: A.purpose, facet_id: null })
+    // A facet that got no page (an empty Desk's Purpose) takes no write, so
+    // nothing lands where no page reads it and the contract migration drops.
+    const lost = id(0x10, 4)
+    const refused: unknown = await db.exec(sql`INSERT INTO page_blocks (id, facet_id, kind, position, page_position, text)
+      VALUES (${lost}::uuid, ${J.purpose2}::uuid, 'paragraph', 1, 'a1', 'lost')`).then(() => null, (e: unknown) => e)
+    const err = refused as { code?: string; constraint?: string; cause?: { code?: string; constraint?: string } } | null
+    expect(err?.cause?.constraint ?? err?.constraint).toBe('page_blocks_facet_has_page')
+    expect(await db.exec(sql`SELECT id FROM page_blocks WHERE id = ${lost}::uuid`)).toEqual([])
+    // The orphan private facet's row is left as it was and may still change in place.
+    await db.exec(sql`UPDATE page_blocks SET text = 'still mine' WHERE id = ${A.orphanBlock}::uuid`)
+    expect(await homeOf(A.orphanBlock)).toEqual({ folder_id: null, facet_id: A.orphan })
   })
 })

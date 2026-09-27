@@ -597,8 +597,8 @@ async function writeSamplePage(
           FROM folders s WHERE s.id = ${source}::uuid`,
   )
   await tx.execute(
-    sql`INSERT INTO folder_members (folder_id, user_id, access)
-        SELECT ${id}::uuid, m.user_id, m.access FROM folder_members m
+    sql`INSERT INTO folder_members (folder_id, user_id, access, created_at)
+        SELECT ${id}::uuid, m.user_id, m.access, m.created_at FROM folder_members m
          WHERE m.folder_id = ${source}::uuid`,
   )
   await recordAccessTransition(tx, {
@@ -816,24 +816,30 @@ export async function removeSampleWorkspace(
     // write, a block written or edited since (the sample's own carry the
     // register's moment, one transaction's now()), a comment or a thread of
     // theirs posted since.
-    const ownWriting = (folder: SQL, since: SQL): SQL => sql`(
+    // A project's writing is in any of its pages: the root and its tabs (a
+    // Discussion tab's threads, a Doc tab's blocks). A sub-page is its own
+    // registered row and is judged on its own.
+    const ownWriting = (folder: SQL, since: SQL): SQL => {
+      const pages = sql`(SELECT pf.id FROM folders pf
+                          WHERE pf.id = ${folder}
+                             OR (pf.project_id = ${folder} AND pf.id <> pf.project_id
+                                 AND pf.tab_position IS NOT NULL))`
+      return sql`(
       EXISTS (SELECT 1 FROM tasks t
-               WHERE t.folder_id = ${folder}
+               WHERE t.folder_id IN ${pages}
                  AND t.id NOT IN (SELECT o.id FROM sample_objects o
                                    WHERE o.user_id = ${userId}::uuid AND o.kind = 'task'))
       OR EXISTS (SELECT 1 FROM page_blocks b
                   WHERE b.updated_at > ${since}
-                    AND (b.folder_id = ${folder}
-                         OR b.folder_id IN (SELECT pf.id FROM folders pf
-                                             WHERE pf.project_id = ${folder} AND pf.id <> pf.project_id
-                                               AND pf.tab_position IS NOT NULL)
-                         OR b.task_id IN (SELECT t.id FROM tasks t WHERE t.folder_id = ${folder})))
+                    AND (b.folder_id IN ${pages}
+                         OR b.task_id IN (SELECT t.id FROM tasks t WHERE t.folder_id IN ${pages})))
       OR EXISTS (SELECT 1 FROM comments c
-                  WHERE c.folder_id = ${folder} AND c.author_id = ${userId}::uuid
+                  WHERE c.folder_id IN ${pages} AND c.author_id = ${userId}::uuid
                     AND c.created_at > ${since})
       OR EXISTS (SELECT 1 FROM discussions d
-                  WHERE d.folder_id = ${folder} AND d.created_by = ${userId}::uuid
+                  WHERE d.folder_id IN ${pages} AND d.created_by = ${userId}::uuid
                     AND d.created_at > ${since}))`
+    }
 
     const folders = await rowsOf(
       tx,
@@ -896,6 +902,24 @@ export async function removeSampleWorkspace(
       for (const id of trashRoots) {
         await removeHomeBlock(tx, id)
         await trashFolderSubtree(tx, userId, id)
+      }
+    }
+
+    // A doomed project's tabs go with it. They are not registered (only the
+    // root and sub-pages are), and a page left out of the doomed list is
+    // released into a project of its own rather than deleted.
+    if (doomedFolders.length > 0) {
+      const tabs = await rowsOf(
+        tx,
+        sql`SELECT id FROM folders
+             WHERE project_id IN (${idList(doomedFolders)}) AND id <> project_id
+               AND tab_position IS NOT NULL AND owner_id = ${userId}::uuid
+               AND NOT EXISTS (SELECT 1 FROM folder_members m
+                                WHERE m.folder_id = folders.id AND m.user_id <> ${userId}::uuid
+                                  AND m.user_id NOT IN (${idList(SAMPLE_PERSON_IDS)}))`,
+      )
+      for (const row of tabs) {
+        if (!doomedFolders.includes(String(row.id))) doomedFolders.push(String(row.id))
       }
     }
 

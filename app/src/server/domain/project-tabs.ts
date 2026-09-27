@@ -93,8 +93,8 @@ async function insertTab(
   )
   const copied = await rowsOf(
     tx,
-    sql`INSERT INTO folder_members (folder_id, user_id, access, can_edit_own_responsibilities)
-        SELECT ${id}::uuid, m.user_id, m.access, m.can_edit_own_responsibilities
+    sql`INSERT INTO folder_members (folder_id, user_id, access, can_edit_own_responsibilities, created_at)
+        SELECT ${id}::uuid, m.user_id, m.access, m.can_edit_own_responsibilities, m.created_at
           FROM folder_members m
           JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL
          WHERE m.folder_id = ${root.id}::uuid
@@ -264,8 +264,8 @@ export async function addDocPage(
   )
   const copied = await rowsOf(
     tx,
-    sql`INSERT INTO folder_members (folder_id, user_id, access, can_edit_own_responsibilities)
-        SELECT ${id}::uuid, m.user_id, m.access, m.can_edit_own_responsibilities
+    sql`INSERT INTO folder_members (folder_id, user_id, access, can_edit_own_responsibilities, created_at)
+        SELECT ${id}::uuid, m.user_id, m.access, m.can_edit_own_responsibilities, m.created_at
           FROM folder_members m WHERE m.folder_id = ${pageId}::uuid
         RETURNING user_id, access`,
   )

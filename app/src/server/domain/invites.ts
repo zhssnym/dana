@@ -18,7 +18,7 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import { accessOf, mayPerform, presetOf } from './folder-access.js'
-import { copyRootMembersToTabs, recordAccessTransition } from './folder-access.js'
+import { copyRootMembersToTabs, isProjectTab, recordAccessTransition } from './folder-access.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import type { FolderAccess } from './folder-access.js'
@@ -235,6 +235,8 @@ export type CreateInviteResult =
   | { kind: 'own_email' }
   | { kind: 'folder_not_found' }
   | { kind: 'default_folder' }
+  /** Step 7: a tab has its project's people; the project is shared. */
+  | { kind: 'project_tab' }
   | { kind: 'already_member' }
   | { kind: 'task_not_in_folder' }
   | { kind: 'already_connected' }
@@ -358,6 +360,7 @@ export async function createInvite(
       if (folderAccess === null) return { kind: 'folder_not_found' }
       // INV-3: a default folder is never shared, so it refuses every invite.
       if (folderAccess.isDefault) return { kind: 'default_folder' }
+      if (await isProjectTab(tx, folderId)) return { kind: 'project_tab' }
       /* Accepted R8A: inviting somebody into a Folder is administering
          members, which Can edit explicitly cannot do, so it is Full
          control's. Before #228 any member could invite anybody into any

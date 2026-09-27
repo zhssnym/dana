@@ -97,6 +97,22 @@ export async function accessOf(
   return folderActorFacts(executor, viewerId, folderId)
 }
 
+/** Step 7, until step 8 moves people to the project: a tab carries its
+ * project root's people, copied from the root on every write there, so a
+ * membership or invite written on a tab alone would be undone by the next
+ * one. Those writes are refused with this sentence. */
+export const TAB_HAS_PROJECT_PEOPLE = "A tab has its project's people. Share the project."
+
+/** True when `folderId` is a project's tab other than its root. */
+export async function isProjectTab(executor: Executor, folderId: string): Promise<boolean> {
+  const rows = await rowsOf(
+    executor,
+    sql`SELECT 1 FROM folders
+         WHERE id = ${folderId}::uuid AND tab_position IS NOT NULL AND id <> project_id`,
+  )
+  return rows.length > 0
+}
+
 
 /* ------------------------------------------------------------------ *
  * Reading the facts
@@ -623,8 +639,8 @@ export async function copyRootMembersToTabs(
     }
     const added = await rowsOf(
       tx,
-      sql`INSERT INTO folder_members (folder_id, user_id, access, can_edit_own_responsibilities)
-          SELECT ${tabId}::uuid, rm.user_id, rm.access, rm.can_edit_own_responsibilities
+      sql`INSERT INTO folder_members (folder_id, user_id, access, can_edit_own_responsibilities, created_at)
+          SELECT ${tabId}::uuid, rm.user_id, rm.access, rm.can_edit_own_responsibilities, rm.created_at
             FROM folder_members rm
            WHERE rm.folder_id = ${folderId}::uuid
           ON CONFLICT DO NOTHING

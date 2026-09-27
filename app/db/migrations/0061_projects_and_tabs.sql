@@ -55,7 +55,11 @@
 --    triggers keep its writes landing: a `folders` insert without a project
 --    gets one (a root is its own Work project; a subpage joins its
 --    parent's), and a block written into a facet that is now a page lands on
---    that page. The contract migration drops both.
+--    that page. A block written into a facet that got no page (an empty
+--    Desk Purpose, a hidden empty native, a facet the old instance made after
+--    this commit) is refused rather than stored where no page reads it; an
+--    orphan private facet's existing rows may still be updated in place. The
+--    contract migration drops both triggers.
 --
 -- Forward only.
 LOCK TABLE folders, folder_facets, folder_members, page_blocks, files, discussions
@@ -742,9 +746,14 @@ CREATE TRIGGER folders_fill_project BEFORE INSERT ON folders
 CREATE FUNCTION migration_util.facet_block_to_page() RETURNS trigger
 LANGUAGE plpgsql AS $fn$
 BEGIN
-  IF NEW.facet_id IS NOT NULL AND EXISTS (SELECT 1 FROM folders f WHERE f.id = NEW.facet_id) THEN
-    NEW.folder_id := NEW.facet_id;
-    NEW.facet_id := NULL;
+  IF NEW.facet_id IS NOT NULL THEN
+    IF EXISTS (SELECT 1 FROM folders f WHERE f.id = NEW.facet_id) THEN
+      NEW.folder_id := NEW.facet_id;
+      NEW.facet_id := NULL;
+    ELSIF TG_OP = 'INSERT' OR OLD.facet_id IS DISTINCT FROM NEW.facet_id THEN
+      RAISE EXCEPTION 'step 7: facet % has no page; reload Dana', NEW.facet_id
+        USING ERRCODE = 'check_violation', CONSTRAINT = 'page_blocks_facet_has_page';
+    END IF;
   END IF;
   RETURN NEW;
 END

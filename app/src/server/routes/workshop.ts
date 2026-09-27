@@ -32,7 +32,7 @@ import {
   transferOwnershipTo,
 } from '../domain/acts.js'
 import { isEligibleSuccessor } from '../domain/folders.js'
-import { accessOf, mayPerform } from '../domain/folder-access.js'
+import { accessOf, isProjectTab, mayPerform, TAB_HAS_PROJECT_PEOPLE } from '../domain/folder-access.js'
 import { PAGE_TREE_EDIT_ACTION } from '../domain/page-tree.js'
 import type { FolderAction } from '../domain/folder-access.js'
 import { WorkflowLabelNameConflict } from '../domain/labels.js'
@@ -892,6 +892,11 @@ export function createWorkshopRouter(
           'conflict',
           'Ownership of the default folder cannot be transferred.',
         )
+        return
+      }
+      // Step 7: a tab has its project's owner; the project is transferred.
+      if (await isProjectTab(db, folderId)) {
+        sendError(res, 422, 'validation_failed', TAB_HAS_PROJECT_PEOPLE)
         return
       }
       /*
