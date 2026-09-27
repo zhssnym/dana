@@ -73,6 +73,10 @@ export const trashedFolder = z.object({
   is_owner: z.boolean(),
   /** As on a task: the viewer's own Access preset for this folder. */
   my_access: folderAccessPreset,
+  /** Step 7: the name of the project this page belongs to when it is not
+   * the project itself, so a trashed "Purpose" tab says whose it is. Null for
+   * a project, and for a viewer who cannot see the project's root. */
+  project_name: z.string().nullable().default(null),
 })
 export type TrashedFolder = z.infer<typeof trashedFolder>
 

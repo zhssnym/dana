@@ -38,8 +38,8 @@ second one.
   view is pinned or unpinned per the pin list of 9.7.
 - **Assignee**: the single member a task is assigned to, or null (unassigned). Must be a
   member of the task's folder.
-- **Step**: a checklist row inside a task: title, done flag, position. No dates, no
-  assignee.
+- **Step**: a checklist item in a task's body, also called a subtask: text and a tick. No
+  dates, no assignee.
 - **Pull into focus**: the manual act of adding a task to the viewer's own Today, stored
   as a Today entry.
 - **Today entry**: a row (task_id, user_id, added_on) recording a pull. Personal to one

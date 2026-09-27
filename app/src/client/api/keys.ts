@@ -11,6 +11,8 @@ matches on a prefix.
 export const queryKeys = {
   me: () => ['me'] as const,
   folders: () => ['folders'] as const,
+  /** `GET /folders?tabs=1`: every page, a project's tabs included (step 7). */
+  allPages: () => ['pages', 'with-tabs'] as const,
   folder: (id: string) => ['folders', id] as const,
   folderTasks: (id: string, section: 'open' | 'completed') =>
     ['folders', id, 'tasks', section] as const,
@@ -47,10 +49,6 @@ export const queryKeys = {
     ['folders', id, 'members', userId, 'history'] as const,
   /** Every edge inside one folder (#207), which the Linear view draws. */
   folderDependencies: (id: string) => ['folders', id, 'dependencies'] as const,
-  folderFacets: (id: string) => ['folders', id, 'facets'] as const,
-  facetLocation: (facetId: string) => ['facets', facetId, 'location'] as const,
-  facetPage: (folderId: string, facetId: string) =>
-    ['folders', folderId, 'facets', facetId, 'page'] as const,
   shelfPage: (id: string) => ['shelves', id, 'page'] as const,
   notifications: () => ['notifications'] as const,
 

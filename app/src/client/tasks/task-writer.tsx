@@ -34,9 +34,8 @@ local copy would be a second source of truth.
 **What this writer does not send.** A due date, a reminder and a repeat rule
 arrive here as the *words a chip says* rather than as values, because that is
 what `ConceptTask` holds; their pickers carry the values and their own endpoints
-(7.6's PATCH, 7.9's PUT), in `components/task-pickers.tsx`. The steps are 7.7's
-routes and need a diff against the task's current list rather than a field copy;
-that diff is `tasks/task-acts.ts`'s `writeSteps`. Comments are 9.6's
+(7.6's PATCH, 7.9's PUT), in `components/task-pickers.tsx`. The steps are the
+checklist items of the task's body, written by its composer. Comments are 9.6's
 conversation. Each of the rest is dropped here rather than half-sent, and
 `unwritten()` below names what was dropped so a caller can assert on it.
 */
@@ -51,7 +50,6 @@ import {
   useUpdateTask,
 } from '../api/mutations.js'
 import { useFolders } from '../api/queries.js'
-import { writeSteps } from './task-acts.js'
 import { conceptPatchToBody, writtenElsewhere } from './task-concept.js'
 import type { ConceptTask } from './task-model.js'
 
@@ -135,8 +133,6 @@ export function useApiTaskPatch(): TaskPatch {
       /* 7.8's pull and its DELETE, which 9.4 draws as My Day's own marker. */
       if (fields.pulled === true) pull.mutate(taskId)
       if (fields.pulled === false) unpull.mutate(taskId)
-      /* 7.7's routes, as a diff (`tasks/task-acts.ts`'s `writeSteps`). */
-      if (fields.steps !== undefined) writeSteps(taskId, fields.steps)
 
       const body = conceptPatchToBody(
         fields.folder === undefined

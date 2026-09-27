@@ -173,3 +173,33 @@ describe('sub-page blocks', () => {
     expect(ops.filter((op) => op.op !== 'set_outline')).toEqual([{ op: 'put_block', ...documentOf(page).blocks[0] }])
   })
 })
+
+/*
+Step 8: a page that became its own project leaves a `folder_ref` with no text
+where its `page` block was. It draws as a page row, saves back unchanged, and
+removing it removes the reference only: it never trashes the other project.
+*/
+describe('a page of another project', () => {
+  const BLOCK = '66666666-6666-4666-8666-666666666666'
+  const OTHER = '77777777-7777-4777-8777-777777777777'
+  const page = {
+    revision: 'r', task_placements: [],
+    blocks: [row(BLOCK, 'folder_ref', { ref_folder_id: OTHER }), row(TEXT, 'paragraph', { text: 'after', rich_content: { version: 1, runs: [{ text: 'after' }] } })],
+    items: [{ kind: 'block', id: BLOCK }, { kind: 'block', id: TEXT }],
+  } as unknown as PageView
+  const drawn = () => BlockNoteEditor.create({ schema: canvasSchema, initialContent: hydrateCanvas(page, 600) as never }).document as CanvasBlock[]
+
+  test('draws as a page row and an untouched one sends nothing', () => {
+    const blocks = drawn()
+    expect(blocks[0]).toMatchObject({ id: BLOCK, type: 'danaPageRef', props: { folderId: OTHER } })
+    const after = dehydrateCanvas(blocks, 600, new Map())
+    expect(after.blocks[0]).toEqual(documentOf(page).blocks[0])
+    expect(canvasOperations(documentOf(page), after).filter((op) => op.op !== 'set_outline')).toEqual([])
+  })
+
+  test('removing it deletes the reference and trashes nothing', () => {
+    const blocks = drawn().filter((block) => block.id !== BLOCK)
+    const ops = canvasOperations(documentOf(page), dehydrateCanvas(blocks, 600, new Map()))
+    expect(ops.filter((op) => op.op !== 'set_outline')).toEqual([{ op: 'delete_block', id: BLOCK }])
+  })
+})

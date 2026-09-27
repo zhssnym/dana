@@ -1,6 +1,7 @@
 /*
 AC-1380: Given a task, a block or a comment the person wrote into a sample
-page, when they DELETE /sample, then that page's sample tree goes to Trash
+page, when they DELETE /sample, then that page's sample tree goes to Trash (a thread on a
+project's Discussion tab counts as the project's)
 with their writing in it, the response names it in X-Dana-Sample-Trashed,
 the register is empty, and the undo's fresh sample has no live duplicate of
 it. An untouched sample is destroyed whole, with nothing sent to Trash.
@@ -21,7 +22,7 @@ import { rows } from '../support/helpers.js'
 import { SAMPLE_TRASHED_HEADER } from '../../src/shared/sample.js'
 
 let app: AuthTestApp
-const cast = new Cast(['tryer', 'writer', 'looker'], 'ac1380')
+const cast = new Cast(['tryer', 'writer', 'looker', 'starter'], 'ac1380')
 
 beforeAll(async () => {
   app = await startAuthTestApp()
@@ -38,7 +39,11 @@ type Actor = Awaited<ReturnType<Cast['of']>>[number]
 async function sampleFolders(userId: string): Promise<Record<string, unknown>[]> {
   return rows(
     app.db,
-    sql`SELECT f.id, f.name, f.parent_folder_id FROM sample_objects s JOIN folders f ON f.id = s.id
+    // A sub-page in a project's Pages tab hangs from the project: tabs are not registered.
+    sql`SELECT f.id, f.name,
+               (SELECT CASE WHEN pp.tab_position IS NOT NULL THEN pp.project_id ELSE pp.id END
+                  FROM folders pp WHERE pp.id = f.parent_folder_id) AS parent_folder_id
+          FROM sample_objects s JOIN folders f ON f.id = s.id
         WHERE s.user_id = ${userId}::uuid AND s.kind = 'folder'
         ORDER BY f.name`,
   )
@@ -92,8 +97,17 @@ describe('AC-1380 removing the sample keeps the person’s own work', () => {
     expect(folder[0]?.deleted_at).not.toBeNull()
 
     // What is removed as well as what is kept: the untouched pages are gone.
+    // Since step 7 a sub-page's Purpose is a child Doc page, so the tree
+    // under the target is two deep: everything in it goes to Trash with it.
+    const parentOf = new Map(folders.map((row) => [String(row.id), row.parent_folder_id]))
+    const underTarget = (id: string): boolean => {
+      for (let at: unknown = id; at !== null && at !== undefined; at = parentOf.get(String(at))) {
+        if (at === target.id) return true
+      }
+      return false
+    }
     const others = folders
-      .filter((row) => row.id !== target.id && row.parent_folder_id !== target.id)
+      .filter((row) => !underTarget(String(row.id)))
       .map((row) => String(row.id))
     const survivors = await rows(
       app.db,
@@ -176,5 +190,41 @@ describe('AC-1380 removing the sample keeps the person’s own work', () => {
       )})`,
     )
     expect(left.length).toBe(0)
+    // The unregistered tabs (Purpose, Results, Discussion) go too: nothing of
+    // the sample is released into a project of its own.
+    const remaining = await rows(
+      app.db,
+      sql`SELECT name FROM folders WHERE owner_id = ${looker.id}::uuid AND NOT is_default`,
+    )
+    expect(remaining.map((row) => row.name)).toEqual([])
+  })
+
+  test('a thread started on a sample Discussion tab sends its project to Trash', async () => {
+    const [, , , fourth] = await cast.of(app)
+    const starter = await withSample(fourth)
+    const tab = await rows(
+      app.db,
+      sql`SELECT d.id, r.name AS project FROM sample_objects s
+          JOIN folders r ON r.id = s.id AND r.parent_folder_id IS NULL
+          JOIN folders d ON d.project_id = r.id AND d.kind = 'discussion' AND d.id <> r.id
+          WHERE s.user_id = ${starter.id}::uuid AND s.kind = 'folder'
+          ORDER BY r.name LIMIT 1`,
+    )
+    if (tab[0] === undefined) throw new Error('the sample must write a Discussion tab')
+    const started = await starter.browser.json(`/folders/${String(tab[0].id)}/discussions`, 'POST', {
+      title: 'MY OWN THREAD',
+    })
+    expect(started.status).toBe(201)
+
+    const removed = await starter.browser.json('/sample', 'DELETE')
+    expectStatus(removed, 204, 'the sample is removed (7.20)')
+    expect(trashedNames(removed)).toEqual([String(tab[0].project)])
+    const thread = await rows(
+      app.db,
+      sql`SELECT f.deleted_at FROM discussions d JOIN folders f ON f.id = d.folder_id
+          WHERE d.title = 'MY OWN THREAD' AND d.created_by = ${starter.id}::uuid`,
+    )
+    expect(thread.length).toBe(1)
+    expect(thread[0]?.deleted_at).not.toBeNull()
   })
 })

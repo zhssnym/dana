@@ -126,7 +126,8 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
   },
   folders: {
     primaryKey: { name: 'folders_pkey', columns: ['id'] },
-    uniques: [],
+    /* Migration 0061: the target of every same-project foreign key. */
+    uniques: [{ name: 'folders_id_project_id_key', columns: ['id', 'project_id'] }],
     checks: [
       { name: 'folders_color_format_check', columns: ['color'] },
       { name: 'folders_cover_focal_y_range_check', columns: ['cover_focal_y'] },
@@ -143,6 +144,16 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'folders_parent_not_self_check', columns: ['id', 'parent_folder_id'] },
       { name: 'folders_default_is_root_check', columns: ['is_default', 'parent_folder_id'] },
       { name: 'folders_trashed_with_check', columns: ['deleted_at', 'trashed_with_folder_id'] },
+      /* Migration 0061 (step 7): a project is its root row (id = project_id),
+         a tab is a root-level row with a tab_position, and kind says what the
+         page is for. Only a root nobody has picked a kind for has none. */
+      { name: 'folders_kind_check', columns: ['kind'] },
+      { name: 'folders_tab_position_format_check', columns: ['tab_position'] },
+      { name: 'folders_tab_is_root_level_check', columns: ['parent_folder_id', 'tab_position'] },
+      { name: 'folders_project_root_is_tab_check', columns: ['id', 'parent_folder_id', 'project_id', 'tab_position'] },
+      { name: 'folders_kind_unpicked_is_root_check', columns: ['id', 'kind', 'project_id'] },
+      { name: 'folders_default_is_work_check', columns: ['is_default', 'kind'] },
+      { name: 'folders_discussion_is_tab_check', columns: ['kind', 'tab_position'] },
     ],
     foreignKeys: [
       {
@@ -157,13 +168,22 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         references: { table: 'users', columns: ['id'] },
         onDelete: 'restrict',
       },
-      /* Migration 0039: SET NULL both, so purging a parent turns surviving
-         children into roots and purging a trash initiator never dangles. */
+      /* Migration 0061 replaced 0039's parent key: a parent is in the same
+         project, and ON UPDATE CASCADE (not recorded here) carries a moved
+         subtree's project_id. Purging a parent still only clears the
+         pointer; purging a project root destroys its pages. */
       {
-        name: 'folders_parent_folder_id_fkey',
-        columns: ['parent_folder_id'],
-        references: { table: 'folders', columns: ['id'] },
+        name: 'folders_parent_same_project_fkey',
+        columns: ['parent_folder_id', 'project_id'],
+        references: { table: 'folders', columns: ['id', 'project_id'] },
         onDelete: 'set null',
+        onDeleteSetColumns: ['parent_folder_id'],
+      },
+      {
+        name: 'folders_project_id_fkey',
+        columns: ['project_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'cascade',
       },
       {
         name: 'folders_trashed_with_folder_id_fkey',
@@ -187,6 +207,16 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         name: 'folders_trashed_with_folder_id_idx',
         unique: false,
         columns: ['trashed_with_folder_id'],
+        partial: true,
+      },
+      /* Migration 0061: one live Discussion per project; a project's pages;
+         a project's tabs in order. */
+      { name: 'folders_one_discussion_per_project_idx', unique: true, columns: ['project_id'], partial: true },
+      { name: 'folders_project_id_idx', unique: false, columns: ['project_id'], partial: false },
+      {
+        name: 'folders_project_tab_position_idx',
+        unique: false,
+        columns: ['project_id', 'tab_position', 'id'],
         partial: true,
       },
     ],
@@ -546,12 +576,23 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'tasks_title_length_check', columns: ['title'] },
     ],
     foreignKeys: [
+      /* Migration 0062 (step 8): people belong to the project, so the
+         assignee is a member of the task's project (replacing 0000's
+         tasks_assignee_membership_fkey on the folder), and project_id is the
+         folder's, carried by ON UPDATE CASCADE (not recorded here) when a
+         page moves to another project. */
       {
-        name: 'tasks_assignee_membership_fkey',
-        columns: ['folder_id', 'assignee_id'],
+        name: 'tasks_assignee_project_member_fkey',
+        columns: ['project_id', 'assignee_id'],
         references: { table: 'folder_members', columns: ['folder_id', 'user_id'] },
         onDelete: 'set null',
         onDeleteSetColumns: ['assignee_id'],
+      },
+      {
+        name: 'tasks_folder_project_fkey',
+        columns: ['folder_id', 'project_id'],
+        references: { table: 'folders', columns: ['id', 'project_id'] },
+        onDelete: 'cascade',
       },
       {
         name: 'tasks_completed_by_fkey',
@@ -616,6 +657,13 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         name: 'tasks_folder_page_position_idx',
         unique: false,
         columns: ['folder_id', 'page_position', 'id'],
+        partial: false,
+      },
+      /* Migration 0062: a project's tasks by assignee. */
+      {
+        name: 'tasks_project_assignee_idx',
+        unique: false,
+        columns: ['project_id', 'assignee_id'],
         partial: false,
       },
       { name: 'tasks_deleted_at_idx', unique: false, columns: ['deleted_at'], partial: true },
@@ -1378,7 +1426,7 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       /* Migration 0057 (#213): a native Result lives only in a facet
          document, at most 4000 characters. `page_blocks_kind_check` and
          `page_blocks_rich_content_check` gained `result` in place. */
-      { name: 'page_blocks_result_home_check', columns: ['facet_id', 'kind', 'text'] },
+      { name: 'page_blocks_result_home_check', columns: ['folder_id', 'kind', 'text'] },
     ],
     foreignKeys: [
       /* Migration 0027 (#210): the third home. CASCADE because a facet's

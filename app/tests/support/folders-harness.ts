@@ -150,8 +150,11 @@ export function postFolder(actor: Actor, name: string): Promise<RawResponse> {
 export async function createFolder(
   actor: Actor,
   name: string,
+  /** Step 7: 'doc' makes a Doc project, whose sub-pages stay under it; a
+   * Work one (the default) puts them in its Pages tab. */
+  kind?: 'doc',
 ): Promise<string> {
-  const response = await postFolder(actor, name)
+  const response = kind === undefined ? await postFolder(actor, name) : await actor.browser.json('/folders', 'POST', { name, kind })
   expectStatus(
     response,
     201,

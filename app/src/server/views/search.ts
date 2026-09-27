@@ -78,13 +78,13 @@ export async function searchView(
   const rows = await readCards(executor, {
     viewerId,
     // All three statuses: a task being completed or abandoned is a reason to
-    // draw a chip, never a reason to make it unfindable. Step titles reach
-    // their task (7.18): the step is not a result of its
-    // own, the task it belongs to is.
+    // draw a chip, never a reason to make it unfindable. A checklist item
+    // (a subtask) reaches its task (7.18): the item is not a result of its
+    // own, the task it belongs to is. Notes leave checklist text out.
     where: sql`(t.title ILIKE ${pattern} OR t.notes ILIKE ${pattern}
-                OR EXISTS (SELECT 1 FROM steps s
-                            WHERE s.task_id = t.id
-                              AND s.title ILIKE ${pattern}))${resume}`,
+                OR EXISTS (SELECT 1 FROM page_blocks s
+                            WHERE s.task_id = t.id AND s.kind = 'checklist'
+                              AND s.text ILIKE ${pattern}))${resume}`,
     order: Q8_ORDER,
     limit: SEARCH_PAGE_SIZE + 1,
     extra: sql`${utcInstant(sql`t.updated_at`)} AS updated_cursor`,

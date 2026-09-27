@@ -661,7 +661,7 @@ export const FOLDER_ACTION_PARAM = 'folder-action'
 /** The query the collection page reads to open its History from the Library. */
 export const SHELF_ACTION_PARAM = 'shelf-action'
 
-function folderActionPath(id: string, action: FolderAction): string {
+export function folderActionPath(id: string, action: FolderAction): string {
   return `${paths.folder(id)}?${FOLDER_ACTION_PARAM}=${action}`
 }
 
@@ -1252,20 +1252,56 @@ function LibraryColumn({
   )
 }
 
-/** The Library's one "+": a new top-level page, one click, no menu. */
-function NewPageButton({ onNewPage }: { readonly onNewPage: () => void }): React.JSX.Element {
+/** The Library's "+" (step 7): the same two items as its right-click. */
+function NewPageButton({
+  onNewPage,
+  onImport,
+}: {
+  readonly onNewPage: () => void
+  readonly onImport: () => void
+}): React.JSX.Element {
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className="size-6 shrink-0 rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-      aria-label="New page"
-      title="New page"
-      onClick={onNewPage}
-    >
-      <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-6 shrink-0 rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+          />
+        }
+        aria-label="New project"
+        title="New project"
+      >
+        <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-auto min-w-40">
+        <ProjectItems onNewPage={onNewPage} onImport={onImport} />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/* New project and Import project, in the "+" and the right-click alike. */
+function ProjectItems({
+  onNewPage,
+  onImport,
+}: {
+  readonly onNewPage: () => void
+  readonly onImport: () => void
+}): React.JSX.Element {
+  return (
+    <>
+      <DropdownMenuItem onClick={onNewPage}>
+        <Plus strokeWidth={1.75} aria-hidden="true" />
+        New project
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={onImport}>
+        <FolderInput strokeWidth={1.75} aria-hidden="true" />
+        Import project…
+      </DropdownMenuItem>
+    </>
   )
 }
 
@@ -1324,14 +1360,7 @@ function SidebarGroundMenu({
         }
       />
       <DropdownMenuContent sideOffset={0} className="w-auto min-w-40">
-        <DropdownMenuItem onClick={onNewPage}>
-          <Plus strokeWidth={1.75} aria-hidden="true" />
-          New page
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onImport}>
-          <FolderInput strokeWidth={1.75} aria-hidden="true" />
-          Import…
-        </DropdownMenuItem>
+        <ProjectItems onNewPage={onNewPage} onImport={onImport} />
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -1392,8 +1421,9 @@ export function AppSidebar({
   const newPage = (): void => {
     if (creating.current) return
     creating.current = true
+    /* `kind: null`: the new project's page offers the picker (step 7). */
     create.mutate(
-      { name: 'Untitled' },
+      { name: 'Untitled', kind: null },
       {
         onSettled: () => {
           creating.current = false
@@ -1469,7 +1499,7 @@ export function AppSidebar({
             <h2 className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
               Library
             </h2>
-            <NewPageButton onNewPage={newPage} />
+            <NewPageButton onNewPage={newPage} onImport={() => { importPage() }} />
           </div>
           <PageTreeContext.Provider value={pageTree}>
           {inbox === null ? null : (
@@ -1532,7 +1562,10 @@ export function AppSidebar({
 
       {pageTree.leaving === null ? null : (
         <ConfirmDialog
-          message={leaveFolderConfirm(pageTree.leaving.name)}
+          message={leaveFolderConfirm(
+            /* Step 8: leaving any page leaves its project, so name that. */
+            allFolders.find((f) => f.id === pageTree.leaving?.project_id)?.name ?? pageTree.leaving.name,
+          )}
           onContinue={pageTree.confirmLeave}
           onCancel={pageTree.cancelLeave}
         />

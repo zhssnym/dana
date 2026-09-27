@@ -1,7 +1,7 @@
 /*
 AC-1019: a sub-page and its `page` block travel together (wave 2, pages in
 pages). The document transaction's `create_page` makes the sub-page -- parent
-stored, members copied -- and its block where the person typed it;
+stored, its people its project's (step 8) -- and its block where the person typed it;
 `trash_page` with the block's deletion moves the page (and the sub-pages that
 went with it) to Trash; re-putting the same block (the editor's Undo) restores
 the page in place. Outside the document, every writer keeps the home block:
@@ -128,7 +128,7 @@ async function lastItem(actor: Actor, folderId: string): Promise<string | undefi
 test('AC-1019 a page block and its sub-page are created, trashed, restored and moved together', async () => {
   const [owner, member] = await cast.of(app)
   if (owner === undefined || member === undefined) throw new Error('two actors')
-  const parent = await createFolder(owner, 'ac1019 parent')
+  const parent = await createFolder(owner, 'ac1019 parent', 'doc')
   await seedMembership(app.db, parent, member.id, { access: 'can_edit' })
 
   // create_page: the folder row, the copied member, the block where it was typed.
@@ -157,13 +157,12 @@ test('AC-1019 a page block and its sub-page are created, trashed, restored and m
     parent_folder_id: parent,
     deleted_at: null,
   })
-  const members = await rows(
-    app.db,
-    sql`SELECT user_id, access FROM folder_members WHERE folder_id = ${child}::uuid`,
-  )
-  expect(
-    Object.fromEntries(members.map((row) => [String(row.user_id), String(row.access)])),
-  ).toEqual({ [owner.id]: 'full_control', [member.id]: 'can_edit' })
+  // Step 8: its people are the project's; it stores none of its own.
+  expect(await rows(app.db, sql`SELECT user_id FROM folder_members WHERE folder_id = ${child}::uuid`)).toEqual([])
+  expect(await rows(app.db, sql`SELECT project_id FROM folders WHERE id = ${child}::uuid`)).toEqual([
+    { project_id: (await rows(app.db, sql`SELECT project_id FROM folders WHERE id = ${parent}::uuid`))[0]?.project_id },
+  ])
+  expect((await member.browser.json(`/folders/${child}`, 'GET')).status).toBe(200)
   expect(await homeOf(child)).toEqual([[home, parent]])
   expect((await read(owner, parent)).items.map((item) => item.id)).toEqual([intro, home, outro])
 

@@ -443,13 +443,17 @@ export async function deleteAccountData(
   // the remaining member with the earliest join, ties to the lower user id.
   // The default folder is excluded by INV-2, which never lets one transfer,
   // and by INV-3, which never lets one hold a second member.
+  //
+  // Step 8: ownership and people are the project's. Each shared project
+  // goes to its heir, and `transferOwnership` moves every page of it.
   const transferable = await rowsOf(
     tx,
     sql`SELECT id FROM folders f
-        WHERE f.owner_id = ${userId} AND NOT f.is_default
+        WHERE f.owner_id = ${userId} AND NOT f.is_default AND f.id = f.project_id
           AND EXISTS (SELECT 1 FROM folder_members m
                        WHERE m.folder_id = f.id AND m.user_id <> ${userId}
-                         AND ${notSamplePerson(sql`m.user_id`)})`,
+                         AND ${notSamplePerson(sql`m.user_id`)})
+        ORDER BY f.id`,
   )
   for (const row of transferable) {
     await transferOwnership(tx, String(row.id), userId)

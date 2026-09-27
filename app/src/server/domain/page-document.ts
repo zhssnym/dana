@@ -69,6 +69,13 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
  const blocks=new Map<string,BlockOp>(stored.map(b=>[String(b.id),{op:'put_block',id:String(b.id),block_kind:b.kind as BlockOp['block_kind'],text:b.text as string|null,rich_content:b.rich_content as BlockOp['rich_content'],file_id:b.file_id as string|null,ref_folder_id:b.ref_folder_id as string|null,width_pct:b.width_pct as number|null,checked:b.checked===null||b.checked===undefined?null:Boolean(b.checked),toggleable:b.toggleable===true?true:null}]))
  const original=new Set(blocks.keys())
  const tasks=new Set(metadata.task_placements.map(t=>t.id))
+ // Step 7: what a page stores follows its kind. A Work page is `work`; a Doc
+ // page, and a root nobody has picked a kind for, is `doc`; a Discussion page
+ // holds threads, not writing.
+ const kindRows=await rowsOf(tx,sql`SELECT kind FROM folders WHERE id=${folderId}::uuid`)
+ const pageKind=kindRows[0]?.kind==null?null:String(kindRows[0].kind)
+ if(pageKind==='discussion')throw new DocumentRefusal('not_convertible','A Discussion page holds threads, not writing.')
+ const home=pageKind==='work'?'work':'doc'
  const created:Extract<DocumentOperation,{op:'create_task'}>[]=[]
  const createdPages:Extract<DocumentOperation,{op:'create_page'}>[]=[]
  const trashedPages=new Set<string>()
@@ -79,8 +86,8 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
   // normalization this function does to a put_block, and it is what
   // page_blocks_checked_kind_check states in the database.
   if(op.op==='put_block'){
-   // The registry says what Main stores: everything but a Result (#213).
-   if(!allowedIn(op.block_kind,'work'))throw new DocumentRefusal('not_convertible',refusedKindMessage(op.block_kind,'work'))
+   // The registry says what this page's kind stores.
+   if(!allowedIn(op.block_kind,home))throw new DocumentRefusal('not_convertible',refusedKindMessage(op.block_kind,home))
    // A presentation heading (heading1-3, `toggleable` or not) is writing on
    // Main as on a facet: it groups nothing, so it never names a Section and
    // `section_block_id` below still admits only a `section` as a parent.
@@ -100,7 +107,9 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
   else if(op.op==='set_outline')outline=op.items
   else {const unknown:never=op;throw new DocumentRefusal('not_convertible',`Unknown operation ${String((unknown as {op?:unknown}).op)}.`)}
  }
- if(blocks.size>500)throw new DocumentRefusal('not_convertible','A page holds at most 500 blocks.')
+ // Only growth past the cap is refused: a page 0061 left over 500 (home blocks
+ // for its tabs and sub-pages) still saves edits that do not add blocks.
+ if(blocks.size>500&&blocks.size>original.size)throw new DocumentRefusal('not_convertible','A page holds at most 500 blocks.')
  if(tasks.size>1000)throw new DocumentRefusal('not_convertible','A page holds at most 1000 Tasks.')
  // A Section's heading level is its depth in this outline and nothing else; depths
  // is the running ancestry measurement, recorded as each Section is accepted so that

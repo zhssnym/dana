@@ -58,6 +58,7 @@ const KNOWN_TYPES: ReadonlySet<string> = new Set([
   'danaTask',
   'danaFolder',
   'danaPage',
+  'danaPageRef',
   'diagram',
   'divider',
 ])

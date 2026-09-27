@@ -88,6 +88,7 @@ const ROW =
 
 export function FolderSharingPanel({
   folder,
+  projectName,
   connections,
   viewer,
   viewerId,
@@ -96,13 +97,16 @@ export function FolderSharingPanel({
   onTransfer,
 }: {
   readonly folder: GetFolderResponse
+  /** Step 8: people belong to the project, so the panel is the project's,
+   * whichever page opened it. Absent means `folder` is the project. */
+  readonly projectName?: string
   /** 7.3's roster, which the suggestions are built from. Absent while it loads. */
   readonly connections: GetConnectionsResponse | undefined
   /** The viewer's own Access facts (issue #228). Null while unknown, which
    * withholds the administrative controls rather than flashing them. */
   readonly viewer: FolderViewerFacts | null
   /** Who is looking: their own row is marked, and never offers Remove
-   * (leaving is the page menu's Leave page…). */
+   * (leaving is the page menu's Leave project…). */
   readonly viewerId: string | null
   readonly onClose: () => void
   /** Writes this page to a Dana file (M4: moved here from the page's "…"). */
@@ -222,7 +226,7 @@ export function FolderSharingPanel({
   /* Remove someone else, after 9.6's confirm; `after` runs once confirmed. */
   function askRemove(userId: string, name: string, after?: () => void): void {
     confirm.ask(
-      removeMemberConfirm(name, folder.name),
+      removeMemberConfirm(name, projectName ?? folder.name),
       () => {
         removeMember.mutate({ folderId: folder.id, userId })
         after?.()
@@ -231,7 +235,8 @@ export function FolderSharingPanel({
     )
   }
   const mayShare = mayAdd || mayInvite
-  const sheetTitle = mayShare ? `Share ${folder.name}` : `Members of ${folder.name}`
+  const shared = projectName ?? folder.name
+  const sheetTitle = mayShare ? `Share ${shared}` : `Members of ${shared}`
 
   return (
     <>

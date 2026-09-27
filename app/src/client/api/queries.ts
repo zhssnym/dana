@@ -31,8 +31,6 @@ import { getPlaceDescriptionsResponse } from '../../shared/place-descriptions.js
 import type { GetPlaceDescriptionsResponse } from '../../shared/place-descriptions.js'
 import { getPageResponse } from '../../shared/pages.js'
 import type { GetPageResponse } from '../../shared/pages.js'
-import { getFacetLocationResponse, getFacetsResponse } from '../../shared/facets.js'
-import type { GetFacetLocationResponse, GetFacetsResponse } from '../../shared/facets.js'
 import type { GetConnectionsResponse } from '../../shared/connections.js'
 import { getFolderResponse, getFoldersResponse } from '../../shared/folders.js'
 import type { GetFolderResponse, GetFoldersResponse } from '../../shared/folders.js'
@@ -99,6 +97,20 @@ export function useFolders(): UseQueryResult<GetFoldersResponse> {
 }
 
 /**
+ * Every page the viewer is in, a project's tabs included (`?tabs=1`, step 7).
+ * The plain list keeps the Library's shape (roots only, a page under a tab
+ * listed under its project); the tab row reads its tabs from this one
+ * (`projectTabs`).
+ */
+export function useAllPages(enabled = true): UseQueryResult<GetFoldersResponse> {
+  return useQuery({
+    queryKey: queryKeys.allPages(),
+    queryFn: () => getPlain(getFoldersResponse, '/folders?tabs=1'),
+    enabled,
+  })
+}
+
+/**
  * The accessible folders holding more than one member.
  *
  * Q3's "unassigned" chip is conditional on the folder having more than one
@@ -110,7 +122,8 @@ export function useFolders(): UseQueryResult<GetFoldersResponse> {
  * request or from a widened response shape.
  */
 export function useMultiMemberFolderIds(): ReadonlySet<string> {
-  const folders = useFolders()
+  /* Every page, tabs included: a task on a Work or Doc tab names its page. */
+  const folders = useAllPages()
   return new Set(
     (folders.data ?? []).filter((f) => f.member_count > 1).map((f) => f.id),
   )
@@ -515,39 +528,6 @@ export function useFolderPage(id: string, enabled = true): UseQueryResult<GetPag
   return useQuery({
     queryKey: queryKeys.folderPage(id),
     queryFn: () => getPlain(getPageResponse, `/folders/${id}/page`),
-    enabled,
-  })
-}
-
-/** 7.27's canonical facet sequence. The client renders this order verbatim. */
-export function useFolderFacets(id: string, enabled = true): UseQueryResult<GetFacetsResponse> {
-  return useQuery({
-    queryKey: queryKeys.folderFacets(id),
-    queryFn: () => getPlain(getFacetsResponse, `/folders/${id}/facets`),
-    enabled,
-  })
-}
-
-/** The owning Folder needed to enter a stable /app/facets/:id Dana Link. */
-export function useFacetLocation(
-  facetId: string,
-): UseQueryResult<GetFacetLocationResponse> {
-  return useQuery({
-    queryKey: queryKeys.facetLocation(facetId),
-    queryFn: () => getPlain(getFacetLocationResponse, `/facets/${facetId}/location`),
-  })
-}
-
-/** A blank facet's own 4.17 document. Work facets use useFolderPage instead. */
-export function useFacetPage(
-  folderId: string,
-  facetId: string,
-  enabled = true,
-): UseQueryResult<GetPageResponse> {
-  return useQuery({
-    queryKey: queryKeys.facetPage(folderId, facetId),
-    queryFn: () =>
-      getPlain(getPageResponse, `/folders/${folderId}/facets/${facetId}/page`),
     enabled,
   })
 }

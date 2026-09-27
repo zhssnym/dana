@@ -1,5 +1,5 @@
 /*
-The 7.6, 7.7 and 7.8 surfaces: tasks, steps, and My Day membership. Handlers
+The 7.6 and 7.8 surfaces: tasks and My Day membership. Handlers
 validate with the shared schemas, delegate every decision that touches rows
 to the domain module, and serialize; no business logic lives here.
 
@@ -15,8 +15,8 @@ a task or folder that does not exist, or that the viewer is not a member of,
 INV-5 unassign guard 409; limit and membership failures 422 through the
 shared schemas and the domain results.
 
-The step mutations and both My Day calls answer the affected TaskDetail, as
-7.7 and 7.8 say. The shapes carry their grounds and their names in src/shared/tasks.ts, and the
+Both My Day calls answer the affected TaskDetail, as
+7.8 says. The shapes carry their grounds and their names in src/shared/tasks.ts, and the
 handlers below answer them.
 */
 import type { Request, Response, Router } from 'express'
@@ -46,14 +46,13 @@ import { createSecurityLogger } from '../security/log.js'
 import type { SecurityLogger } from '../security/log.js'
 import type { ObjectStore } from '../files/store.js'
 import {
-  addStep,
+  addChecklistItemShim,
   createTask,
-  deleteStep,
+  deleteChecklistItemShim,
   deleteTask,
   deleteTaskReminder,
   dropFromMyDay,
-  patchStep,
-  promoteStep,
+  patchChecklistItemShim,
   patchTask,
   pullIntoMyDay,
   putTaskReminder,
@@ -62,7 +61,7 @@ import {
   transitionTask,
   writeTaskDocument,
 } from '../domain/tasks.js'
-import type { ReminderRefusal, TransitionEvent } from '../domain/tasks.js'
+import type { ChecklistShimResult, ReminderRefusal, TransitionEvent } from '../domain/tasks.js'
 import {
   createTaskDependency,
   deleteTaskDependency,
@@ -694,8 +693,26 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
   )
 
   /* ---------------------------------------------------------------- *
-   * 7.7 steps
+   * 7.7 steps: shims over the body's checklist items for old clients,
+   * until the contract release (domain/tasks.ts says why)
    * ---------------------------------------------------------------- */
+
+  function answerShim(res: Response, result: ChecklistShimResult, status: number): void {
+    switch (result.kind) {
+      case 'not_found':
+        notFound(res)
+        return
+      case 'forbidden':
+        forbidden(res, result.reason)
+        return
+      case 'cap':
+        fieldError(res, 'steps', 'a task holds at most 500 blocks')
+        return
+      case 'ok':
+        if (status === 204) res.status(204).end()
+        else res.status(status).json(result.task)
+    }
+  }
 
   router.post(
     '/tasks/:id/steps',
@@ -709,25 +726,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       if (taskId === null) return
       const parsed = parseBody(postTaskStepsBody, req, res, securityLog)
       if (parsed === null) return
-      const result = await addStep(db, viewer(req), taskId, parsed)
-      switch (result.kind) {
-        case 'not_found':
-          notFound(res)
-          return
-        case 'step_cap':
-          fieldError(
-            res,
-            'steps',
-            'a task holds at most 50 steps',
-          )
-          return
-        case 'forbidden':
-          forbidden(res, result.reason)
-          return
-        case 'added':
-          res.status(201).json(result.task)
-          return
-      }
+      answerShim(res, await addChecklistItemShim(db, viewer(req), taskId, parsed.title), 201)
     },
   )
 
@@ -739,20 +738,11 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const stepId = parsedId(res, req.params.id)
-      if (stepId === null) return
+      const itemId = parsedId(res, req.params.id)
+      if (itemId === null) return
       const parsed = parseBody(patchStepBody, req, res, securityLog)
       if (parsed === null) return
-      const result = await patchStep(db, viewer(req), stepId, parsed)
-      if (result.kind === 'not_found') {
-        notFound(res)
-        return
-      }
-      if (result.kind === 'forbidden') {
-        forbidden(res, result.reason)
-        return
-      }
-      res.status(200).json(result.task)
+      answerShim(res, await patchChecklistItemShim(db, viewer(req), itemId, parsed), 200)
     },
   )
 
@@ -764,44 +754,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const stepId = parsedId(res, req.params.id)
-      if (stepId === null) return
-      const result = await deleteStep(db, viewer(req), stepId)
-      if (result === 'not_found') {
-        notFound(res)
-        return
-      }
-      if (result !== 'deleted') {
-        forbidden(res, result.reason)
-        return
-      }
-      res.status(204).end()
-    },
-  )
-
-  /* Step promotion, 7.7's fourth line. */
-  router.post(
-    '/tasks/:id/steps/:stepId/promote',
-    requireSession,
-    requireCsrf,
-    mutationLimit,
-    async (req: Request, res: Response) => {
-      const db = database(res)
-      if (db === null) return
-      const taskId = parsedId(res, req.params.id)
-      if (taskId === null) return
-      const stepId = parsedId(res, req.params.stepId)
-      if (stepId === null) return
-      const result = await promoteStep(db, viewer(req), taskId, stepId)
-      if (result.kind === 'not_found') {
-        notFound(res)
-        return
-      }
-      if (result.kind === 'forbidden') {
-        forbidden(res, result.reason)
-        return
-      }
-      res.status(201).json(result.task)
+      const itemId = parsedId(res, req.params.id)
+      if (itemId === null) return
+      answerShim(res, await deleteChecklistItemShim(db, viewer(req), itemId), 204)
     },
   )
 

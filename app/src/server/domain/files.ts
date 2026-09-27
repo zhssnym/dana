@@ -616,9 +616,9 @@ export async function deleteFile(
           WHERE f.id = ${fileId}
             AND (
               (f.folder_id IS NULL AND f.owner_id = ${viewerId})
-              OR EXISTS (SELECT 1 FROM folder_members m
-                          JOIN folders fo ON fo.id = m.folder_id
-                          WHERE m.folder_id = f.folder_id
+              OR EXISTS (SELECT 1 FROM folders fo
+                          JOIN folder_members m ON m.folder_id = fo.project_id
+                          WHERE fo.id = f.folder_id
                             AND m.user_id = ${viewerId}
                             AND m.access = 'full_control'
                             AND fo.deleted_at IS NULL)

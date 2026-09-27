@@ -29,7 +29,6 @@ import { sql } from 'drizzle-orm'
 import type { Db } from '../../../db/client.js'
 import type { Executor } from '../database.js'
 import { inTransaction, rowsOf } from '../database.js'
-import { createNativeFacets } from '../domain/facets.js'
 import { recordAccessTransition } from '../domain/folder-access.js'
 import { createSampleWorkspace } from '../sample/workspace.js'
 import { sameZone, writeTimezone } from './timezone-sync.js'
@@ -256,8 +255,10 @@ export async function provisionUser(
     const userId = String(winner.id)
     const folders = await rowsOf(
       tx,
-      sql`INSERT INTO folders (owner_id, name, is_default, description)
-          VALUES (${userId}, 'Desk', true, ${DESK_DEFAULT_DESCRIPTION})
+      // Step 7: Desk is a Work project of its own, one tab.
+      sql`INSERT INTO folders (id, owner_id, name, is_default, description, project_id, kind, tab_position)
+          SELECT g.id, ${userId}, 'Desk', true, ${DESK_DEFAULT_DESCRIPTION}, g.id, 'work', 'a0'
+            FROM (SELECT gen_random_uuid() AS id) g
           RETURNING id`,
     )
     const folderId = String(folders[0]?.id)
@@ -280,11 +281,6 @@ export async function provisionUser(
       actorId: userId,
       transition: 'created_owner',
     })
-    /* The four native facets, in this same transaction (issue #210, 4.30:
-       "natives are created with the Folder and never lazily"). Every path
-       that inserts a `folders` row owes this call, and
-       nothing checks that automatically. */
-    await createNativeFacets(tx, folderId, userId)
 
     await tx.execute(sql`INSERT INTO user_settings (user_id) VALUES (${userId})`)
 

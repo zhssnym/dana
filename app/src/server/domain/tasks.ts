@@ -1,6 +1,6 @@
 /*
-The domain module for tasks, steps, and My Day membership per spec 7.6, 7.7,
-and 7.8, the 5.1 status machine with 8.3's guarded updates, the 8.4
+The domain module for tasks and My Day membership per spec 7.6 and 7.8 (a
+task's subtasks are checklist items in its body since 0060), the 5.1 status machine with 8.3's guarded updates, the 8.4
 clear-date cascade, and the INV-4 and INV-5 assignment rules. Routes validate
 and serialize; every decision that touches rows is here, behind the 10.2 rule
 that no query leaves this file without being scoped to the viewer, which for
@@ -38,16 +38,13 @@ import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type {
-  PatchStepBody,
   PatchTaskBody,
-  PostTaskStepsBody,
   PostTasksBody,
   PutTaskReminderBody,
   ReminderInput,
   TaskCard,
   TaskDetail,
   TaskStatus,
-  TaskStep,
 } from '../../shared/tasks.js'
 import {
   applySeriesGuard,
@@ -78,11 +75,15 @@ import { dropFolderLabelsOnMove, taskLabelsOf } from './labels.js'
 import { taskDependencyCountsOf } from './task-dependency-counts.js'
 import { positionAfter, positionAtSectionEnd, seededItems } from './page-order.js'
 import {
+  ChecklistCapRefusal,
   TaskDocumentRefusal,
+  appendChecklist,
   applyTaskDocumentLocked,
+  checklistTicks,
   legacyNotesWrite,
   materializeNotesLocked,
   needsMaterializing,
+  taskChecklist,
   taskDocumentViewIn,
 } from './task-document.js'
 import type { DocumentTransaction, PageView } from '../../shared/pages.js'
@@ -287,7 +288,9 @@ async function folderMemberIds(
 ): Promise<string[]> {
   const found = await rowsOf(
     executor,
-    sql`SELECT user_id FROM folder_members WHERE folder_id = ${folderId}
+    // Step 8: a task's people are its project's.
+    sql`SELECT user_id FROM folder_members
+         WHERE folder_id = (SELECT project_id FROM folders WHERE id = ${folderId}::uuid)
         ORDER BY user_id`,
   )
   return found.map((row) => String(row.user_id))
@@ -348,14 +351,19 @@ export async function taskView(
                cb.id AS creator_id, cb.display_name AS creator_display_name,
                cb.avatar_url AS creator_avatar_url,
                t.created_at, t.updated_at,
-               f.id AS folder_id, f.name AS folder_name,
+               f.id AS folder_id,
+    CASE WHEN f.tab_position IS NOT NULL AND f.project_id <> f.id
+                 THEN (SELECT pr.name FROM folders pr WHERE pr.id = f.project_id)
+                 ELSE f.name END AS folder_name,
                f.is_default AS folder_is_default,
                a.id AS assignee_id, a.display_name AS assignee_display_name,
                a.avatar_url AS assignee_avatar_url,
-               (SELECT count(*)::int FROM steps s WHERE s.task_id = t.id)
+               (SELECT count(*)::int FROM page_blocks ck
+                 WHERE ck.task_id = t.id AND ck.kind = 'checklist')
                  AS steps_total,
-               (SELECT count(*)::int FROM steps s
-                 WHERE s.task_id = t.id AND s.done) AS steps_done,
+               (SELECT count(*)::int FROM page_blocks ck
+                 WHERE ck.task_id = t.id AND ck.kind = 'checklist' AND ck.checked)
+                 AS steps_done,
                EXISTS (SELECT 1 FROM my_day_entries e
                         WHERE e.task_id = t.id AND e.user_id = ${viewerId})
                  AS pulled,
@@ -439,7 +447,7 @@ export async function taskView(
                 : Number(row.offset_minutes),
             time_of_day: nullableString(row.reminder_time_of_day),
           },
-    steps: await stepsOf(executor, taskId),
+    steps: await taskChecklist(executor, taskId),
     completed_at: row.completed_at === null ? null : toIso(row.completed_at),
     completed_by: nullableString(row.completed_by),
     discussion_id: nullableString(row.discussion_id),
@@ -467,26 +475,6 @@ function cardOf(detail: TaskDetail): TaskCard {
     ...card
   } = detail
   return card
-}
-
-/** 4.6's order, (position, id), which is the shape's to carry and the
- * query's to produce. */
-async function stepsOf(
-  executor: Executor,
-  taskId: string,
-): Promise<TaskStep[]> {
-  const found = await rowsOf(
-    executor,
-    sql`SELECT id, title, done, position FROM steps
-        WHERE task_id = ${taskId}
-        ORDER BY position ASC, id ASC`,
-  )
-  return found.map((row) => ({
-    id: String(row.id),
-    title: String(row.title),
-    done: row.done === true,
-    position: Number(row.position),
-  }))
 }
 
 /** The view of a task the caller has already resolved access on. Reaching
@@ -802,15 +790,9 @@ export async function createTaskIn(
       await upsertReminder(tx, taskId, modeOf(body.reminder), viewerId)
     }
 
-    // 7.6's steps are a list of titles; 4.6's position is a sort key with
-    // gaps allowed, so the create numbers them from one in the order sent.
-    const titles = body.steps ?? []
-    for (const [index, title] of titles.entries()) {
-      await tx.execute(
-        sql`INSERT INTO steps (task_id, title, position)
-            VALUES (${taskId}::uuid, ${title}, ${index + 1})`,
-      )
-    }
+    // 7.6's steps are a list of titles. They become checklist items at the
+    // end of the task's body, after any notes (migration 0060).
+    await appendChecklist(tx, taskId, (body.steps ?? []).map((title) => ({ title })))
 
     // One mutation, one event (4.13). An assignment created into being
     // reaches its assignee (4.14); INV-5's forcing counts, a body's explicit
@@ -1783,308 +1765,6 @@ export async function transitionTask(
 }
 
 /* ------------------------------------------------------------------ *
- * 7.7 steps
- * ------------------------------------------------------------------ */
-
-export type AddStepResult =
-  | { kind: 'added'; task: TaskDetail }
-  | { kind: 'not_found' }
-  | { kind: 'step_cap' }
-  | { kind: 'forbidden'; reason: string }
-
-/*
-7.7's create. The cap is a live count of rows rather than a high-water mark,
-because 4.6 makes it an API guard and a task whose steps have come and gone
-over a year must still admit its fiftieth.
-
-That same sentence of 4.6, no constraint behind the cap, is why the access
-read here takes the row lock rather than the plain resolution its siblings
-use. Nothing under this function catches a miscount: two adds arriving
-together on a task holding 49 steps would both read 49, both pass the guard,
-and both insert, leaving 51 against a number 10.3 calls server-enforced. The
-lock makes the count and the insert one decision, so the second add reads 50
-and is refused. The 25-member cap has the identical shape; PGlite is
-single-connection (11.15), so no run of this suite can ever show either.
-*/
-export async function addStep(
-  db: Db,
-  viewerId: string,
-  taskId: string,
-  body: PostTaskStepsBody,
-): Promise<AddStepResult> {
-  return inTransaction(db, async (tx) => {
-    const current = await lockedTask(tx, viewerId, taskId)
-    if (current === null) {
-      return { kind: 'not_found' }
-    }
-    /* #228's Assigned-work list refuses Step create: adding a Step rewrites
-       the checklist that defines what completion means, which is not
-       execution. Assigned work is refused it
-       even on their own Task; Can contribute has it over work currently
-       assigned to them, which the locked assignee decides. */
-    const decision = mayActOnTask(current, 'step.manage')
-    if (!decision.allowed) {
-      return { kind: 'forbidden', reason: decision.reason }
-    }
-    const counted = await rowsOf(
-      tx,
-      sql`SELECT count(*)::int AS n, coalesce(max(position), 0) AS top
-          FROM steps WHERE task_id = ${taskId}`,
-    )
-    const row = counted[0]
-    if (Number(row?.n ?? 0) >= 50) return { kind: 'step_cap' }
-
-    // 7.7: position defaults to max plus 1, which is a fact about the rows
-    // and so is resolved here.
-    const position = body.position ?? Number(row?.top ?? 0) + 1
-    await tx.execute(
-      sql`INSERT INTO steps (task_id, title, position)
-          VALUES (${taskId}::uuid, ${body.title}, ${position})`,
-    )
-    await recordEvent(tx, {
-      actorId: viewerId,
-      verb: 'edited',
-      subjectKind: 'task',
-      subjectId: taskId,
-      subjectName: current.title,
-      folderId: current.folderId,
-      /* The step is named, so the history
-         reads "Hassan added a step 'Plates'" rather than a bare verb. */
-      detail: `added a step '${stepWord(body.title)}'`,
-    })
-    return { kind: 'added', task: await viewOrFail(tx, viewerId, taskId) }
-  })
-}
-
-export type StepResult =
-  | { kind: 'ok'; task: TaskDetail }
-  | { kind: 'not_found' }
-  | { kind: 'forbidden'; reason: string }
-
-/** A step named inside 4.13's 200-character detail: whole when short, cut
- * with an ellipsis when not, so a long step never makes the event refuse. */
-function stepWord(title: string): string {
-  return title.length > 60 ? `${title.slice(0, 59)}…` : title
-}
-
-/** A step is reachable exactly when its parent task's folder is (7.7: 404
- * otherwise), so the resolution carries the same membership join the task
- * reads do. */
-async function accessibleStep(
-  executor: Executor,
-  viewerId: string,
-  stepId: string,
-): Promise<{
-  stepId: string
-  stepTitle: string
-  taskId: string
-  taskTitle: string
-  folderId: string
-} | null> {
-  const found = await rowsOf(
-    executor,
-    sql`SELECT s.id, s.title AS step_title, s.task_id, t.title, t.folder_id
-        FROM steps s
-        JOIN tasks t ON t.id = s.task_id AND t.deleted_at IS NULL
-        ${joinVisibleFolder(viewerId, { folderId: sql`t.folder_id` })}
-        WHERE s.id = ${stepId}`,
-  )
-  const row = found[0]
-  return row === undefined
-    ? null
-    : {
-        stepId: String(row.id),
-        stepTitle: String(row.step_title),
-        taskId: String(row.task_id),
-        taskTitle: String(row.title),
-        folderId: String(row.folder_id),
-      }
-}
-
-/** 7.7's PATCH: any subset, and never any effect on the task's status. */
-export async function patchStep(
-  db: Db,
-  viewerId: string,
-  stepId: string,
-  patch: PatchStepBody,
-): Promise<StepResult> {
-  return inTransaction(db, async (tx) => {
-    const step = await accessibleStep(tx, viewerId, stepId)
-    if (step === null) return { kind: 'not_found' }
-    /*
-    The parent Task, locked, because the Step's authorization is the parent's
-    (issue #228). It costs one statement and buys the property #228 requires:
-    the assignee this gate reads is the assignee under the lock, so a Step
-    cannot be ticked by somebody the Task was reassigned away from.
-
-    **Ticking a Step and rewriting one are two different acts**, and the split
-    is the whole point of #228's split between toggling an existing Step and
-    creating, renaming, reordering, deleting or promoting one: an
-    Assigned-work member executes the checklist and may not rewrite the scope
-    it describes. So `done` alone is
-    `step.toggle`, and a body that also renames or reorders is `step.manage`.
-    A body carrying both is the stricter of the two rather than the looser.
-    */
-    const parent = await lockedTask(tx, viewerId, step.taskId)
-    if (parent === null) return { kind: 'not_found' }
-    const structural =
-      patch.title !== undefined || patch.position !== undefined
-    const decision = mayActOnTask(
-      parent,
-      structural ? 'step.manage' : 'step.toggle',
-    )
-    if (!decision.allowed) {
-      return { kind: 'forbidden', reason: decision.reason }
-    }
-
-    const sets: SQL[] = []
-    if (patch.title !== undefined) sets.push(sql`title = ${patch.title}`)
-    if (patch.done !== undefined) sets.push(sql`done = ${patch.done}`)
-    if (patch.position !== undefined) {
-      sets.push(sql`position = ${patch.position}`)
-    }
-    if (sets.length > 0) {
-      await tx.execute(
-        sql`UPDATE steps SET ${sql.join(sets, sql`, `)}
-            WHERE id = ${stepId}::uuid`,
-      )
-      await recordEvent(tx, {
-        actorId: viewerId,
-        verb: 'edited',
-        subjectKind: 'task',
-        subjectId: step.taskId,
-        subjectName: step.taskTitle,
-        folderId: step.folderId,
-        /* The act that happened, named: a rename says
-           the new name, a tick says it was ticked, a move says it moved. */
-        detail:
-          patch.title !== undefined
-            ? `renamed a step to '${stepWord(patch.title)}'`
-            : patch.done === true
-              ? `completed the step '${stepWord(step.stepTitle)}'`
-              : patch.done === false
-                ? `reopened the step '${stepWord(step.stepTitle)}'`
-                : `moved the step '${stepWord(step.stepTitle)}'`,
-      })
-    }
-    return { kind: 'ok', task: await viewOrFail(tx, viewerId, step.taskId) }
-  })
-}
-
-export async function deleteStep(
-  db: Db,
-  viewerId: string,
-  stepId: string,
-): Promise<'deleted' | 'not_found' | { kind: 'forbidden'; reason: string }> {
-  return inTransaction(db, async (tx) => {
-    const step = await accessibleStep(tx, viewerId, stepId)
-    if (step === null) return 'not_found'
-    const parent = await lockedTask(tx, viewerId, step.taskId)
-    if (parent === null) return 'not_found'
-    // #228's Assigned-work list: deleting a Step is rewriting the checklist,
-    // never executing it.
-    const decision = mayActOnTask(parent, 'step.manage')
-    if (!decision.allowed) {
-      return { kind: 'forbidden', reason: decision.reason }
-    }
-    await tx.execute(sql`DELETE FROM steps WHERE id = ${stepId}::uuid`)
-    await recordEvent(tx, {
-      actorId: viewerId,
-      verb: 'edited',
-      subjectKind: 'task',
-      subjectId: step.taskId,
-      subjectName: step.taskTitle,
-      folderId: step.folderId,
-      detail: `removed the step '${stepWord(step.stepTitle)}'`,
-    })
-    return 'deleted'
-  })
-}
-
-export type PromoteStepResult =
-  | { kind: 'promoted'; task: TaskDetail }
-  | { kind: 'not_found' }
-  | { kind: 'forbidden'; reason: string }
-
-/*
-POST /tasks/:id/steps/:stepId/promote: a step's one-way move to a task.
-
-A step becomes a task of its own in the parent's folder and under the
-parent's section, and the step is gone from the parent in the same
-transaction: one act from the person's side, one transaction from the
-wire's. The new task starts pending whatever the step's box said, because a
-promotion is a person deciding this is work of its own rather than a
-finished line, and it is assigned to nobody. Membership of the parent's
-folder is the access rule (7.7), and a step named under a task it does not
-belong to is 404 rather than 422: the pair is an address, not a body.
-*/
-export async function promoteStep(
-  db: Db,
-  viewerId: string,
-  taskId: string,
-  stepId: string,
-): Promise<PromoteStepResult> {
-  return inTransaction(db, async (tx) => {
-    const step = await accessibleStep(tx, viewerId, stepId)
-    if (step === null || step.taskId !== taskId) return { kind: 'not_found' }
-    await tx.execute(sql`SELECT 1 FROM folders WHERE id=${step.folderId}::uuid FOR UPDATE`)
-    /* #228's Assigned-work list names promote among the Step acts Assigned
-       work may not perform, and it is the strongest of them: it takes a line out of the
-       checklist somebody is being measured against and makes it separate
-       work. `step.manage`, against the locked parent. */
-    const held = await lockedTask(tx, viewerId, taskId)
-    if (held === null) return { kind: 'not_found' }
-    const decision = mayActOnTask(held, 'step.manage')
-    if (!decision.allowed) {
-      return { kind: 'forbidden', reason: decision.reason }
-    }
-    const parent = (
-      await rowsOf(
-        tx,
-        sql`SELECT t.section_block_id, s.title AS step_title
-            FROM tasks t JOIN steps s ON s.task_id = t.id
-            WHERE t.id = ${taskId}::uuid AND s.id = ${stepId}::uuid
-            FOR UPDATE OF t`,
-      )
-    )[0]
-    if (parent === undefined) return { kind: 'not_found' }
-    const sectionId =
-      parent.section_block_id === null || parent.section_block_id === undefined
-        ? null
-        : String(parent.section_block_id)
-    const pagePosition=positionAtSectionEnd(await seededItems(tx,step.folderId),null,sectionId)
-    const inserted = await rowsOf(
-      tx,
-      sql`INSERT INTO tasks (folder_id, title, created_by, section_block_id,page_position)
-          VALUES (${step.folderId}::uuid, ${String(parent.step_title)},
-                  ${viewerId}::uuid, ${sectionId},${pagePosition})
-          RETURNING id`,
-    )
-    const newId = String(inserted[0]?.id)
-    await tx.execute(sql`DELETE FROM steps WHERE id = ${stepId}::uuid`)
-    await recordEvent(tx, {
-      actorId: viewerId,
-      verb: 'created',
-      subjectKind: 'task',
-      subjectId: newId,
-      subjectName: String(parent.step_title),
-      folderId: step.folderId,
-      detail: `from a step of ${step.taskTitle}`,
-    })
-    await recordEvent(tx, {
-      actorId: viewerId,
-      verb: 'edited',
-      subjectKind: 'task',
-      subjectId: taskId,
-      subjectName: step.taskTitle,
-      folderId: step.folderId,
-      detail: 'promoted a step to a task',
-    })
-    return { kind: 'promoted', task: await viewOrFail(tx, viewerId, newId) }
-  })
-}
-
-/* ------------------------------------------------------------------ *
  * 7.8 My Day membership
  * ------------------------------------------------------------------ */
 
@@ -2310,6 +1990,13 @@ export async function taskDocument(
   })
 }
 
+/** A checklist item named inside 4.13's 200-character detail: whole when
+ * short, cut with an ellipsis when not, so a long item never makes the event
+ * refuse. */
+function itemWord(text: string): string {
+  return text.length > 60 ? `${text.slice(0, 59)}…` : text
+}
+
 /**
  * `PUT /tasks/:id/document`: 7.16's document transaction over the Task's
  * blocks, gated on `task.edit` exactly as a `notes` PATCH is, and in the same
@@ -2330,20 +2017,183 @@ export async function writeTaskDocument(
     if (current === null || current.folderId !== preview.folderId) {
       throw new TaskDocumentRefusal('not_found', 'Not found.')
     }
+    /* Assigned work may tick its own task's checklist (`step.toggle`) but
+       not edit the task (`task.edit`): a transaction that only ticks or
+       unticks existing items is admitted under the first, anything else
+       needs the second. */
     const decision = mayActOnTask(current, 'task.edit')
-    if (!decision.allowed) throw new TaskDocumentRefusal('forbidden', decision.reason)
+    const ticks = await checklistTicks(tx, taskId, body)
+    if (!decision.allowed && !(mayActOnTask(current, 'step.toggle').allowed && ticks !== null)) {
+      throw new TaskDocumentRefusal('forbidden', decision.reason)
+    }
     const result = await applyTaskDocumentLocked(tx, viewerId, current.folderId, taskId, body)
     if (result.changed) {
-      await recordEvent(tx, {
-        actorId: viewerId,
-        verb: 'edited',
-        subjectKind: 'task',
-        subjectId: taskId,
-        subjectName: current.title,
-        folderId: current.folderId,
-        detail: 'edited the description',
-      })
+      /* A tick is not a description edit: each ticked or unticked item is
+         named, in the words a step's tick used before 0060, which the
+         timeline draws as "completed the subtask …". */
+      const details =
+        ticks !== null
+          ? ticks.map((tick) => `${tick.checked ? 'completed' : 'reopened'} the step '${itemWord(tick.text)}'`)
+          : ['edited the description']
+      for (const detail of details) {
+        await recordEvent(tx, {
+          actorId: viewerId,
+          verb: 'edited',
+          subjectKind: 'task',
+          subjectId: taskId,
+          subjectName: current.title,
+          folderId: current.folderId,
+          detail,
+        })
+      }
     }
     return result.view
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * 7.7's routes, kept as shims until the contract release
+ * ------------------------------------------------------------------ */
+
+/*
+An installed copy of the app keeps its old client until the person takes the
+update, and that client lifts checklist lines out of the body and sends them
+to 7.7's routes. Answering those 404 would lose the lines. So the three calls
+it makes act on the checklist items of the task's body, which 0060 gave the
+steps' ids: add appends an item, a PATCH ticks or renames one, a DELETE
+removes one. `position` is not read: the old client's reorder is not
+honoured (nothing is lost by that; the item stays where it is). Promotion is
+not kept. The gates are the document writer's: `task.edit`, or `step.toggle`
+for a tick alone. Folder, then Task row, the document writer's lock order.
+*/
+
+export type ChecklistShimResult =
+  | { kind: 'ok'; task: TaskDetail }
+  | { kind: 'not_found' }
+  | { kind: 'cap' }
+  | { kind: 'forbidden'; reason: string }
+
+async function lockedForShim(tx: Executor, viewerId: string, taskId: string): Promise<TaskAccess | null> {
+  const preview = await accessibleTask(tx, viewerId, taskId)
+  if (preview === null) return null
+  await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${preview.folderId}::uuid FOR UPDATE`)
+  const current = await lockedTask(tx, viewerId, taskId)
+  return current === null || current.folderId !== preview.folderId ? null : current
+}
+
+async function shimEvent(tx: Executor, viewerId: string, task: TaskAccess, detail: string): Promise<void> {
+  await recordEvent(tx, {
+    actorId: viewerId,
+    verb: 'edited',
+    subjectKind: 'task',
+    subjectId: task.id,
+    subjectName: task.title,
+    folderId: task.folderId,
+    detail,
+  })
+}
+
+/** `POST /tasks/:id/steps` from an old client: one item, last in the body. */
+export async function addChecklistItemShim(
+  db: Db,
+  viewerId: string,
+  taskId: string,
+  title: string,
+): Promise<ChecklistShimResult> {
+  return inTransaction(db, async (tx) => {
+    const current = await lockedForShim(tx, viewerId, taskId)
+    if (current === null) return { kind: 'not_found' }
+    const decision = mayActOnTask(current, 'task.edit')
+    if (!decision.allowed) return { kind: 'forbidden', reason: decision.reason }
+    try {
+      await appendChecklist(tx, taskId, [{ title }])
+    } catch (error: unknown) {
+      if (error instanceof ChecklistCapRefusal) return { kind: 'cap' }
+      throw error
+    }
+    await shimEvent(tx, viewerId, current, `added a step '${itemWord(title)}'`)
+    return { kind: 'ok', task: await viewOrFail(tx, viewerId, taskId) }
+  })
+}
+
+/** The checklist item with this id and the task it is in, when the viewer
+ * can see that task; the task is then locked. */
+async function lockedChecklistItem(
+  tx: Executor,
+  viewerId: string,
+  itemId: string,
+): Promise<{ task: TaskAccess; text: string; checked: boolean } | null> {
+  const found = await rowsOf(
+    tx,
+    sql`SELECT task_id FROM page_blocks WHERE id = ${itemId}::uuid AND kind = 'checklist' AND task_id IS NOT NULL`,
+  )
+  const taskId = found[0]?.task_id
+  if (taskId === undefined || taskId === null) return null
+  const task = await lockedForShim(tx, viewerId, String(taskId))
+  if (task === null) return null
+  const item = await rowsOf(
+    tx,
+    sql`SELECT text, checked FROM page_blocks
+         WHERE id = ${itemId}::uuid AND kind = 'checklist' AND task_id = ${task.id}::uuid FOR UPDATE`,
+  )
+  const row = item[0]
+  if (row === undefined) return null
+  return { task, text: typeof row.text === 'string' ? row.text : '', checked: row.checked === true }
+}
+
+/** `PATCH /steps/:id` from an old client: a tick, a rename, or both. */
+export async function patchChecklistItemShim(
+  db: Db,
+  viewerId: string,
+  itemId: string,
+  patch: { readonly title?: string; readonly done?: boolean },
+): Promise<ChecklistShimResult> {
+  return inTransaction(db, async (tx) => {
+    const item = await lockedChecklistItem(tx, viewerId, itemId)
+    if (item === null) return { kind: 'not_found' }
+    const decision = mayActOnTask(item.task, patch.title !== undefined ? 'task.edit' : 'step.toggle')
+    const edit = mayActOnTask(item.task, 'task.edit')
+    if (!decision.allowed && !edit.allowed) return { kind: 'forbidden', reason: decision.reason }
+    if (patch.title !== undefined && patch.title !== item.text) {
+      await tx.execute(
+        sql`UPDATE page_blocks SET text = ${patch.title}, rich_content = NULL, updated_at = now()
+             WHERE id = ${itemId}::uuid`,
+      )
+      await shimEvent(tx, viewerId, item.task, `renamed a step to '${itemWord(patch.title)}'`)
+    }
+    if (patch.done !== undefined && patch.done !== item.checked) {
+      await tx.execute(
+        sql`UPDATE page_blocks SET checked = ${patch.done}, updated_at = now() WHERE id = ${itemId}::uuid`,
+      )
+      await shimEvent(
+        tx,
+        viewerId,
+        item.task,
+        `${patch.done ? 'completed' : 'reopened'} the step '${itemWord(patch.title ?? item.text)}'`,
+      )
+    }
+    return { kind: 'ok', task: await viewOrFail(tx, viewerId, item.task.id) }
+  })
+}
+
+/** `DELETE /steps/:id` from an old client. A nested child moves up a level. */
+export async function deleteChecklistItemShim(
+  db: Db,
+  viewerId: string,
+  itemId: string,
+): Promise<ChecklistShimResult> {
+  return inTransaction(db, async (tx) => {
+    const item = await lockedChecklistItem(tx, viewerId, itemId)
+    if (item === null) return { kind: 'not_found' }
+    const decision = mayActOnTask(item.task, 'task.edit')
+    if (!decision.allowed) return { kind: 'forbidden', reason: decision.reason }
+    await tx.execute(
+      sql`UPDATE page_blocks c SET list_parent_block_id = d.list_parent_block_id
+            FROM page_blocks d
+           WHERE d.id = ${itemId}::uuid AND c.list_parent_block_id = d.id`,
+    )
+    await tx.execute(sql`DELETE FROM page_blocks WHERE id = ${itemId}::uuid`)
+    await shimEvent(tx, viewerId, item.task, `removed the step '${itemWord(item.text)}'`)
+    return { kind: 'ok', task: await viewOrFail(tx, viewerId, item.task.id) }
   })
 }

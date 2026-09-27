@@ -132,7 +132,14 @@ viewer's durable sparse icon/colour overrides for Focus destinations. Version
 identity choices while claiming to have read the export, which is exactly the
 failure the version number prevents.
 */
-export const EXPORT_VERSION = 9
+/*
+**9 to 10 on 2026-09-27, step 7 (projects and tabs).** Every folder gains
+`project_id`, `kind` and `tab_position`, and a facet is a tab: a folder the
+person owns, exported with the others, so `facets` is always empty. A
+version-9 reader would drop the three keys and read tabs as unrelated
+top-level pages.
+*/
+export const EXPORT_VERSION = 10
 
 /**
  * 10.3's "List responses capped at 1000 rows with truncated flag", applied
@@ -321,6 +328,11 @@ export const exportFolder = z.object({
   /** Version 8: the page this one sits under, when that page is in this
    * document too; null for a root or a parent the export does not carry. */
   parent_folder_id: z.uuid().nullable(),
+  /** Version 10 (step 7): the page's project (its own id on a project), its
+   * kind, and its place in the project's tab row (null on a sub-page). */
+  project_id: z.uuid(),
+  kind: z.enum(['doc', 'work', 'discussion']).nullable(),
+  tab_position: z.string().nullable(),
   icon: z.string().nullable(),
   color: z.string().nullable(),
   description: z.string().nullable(),

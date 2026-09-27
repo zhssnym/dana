@@ -49,6 +49,13 @@ These give no error and no red test. Read your diff for them before opening a PR
   a test that tries the bad row. Nothing checks what a CHECK expression actually does.
 - **A migration works on one engine only.** Production is Postgres; local fallback runs are
   PGlite. Run it on Postgres (section 3) before merging.
+- **A deploy fails at boot with `boot_failed`, `reason: sqlstate_P0001` and a note
+  `Migration check failed, step N: <check>`.** One of the self-checks in `0060`-`0062` found a
+  row the migration did not carry over exactly. The log names the check but never the row (10.5
+  logs no error messages). The drizzle migrator runs every pending migration in one transaction,
+  so all of them rolled back together, not only the one that raised. Fix: run the migrator on a
+  copy of production to see the row's id in the full error, rehearse until that check passes, and
+  fix forward. Never loosen the check to make the deploy go through.
 - **You added a foreign key into `files(id)`.** The reclaim sweep will delete a file that the
   new column still points at. Add the matching `NOT EXISTS` arm to `fileIsUnreferenced()` in
   `app/src/server/domain/files.ts`, then update the list in

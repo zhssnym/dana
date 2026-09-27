@@ -7,9 +7,10 @@ it is, and its `/` menu is the registry's list for that page kind
 - `work` (Folder Main): Text, Heading 1-3 and Task. "Heading n" is a Section
   (it groups Tasks, and folds) where a Section of that level stands, and a
   presentation heading anywhere else.
-- `document` (Purpose, Results) and `plain` (a facet with no headings): Text,
-  flat headings, Checklist and Media.
-- `task`: Text, headings, Checklist (the line joins the Task's subtasks),
+- `document` (a Doc page, step 7): Text, flat headings, Checklist, Task, Page
+  and Media. `plain` (a canvas with no headings) has the same list less
+  Heading.
+- `task`: Text, headings, Checklist (an item is one of the Task's subtasks),
   Blocked by and Media.
 - `shelf`: unchanged until Shelves are decided.
 - `post`: no `/` menu.
@@ -50,10 +51,10 @@ export type { CanvasSurfaceKind } from './markdown.js'
 
 export interface SlashContext {
   readonly surface: CanvasSurfaceKind
-  /** Folder Work only: the canvas's own Task creation. */
+  /** Work and Doc pages: the canvas's own Task creation. */
   readonly onCreateTask?: () => void
-  /** Task only: the line becomes a subtask (#221: a Task's to-do is a Step). */
-  readonly onCreateSubtask?: () => void
+  /** Doc pages: a sub-page made here (step 7). */
+  readonly onCreatePage?: () => void
   /** Task only: opens the Blocked by picker under the writing. */
   readonly onCreateBlocker?: () => void
   /** False where no file can be stored (a Task outside a Folder). */
@@ -189,9 +190,9 @@ function turnItems(editor: AnyEditor): Item[] {
 
 /* ------------------------------------------------------------ insert */
 
-type SlashCommand = 'text' | 'heading' | 'checklist' | 'task' | 'blocked_by' | 'media' | 'bullet' | 'numbered' | 'quote' | 'callout' | 'divider' | 'code' | 'file' | 'diagram' | 'link'
+type SlashCommand = 'text' | 'heading' | 'checklist' | 'task' | 'page' | 'blocked_by' | 'media' | 'bullet' | 'numbered' | 'quote' | 'callout' | 'divider' | 'code' | 'file' | 'diagram' | 'link'
 
-const DOC_MENU: readonly SlashCommand[] = ['text', 'heading', 'checklist', 'media']
+const DOC_MENU: readonly SlashCommand[] = ['text', 'heading', 'checklist', 'task', 'page', 'media']
 
 /*
 The `/` menu each page home shows (the approved model's slash-command table):
@@ -215,7 +216,7 @@ export function slashHomeOf(surface: CanvasSurfaceKind, results: boolean): Block
 
 /** The `/` menu for this surface: the registry's list for its home (`SLASH_MENUS`), in order. */
 export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item[] {
-  const { surface, onCreateTask, onCreateSubtask, onCreateBlocker, media = true, results = false } = context
+  const { surface, onCreateTask, onCreatePage, onCreateBlocker, media = true, results = false } = context
   const home = slashHomeOf(surface, results)
   if (home === null) return []
   const defaults = getDefaultReactSlashMenuItems(editor)
@@ -260,13 +261,13 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
       }
     },
     /*
-    Inside a Task the checklist is the Task's subtasks, one list above the
-    writing (#221); on a Doc it is a checklist block. `[]` + space still makes
-    no to-do on a Doc (`legacyCheckList`): the menu is the one way to start one.
+    A checklist block. Inside a Task its items are the Task's subtasks (0060),
+    and `[]` + space makes one there too. `[]` + space still makes no to-do on
+    a Doc (`legacyCheckList`): the menu is the one way to start one.
     */
     checklist: () => {
       if (surface === 'task') {
-        if (onCreateSubtask !== undefined) add('Basic blocks', 'Checklist', ['checklist', 'check', 'subtask', 'step', 'todo', 'to-do', 'checkbox', '[]'], () => { onCreateSubtask() }, glyph(ListChecks), { hint: '[]' })
+        if (has(editor, 'checkListItem')) add('Basic blocks', 'Checklist', ['checklist', 'check', 'subtask', 'step', 'todo', 'to-do', 'checkbox', '[]'], insert('checkListItem'), glyph(ListChecks), { hint: '[]' })
       } else if (has(editor, 'checkListItem')) {
         add('Basic blocks', 'Checklist', ['checklist', 'check', 'todo', 'to-do', 'checkbox'], insert('checkListItem'), glyph(ListChecks))
       }
@@ -277,7 +278,8 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     `onCreateTask` itself gave it the editor as its optional block (#204, #234).
     Task answers "todo" and "checkbox" too: it is what a to-do became.
     */
-    task: () => { if (surface === 'work' && onCreateTask !== undefined) add('Basic blocks', 'Task', ['task', 'todo', 'to-do', 'checkbox', 'action', '[]'], () => { onCreateTask() }, glyph(CheckCircle2), { hint: '[]' }) },
+    task: () => { if ((surface === 'work' || surface === 'document' || surface === 'plain') && onCreateTask !== undefined) add('Basic blocks', 'Task', ['task', 'todo', 'to-do', 'checkbox', 'action', '[]'], () => { onCreateTask() }, glyph(CheckCircle2), { hint: '[]' }) },
+    page: () => { if (onCreatePage !== undefined) add('Basic blocks', 'Page', ['page', 'sub-page', 'subpage', 'child page'], () => { onCreatePage() }, glyph(FileText)) },
     blocked_by: () => { if (onCreateBlocker !== undefined) add('Basic blocks', 'Blocked by', ['blocked', 'blocked by', 'waits', 'waits on', 'depends', 'dependency'], () => { onCreateBlocker() }, glyph(Workflow)) },
     /* Upstream's item opens the file panel on the new block (`CanvasFilePanel`).
        Media is one command (#220): an empty image block whose chosen file

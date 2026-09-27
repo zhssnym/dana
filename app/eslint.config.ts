@@ -37,9 +37,9 @@ const BRICKS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['files', ['files']],
   // Labels are Folder-scoped, and folders.ts seeds them, so they sit here
   // rather than with tasks.
-  ['projects', ['folders', 'facets', 'page-tree', 'page-order', 'shelves', 'labels']],
+  ['projects', ['folders', 'page-tree', 'project-tabs', 'page-order', 'shelves', 'labels']],
   // The body writer (document-body) and every applier that calls it.
-  ['documents', ['document-body', 'pages', 'page-document', 'task-document', 'facet-document', 'shelf-document']],
+  ['documents', ['document-body', 'pages', 'page-document', 'task-document', 'shelf-document']],
   ['tasks', ['tasks', 'task-order', 'task-dependencies', 'task-dependency-counts']],
   ['threads', ['consultation', 'consultation-hooks', 'consultation-input', 'comments']],
   ['views', ['references', 'backlinks', 'bundle', 'covers', 'place-descriptions']],

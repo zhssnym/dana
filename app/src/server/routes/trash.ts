@@ -75,7 +75,8 @@ export function createTrashRouter(options: TrashRouterOptions = {}): Router {
         return
       }
       if (outcome !== 'restored') {
-        sendError(res, 403, 'forbidden', outcome.reason)
+        if (outcome.kind === 'conflict') sendError(res, 409, 'conflict', outcome.reason)
+        else sendError(res, 403, 'forbidden', outcome.reason)
         return
       }
       res.status(200).json(await folderView(db, viewer(req), folderId))

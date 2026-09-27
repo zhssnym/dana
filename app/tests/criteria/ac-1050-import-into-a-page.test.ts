@@ -3,8 +3,8 @@ AC-1050: "Import" from a page's menu brings a Dana file in as sub-pages of that
 page, in one transaction. `POST /folders/:id/import` takes the body
 `POST /workflows/import` takes; each folder of the file becomes a page whose
 stored parent is `:id`, with a `page` home block on the parent's Main document
-and the parent's members copied with their presets, as a sub-page made by
-hand is. A page the importer is not a member of is 404 and a Can-view one is
+and the project's people (step 8: it stores none of its own), as a sub-page
+made by hand is. A page the importer is not a member of is 404 and a Can-view one is
 403, and either way nothing is created.
 
 Spec: wave 2 plan (pages in pages), 7.16, 10.2.
@@ -98,16 +98,11 @@ describe('AC-1050: importing a file into a page makes its sub-pages', () => {
     expect(await homeBlocksIn(parent), 'one home block per new page, in file order').toEqual(made)
 
     for (const id of made) {
-      const members = await rows(
-        app.db,
-        sql`SELECT user_id, access FROM folder_members WHERE folder_id = ${id}::uuid`,
-      )
-      expect(members.map((m) => [String(m.user_id), String(m.access)]).sort()).toEqual(
-        [
-          [owner.id, 'full_control'],
-          [viewer.id, 'can_view'],
-        ].sort(),
-      )
+      expect(await rows(app.db, sql`SELECT user_id FROM folder_members WHERE folder_id = ${id}::uuid`)).toEqual([])
+      expect(await rows(app.db, sql`SELECT project_id, owner_id FROM folders WHERE id = ${id}::uuid`)).toEqual([
+        { project_id: parent, owner_id: owner.id },
+      ])
+      expectStatus(await viewer.browser.json(`/folders/${id}`, 'GET'), 200, "the project's viewer reads it")
     }
   })
 

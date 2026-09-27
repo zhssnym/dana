@@ -182,7 +182,9 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
        safety property doing the permission work. */
     /* Leave asks first (access goes, no undo), so it keeps its ellipsis;
        Delete goes to Trash with undo and asks nothing. */
-    { key: 'leave', label: 'Leave page…', icon: LogOut, group: 4 },
+    /* Step 8: people belong to the project, so leaving any page of it
+       leaves the project. */
+    { key: 'leave', label: 'Leave project…', icon: LogOut, group: 4 },
     { key: 'delete', label: 'Delete page', icon: Trash2, group: 5, destructive: true },
   ],
   shelf: [

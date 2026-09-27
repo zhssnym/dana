@@ -49,7 +49,6 @@ import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import { REFERENCE_SEARCH_LIMIT, referencePath } from '../../shared/references.js'
-import { DEFAULT_FACET_NAMES } from '../../shared/facets.js'
 import type {
   GetResultLocationResponse,
   ReferenceKind,
@@ -59,7 +58,7 @@ import type {
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { searchPattern } from '../views/index.js'
-import { accessOf, joinVisibleFolder, resolveScoped } from './folder-access.js'
+import { accessOf, joinVisibleFolder } from './folder-access.js'
 import { shelfView } from './shelves.js'
 import { accessibleTask } from './tasks.js'
 
@@ -71,17 +70,14 @@ function summary(
   return { kind, id, label, path: referencePath(kind, id) }
 }
 
-/* The facets a `facet` reference may name: the document-bearing natives,
-   Purpose (#211) and Results (#213). Both are shared by construction
-   (`folder_facets_owner_kind_check`), so folder membership is the whole access
-   join. The label is the Page's name and the tab's (its stored override or
-   that kind's default name), "Half marathon · Purpose": every Page has a
-   Purpose, so the tab's name alone would be one of many identical rows in the
-   picker and an ambiguous chip. Every query using it joins `folders fo`. */
-const documentNativeFacet = sql`ff.kind IN ('purpose', 'results')`
-const facetLabel = sql`(fo.name || ' · ' || COALESCE(ff.display_name,
-  CASE ff.kind WHEN 'results' THEN ${DEFAULT_FACET_NAMES.results}
-               ELSE ${DEFAULT_FACET_NAMES.purpose} END))`
+/* Step 7: a facet is a tab, and a tab is a page. A tab other than the
+   project's own is labelled with the project's name and its own, "Half
+   marathon · Purpose": every project may have a Purpose, so the tab's name
+   alone would be one of many identical rows in the picker and an ambiguous
+   chip. `tf` is the page. */
+const tabLabel = sql`(CASE WHEN tf.tab_position IS NOT NULL AND tf.id <> tf.project_id
+  THEN (SELECT pr.name FROM folders pr WHERE pr.id = tf.project_id) || ' · ' || tf.name
+  ELSE tf.name END)`
 
 /* A Discussion or an Outcome the viewer may open (#320): the Discussion not
    trashed, its Folder live, the viewer a member of it. `d` is the Discussion. */
@@ -104,13 +100,10 @@ export function outcomeLabel(statement: string): string {
 }
 
 /* A native Result (#213) the viewer may open: a `result` block of a live
-   Results facet of a live Folder the viewer is a member of. Results are
-   shared by construction, so membership is the whole gate, as for the facet
-   itself. `pb` is the block. */
+   page (its Results tab since step 7) the viewer is a member of. `pb` is
+   the block, `rf` its page. */
 const resultGate = (viewerId: string): SQL => sql`
-  JOIN folder_facets ff
-    ON ff.id = pb.facet_id AND ff.kind = 'results' AND ff.deleted_at IS NULL
-  ${joinVisibleFolder(viewerId, { folderId: sql`ff.folder_id` })}`
+  ${joinVisibleFolder(viewerId, { folderId: sql`pb.folder_id`, folder: 'rf' })}`
 
 /** A Result's label: its statement on one line, cut as an Outcome's is; an
  * empty statement reads "Untitled result". */
@@ -146,13 +139,16 @@ export async function resolveReference(
       return shelf === null ? null : summary('shelf', shelf.id, shelf.name)
     }
     case 'facet': {
-      const found = await resolveScoped(executor, 'facet', target.id, viewerId, {
-        columns: sql`ff.id, ${facetLabel} AS label`,
-        where: documentNativeFacet,
-      })
-      return found === null
-        ? null
-        : summary('facet', String(found.row.id), String(found.row.label))
+      /* A stored facet link names a page since step 7: the facet's id was
+         kept as its tab's. */
+      const found = await rowsOf(
+        executor,
+        sql`SELECT tf.id, ${tabLabel} AS label
+              FROM folders tf ${joinVisibleFolder(viewerId, { folder: 'tf' })}
+             WHERE tf.id = ${target.id}::uuid`,
+      )
+      const row = found[0]
+      return row === undefined ? null : summary('facet', String(row.id), String(row.label))
     }
     case 'discussion': {
       const found = await rowsOf(
@@ -221,21 +217,23 @@ function taskQuery(viewerId: string, pattern: string, scope: SQL): SQL {
     LIMIT ${REFERENCE_SEARCH_LIMIT}`
 }
 
-/** Native Purpose (#211) and Results (#213) facets only. Hidden is
- * intentionally absent from the predicate: hiding a facet is presentation
- * state, not revocation (#211). */
+/** A project's Doc tabs other than the project's own (Purpose, Results and
+ * the like, step 7), labelled with the project's name. */
 function purposeQuery(viewerId: string, pattern: string, scope: SQL): SQL {
   return sql`
-    SELECT ff.id, ${facetLabel} AS label
-    FROM folder_facets ff
-    ${joinVisibleFolder(viewerId, { folderId: sql`ff.folder_id` })}
-    WHERE ${documentNativeFacet}
-      AND ff.deleted_at IS NULL
-      AND ${facetLabel} ILIKE ${pattern}
+    SELECT tf.id, ${tabLabel} AS label
+    FROM folders tf
+    ${joinVisibleFolder(viewerId, { folder: 'tf' })}
+    WHERE tf.kind = 'doc' AND tf.tab_position IS NOT NULL AND tf.id <> tf.project_id
+      AND ${tabLabel} ILIKE ${pattern}
       ${scope}
-    ORDER BY lower(${facetLabel}) ASC, ff.id ASC
+    ORDER BY lower(${tabLabel}) ASC, tf.id ASC
     LIMIT ${REFERENCE_SEARCH_LIMIT}`
 }
+
+/** The project of the page the person composes in, for the context scopes. */
+const projectOfPage = (folderId: string): SQL =>
+  sql`(SELECT cp.project_id FROM folders cp WHERE cp.id = ${folderId}::uuid)`
 
 export async function searchReferences(
   executor: Executor,
@@ -263,7 +261,7 @@ export async function searchReferences(
           purposeQuery(
             viewerId,
             pattern,
-            sql` AND ff.folder_id = ${folderId}`,
+            sql` AND tf.project_id = ${projectOfPage(folderId)}`,
           ),
         )
   const otherRows = await rowsOf(
@@ -279,7 +277,7 @@ export async function searchReferences(
     purposeQuery(
       viewerId,
       pattern,
-      folderId === undefined ? sql`` : sql` AND ff.folder_id <> ${folderId}`,
+      folderId === undefined ? sql`` : sql` AND tf.project_id <> ${projectOfPage(folderId)}`,
     ),
   )
 
@@ -291,6 +289,8 @@ export async function searchReferences(
         FROM folders f
         ${joinVisibleFolder(viewerId, { folder: 'f' })}
         WHERE f.name ILIKE ${pattern}
+          -- Step 7: a project's other tabs are offered by purposeQuery.
+          AND (f.tab_position IS NULL OR f.id = f.project_id)
         ORDER BY lower(f.name) ASC, f.id ASC
         LIMIT ${REFERENCE_SEARCH_LIMIT}`,
   )
@@ -324,10 +324,11 @@ export async function searchReferences(
   /* Results (#213) matched on their statement, the composing Folder's first. */
   const resultRows = await rowsOf(
     executor,
-    sql`SELECT pb.id, pb.text, ff.folder_id
+    sql`SELECT pb.id, pb.text, rf.project_id,
+               ${folderId === undefined ? sql`false` : sql`(rf.project_id = ${projectOfPage(folderId)})`} AS in_context
         FROM page_blocks pb ${resultGate(viewerId)}
         WHERE pb.kind = 'result' AND pb.text ILIKE ${pattern}
-        ORDER BY ${folderId === undefined ? sql`` : sql`(ff.folder_id = ${folderId}) DESC, `}pb.updated_at DESC, pb.id DESC
+        ORDER BY ${folderId === undefined ? sql`` : sql`(rf.project_id = ${projectOfPage(folderId)}) DESC, `}pb.updated_at DESC, pb.id DESC
         LIMIT ${REFERENCE_SEARCH_LIMIT}`,
   )
 
@@ -343,7 +344,7 @@ export async function searchReferences(
   /* The composing Folder's Results sit with its Tasks and tabs, ahead of
      every other Page's rows; the rest keep their place near the end. */
   const isContextResult = (row: Record<string, unknown>): boolean =>
-    folderId !== undefined && String(row.folder_id) === folderId
+    row.in_context === true
   const resultSummary = (row: Record<string, unknown>): ReferenceSummary =>
     summary('result', String(row.id), resultLabel(row.text as string | null))
 
@@ -352,7 +353,7 @@ export async function searchReferences(
       summary('task', String(row.id), String(row.title)),
     ),
     ...contextPurposeRows.map((row) =>
-      summary('facet', String(row.id), String(row.label)),
+      summary('folder', String(row.id), String(row.label)),
     ),
     ...resultRows.filter(isContextResult).map(resultSummary),
     ...otherRows.map((row) =>
@@ -362,7 +363,7 @@ export async function searchReferences(
       summary('folder', String(row.id), String(row.name)),
     ),
     ...otherPurposeRows.map((row) =>
-      summary('facet', String(row.id), String(row.label)),
+      summary('folder', String(row.id), String(row.label)),
     ),
     ...discussionRows.map((row) =>
       summary('discussion', String(row.id), String(row.title)),
@@ -386,7 +387,7 @@ export async function resultLocation(
 ): Promise<GetResultLocationResponse | null> {
   const found = await rowsOf(
     executor,
-    sql`SELECT pb.id, pb.text, ff.id AS facet_id, ff.folder_id
+    sql`SELECT pb.id, pb.text, rf.id AS page_id
           FROM page_blocks pb ${resultGate(viewerId)}
          WHERE pb.id = ${resultId}::uuid AND pb.kind = 'result'`,
   )
@@ -395,8 +396,10 @@ export async function resultLocation(
     ? null
     : {
         id: String(row.id),
-        folder_id: String(row.folder_id),
-        facet_id: String(row.facet_id),
+        /* Step 7: the page the Result is on (its Results tab). `facet_id`
+           names the same page for clients from before tabs. */
+        folder_id: String(row.page_id),
+        facet_id: String(row.page_id),
         label: resultLabel(row.text as string | null),
       }
 }

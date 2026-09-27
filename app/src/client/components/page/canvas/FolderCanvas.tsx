@@ -4,7 +4,7 @@ import { useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteEditor } from '@blocknote/core'
 import { en } from '@blocknote/core/locales'
 import { useQueryClient } from '@tanstack/react-query'
-import { useLocation, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
 import '@blocknote/shadcn/style.css'
 import type { PageView } from '../../../../shared/pages.js'
 import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
@@ -12,7 +12,8 @@ import { getPageResponse } from '../../../../shared/pages.js'
 import { documentTransaction } from '../../../../shared/page-document.js'
 import { getPlain, mutateApi, uploadFile as uploadDanaFile } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
-import { useFolderCompletedTasks, useFolderFacets, useMultiMemberFolderIds } from '../../../api/queries.js'
+import { useAllPages, useFolderCompletedTasks, useMultiMemberFolderIds } from '../../../api/queries.js'
+import { projectTabs, resultsTab } from '../../../../shared/folders.js'
 import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider, ThreadFactsProvider } from './CanvasTask.js'
@@ -39,11 +40,11 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   readonly page: PageView
   readonly folderId: string
   readonly arrangeable: boolean
-  /** A facet with its own document passes this id. Work facets continue to
-   * use the Folder page and never pass it. */
-  readonly facetId?: string
-  /** Purpose headings change document typography only; they never create Work Sections. */
+  /** A Doc page (step 7): flat headings that never make Work Sections, and no
+   * thread. Without it the canvas is a Work page's thread. */
   readonly presentationHeadings?: boolean
+  /** A Doc page's `/` Page: a sub-page made here, where the slash was; told its id once saved. */
+  readonly onCreatePage?: (madeId: string) => void
   /** The Results tab: `/result` makes a native Result (#213). */
   readonly results?: boolean
   readonly workRootId?: string
@@ -130,7 +131,7 @@ function scrollerOf(element: Element | null): Element | null {
 
 const CHANGED_ELSEWHERE = 'This page changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
-function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen }: Props & {
+function PersistedCanvas({ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen }: Props & {
   readonly opening: string
   readonly frozen: Frozen
   readonly initialPage: PageView
@@ -144,7 +145,7 @@ function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHea
   // A page without a revision cannot be written safely: every save would carry
   // no base and the server could not refuse a stale write. Say so and offer a
   // reload instead of crashing the canvas or guessing a base.
-  const pageKey = facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId)
+  const pageKey = queryKeys.folderPage(folderId)
   if (!initialPage.revision) return <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
     This page opened without its version, so writing is paused to keep your page safe. Nothing was changed.
     <Button variant="outline" onClick={() => { setReloadNote('Loading…'); void queryClient.invalidateQueries({ queryKey: pageKey }).then(() => {
@@ -153,12 +154,12 @@ function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHea
       else setReloadNote('The page still has no version. Try again in a moment.')
     }) }}>Load the page again</Button>{reloadNote}
   </div>
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen }} width={width} onSaved={(next) => {
-    queryClient.setQueryData(facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId), next)
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen }} width={width} onSaved={(next) => {
+    queryClient.setQueryData(queryKeys.folderPage(folderId), next)
   }} />}</div>
 }
 
-function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen, width, onSaved }: Props & {
+function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen, width, onSaved }: Props & {
   readonly opening: string
   readonly frozen: Frozen
   readonly initialPage: PageView
@@ -300,7 +301,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
   // alone has nothing to restore a kind the editor cannot draw from, and every
   // save would lose it. An empty page still starts from an empty
   // baseline, so the placeholder paragraph is written rather than assumed.
-  const documentPath = facetId === undefined ? `/folders/${folderId}/page` : `/folders/${folderId}/facets/${facetId}/page`
+  const documentPath = `/folders/${folderId}/page`
   const projection = (current: readonly CanvasBlock[]): CanvasDocument => {
     const drawn = dehydrateCanvas(current, width, folderRefs)
     const lossless = baselineOf(editorPage, drawn)
@@ -317,8 +318,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       : mergeWorkDocument(initialPage, workRootId, empty)
   const queryClient = useQueryClient()
   // This is a recoverable draft, never a cached page or an automatic offline queue.
-  // One key per document: Work and each tab keep their own.
-  const draftKey = `dana-canvas-draft:${facetId ?? folderId}`
+  // One key per document: Work and each tab keep their own. A tab that was a
+  // facet kept the facet's id, so a draft stored under it is still found.
+  const draftKey = `dana-canvas-draft:${folderId}`
   const [writer] = useState(() => new CanvasWriter(firstProjection(), initialPage.revision ?? '',
     (body) => mutateApi(getPageResponse, { method: 'POST', path: `${documentPath}/actions`, body }),
     () => {
@@ -332,8 +334,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       onSaved(next)
       if (checkpoint) onCheckpoint(next)
       // A sub-page trashed or restored, or a Task made, changes the folder list.
-      if (operations.some((op) => op.op === 'create_task' || op.op === 'trash_page' || (op.op === 'put_block' && op.block_kind === 'page'))) {
+      if (operations.some((op) => op.op === 'create_task' || op.op === 'create_page' || op.op === 'trash_page' || (op.op === 'put_block' && op.block_kind === 'page'))) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.folders(), exact: true })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.allPages(), exact: true })
       }
     },
   ))
@@ -450,11 +453,55 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     if (resume !== undefined) resume.taskId = id
     // A failed send is reported by the save status below, whose Retry
     // re-sends this exact request, Task included.
-    try { await writer.flush({ id, title: taskTitle.trim() }) } finally {
+    try { await writer.flush({ op: 'create_task', id, title: taskTitle.trim() }) } finally {
       setCreating(false)
       if ((writer.state as string) === 'failed') resumeAfter.delete(draftKey)
     }
   }
+  /* A Doc's `/` Page: the page and its link are made in one save
+     (`create_page`), the link where the slash was typed. The menu has already
+     cleared its `/page` query, so an empty line becomes the link; a line
+     with text keeps it and the link follows. The writing is saved first, as
+     for a Task, so the save that makes the page carries nothing else. The
+     link is drafted outside the live editor, so the editor is read-only
+     (`creating`) until the save lands: typing meanwhile would replace the
+     drafted document with one lacking the link, and the next save would
+     trash the page just made. */
+  const makePage = onCreatePage === undefined ? undefined : (): void => {
+    const at = editor.getTextCursorPosition().block
+    if (writer.state === 'failed') { setError(pageBlocked); return }
+    setCreating(true)
+    void (async () => {
+      try {
+        await writer.flush()
+        if (writer.state !== 'saved') { setError(pageBlocked); return }
+        const id = crypto.randomUUID()
+        const blockId = crypto.randomUUID()
+        const empty = at.type === 'paragraph' && richRuns(at).every((run) => !run.text.trim())
+        const replace = (blocks: readonly CanvasInput[]): CanvasInput[] => blocks.flatMap((block) => {
+          if (block.id === at.id) {
+            const link: CanvasInput = { id: blockId, type: 'danaPage', props: { folderId: id } }
+            return empty ? [link, ...replace(block.children ?? [])] : [{ ...block, children: block.children ? replace(block.children) : [] }, link]
+          }
+          return [{ ...block, children: block.children ? replace(block.children) : [] }]
+        })
+        let temporary: ReturnType<typeof BlockNoteEditor.create> | null = null
+        let drafted: CanvasDocument
+        try {
+          temporary = BlockNoteEditor.create({ schema: canvasSchema, initialContent: replace(editor.document) })
+          drafted = dehydrateCanvas(temporary.document, width, folderRefs)
+        } catch (failure) {
+          setError(failure instanceof Error ? failure.message : 'Could not make this page.')
+          return
+        } finally { temporary?.unmount() }
+        writer.change(drafted)
+        await writer.flush({ op: 'create_page', id, block_id: blockId, title: 'Untitled' })
+        if ((writer.state as string) === 'failed') return
+        onCreatePage(id)
+      } finally { setCreating(false) }
+    })()
+  }
+  const pageBlocked = 'Your writing has not saved, so a page cannot be made yet. Use Load latest below; your writing is kept.'
   // A failed save's line offers "Load latest" beside this sentence (SaveFailure): name that control, not ones it lacks.
   const taskBlocked = 'Your writing has not saved, so a task cannot be made yet. Use Load latest below; your writing is kept.'
   /* A paragraph with text becomes its task at once. An empty line becomes a
@@ -628,7 +675,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     <SavedResults.Provider value={savedResults}>
     <CanvasTaskProvider tasks={tasks} completed={completed} context={context} actions={actions} onAsk={onAsk}>
       {draftStyle === '' ? null : <style>{draftStyle}</style>}
-      <ThreadLayer enabled={facetId === undefined} editor={editor} folderId={folderId} tasks={tasks} context={context} frozen={frozen} finish={workRootId === undefined && resultsWritable === true}>
+      <ThreadLayer enabled={presentationHeadings !== true} editor={editor} folderId={folderId} tasks={tasks} context={context} frozen={frozen} finish={workRootId === undefined && resultsWritable === true}>
       <div
         className="min-w-0"
         onKeyDownCapture={draftKeys}
@@ -637,20 +684,15 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       <CanvasSurface
         peopleFolderId={folderId}
         // Only a reader who can write is asked to.
-        placeholder={!arrangeable ? undefined : results === true ? 'Write what came of this' : presentationHeadings === true ? 'Write why this page exists' : placeholder}
+        placeholder={!arrangeable ? undefined : results === true ? 'Write what came of this' : placeholder}
         editor={editor}
         onChange={changed}
-        onCreateTask={facetId === undefined ? askTask : undefined}
+        onCreateTask={askTask}
+        onCreatePage={makePage}
         results={results === true}
         folderRefs={folderRefs}
         onUploadFile={uploadCanvasFile}
-        headingMode={
-          facetId === undefined
-            ? 'section'
-            : presentationHeadings === true
-              ? 'document'
-              : 'none'
-        }
+        headingMode={presentationHeadings === true ? 'document' : 'section'}
         editable={arrangeable && !creating && !pendingTask}
         onNotice={setNotice}
       />
@@ -685,6 +727,7 @@ interface RailMark { readonly id: string; readonly x: number; readonly y: number
 
 type Card = Rows['tasks'][number]
 const noFacts: ThreadFacts = { next: null, shared: false, completedOn: new Map() }
+const sharedNoThread: ThreadFacts = { ...noFacts, shared: true }
 /** Block `id` anywhere in the document, or undefined. */
 function findBlock(blocks: readonly ThreadBlock[], id: string): ThreadBlock | undefined {
   for (const block of blocks) {
@@ -739,9 +782,8 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
   useEffect(() => enabled ? editor.onChange(() => { bump((value) => value + 1) }) : undefined, [editor, enabled])
   const shared = useMultiMemberFolderIds().has(folderId)
   const done = useFolderCompletedTasks(folderId, enabled)
-  const facets = useFolderFacets(folderId, enabled && finish)
+  const pages = useAllPages(enabled && finish)
   const navigate = useNavigate()
-  const location = useLocation()
   const completedOn = useMemo(() => {
     const on = new Map<string, string>()
     for (const page of done.data?.pages ?? []) for (const day of page.days) for (const row of day.rows) if (!on.has(row.id)) on.set(row.id, day.date)
@@ -798,7 +840,9 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
     setGrown(null)
   }, [folderId])
   const facts = useMemo<ThreadFacts>(() => ({ next: model.next, shared, completedOn, onTick }), [model.next, shared, completedOn, onTick])
-  const results = facets.data?.facets.find((facet) => facet.kind === 'results')
+  /* The project's Results tab, where "Write what came of it" goes. */
+  const projectId = pages.data?.find((page) => page.id === folderId)?.project_id
+  const results = projectId === undefined ? undefined : resultsTab(projectTabs(pages.data ?? [], projectId))
   /* A press on an "Earlier work" break shows what it holds. Heard on the
      window, before the marquee (CanvasMarquee), which takes any press outside
      a block's row for a band selection. */
@@ -849,7 +893,8 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
     window.addEventListener('mousedown', onPress, true)
     return () => window.removeEventListener('mousedown', onPress, true)
   }, [enabled, folderId])
-  if (!enabled) return <ThreadFactsProvider value={noFacts}>{children}</ThreadFactsProvider>
+  /* A Doc draws no thread, but its tasks still show who has them. */
+  if (!enabled) return <ThreadFactsProvider value={shared ? sharedNoThread : noFacts}>{children}</ThreadFactsProvider>
   return (
     <ThreadFactsProvider value={facts}>
       <style>{css}</style>
@@ -876,10 +921,8 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
             type="button"
             className="dana-thread-end"
             onClick={() => {
-              const search = new URLSearchParams(location.search)
-              search.set('facet', results.id)
-              focusResultsOf = { folderId, at: performance.now() }
-              void navigate({ search: `?${search.toString()}` })
+              focusResultsOf = { folderId: results.id, at: performance.now() }
+              void navigate(`/app/folders/${encodeURIComponent(results.id)}`)
             }}
           >
             Write what came of it

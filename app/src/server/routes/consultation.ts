@@ -315,10 +315,11 @@ export function createConsultationRouter(
       }
       const outcome = await discussTask(db, viewer(req), taskId)
       if (refused(res, outcome)) return
-      const { created, discussion } = (
-        outcome as { kind: 'ok'; value: { created: boolean; discussion: unknown } }
+      const { created, discussion, discussionTabId } = (
+        outcome as { kind: 'ok'; value: { created: boolean; discussion: unknown; discussionTabId: string | null } }
       ).value
-      res.status(created ? 201 : 200).json({ discussion })
+      // Step 7: the project's Discussion tab, where the thread is listed.
+      res.status(created ? 201 : 200).json({ discussion, discussion_tab_id: discussionTabId })
     },
   )
 

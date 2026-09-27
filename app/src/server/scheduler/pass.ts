@@ -66,7 +66,6 @@ import type { ObjectStore } from '../files/store.js'
 import { pruneExpiredSessions } from '../auth/index.js'
 import { reclaimUnwornPictures } from '../domain/files.js'
 import { destroyDiscussions } from '../domain/consultation.js'
-import { destroyFacets } from '../domain/facets.js'
 import { destroyFolders, destroyTasks, removeObjects } from '../domain/trash.js'
 import { SWEEP_BATCH, inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
@@ -434,30 +433,11 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
            FOR UPDATE SKIP LOCKED`,
     )
     await removeObjects(deps.fileStore, taskPurge.fileIds)
-    /*
-    The third Trash kind (issue #210): a custom Folder facet, on 7.13's same
-    thirty-day window and through `domain/facets.ts`'s own 11.7 collection
-    rather than a delete written beside it, as every caller of that
-    collection must.
-
-    It collects no files and needs no `removeObjects` after it: a `files` row
-    is scoped to a folder (4.16) and the folder survives its facet, so what
-    the cascade drops is `page_blocks` rows, and the pictures they named are
-    then reclaimed by the fifth duty below on 7.19's own window.
-
-    Capped like the two above it, and for the same reason `database.ts` gives
-    at the constant: the claim is bounded, the cascade under it is not.
-    */
-    const facetPurge = await destroyFacets(
-      db,
-      sql`SELECT id FROM folder_facets
-           WHERE deleted_at < now() - interval '30 days'
-           LIMIT ${SWEEP_BATCH}
-           FOR UPDATE SKIP LOCKED`,
-    )
+    /* The third Trash kind (issue #210), a custom Folder facet, is a tab
+       since step 7 (migration 0061): a page, purged with the folders above. */
     /* The fourth Trash kind (issue #320): a trashed Discussion, on the same
-       window, through `domain/consultation.ts`'s own 11.7 collection. Unlike a
-       facet it does collect files: its comments cascade with it, and their
+       window, through `domain/consultation.ts`'s own 11.7 collection. It
+       does collect files: its comments cascade with it, and their
        uploads had no other reference. */
     const discussionPurge = await destroyDiscussions(
       db,
@@ -470,7 +450,6 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
     const purgedTrash =
       folderPurge.folderIds.length +
       taskPurge.taskIds.length +
-      facetPurge.length +
       discussionPurge.discussionIds.length
     const purgedEvents = (
       await rowsOf(

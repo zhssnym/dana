@@ -56,6 +56,7 @@ export function CanvasSurface({
   editor,
   onChange,
   onCreateTask,
+  onCreatePage,
   folderRefs,
   onUploadFile,
   headingMode = 'section',
@@ -71,6 +72,8 @@ export function CanvasSurface({
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
   readonly onCreateTask?: (block?: CanvasBlock) => void
+  /** A Doc page's `/` Page (step 7). */
+  readonly onCreatePage?: () => void
   readonly folderRefs: ReadonlyMap<string, string>
   readonly onUploadFile: (
     kind: CanvasMediaKind,
@@ -105,8 +108,9 @@ export function CanvasSurface({
   const slashContext = useMemo(() => ({
     surface: headingMode === 'document' ? 'document' as const : headingMode === 'none' ? 'plain' as const : flatGroups ? 'shelf' as const : 'work' as const,
     onCreateTask: onCreateTask === undefined ? undefined : () => { onCreateTask() },
+    onCreatePage,
     results,
-  }), [headingMode, flatGroups, onCreateTask, results])
+  }), [headingMode, flatGroups, onCreateTask, onCreatePage, results])
   useEffect(() => installCanvasGuard(editor, onNotice), [editor, onNotice])
   useEffect(() => onCreateTask ? bindTaskCommand(editor, requestTask) : undefined, [editor, onCreateTask, requestTask])
   useEffect(() => {

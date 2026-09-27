@@ -159,7 +159,7 @@ describe('AC-025: a title-only create lands in the Inbox with the 7.6 defaults',
     expect(body.completed_by, 'a pending task has no completed_by (INV-8)').toBeNull()
     expect(
       await stepRows(app.db, taskId),
-      'no steps rows were written',
+      'no checklist items were written to the body',
     ).toEqual([])
     expect(
       await reminderRow(app.db, taskId),

@@ -13,7 +13,7 @@ import { Row, RowGroup } from "../components/ui/row.js"
 import { Screen } from "../components/settings/screen.js"
 import { cn } from "../components/ui/utils.js"
 import { markIcon } from "../components/page/icon-manifest.js"
-import { CheckCircle2, Layers3, MessageSquare } from "../lib/icons.js"
+import { CheckCircle2, MessageSquare } from "../lib/icons.js"
 import {
   type TrashItem,
   daysLeft,
@@ -106,11 +106,9 @@ function TrashRow({
   const Glyph =
     item.kind === "task"
       ? CheckCircle2
-      : item.kind === "facet"
-        ? Layers3
-        : item.kind === "discussion"
-          ? MessageSquare
-          : markIcon(null)
+      : item.kind === "discussion"
+        ? MessageSquare
+        : markIcon(null)
   const left = daysLeft(item)
 
   const days = `${left} day${left === 1 ? "" : "s"} left`

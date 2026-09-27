@@ -17,8 +17,9 @@ like every other home (`document-outline.ts`).
 deployed client edits `tasks.notes` as one string, so both stay:
 
 - The document is authoritative once it exists, and `tasks.notes` is its
-  plain-text projection: every text-bearing block's text, in document order,
-  joined with '\n', cut to the column's 10000 characters. Every document write
+  plain-text projection: every text-bearing block's text except a checklist
+  item's, in document order, joined with '\n', cut to the column's 10000
+  characters. Checklist items are the task's subtasks (migration 0060). Every document write
   rewrites it, so search, cards and the deployed textarea keep reading text.
 - A Task with notes and no document (created by a path that writes only
   `notes`: the deployed client's POST, a workflow import, the sample) is given
@@ -47,7 +48,7 @@ import { documentHash, hashableBlocks } from './document-hash.js'
 import { applyFlatBody, folderFileAudit } from './document-body.js'
 import type { Refuse } from './document-body.js'
 import { fileReclaimedAt } from './document-outline.js'
-import { initialKeys } from './fractional-index.js'
+import { initialKeys, keyBetween } from './fractional-index.js'
 import { syncMentions } from './mentions.js'
 
 /** 4.17's paragraph ceiling and 4.5's notes ceiling, in code points, which is
@@ -83,9 +84,17 @@ export function notesParagraphs(notes: string): string[] {
   }
 }
 
-/** The plain-text projection of a document: `tasks.notes` after a write. */
-export function notesProjection(texts: readonly (string | null)[]): string | null {
-  const joined = texts.filter((text): text is string => text !== null).join('\n')
+/** The plain-text projection of a document: `tasks.notes` after a write.
+ * Checklist items are skipped: they are the task's subtasks (migration 0060),
+ * and an export or workflow carries them as `steps`. */
+export function notesProjection(
+  blocks: readonly { readonly kind?: unknown; readonly text?: unknown }[],
+): string | null {
+  const joined = blocks
+    .filter((block) => block.kind !== 'checklist')
+    .map((block) => str(block.text))
+    .filter((text): text is string => text !== null)
+    .join('\n')
   if (joined === '') return null
   const points = Array.from(joined)
   return points.length <= NOTES_MAX ? joined : points.slice(0, NOTES_MAX).join('')
@@ -271,7 +280,10 @@ export async function legacyNotesWrite(
   if (added === '') return str(rows[0]?.notes)
   await appendParagraphs(tx, taskId, notesParagraphs(added))
   await relayout(tx, taskId)
-  return notesProjection([...texts, ...notesParagraphs(added)])
+  return notesProjection([
+    ...blocks,
+    ...notesParagraphs(added).map((text) => ({ kind: 'paragraph', text })),
+  ])
 }
 
 /**
@@ -286,6 +298,7 @@ export async function copyTaskDocument(
   fromTaskId: string,
   toTaskId: string,
   mapFile?: (fileId: string) => Promise<string | null>,
+  options: { readonly uncheck?: boolean } = {},
 ): Promise<void> {
   const rows = await rowsOf(
     tx,
@@ -306,7 +319,7 @@ export async function copyTaskDocument(
                   ${row.rich_content === null || row.rich_content === undefined ? null : JSON.stringify(row.rich_content)}::jsonb,
                   ${row.file_id === null || row.file_id === undefined ? null : mapFile === undefined ? String(row.file_id) : await mapFile(String(row.file_id))}::uuid,
                   ${row.width_pct === null || row.width_pct === undefined ? null : Number(row.width_pct)},
-                  ${row.checked === null || row.checked === undefined ? null : Boolean(row.checked)},
+                  ${row.checked === null || row.checked === undefined ? null : options.uncheck === true ? false : Boolean(row.checked)},
                   ${row.toggleable === true ? true : null})
           RETURNING id`,
     )
@@ -319,6 +332,160 @@ export async function copyTaskDocument(
            WHERE id = ${ids.get(String(row.id)) as string}::uuid`,
     )
   }
+}
+
+/** The body `appendChecklist` would build holds more than a page's 500 blocks. */
+export class ChecklistCapRefusal extends Error {
+  constructor() {
+    super('A task holds at most 500 blocks, its notes and checklist items together.')
+    this.name = 'ChecklistCapRefusal'
+  }
+}
+
+/**
+ * Appends checklist items (the task's subtasks) after the last block of a
+ * Task's document, then rewrites `notes`. The notes are materialized first:
+ * a task with notes and no blocks would otherwise lose them, because the
+ * document is only built from `notes` while it has no blocks. **The caller
+ * holds the Task row** (or has just inserted it). Throws `ChecklistCapRefusal`,
+ * before writing any item, when the body would pass 500 blocks.
+ */
+export async function appendChecklist(
+  tx: Executor,
+  taskId: string,
+  items: readonly { readonly title: string; readonly done?: boolean }[],
+): Promise<void> {
+  if (items.length === 0) return
+  await materializeNotesLocked(tx, taskId)
+  const existing = await blockRows(tx, taskId)
+  const keyed = existing.filter((row) => row.page_position !== null && row.page_position !== undefined)
+  if (keyed.length !== existing.length) await relayout(tx, taskId)
+  const current = keyed.length === existing.length ? existing : await blockRows(tx, taskId)
+  if (current.length + items.length > 500) throw new ChecklistCapRefusal()
+  let last = current.length === 0 ? null : str(current[current.length - 1]?.page_position)
+  let position = current.reduce((max, row) => Math.max(max, Number(row.position)), -1)
+  for (const item of items) {
+    last = keyBetween(last, null)
+    position += 1
+    await tx.execute(
+      sql`INSERT INTO page_blocks (task_id, kind, position, page_position, text, checked)
+          VALUES (${taskId}::uuid, 'checklist', ${position}, ${last}, ${item.title}, ${item.done === true})`,
+    )
+  }
+  await tx.execute(
+    sql`UPDATE tasks SET notes = ${notesProjection(await blockRows(tx, taskId))}
+         WHERE id = ${taskId}::uuid`,
+  )
+}
+
+/** A Task's checklist items in reader order: 7.6's `steps`, now a read-only
+ * projection of the body. `position` is the item's index. */
+export async function taskChecklist(
+  executor: Executor,
+  taskId: string,
+): Promise<{ id: string; title: string; done: boolean; position: number }[]> {
+  const found = await rowsOf(
+    executor,
+    sql`SELECT id, text, checked FROM page_blocks
+         WHERE task_id = ${taskId}::uuid AND kind = 'checklist'
+         ORDER BY page_position ASC NULLS LAST, position, updated_at, id`,
+  )
+  return found.map((row, index) => ({
+    id: String(row.id),
+    title: str(row.text) ?? '',
+    done: row.checked === true,
+    position: index,
+  }))
+}
+
+/** JSON with sorted keys: a jsonb value comes back in its own key order. */
+function canonical(value: unknown): string {
+  return JSON.stringify(value, (_key, inner: unknown) =>
+    inner !== null && typeof inner === 'object' && !Array.isArray(inner)
+      ? Object.fromEntries(Object.entries(inner as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : 1)))
+      : inner,
+  )
+}
+
+/**
+ * Whether a document transaction only ticks or unticks checklist items this
+ * Task already holds: every `put_block` names an existing checklist item of
+ * this Task and changes nothing but its tick, nothing is created or deleted,
+ * and the one outline is the current one. `step.toggle` admits exactly this
+ * when `task.edit` is refused (Assigned work ticks its own task's subtasks).
+ *
+ * Rich content counts as unchanged when it is equal, or when the item stores
+ * none and the write carries its text as plain runs (a migrated step, drawn
+ * and saved back by the editor).
+ */
+export async function isChecklistTickOnly(
+  tx: Executor,
+  taskId: string,
+  body: DocumentTransaction,
+): Promise<boolean> {
+  return (await checklistTicks(tx, taskId, body)) !== null
+}
+
+/** A checklist item whose tick a document transaction changes. */
+export interface ChecklistTick {
+  readonly text: string
+  readonly checked: boolean
+}
+
+/**
+ * The ticks a tick-only transaction (`isChecklistTickOnly`) changes, in the
+ * order it sends them, or null when the transaction does anything else. The
+ * task's history names each one, as it named a step's tick before 0060.
+ */
+export async function checklistTicks(
+  tx: Executor,
+  taskId: string,
+  body: DocumentTransaction,
+): Promise<ChecklistTick[] | null> {
+  const stored = await blockRows(tx, taskId)
+  const ticks: ChecklistTick[] = []
+  const byId = new Map(stored.map((row) => [String(row.id), row]))
+  let outlines = 0
+  for (const op of body.operations) {
+    if (op.op === 'set_outline') {
+      outlines += 1
+      const current = stored.map((row) => ({
+        kind: 'block',
+        id: String(row.id),
+        section_block_id: null,
+        list_parent_block_id: str(row.list_parent_block_id),
+      }))
+      const sent = op.items.map((item) => ({
+        kind: item.kind,
+        id: item.id,
+        section_block_id: item.section_block_id,
+        list_parent_block_id: item.list_parent_block_id,
+      }))
+      if (JSON.stringify(sent) !== JSON.stringify(current)) return null
+      continue
+    }
+    if (op.op !== 'put_block' || op.block_kind !== 'checklist') return null
+    const row = byId.get(op.id)
+    if (row === undefined || row.kind !== 'checklist') return null
+    if (str(row.text) !== op.text) return null
+    if (str(row.file_id) !== op.file_id || op.ref_folder_id !== null) return null
+    if ((row.width_pct ?? null) !== op.width_pct) return null
+    if ((op.toggleable ?? null) !== null) return null
+    const rich = (row.rich_content ?? null) as unknown
+    const sameRich =
+      canonical(rich) === canonical(op.rich_content) ||
+      (rich === null &&
+        (op.rich_content === null ||
+          op.rich_content.runs.every((run) => Object.keys(run).length === 1) &&
+            op.rich_content.runs.map((run) => run.text).join('') === op.text))
+    if (!sameRich) return null
+    // Compared against what the write stores: `applyFlatBody` keeps a
+    // missing tick as false, so a null is an untick of a ticked item.
+    const was = row.checked === true
+    const next = op.checked ?? false
+    if (next !== was) ticks.push({ text: op.text ?? '', checked: next })
+  }
+  return outlines === 1 ? ticks : null
 }
 
 /** A refusal from the Task document applier: `stale` is 409, `not_found`
@@ -390,7 +557,7 @@ export async function applyTaskDocumentLocked(
       home: 'task',
       scope: { column: 'task_id', id: taskId },
       refuse,
-      noTasks: 'a Task document holds no Tasks; use Steps',
+      noTasks: 'a Task document holds no Tasks; use a checklist',
       foreignId:
         "names a block this Task does not hold; an identity that already exists elsewhere is not this Task's to write",
       audit: folderFileAudit(tx, folderId, refuse),
@@ -398,9 +565,8 @@ export async function applyTaskDocumentLocked(
     },
     body.operations,
   )
-  const texts = (await blockRows(tx, taskId)).map((row) => str(row.text))
   await tx.execute(
-    sql`UPDATE tasks SET notes = ${notesProjection(texts)}, updated_at = now()
+    sql`UPDATE tasks SET notes = ${notesProjection(await blockRows(tx, taskId))}, updated_at = now()
          WHERE id = ${taskId}::uuid`,
   )
   const committed = await revisionOf(tx, taskId)
