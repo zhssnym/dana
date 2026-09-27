@@ -262,13 +262,14 @@ export default function PostEditor({
     >
       <div
         className={cn(
-          'min-w-0 rounded-lg border border-border bg-background focus-within:border-quiet-foreground',
-          /* A new post: the writing, then one row of Attach, @ and Send. */
+          'min-w-0 border border-border bg-background',
+          /* A new post: a letter's box, the writing, then one row of Attach, @ and Send. */
+          chat ? 'rounded-md focus-within:border-ring' : 'rounded-lg focus-within:border-quiet-foreground',
         )}
       >
         {/* The padding lives here: canvas.css zeroes the canvas's own left padding on phones. */}
         <div
-          className={cn('min-w-0 px-3', editing ? 'pt-2' : renderActions === undefined ? 'pt-2 pb-0.5' : 'min-h-24 cursor-text py-2')}
+          className={cn('min-w-0 px-3', editing ? 'pt-2' : renderActions === undefined ? 'min-h-13 pt-3' : 'min-h-24 cursor-text py-2')}
           /* The issue composer's box is taller than its one line: a click anywhere in it writes. */
           onMouseDown={
             renderActions === undefined
@@ -328,7 +329,7 @@ export default function PostEditor({
             </Button>
           </div>
         ) : !chat ? null : (
-          <div className="flex items-center gap-0.5 px-1.5 pb-1.5">
+          <div className="flex items-center gap-0.5 px-3 pb-2">
             <input
               ref={picker}
               type="file"
@@ -340,20 +341,19 @@ export default function PostEditor({
                 void attach(files).finally(() => { event.target.value = '' })
               }}
             />
-            <Button type="button" variant="ghost" size="icon-sm" aria-label="Attach a file" title="Attach a file" className="text-muted-foreground" onClick={() => picker.current?.click()}>
-              <Paperclip strokeWidth={1.75} aria-hidden="true" />
+            <Button type="button" variant="ghost" size="icon" aria-label="Attach a file" title="Attach a file" className="text-muted-foreground" onClick={() => picker.current?.click()}>
+              <Paperclip className="size-4" strokeWidth={1.75} aria-hidden="true" />
             </Button>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label="Mention someone" title="Mention someone" className="text-sm text-muted-foreground" onMouseDown={(event) => { event.preventDefault() }} onClick={mention}>
+            <Button type="button" variant="ghost" size="icon" aria-label="Mention someone" title="Mention someone" className="text-sm text-muted-foreground" onMouseDown={(event) => { event.preventDefault() }} onClick={mention}>
               @
             </Button>
-            {sendTitle === undefined ? null : <span className="ml-auto pr-2 text-xs text-quiet-foreground">{sendTitle}</span>}
+            {sendTitle === undefined ? null : <span className="mr-2.5 ml-auto text-xs text-quiet-foreground">{sendTitle}</span>}
             <Button
               type="button"
               variant={empty ? 'ghost' : 'commit'}
-              size="sm"
               disabled={empty}
               title={sendTitle}
-              className={cn('px-2.5', sendTitle === undefined && 'ml-auto', empty && 'bg-muted text-muted-foreground')}
+              className={cn('px-3 font-medium', sendTitle === undefined && 'ml-auto', empty && 'bg-muted text-muted-foreground')}
               onClick={() => {
                 void submit()
               }}
