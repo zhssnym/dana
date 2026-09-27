@@ -353,6 +353,9 @@ export interface CommentLine {
   likes: number
   /** Whether the viewer is inside that count. */
   liked: boolean
+  /** Who is inside it (user ids, earliest first), so a like reads as names.
+   * Optional in the type only so older fixtures compile. */
+  liked_by?: string[]
   files: CommentFile[]
   created_at: string
   edited_at: string | null
@@ -378,6 +381,7 @@ export const commentLine = z.object({
   content: postContent.nullable().optional(),
   likes: z.number().int(),
   liked: z.boolean(),
+  liked_by: z.array(z.uuid()).optional(),
   files: z.array(
     z.object({
       id: z.uuid(),

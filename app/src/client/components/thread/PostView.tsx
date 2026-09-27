@@ -26,8 +26,10 @@ import { danaLinkOf, resolveReference } from '../links/dana-link.js'
 import { MentionChip } from '../page/canvas/mention-chip.js'
 import { cn } from '../ui/utils.js'
 
-/* About eight lines of body text before a post folds. */
+/* About eight lines of body text before a post folds; a post with files
+   folds later, so a picture and its name and size show whole. */
 const FOLD = 'max-h-40'
+const FOLD_FILES = 'max-h-96'
 
 export function PostView({
   content,
@@ -75,7 +77,7 @@ export function PostView({
         ref={inner}
         className={cn(
           'min-w-0 space-y-1.5 text-sm break-words whitespace-pre-wrap text-foreground',
-          !open && FOLD,
+          !open && (files.length > 0 ? FOLD_FILES : FOLD),
           !open && 'overflow-hidden',
         )}
       >
@@ -219,15 +221,19 @@ function Block({
       )
     case 'divider':
       return <hr className="my-2 border-border" />
-    case 'image':
-      return (
+    case 'image': {
+      const file = files.get(block.file_id ?? '')
+      return file ? (
+        <ImageTile file={file} />
+      ) : (
         <img
           src={fileSrc(block.file_id ?? '')}
-          alt={files.get(block.file_id ?? '')?.name ?? ''}
+          alt=""
           loading="lazy"
           className="max-h-96 max-w-full rounded-md border border-border object-contain"
         />
       )
+    }
     case 'video':
       return <video src={fileSrc(block.file_id ?? '')} controls className="max-h-96 max-w-full rounded-md" />
     case 'audio':
@@ -317,20 +323,36 @@ function Tiles({ files }: { readonly files: readonly CommentFile[] }): React.JSX
     <div className="flex flex-wrap gap-2 pt-1">
       {files.map((file) =>
         file.mime.startsWith('image/') ? (
-          <a key={file.id} href={fileSrc(file.id)} target="_blank" rel="noreferrer" className="block">
-            <img
-              src={fileSrc(file.id)}
-              alt={file.name}
-              loading="lazy"
-              className="max-h-64 max-w-full rounded-md border border-border object-contain"
-              {...(file.width !== null && file.height !== null ? { width: file.width, height: file.height } : {})}
-            />
-          </a>
+          <ImageTile key={file.id} file={file} />
         ) : (
           <FileLink key={file.id} id={file.id} name={file.name} meta={`${file.mime.split('/')[1]?.toUpperCase() ?? 'FILE'} · ${readableSize(file.bytes)}`} />
         ),
       )}
     </div>
+  )
+}
+
+/** A picture with its name and size under it, as a file tile says them. */
+function ImageTile({ file }: { readonly file: CommentFile }): React.JSX.Element {
+  return (
+    <a
+      href={fileSrc(file.id)}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex max-w-full min-w-40 flex-col overflow-hidden rounded-md border border-border align-top whitespace-normal outline-none hover:bg-muted"
+    >
+      <img
+        src={fileSrc(file.id)}
+        alt={file.name}
+        loading="lazy"
+        className="h-auto max-h-64 w-auto max-w-full object-contain"
+        {...(file.width !== null && file.height !== null ? { width: file.width, height: file.height } : {})}
+      />
+      <span className="flex w-0 min-w-full gap-2 border-t border-border px-2 py-1 text-xs">
+        <span className="min-w-0 truncate text-foreground">{file.name}</span>
+        <span className="ml-auto shrink-0 text-muted-foreground">{readableSize(file.bytes)}</span>
+      </span>
+    </a>
   )
 }
 
