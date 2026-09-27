@@ -462,36 +462,43 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
      (`create_page`), the link where the slash was typed. The menu has already
      cleared its `/page` query, so an empty line becomes the link; a line
      with text keeps it and the link follows. The writing is saved first, as
-     for a Task, so the save that makes the page carries nothing else. */
+     for a Task, so the save that makes the page carries nothing else. The
+     link is drafted outside the live editor, so the editor is read-only
+     (`creating`) until the save lands: typing meanwhile would replace the
+     drafted document with one lacking the link, and the next save would
+     trash the page just made. */
   const makePage = onCreatePage === undefined ? undefined : (): void => {
     const at = editor.getTextCursorPosition().block
+    if (writer.state === 'failed') { setError(pageBlocked); return }
+    setCreating(true)
     void (async () => {
-      if (writer.state === 'failed') { setError(pageBlocked); return }
-      await writer.flush()
-      if (writer.state !== 'saved') { setError(pageBlocked); return }
-      const id = crypto.randomUUID()
-      const blockId = crypto.randomUUID()
-      const empty = at.type === 'paragraph' && richRuns(at).every((run) => !run.text.trim())
-      const replace = (blocks: readonly CanvasInput[]): CanvasInput[] => blocks.flatMap((block) => {
-        if (block.id === at.id) {
-          const link: CanvasInput = { id: blockId, type: 'danaPage', props: { folderId: id } }
-          return empty ? [link, ...replace(block.children ?? [])] : [{ ...block, children: block.children ? replace(block.children) : [] }, link]
-        }
-        return [{ ...block, children: block.children ? replace(block.children) : [] }]
-      })
-      let temporary: ReturnType<typeof BlockNoteEditor.create> | null = null
-      let drafted: CanvasDocument
       try {
-        temporary = BlockNoteEditor.create({ schema: canvasSchema, initialContent: replace(editor.document) })
-        drafted = dehydrateCanvas(temporary.document, width, folderRefs)
-      } catch (failure) {
-        setError(failure instanceof Error ? failure.message : 'Could not make this page.')
-        return
-      } finally { temporary?.unmount() }
-      writer.change(drafted)
-      await writer.flush({ op: 'create_page', id, block_id: blockId, title: 'Untitled' })
-      if ((writer.state as string) === 'failed') return
-      onCreatePage(id)
+        await writer.flush()
+        if (writer.state !== 'saved') { setError(pageBlocked); return }
+        const id = crypto.randomUUID()
+        const blockId = crypto.randomUUID()
+        const empty = at.type === 'paragraph' && richRuns(at).every((run) => !run.text.trim())
+        const replace = (blocks: readonly CanvasInput[]): CanvasInput[] => blocks.flatMap((block) => {
+          if (block.id === at.id) {
+            const link: CanvasInput = { id: blockId, type: 'danaPage', props: { folderId: id } }
+            return empty ? [link, ...replace(block.children ?? [])] : [{ ...block, children: block.children ? replace(block.children) : [] }, link]
+          }
+          return [{ ...block, children: block.children ? replace(block.children) : [] }]
+        })
+        let temporary: ReturnType<typeof BlockNoteEditor.create> | null = null
+        let drafted: CanvasDocument
+        try {
+          temporary = BlockNoteEditor.create({ schema: canvasSchema, initialContent: replace(editor.document) })
+          drafted = dehydrateCanvas(temporary.document, width, folderRefs)
+        } catch (failure) {
+          setError(failure instanceof Error ? failure.message : 'Could not make this page.')
+          return
+        } finally { temporary?.unmount() }
+        writer.change(drafted)
+        await writer.flush({ op: 'create_page', id, block_id: blockId, title: 'Untitled' })
+        if ((writer.state as string) === 'failed') return
+        onCreatePage(id)
+      } finally { setCreating(false) }
     })()
   }
   const pageBlocked = 'Your writing has not saved, so a page cannot be made yet. Use Load latest below; your writing is kept.'

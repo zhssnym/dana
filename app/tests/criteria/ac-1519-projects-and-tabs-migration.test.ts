@@ -115,7 +115,9 @@ const G = { root: id(0x6, 0), main: id(0x6, 1), purpose: id(0x6, 2), consult: id
   c1: id(0x6, 5), c2: id(0x6, 6), home1: id(0x6, 7), para: id(0x6, 8) }
 const H = { root: id(0x7, 0), sub: id(0x7, 1), subPurpose: id(0x7, 2), subResults: id(0x7, 3), grand: id(0x7, 4),
   subPara: id(0x7, 5), subTask: id(0x7, 6), grandHome: id(0x7, 7), purposeBlock: id(0x7, 8), subHome: id(0x7, 9),
-  tasksOnly: id(0x7, 10), empty: id(0x7, 11), tasksOnlyHome: id(0x7, 12), tasksOnlyTask: id(0x7, 13) }
+  tasksOnly: id(0x7, 10), empty: id(0x7, 11), tasksOnlyHome: id(0x7, 12), tasksOnlyTask: id(0x7, 13),
+  viewings: id(0x7, 14), viewingsPurpose: id(0x7, 15), viewingsBlock: id(0x7, 16), viewingsTask: id(0x7, 17),
+  viewingsHome: id(0x7, 18) }
 const J = { desk: id(0x8, 0), main: id(0x8, 1), purpose: id(0x8, 2), consult: id(0x8, 3), results: id(0x8, 4),
   pBlock: id(0x8, 5), discussion: id(0x8, 6), notes: id(0x8, 7), notesBlock: id(0x8, 8), deskTwo: id(0x8, 10), main2: id(0x8, 11), purpose2: id(0x8, 12),
   consult2: id(0x8, 13), results2: id(0x8, 14) }
@@ -229,7 +231,7 @@ beforeAll(async () => {
   await block(G.home1, { folder: G.root }, 'page', 1, 'a1', { ref: G.c1 })
 
   // (h) a subpage with Purpose content and a child; (i) a subpage with tasks
-  // only, and one with nothing.
+  // only, one with nothing, and one with tasks and a written Purpose.
   await folder(H.root, 'Office')
   await member(H.root, u.owner, 'full_control')
   await member(H.root, u.editor, 'can_edit')
@@ -253,6 +255,13 @@ beforeAll(async () => {
   await block(H.tasksOnlyHome, { folder: H.root }, 'page', 1, 'a1', { ref: H.tasksOnly })
   await folder(H.empty, 'Nothing', { parent: H.root, child: 'a2' })
   await member(H.empty, u.owner, 'full_control')
+  await folder(H.viewings, 'Flat viewings', { parent: H.root, child: 'a3' })
+  await member(H.viewings, u.owner, 'full_control')
+  await facet(H.viewingsPurpose, H.viewings, 'purpose', 'a1')
+  await block(H.viewingsBlock, { facet: H.viewingsPurpose }, 'paragraph', 0, 'a0', { text: 'Near the park' })
+  await db.exec(sql`INSERT INTO tasks (id, folder_id, title, created_by, page_position)
+    VALUES (${H.viewingsTask}::uuid, ${H.viewings}::uuid, 'Book a viewing', ${u.owner}::uuid, 'a0')`)
+  await block(H.viewingsHome, { folder: H.root }, 'page', 2, 'a2', { ref: H.viewings })
 
   // (j) Desk with Purpose content, a written blank and a discussion;
   // another Desk, empty.
@@ -467,19 +476,33 @@ describe('AC-1519 migration 0061 turns roots into projects and facets into tabs'
 
   test('subpage kinds: page links or no tasks make a Doc, tasks alone a Work page', async () => {
     expect(await db.exec(sql`SELECT id, kind FROM folders
-      WHERE id IN (${H.sub}::uuid, ${H.tasksOnly}::uuid, ${H.empty}::uuid, ${H.grand}::uuid) ORDER BY id`)).toEqual([
+      WHERE id IN (${H.sub}::uuid, ${H.tasksOnly}::uuid, ${H.empty}::uuid, ${H.grand}::uuid, ${H.viewings}::uuid)
+      ORDER BY id`)).toEqual([
       { id: H.sub, kind: 'doc' },
       { id: H.grand, kind: 'doc' },
       { id: H.tasksOnly, kind: 'work' },
       { id: H.empty, kind: 'doc' },
+      { id: H.viewings, kind: 'work' },
     ])
     const pages = (await tabs(H.root)).find((t) => t.name === 'Pages')?.id
     expect(await db.exec(sql`SELECT ref_folder_id, page_position FROM page_blocks
       WHERE folder_id = ${String(pages)}::uuid ORDER BY page_position`)).toEqual([
       { ref_folder_id: H.sub, page_position: 'a0' },
       { ref_folder_id: H.tasksOnly, page_position: 'a1' },
-      { ref_folder_id: H.empty, page_position: 'a2' },
+      { ref_folder_id: H.viewings, page_position: 'a2' },
+      { ref_folder_id: H.empty, page_position: 'a3' },
     ])
+  })
+
+  test("a Work subpage's written Purpose becomes its child Doc page with no link in the Work page", async () => {
+    // Its tasks and a written Purpose, no page links: the home block the
+    // migration makes must not turn the subpage into a Doc.
+    expect(await db.exec(sql`SELECT parent_folder_id, kind, name FROM folders WHERE id = ${H.viewingsPurpose}::uuid`))
+      .toEqual([{ parent_folder_id: H.viewings, kind: 'doc', name: 'Purpose' }])
+    expect(await homeOf(H.viewingsBlock)).toEqual({ folder_id: H.viewingsPurpose, facet_id: null })
+    expect(await db.exec(sql`SELECT kind FROM page_blocks WHERE folder_id = ${H.viewings}::uuid`)).toEqual([])
+    expect(await db.exec(sql`SELECT folder_id FROM tasks WHERE id = ${H.viewingsTask}::uuid`))
+      .toEqual([{ folder_id: H.viewings }])
   })
 
   test('Desk: tabs only for content and discussions; an empty Desk is one tab', async () => {

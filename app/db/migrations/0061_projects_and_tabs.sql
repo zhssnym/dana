@@ -34,8 +34,10 @@
 --    `key_after` chains in that order.
 -- 4. Subpages. A `purpose`, `results` or `shared_blank` facet holding content
 --    becomes a child Doc page of that subpage (facet id kept), after its last
---    sibling, with a home block at the end of the subpage's document. A
---    subpage is `doc` when it holds a `page` block or no tasks, else `work`.
+--    sibling, with a home block at the end of a Doc subpage's document (a
+--    Work subpage makes no page links; its child is reached from the sidebar).
+--    A subpage is `doc` when it held a `page` block or no tasks before this
+--    migration, else `work`.
 -- 5. A `private_blank` facet, root or subpage, becomes its own Doc project
 --    whose one member is its owner at Full control. It is in Trash only when
 --    the facet was: a live one on a trashed page comes out live, because as a
@@ -397,8 +399,17 @@ UPDATE folders c SET parent_folder_id = e.page_id
   FROM s7_entry e
  WHERE e.source = 'pages' AND c.parent_folder_id = e.project_id;
 --> statement-breakpoint
--- Home blocks: each live child Doc page of a subpage, and each live child of a
--- live root that had none.
+-- Subpage kinds, from what they held before this migration: the home blocks
+-- below must not decide them.
+UPDATE folders f SET kind = CASE
+    WHEN EXISTS (SELECT 1 FROM page_blocks b WHERE b.folder_id = f.id AND b.kind = 'page')
+      OR NOT EXISTS (SELECT 1 FROM tasks t WHERE t.folder_id = f.id)
+    THEN 'doc' ELSE 'work' END
+ WHERE f.parent_folder_id IS NOT NULL AND f.kind IS NULL;
+--> statement-breakpoint
+-- Home blocks: each live child Doc page of a Doc subpage, and each live child
+-- of a live root that had none. A Work subpage's child pages get none: a Work
+-- page makes no page links, so they are reached from the sidebar and the trail.
 CREATE TEMP TABLE s7_home (id uuid NOT NULL, folder_id uuid NOT NULL, ref_folder_id uuid NOT NULL) ON COMMIT DROP;
 --> statement-breakpoint
 DO $$
@@ -410,7 +421,8 @@ DECLARE
 BEGIN
   FOR c IN
     SELECT s.id AS child, s.parent_id AS parent, 0 AS grp, lpad(s.rank::text, 10, '0') COLLATE "C" AS ord
-      FROM s7_child s WHERE s.homed
+      FROM s7_child s JOIN folders sp ON sp.id = s.parent_id
+     WHERE s.homed AND sp.kind = 'doc'
     UNION ALL
     SELECT ch.id, ch.parent_folder_id, 1, (COALESCE(ch.child_position, '') || ' ' || ch.id::text) COLLATE "C"
       FROM folders ch
@@ -433,13 +445,6 @@ BEGIN
   END LOOP;
 END
 $$;
---> statement-breakpoint
--- Subpage kinds.
-UPDATE folders f SET kind = CASE
-    WHEN EXISTS (SELECT 1 FROM page_blocks b WHERE b.folder_id = f.id AND b.kind = 'page')
-      OR NOT EXISTS (SELECT 1 FROM tasks t WHERE t.folder_id = f.id)
-    THEN 'doc' ELSE 'work' END
- WHERE f.parent_folder_id IS NOT NULL AND f.kind IS NULL;
 --> statement-breakpoint
 -- Files follow their blocks.
 CREATE TEMP TABLE s7_files ON COMMIT DROP AS

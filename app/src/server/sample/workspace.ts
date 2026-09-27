@@ -521,10 +521,10 @@ async function writeFolderRow(
   const childPosition = parentId === null ? null : await lastChildPosition(tx, parentId)
   /* Step 7: a top-level sample page is a Work project whose tab sits at
      `a1`, leaving `a0` for its Purpose tab; a sub-page joins the parent's
-     project, a Doc when it holds pages or no tasks. */
+     project, a Doc when it has no tasks, as migration 0061 decides from
+     what a sub-page held before its tabs became child pages. */
   const newId = randomUUID()
-  const holdsPages = folder.purpose !== undefined || folder.results !== undefined || folder.tab !== undefined
-  const kind = parentId === null ? 'work' : holdsPages || (folder.tasks ?? []).length === 0 ? 'doc' : 'work'
+  const kind = parentId === null ? 'work' : (folder.tasks ?? []).length === 0 ? 'doc' : 'work'
   const project = parentId === null
     ? sql`${newId}::uuid`
     : sql`(SELECT p.project_id FROM folders p WHERE p.id = ${parentId}::uuid)`
@@ -578,7 +578,8 @@ async function writeFolderRow(
 
 /**
  * One more page of a sample project: a tab of the root (`tabPosition`) or a
- * child Doc page of a sub-page (`parentId`, with its home block). It has
+ * child Doc page of a sub-page (`parentId`, with its home block when that
+ * sub-page is a Doc: a Work page makes no page links). It has
  * `source`'s people, as a tab or a sub-page does.
  */
 async function writeSamplePage(
@@ -611,7 +612,8 @@ async function writeSamplePage(
   })
   if (page.parentId !== null) {
     await register(tx, userId, 'folder', id)
-    await appendHomeBlock(tx, page.parentId, id)
+    const parent = await rowsOf(tx, sql`SELECT kind FROM folders WHERE id = ${page.parentId}::uuid`)
+    if (parent[0]?.kind === 'doc') await appendHomeBlock(tx, page.parentId, id)
   }
   return id
 }
