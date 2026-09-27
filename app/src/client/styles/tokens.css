@@ -544,3 +544,41 @@ button:not(:disabled),
   --color-graphite-400: #8f8e8a;
 }
 
+
+/* ---- m14-picker: a pastel per page kind, for the new-project picker.
+   Each kind has a fill, a hairline and an ink (its name, icon and hover
+   border). "usual" is the four-tab project. */
+:root {
+  --kind-doc: #eaf1fd;
+  --kind-doc-line: #d3e1fa;
+  --kind-doc-ink: #3b62ad;
+  --kind-work: #e6f4ea;
+  --kind-work-line: #cde8d5;
+  --kind-work-ink: #3a7a52;
+  --kind-discussion: #fcefe4;
+  --kind-discussion-line: #f5dcc7;
+  --kind-discussion-ink: #a55f2a;
+  --kind-usual: #f3effb;
+  --kind-usual-line: #e2d9f5;
+  --kind-usual-ink: #6a4fae;
+  --lift: -2px;
+}
+[data-theme="dark"] {
+  --kind-doc: #1d2636;
+  --kind-doc-line: #2a3850;
+  --kind-doc-ink: #a4bdea;
+  --kind-work: #1b2b21;
+  --kind-work-line: #284232;
+  --kind-work-ink: #92cda7;
+  --kind-discussion: #30241b;
+  --kind-discussion-line: #4a3526;
+  --kind-discussion-ink: #e6b089;
+  --kind-usual: #262036;
+  --kind-usual-line: #3a3052;
+  --kind-usual-ink: #c2b1ee;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --lift: 0px;
+  }
+}
