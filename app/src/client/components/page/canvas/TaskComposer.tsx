@@ -19,8 +19,8 @@ canvas helpers read it as a presentation heading.
 
 **A checklist item in a Task is a subtask** (migration 0060). `/Checklist`,
 `[] ` and `[x] ` make one in place, a pasted checklist stays one, and the
-task's card counts them. `/Blocked by` opens the dependency picker under the
-writing.
+task's card counts them. `/Blocked by` opens the dependency picker by the
+properties and inserts nothing here: the body holds only what was written.
 
 **Access.** `edit` writes the body. `tick` (Assigned work on its own task)
 draws it read-only with live boxes: a tick sends one `put_block` of that item
@@ -453,6 +453,14 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
     const next = simulateNest(editor.document as unknown as TreeBlock[], block.id)
     if (next === null || validateCanvasOutline(asPresentation(next)) !== null) { event.preventDefault(); event.stopPropagation() }
   }
+  /* `/Blocked by` writes nothing here. The menu has already cleared the
+     slash text; a line that held only that text is removed too, unless it is
+     the document's only line. */
+  function dropSlashLine(): void {
+    const block = editor.getTextCursorPosition().block
+    const empty = block.type === 'paragraph' && Array.isArray(block.content) && block.content.length === 0 && block.children.length === 0
+    if (empty && editor.document.length > 1) editor.removeBlocks([block.id])
+  }
   function writeBelow(event: React.MouseEvent): void {
     if (event.button !== 0) return
     event.preventDefault()
@@ -561,7 +569,7 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
         {folderId === null ? null : <FilePanelController filePanel={(props) => <CanvasFilePanel {...props} onUpload={(kind: CanvasMediaKind, file: File) => upload(kind, folderId, file)} />} />}
         <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />
-        <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={{ surface: 'task', media: folderId !== null, ...(onBlockedBy === undefined ? {} : { onCreateBlocker: onBlockedBy }) }} />
+        <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={{ surface: 'task', media: folderId !== null, ...(onBlockedBy === undefined ? {} : { onCreateBlocker: () => { dropSlashLine(); onBlockedBy() } }) }} />
         <MentionSuggestions editor={editor as unknown as CanvasEditor} folderId={folderId} />
         <CanvasMarquee />
       </BlockNoteView>

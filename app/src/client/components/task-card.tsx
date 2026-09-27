@@ -3,10 +3,11 @@ The task page's body: everything a task is, in one quiet column (M4: one
 task page, no peek).
 
 Four fixed properties, always shown, in this order: Status, Assignee, Date
-(its start, reminder and repeat live inside the Date picker) and Discussion.
-Then the task's own document, whose checklist items are its subtasks, with
-"Blocked by" drawn under the writing (the editor's `/Blocked by`), and
-the task's quiet history. Every edit commits as it is made, so there is no
+(its start, reminder and repeat live inside the Date picker) and Discussion,
+then "Blocked by" / "Blocks" lines once a relation exists (the editor's
+`/Blocked by` makes one). Then the task's own document, whose checklist items
+are its subtasks and which holds only what the person wrote, and the task's
+quiet history, where every act on the task is recorded. Every edit commits as it is made, so there is no
 Save.
 
 Files go in the task's document, which takes file and image blocks.
@@ -487,11 +488,21 @@ export function TaskCard({
         </PropertyPicker>
 
         <DiscussionRow taskId={task.id} folderId={folderId} threadId={may.threadId} mayStart={may.discuss} />
+
+        {/* "Blocked by" and "Blocks", drawn only once a relation exists (or
+            `/Blocked by` is asking). They are the task's facts, never its
+            body; their making is in History. */}
+        <TaskDependencies
+          taskId={task.id}
+          folderId={task.folder?.id}
+          opening={depOpening}
+          onIdle={() => setDepOpening(false)}
+        />
       </div>
 
       {/* #221: the task's own document, in the folder canvas's writer; its
-          checklist items are its subtasks, and "Blocked by" sits under the
-          writing. The plain-text notes stand in while the writer loads. */}
+          checklist items are its subtasks. It holds only what the person
+          wrote. The plain-text notes stand in while the writer loads. */}
       <div
         aria-label="Notes"
         role="region"
@@ -508,14 +519,6 @@ export function TaskCard({
             {...(isRelatableTask(task.id) ? { onBlockedBy: () => setDepOpening(true) } : {})}
           />
         </Suspense>
-
-        <TaskDependencies
-          taskId={task.id}
-          folderId={task.folder?.id}
-          opening={depOpening}
-          onIdle={() => setDepOpening(false)}
-          section={(_badge, body) => body}
-        />
       </div>
 
       <TaskHistory taskId={task.id} folderId={folderId} />
