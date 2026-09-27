@@ -123,6 +123,8 @@ const K = { root: id(0x9, 0), main: id(0x9, 1), blank: id(0x9, 2), blankBlock: i
 const N = { root: id(0xe, 0), main: id(0xe, 1), consult: id(0xe, 2), sub: id(0xe, 3), discussion: id(0xe, 4),
   subHome: id(0xe, 5) }
 const P = { root: id(0xf, 0), discussion: id(0xf, 1), bare: id(0xf, 2) }
+const Q = { root: id(0x11, 0), main: id(0x11, 1), mine: id(0x11, 2), mineBlock: id(0x11, 3), binned: id(0x11, 4),
+  binnedBlock: id(0x11, 5) }
 
 beforeAll(async () => {
   scratch = mkdtempSync(path.join(tmpdir(), 'dana-0061-'))
@@ -285,6 +287,17 @@ beforeAll(async () => {
     VALUES (${P.discussion}::uuid, ${P.root}::uuid, 'Old talk', ${u.owner}::uuid, now())`)
   await folder(P.bare, 'Bare')
   await member(P.bare, u.owner, 'full_control')
+
+  // (o) a trashed root holding the editor's live private tab, and one the
+  // editor had trashed themselves.
+  await folder(Q.root, 'Old trip', { deleted: '2026-09-12T00:00:00Z' })
+  await member(Q.root, u.owner, 'full_control')
+  await member(Q.root, u.editor, 'can_edit')
+  await facet(Q.main, Q.root, 'main', 'a0')
+  await facet(Q.mine, Q.root, 'private_blank', 'a4', { name: 'Mine too', owner: u.editor })
+  await facet(Q.binned, Q.root, 'private_blank', 'a5', { name: 'Binned', owner: u.editor, deleted: '2026-09-11T00:00:00Z' })
+  await block(Q.mineBlock, { facet: Q.mine }, 'paragraph', 0, 'a0', { text: 'Still mine' })
+  await block(Q.binnedBlock, { facet: Q.binned }, 'paragraph', 0, 'a0', { text: 'Gone' })
 
   await db.migrate(through0061)
 }, 120_000)
@@ -480,6 +493,19 @@ describe('AC-1519 migration 0061 turns roots into projects and facets into tabs'
     ])
   })
 
+  test("a live private tab on a trashed page comes out live; a trashed one stays in Trash", async () => {
+    expect(await db.exec(sql`SELECT id, deleted_at, trashed_with_folder_id FROM folders
+      WHERE id IN (${Q.mine}::uuid, ${Q.binned}::uuid) ORDER BY id`)).toEqual([
+      { id: Q.mine, deleted_at: null, trashed_with_folder_id: null },
+      { id: Q.binned, deleted_at: expect.anything(), trashed_with_folder_id: null },
+    ])
+    const binned = await db.exec(sql`SELECT deleted_at = '2026-09-11T00:00:00Z'::timestamptz AS same
+      FROM folders WHERE id = ${Q.binned}::uuid`)
+    expect(binned).toEqual([{ same: true }])
+    expect(await homeOf(Q.mineBlock)).toEqual({ folder_id: Q.mine, facet_id: null })
+    expect(await tabs(Q.root)).toEqual([tab(Q.root, 'Old trip', 'work', 'a0', true, null)])
+  })
+
   test('discussions anywhere in a project give it a Discussion tab', async () => {
     expect(await tabs(N.root)).toEqual([
       tab(N.root, 'Nest', 'work', 'a0'),
@@ -499,7 +525,8 @@ describe('AC-1519 migration 0061 turns roots into projects and facets into tabs'
     expect(await db.exec(sql`SELECT count(*)::int AS n FROM folders WHERE project_id IS NULL`)).toEqual([{ n: 0 }])
     expect(await db.exec(sql`SELECT count(*)::int AS n FROM page_blocks WHERE facet_id IS NOT NULL`)).toEqual([{ n: 1 }])
     expect(await db.exec(sql`SELECT id FROM folders WHERE id = project_id ORDER BY id`)).toEqual(
-      [A.root, A.mine, B.root, C.root, D.root, G.root, H.root, J.desk, J.deskTwo, K.root, N.root, P.root, P.bare]
+      [A.root, A.mine, B.root, C.root, D.root, G.root, H.root, J.desk, J.deskTwo, K.root, N.root, P.root, P.bare,
+        Q.root, Q.mine, Q.binned]
         .sort()
         .map((x) => ({ id: x })),
     )

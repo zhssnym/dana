@@ -33,9 +33,12 @@
 --    sibling, with a home block at the end of the subpage's document. A
 --    subpage is `doc` when it holds a `page` block or no tasks, else `work`.
 -- 5. A `private_blank` facet, root or subpage, becomes its own Doc project
---    whose one member is its owner at Full control. One whose owner is no
---    longer a member of the page was visible to nobody; it is left where it
---    is (NOTICE), so nobody gains sight of it.
+--    whose one member is its owner at Full control. It is in Trash only when
+--    the facet was: a live one on a trashed page comes out live, because as a
+--    project of its own it would no longer come back with that page, and a
+--    restore by another member would leave it in Trash to be purged. One whose
+--    owner is no longer a member of the page was visible to nobody; it is
+--    left where it is (NOTICE), so nobody gains sight of it.
 -- 6. Every new page copies its source page's members (Pages tab and tabs:
 --    the root's; child Doc pages: the subpage's), personal fields left NULL,
 --    each with a `migration_initialized` history row. Step 8 moves members to
@@ -43,7 +46,9 @@
 -- 7. A file moves with its blocks when every block naming it moved to the
 --    same new page and nothing else names it (a page accepts only its own
 --    files).
--- 8. Invariants. Any mismatch raises `step 7: <check> <id>`; all pending
+-- 8. Invariants: every old folder, block, file and membership row is
+--    unchanged but for the moves named above, and every new page has the
+--    name, owner, parent and Trash state its source gives it. Any mismatch raises `step 7: <check> <id>`; all pending
 --    migrations roll back together.
 -- 9. The deploy overlap. The old instance keeps serving while this one
 --    boots. The lock holds its writes until this commits. Afterwards two
@@ -88,6 +93,14 @@ END
 $$;
 --> statement-breakpoint
 -- Snapshots.
+CREATE TEMP TABLE s7_folders_before ON COMMIT DROP AS
+  SELECT f.id, f.parent_folder_id, f.deleted_at, f.trashed_with_folder_id, f.owner_id,
+         to_jsonb(f) - 'parent_folder_id' - 'project_id' - 'kind' - 'tab_position' AS rest
+    FROM folders f;
+--> statement-breakpoint
+CREATE TEMP TABLE s7_files_before ON COMMIT DROP AS
+  SELECT fi.id, fi.folder_id, to_jsonb(fi) - 'folder_id' AS rest FROM files fi;
+--> statement-breakpoint
 CREATE TEMP TABLE s7_blocks_before ON COMMIT DROP AS
   SELECT b.id, b.folder_id, b.facet_id, b.kind, b.section_block_id, b.list_parent_block_id,
          to_jsonb(b) - 'folder_id' - 'facet_id' - 'section_block_id' - 'list_parent_block_id' AS rest
@@ -220,17 +233,18 @@ SELECT r.id, s.id, 'facet', s.id,
                                             WHEN 'consultation' THEN 'Discussion' END),
        s.created_at,
        COALESCE(s.deleted_at, r.deleted_at),
-       CASE WHEN s.deleted_at IS NULL AND r.deleted_at IS NOT NULL THEN r.id END
+       CASE WHEN s.deleted_at IS NULL AND r.deleted_at IS NOT NULL
+            THEN COALESCE(r.trashed_with_folder_id, r.id) END
   FROM s7_facet s JOIN folders r ON r.id = s.folder_id
  WHERE s.becomes = 'tab'
 UNION ALL
 SELECT r.id, gen_random_uuid(), 'pages', NULL, 'doc', 'Pages', now(), r.deleted_at,
-       CASE WHEN r.deleted_at IS NOT NULL THEN r.id END
+       CASE WHEN r.deleted_at IS NOT NULL THEN COALESCE(r.trashed_with_folder_id, r.id) END
   FROM folders r JOIN s7_untouched u ON u.root = r.id
  WHERE u.needs_pages
 UNION ALL
 SELECT r.id, gen_random_uuid(), 'discussion', NULL, 'discussion', 'Discussion', now(), r.deleted_at,
-       CASE WHEN r.deleted_at IS NOT NULL THEN r.id END
+       CASE WHEN r.deleted_at IS NOT NULL THEN COALESCE(r.trashed_with_folder_id, r.id) END
   FROM folders r JOIN s7_untouched u ON u.root = r.id
  WHERE u.needs_discussion;
 --> statement-breakpoint
@@ -329,9 +343,8 @@ END
 $$;
 --> statement-breakpoint
 INSERT INTO folders (id, owner_id, name, created_at, deleted_at, project_id, kind, tab_position)
-SELECT s.id, s.owner_id, s.display_name, s.created_at, COALESCE(s.deleted_at, f.deleted_at),
-       s.id, 'doc', 'a0'
-  FROM s7_facet s JOIN folders f ON f.id = s.folder_id
+SELECT s.id, s.owner_id, s.display_name, s.created_at, s.deleted_at, s.id, 'doc', 'a0'
+  FROM s7_facet s
  WHERE s.becomes = 'private';
 --> statement-breakpoint
 -- Where each old page or facet lives now, for the moves and the checks.
@@ -538,13 +551,79 @@ BEGIN
   IF bad IS NOT NULL THEN
     RAISE EXCEPTION 'step 7: wrong project %', bad;
   END IF;
-  SELECT p.id::text INTO bad FROM folders p
-   WHERE p.id = p.project_id AND p.deleted_at IS NULL
-     AND NOT EXISTS (SELECT 1 FROM folders t WHERE t.project_id = p.id
-                        AND t.tab_position IS NOT NULL AND t.deleted_at IS NULL)
+
+  -- Every old folder is there, unchanged but for one move: a root's child
+  -- now sits under that root's Pages tab. No page is left under a root.
+  SELECT o.id::text INTO bad
+    FROM s7_folders_before o
+    LEFT JOIN folders f ON f.id = o.id
+    LEFT JOIN s7_entry pg ON pg.source = 'pages' AND pg.project_id = o.parent_folder_id
+   WHERE f.id IS NULL
+      OR (to_jsonb(f) - 'parent_folder_id' - 'project_id' - 'kind' - 'tab_position') <> o.rest
+      OR f.parent_folder_id IS DISTINCT FROM COALESCE(pg.page_id, o.parent_folder_id)
    LIMIT 1;
   IF bad IS NOT NULL THEN
-    RAISE EXCEPTION 'step 7: project without a live tab %', bad;
+    RAISE EXCEPTION 'step 7: folder changed %', bad;
+  END IF;
+  SELECT c.id::text INTO bad FROM folders c JOIN folders r ON r.id = c.parent_folder_id
+   WHERE r.id = r.project_id
+   LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 7: page left under a root %', bad;
+  END IF;
+
+  -- Every new page has the name, owner, parent and Trash state its source
+  -- gives it, read from the old rows: a tab or child page is in Trash when
+  -- its facet was, or with its page when only the page was; a private
+  -- project only when its facet was; a Pages or Discussion tab with its root.
+  SELECT m.page_id::text INTO bad
+    FROM s7_map m
+    LEFT JOIN folders f ON f.id = m.page_id
+    LEFT JOIN folder_facets ff ON ff.id = m.facet_id
+    LEFT JOIN s7_folders_before p ON p.id = COALESCE(ff.folder_id, m.members_from)
+   WHERE f.id IS NULL OR p.id IS NULL
+      OR f.deleted_at IS DISTINCT FROM CASE
+           WHEN m.source = 'private' THEN ff.deleted_at
+           WHEN ff.id IS NOT NULL THEN COALESCE(ff.deleted_at, p.deleted_at)
+           ELSE p.deleted_at END
+      OR f.trashed_with_folder_id IS DISTINCT FROM CASE
+           WHEN m.source = 'private' THEN NULL
+           WHEN ff.id IS NOT NULL AND ff.deleted_at IS NOT NULL THEN NULL
+           WHEN p.deleted_at IS NOT NULL THEN COALESCE(p.trashed_with_folder_id, p.id) END
+      OR f.parent_folder_id IS DISTINCT FROM CASE WHEN m.source = 'child' THEN p.id END
+      OR f.owner_id IS DISTINCT FROM CASE WHEN m.source = 'private' THEN ff.owner_id ELSE p.owner_id END
+      OR f.name IS DISTINCT FROM CASE
+           WHEN m.source = 'pages' THEN 'Pages'
+           WHEN m.source = 'discussion' THEN 'Discussion'
+           ELSE COALESCE(ff.display_name, CASE ff.kind WHEN 'purpose' THEN 'Purpose'
+                                                       WHEN 'results' THEN 'Results'
+                                                       WHEN 'consultation' THEN 'Discussion' END) END
+   LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 7: new page %', bad;
+  END IF;
+
+  -- Files: only a file of s7_files moved, to the one page every block naming
+  -- it now sits on; nothing else about any file changed.
+  SELECT o.id::text INTO bad
+    FROM s7_files_before o
+    LEFT JOIN files fi ON fi.id = o.id
+    LEFT JOIN s7_files s ON s.id = o.id
+   WHERE fi.id IS NULL
+      OR (to_jsonb(fi) - 'folder_id') <> o.rest
+      OR fi.folder_id IS DISTINCT FROM CASE
+           WHEN s.id IS NOT NULL AND o.folder_id IS NOT NULL THEN s.page_id
+           ELSE o.folder_id END
+      OR (fi.folder_id IS DISTINCT FROM o.folder_id
+          AND (fi.folder_id NOT IN (SELECT page_id FROM s7_map)
+               OR EXISTS (SELECT 1 FROM page_blocks b
+                           WHERE b.file_id = fi.id AND b.folder_id IS DISTINCT FROM fi.folder_id)))
+   LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 7: file moved wrongly %', bad;
+  END IF;
+  IF (SELECT count(*) FROM files) <> (SELECT count(*) FROM s7_files_before) THEN
+    RAISE EXCEPTION 'step 7: file count changed';
   END IF;
 
   -- Tab order is the drawn order.

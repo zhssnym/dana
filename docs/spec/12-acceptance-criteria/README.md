@@ -15,7 +15,7 @@ requirement whether or not a test runs it: only a small core is executable, and
 
 ## The next number
 
-**The next number to take from the tail is 1523.**
+**The next number to take from the tail is 1524.**
 
 ## The files
 

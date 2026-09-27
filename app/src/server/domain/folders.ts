@@ -29,6 +29,7 @@ import {
   lockedMembership,
   mayPerform,
   otherFullControlCount,
+  copyRootMembersToTabs,
   presetOf,
   recordAccessTransition,
 } from './folder-access.js'
@@ -1065,6 +1066,7 @@ export async function addMember(
       actorId,
       transition: 'member_added',
     })
+    await mirrorRootMembersToTabs(tx, folderId, actorId)
 
     /* R10 and #230: the initial document and the membership standing commit
        together, and the actor recorded on the first revision is the
@@ -1201,6 +1203,7 @@ export async function removeMembership(
       })
     }
     await runRClean(tx, folderId, leaverId, { actorId: options.actorId })
+    await mirrorRootMembersToTabs(tx, folderId, options.actorId)
     // 'left' when the leaver acted, 'removed' when someone removed them
     // (4.13's two verbs for the two directions of the same row change).
     const named = await rowsOf(
@@ -1343,6 +1346,49 @@ export async function transferOwnership(
   )
 }
 
+/**
+ * Step 7, until step 8 moves members to the project: a project root's other
+ * tabs have exactly the root's people (`copyRootMembersToTabs`, which the
+ * access brick's invites also call). This adds the other direction, which
+ * needs R-CLEAN: someone gone from the root goes from each tab, recorded
+ * against the tab with `actorId`. Every writer of a membership or an owner in
+ * this brick calls it after its own write, in its transaction; on a page that
+ * is not a project root it does nothing.
+ */
+export async function mirrorRootMembersToTabs(
+  tx: Executor,
+  folderId: string,
+  actorId: string,
+): Promise<void> {
+  const gone = await rowsOf(
+    tx,
+    sql`SELECT tm.folder_id, tm.user_id, tm.access FROM folders r
+          JOIN folders t ON t.project_id = r.id AND t.id <> r.id AND t.tab_position IS NOT NULL
+          JOIN folder_members tm ON tm.folder_id = t.id
+         WHERE r.id = ${folderId}::uuid AND r.project_id = r.id
+           AND NOT EXISTS (SELECT 1 FROM folder_members rm
+                            WHERE rm.folder_id = r.id AND rm.user_id = tm.user_id)
+         ORDER BY tm.folder_id, tm.user_id`,
+  )
+  for (const member of gone) {
+    const tabId = String(member.folder_id)
+    const memberId = String(member.user_id)
+    const held = presetOf(member.access)
+    if (held !== null) {
+      await recordAccessTransition(tx, {
+        folderId: tabId,
+        memberId,
+        previousAccess: held,
+        newAccess: null,
+        actorId,
+        transition: actorId === memberId ? 'member_left' : 'member_removed',
+      })
+    }
+    await runRClean(tx, tabId, memberId, { actorId })
+  }
+  await copyRootMembersToTabs(tx, folderId, actorId)
+}
+
 /* ------------------------------------------------------------------ *
  * Access administration (issue #228, #209 R8A / R9)
  * ------------------------------------------------------------------ */
@@ -1432,6 +1478,7 @@ export async function changeMemberAccess(
       sql`UPDATE folder_members SET access = ${next}
           WHERE folder_id = ${folderId} AND user_id = ${targetId}`,
     )
+    await mirrorRootMembersToTabs(tx, folderId, actorId)
     await recordAccessTransition(tx, {
       folderId,
       memberId: targetId,
@@ -1502,6 +1549,7 @@ export async function recoverOwnerFullControl(
       sql`UPDATE folder_members SET access = 'full_control'
           WHERE folder_id = ${folderId} AND user_id = ${ownerId}`,
     )
+    await mirrorRootMembersToTabs(tx, folderId, ownerId)
     await recordAccessTransition(tx, {
       folderId,
       memberId: ownerId,

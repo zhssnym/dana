@@ -554,3 +554,93 @@ export async function lockedMembership(
     canEditOwnResponsibilities: row.can_edit_own_responsibilities === true,
   }
 }
+
+/**
+ * Step 7, until step 8 moves members to the project: a project root's other
+ * tabs (Purpose, Results, Discussion, Pages and added tabs, trashed ones
+ * included) carry the root's owner, and everyone on the root is on each tab
+ * with the root's preset, as the facets they replace were. Called after a
+ * membership or owner write on `folderId`, in its transaction; on a page that
+ * is not a project root it does nothing. Removal needs R-CLEAN and lives in
+ * `folders.ts` (`mirrorRootMembersToTabs`), which calls this too. Each change
+ * is recorded against the tab with `actorId`.
+ */
+export async function copyRootMembersToTabs(
+  tx: Executor,
+  folderId: string,
+  actorId: string,
+): Promise<void> {
+  const tabs = await rowsOf(
+    tx,
+    sql`SELECT t.id FROM folders r
+          JOIN folders t ON t.project_id = r.id AND t.id <> r.id AND t.tab_position IS NOT NULL
+         WHERE r.id = ${folderId}::uuid AND r.project_id = r.id
+         ORDER BY t.id
+         FOR UPDATE OF t`,
+  )
+  for (const row of tabs) {
+    const tabId = String(row.id)
+    await tx.execute(
+      sql`UPDATE folders t SET owner_id = r.owner_id
+            FROM folders r
+           WHERE t.id = ${tabId}::uuid AND r.id = ${folderId}::uuid
+             AND t.owner_id <> r.owner_id`,
+    )
+    const changed = await rowsOf(
+      tx,
+      sql`SELECT tm.user_id, tm.access AS was, rm.access AS now FROM folder_members tm
+            JOIN folder_members rm ON rm.folder_id = ${folderId}::uuid AND rm.user_id = tm.user_id
+           WHERE tm.folder_id = ${tabId}::uuid
+             AND (tm.access <> rm.access
+                  OR tm.can_edit_own_responsibilities <> rm.can_edit_own_responsibilities)`,
+    )
+    for (const member of changed) {
+      const memberId = String(member.user_id)
+      await tx.execute(
+        sql`UPDATE folder_members tm
+               SET access = rm.access, can_edit_own_responsibilities = rm.can_edit_own_responsibilities
+              FROM folder_members rm
+             WHERE tm.folder_id = ${tabId}::uuid AND tm.user_id = ${memberId}::uuid
+               AND rm.folder_id = ${folderId}::uuid AND rm.user_id = tm.user_id`,
+      )
+      const was = presetOf(member.was)
+      const now = presetOf(member.now)
+      if (was !== null && now !== null && was !== now) {
+        await recordAccessTransition(tx, {
+          folderId: tabId,
+          memberId,
+          previousAccess: was,
+          newAccess: now,
+          actorId,
+          transition:
+            actorId !== memberId
+              ? 'access_changed'
+              : now === 'full_control'
+                ? 'owner_recovered_full_control'
+                : 'self_demoted',
+        })
+      }
+    }
+    const added = await rowsOf(
+      tx,
+      sql`INSERT INTO folder_members (folder_id, user_id, access, can_edit_own_responsibilities)
+          SELECT ${tabId}::uuid, rm.user_id, rm.access, rm.can_edit_own_responsibilities
+            FROM folder_members rm
+           WHERE rm.folder_id = ${folderId}::uuid
+          ON CONFLICT DO NOTHING
+          RETURNING user_id, access`,
+    )
+    for (const member of added) {
+      const access = presetOf(member.access)
+      if (access === null) throw new Error(`folder_members.access holds an unknown preset in ${folderId}`)
+      await recordAccessTransition(tx, {
+        folderId: tabId,
+        memberId: String(member.user_id),
+        previousAccess: null,
+        newAccess: access,
+        actorId,
+        transition: 'member_added',
+      })
+    }
+  }
+}

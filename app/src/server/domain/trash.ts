@@ -41,6 +41,7 @@ import {
   mayPerform,
   presetFromRow,
   resolveScoped,
+  visibleFolder,
 } from './folder-access.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
 import {
@@ -98,6 +99,10 @@ export async function trashView(
     db,
     sql`SELECT f.id, f.name, f.deleted_at, m.access,
                (f.owner_id = ${viewerId}) AS is_owner,
+               CASE WHEN f.project_id <> f.id
+                         AND ${visibleFolder(sql`f.project_id`, viewerId, { trashed: 'any' })}
+                    THEN (SELECT pr.name FROM folders pr WHERE pr.id = f.project_id) END
+                 AS project_name,
                (SELECT count(*)::int FROM tasks t
                  WHERE t.folder_id = f.id) AS task_count
         FROM folders f
@@ -140,6 +145,7 @@ export async function trashView(
       deleted_at: toIso(row.deleted_at),
       is_owner: Boolean(row.is_owner),
       my_access: accessOfRow(row, viewerId, String(row.id)),
+      project_name: row.project_name === null || row.project_name === undefined ? null : String(row.project_name),
     })),
   }
 }
@@ -206,11 +212,48 @@ export async function restoreTask(
   })
 }
 
+const ONE_DISCUSSION_TAB = 'This project already has a Discussion tab. Move it to Trash to bring this one back.'
+
+/** SQLSTATE 23505 on the named index, never the server's prose. */
+function violates(error: unknown, constraint: string): boolean {
+  const e = error as { code?: unknown; constraint?: unknown; cause?: unknown } | null
+  if (e === null || typeof e !== 'object') return false
+  if (e.code === '23505' && e.constraint === constraint) return true
+  return e.cause !== undefined && violates(e.cause, constraint)
+}
+
 export async function restoreFolder(
   db: Db,
   viewerId: string,
   folderId: string,
-): Promise<'restored' | 'not_found' | { kind: 'forbidden'; reason: string }> {
+): Promise<
+  | 'restored'
+  | 'not_found'
+  | { kind: 'forbidden'; reason: string }
+  | { kind: 'conflict'; reason: string }
+> {
+  try {
+    return await restoreFolderOnce(db, viewerId, folderId)
+  } catch (error) {
+    /* Step 7: one live Discussion tab per project. The check below answers
+       the ordinary case; a tab brought back with its set is refused here. */
+    if (violates(error, 'folders_one_discussion_per_project_idx')) {
+      return { kind: 'conflict', reason: ONE_DISCUSSION_TAB }
+    }
+    throw error
+  }
+}
+
+async function restoreFolderOnce(
+  db: Db,
+  viewerId: string,
+  folderId: string,
+): Promise<
+  | 'restored'
+  | 'not_found'
+  | { kind: 'forbidden'; reason: string }
+  | { kind: 'conflict'; reason: string }
+> {
   return inTransaction(db, async (tx) => {
     // The tree lock before any row lock (page-tree.ts's lock order).
     await lockPageTree(tx)
@@ -236,6 +279,16 @@ export async function restoreFolder(
     if (!decision.allowed) {
       return { kind: 'forbidden', reason: decision.reason }
     }
+    /* Step 7: a Discussion tab whose project made another one while it was
+       in Trash stays there; a project has one live Discussion tab. */
+    const second = await rowsOf(
+      tx,
+      sql`SELECT 1 FROM folders t
+            JOIN folders other ON other.project_id = t.project_id AND other.id <> t.id
+           WHERE t.id = ${folderId}::uuid AND t.kind = 'discussion'
+             AND other.kind = 'discussion' AND other.deleted_at IS NULL`,
+    )
+    if (second.length > 0) return { kind: 'conflict', reason: ONE_DISCUSSION_TAB }
     /* Wave 2: restoring a page on its own (a sub-page restored ahead of the
        page it was trashed with) takes it out of that set, and restoring an
        initiator brings its set back (`restorePageSubtree`). A page whose

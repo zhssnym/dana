@@ -53,7 +53,7 @@ import { inTransaction, pairSet, rowsOf } from '../database.js'
 import type { Executor, IdPair } from '../database.js'
 import { recordEvent } from './events.js'
 import { folderActorFacts, mayPerform, recordAccessTransition } from './folder-access.js'
-import { copyParentMembers } from './folders.js'
+import { copyParentMembers, mirrorRootMembersToTabs } from './folders.js'
 import { addDocPage, purposeTabOf } from './project-tabs.js'
 import { copyCoverFile, copyPageFile, readableFileScope } from './files.js'
 import {
@@ -547,9 +547,14 @@ export async function duplicateFolder(
       duplicate already has an identity map for.
       #213: Results is deliberately not copied. It records the source
       Folder's actual outcomes, not reusable intent (7.16). Nor are the other
-      tabs, as a facet never was.
+      tabs, as a facet never was. The Purpose tab is a page with its own
+      people, so it is copied only when the duplicator can read it.
       */
-      const sourcePurposeTab = place === null ? await purposeTabOf(tx, sourceFolderId) : null
+      const purposeCandidate = place === null ? await purposeTabOf(tx, sourceFolderId) : null
+      const sourcePurposeTab =
+        purposeCandidate !== null && (await folderActorFacts(tx, viewerId, purposeCandidate.id)) !== null
+          ? purposeCandidate
+          : null
       if (sourcePurposeTab !== null) {
         const sourcePurposeId = sourcePurposeTab.id
         const copiedPurposeId = await addDocPage(tx, viewerId, copyId, sourcePurposeTab.name, 'before')
@@ -1376,6 +1381,7 @@ export async function transferOwnershipTo(
       sql`UPDATE folders SET owner_id = ${targetId}::uuid
           WHERE id = ${folderId}::uuid`,
     )
+    await mirrorRootMembersToTabs(tx, folderId, actorId)
     const named = await namesFor(tx, folderId, targetId)
     await recordEvent(tx, {
       actorId,

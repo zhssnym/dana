@@ -62,6 +62,7 @@ import {
   presetFromRow,
 } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
+import { PAGE_TREE_EDIT_ACTION } from './page-tree.js'
 import { ensureDiscussionTab, liveDiscussionTab, projectOf } from './project-tabs.js'
 import { UNSTARTED_TASK_THREAD } from './tasks.js'
 
@@ -777,12 +778,19 @@ export async function discussTask(
     if (!readable.allowed) return forbidden(readable.reason)
     /* Step 7: the thread is listed on the project's Discussion tab, so a
        project without one gets it here, in this transaction, when the actor
-       may start a discussion; otherwise the existing tab is named. */
+       may start a discussion and may edit the project root's tab row; a
+       member of a sub-page only, who cannot see the root, changes nothing
+       there. The tab's id is answered only to someone who can see it. */
     const mayCreate = mayPerform(facts, 'discussion.create')
     const project = await projectOf(tx, folderId)
-    const discussionTabId = mayCreate.allowed
+    const rootFacts = project === null ? null : await folderActorFacts(tx, viewerId, project)
+    const mayAddTab =
+      mayCreate.allowed && rootFacts !== null && mayPerform(rootFacts, PAGE_TREE_EDIT_ACTION).allowed
+    const tabId = mayAddTab
       ? await ensureDiscussionTab(tx, viewerId, folderId)
       : project === null ? null : await liveDiscussionTab(tx, project)
+    const discussionTabId =
+      tabId !== null && (await folderActorFacts(tx, viewerId, tabId)) !== null ? tabId : null
     const existing = await liveDiscussionOfTask(tx, taskId)
     if (existing !== null) {
       const found = await discussionById(tx, existing)

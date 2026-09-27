@@ -18,7 +18,7 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import { accessOf, mayPerform, presetOf } from './folder-access.js'
-import { recordAccessTransition } from './folder-access.js'
+import { copyRootMembersToTabs, recordAccessTransition } from './folder-access.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import type { FolderAccess } from './folder-access.js'
@@ -445,6 +445,7 @@ export async function createInvite(
         actorId: inviterId,
         transition: 'member_added',
       })
+      await copyRootMembersToTabs(tx, folderId, inviterId)
       /* 8.7's instant share never becomes an invite row, so #230's initial
          content has to land here in the same transaction as the membership
          it belongs to -- attributed to the inviter, who wrote it, and never
@@ -801,6 +802,7 @@ export async function acceptInvite(
             actorId: inviterId,
             transition: 'invite_accepted',
           })
+          await copyRootMembersToTabs(tx, folderId, inviterId)
           /*
           Issue #230, and the sentence that shapes this block is R9 section
           5's read across from Access: **the initial content becomes active
