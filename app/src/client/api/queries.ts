@@ -53,20 +53,20 @@ import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
 import {
   getAllResponse,
   getDoneResponse,
+  getFocusResponse,
   getFolderTasksCompletedResponse,
   getFolderTasksOpenResponse,
-  getMyDayResponse,
   getPlannedCalendarResponse,
-  getPlannedResponse,
   getSearchResponse,
 } from '../../shared/views.js'
 import type {
+  FocusGroup,
+  FocusWhen,
   GetAllResponse,
   GetDoneResponse,
+  GetFocusResponse,
   GetFolderTasksOpenResponse,
-  GetMyDayResponse,
   GetPlannedCalendarResponse,
-  GetPlannedResponse,
   GetSearchResponse,
 } from '../../shared/views.js'
 
@@ -159,17 +159,24 @@ export function useSentInvites(): UseQueryResult<GetInvitesSentResponse> {
   })
 }
 
-export function useMyDayView(): UseQueryResult<GetMyDayResponse> {
-  return useQuery({
-    queryKey: queryKeys.view('my-day'),
-    queryFn: () => getView(getMyDayResponse, '/views/my-day'),
-  })
+/** What a Focus list asks GET /views/focus for (shared/views.ts `focusQuery`). */
+export interface FocusAsk {
+  readonly when: FocusWhen
+  readonly important?: boolean
+  readonly group: FocusGroup
 }
 
-export function usePlannedView(): UseQueryResult<GetPlannedResponse> {
+/**
+ * GET /views/focus: the one query behind Today, Upcoming, Assigned and the
+ * lists a viewer adds. The server filters and groups; a page draws the
+ * groups it is given.
+ */
+export function useFocusView(ask: FocusAsk): UseQueryResult<GetFocusResponse> {
+  const important = ask.important === true ? 'true' : 'false'
   return useQuery({
-    queryKey: queryKeys.view('planned'),
-    queryFn: () => getView(getPlannedResponse, '/views/planned'),
+    queryKey: [...queryKeys.view('focus'), ask.when, important, ask.group],
+    queryFn: () =>
+      getView(getFocusResponse, '/views/focus', { when: ask.when, important, group: ask.group }),
   })
 }
 
