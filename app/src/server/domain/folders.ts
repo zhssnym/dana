@@ -1291,9 +1291,13 @@ export async function runRClean(
         WHERE user_id = ${leaverId}
           AND task_id IN (SELECT id FROM tasks WHERE project_id = ${folderId})`,
   )
+  /* The rows 0062 left on the project's other pages go too: the old
+     instance reads them during the deploy overlap. */
   await tx.execute(
     sql`DELETE FROM folder_members
-        WHERE folder_id = ${folderId} AND user_id = ${leaverId}`,
+        WHERE user_id = ${leaverId}
+          AND (folder_id = ${folderId}
+               OR folder_id IN (SELECT id FROM folders WHERE project_id = ${folderId} AND id <> ${folderId}))`,
   )
 
   const remaining = await rowsOf(
@@ -1426,9 +1430,13 @@ export async function changeMemberAccess(
       return { kind: 'would_strand' } as const
     }
 
+    /* Step 8: the rows 0062 left on the project's other pages follow, so
+       the old instance never applies an earlier preset during the overlap. */
     await tx.execute(
       sql`UPDATE folder_members SET access = ${next}
-          WHERE folder_id = ${folderId} AND user_id = ${targetId}`,
+          WHERE user_id = ${targetId}
+            AND (folder_id = ${folderId}
+                 OR folder_id IN (SELECT id FROM folders WHERE project_id = ${folderId} AND id <> ${folderId}))`,
     )
     await recordAccessTransition(tx, {
       folderId,

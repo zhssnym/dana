@@ -812,12 +812,16 @@ export async function promoteToProjects(
     sql`DELETE FROM folder_members
          WHERE folder_id IN (${sql.join(pages.map((page) => sql`${page.id}::uuid`), sql`, `)})`,
   )
+  /* 0062's folders_root_takes_project_people would copy the people without
+     history; it stands aside for this write. */
+  await tx.execute(sql`SELECT set_config('dana.promoting', 'on', true)`)
   await tx.execute(
     sql`UPDATE folders
            SET parent_folder_id = NULL, child_position = NULL,
                project_id = id, tab_position = COALESCE(tab_position, 'a0'), kind = COALESCE(kind, 'doc')
          WHERE id IN (${sql.join(pages.map((page) => sql`${page.id}::uuid`), sql`, `)})`,
   )
+  await tx.execute(sql`SELECT set_config('dana.promoting', 'off', true)`)
   for (const page of pages) {
     const copied = await rowsOf(
       tx,

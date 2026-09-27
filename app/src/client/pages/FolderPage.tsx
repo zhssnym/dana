@@ -1210,8 +1210,8 @@ function FolderPageBody({
             <DialogTitle>Transfer ownership</DialogTitle>
             <DialogDescription>
               {successors.length === 0
-                ? `Nobody else in ${detail?.name ?? 'this page'} has Full control, so there is nobody to hand it to yet. Give a member Full control in Share, then transfer it to them.`
-                : `Choose who owns ${detail?.name ?? 'this page'} next. Only members who have Full control can take it on, and you stay a member. Only the new owner can hand it back.`}
+                ? `Nobody else in ${projectName ?? detail?.name ?? 'this page'} has Full control, so there is nobody to hand it to yet. Give a member Full control in Share, then transfer it to them.`
+                : `Choose who owns ${projectName ?? detail?.name ?? 'this page'} next. Only members who have Full control can take it on, and you stay a member. Only the new owner can hand it back.`}
             </DialogDescription>
           </DialogHeader>
           {successors.length === 0 ? (

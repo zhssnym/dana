@@ -43,7 +43,9 @@
 -- 7. Membership rows on a page that is not a project root stay, unread:
 --    every read joins memberships to the project, the trigger below refuses
 --    new ones, and a page promoted to a project later drops them before it
---    copies its people. Step 9 reads their `shelf_name`; 0065 deletes them.
+--    copies its people. A leaver's go with the project membership. Step 9
+--    reads their `shelf_name` for people still on the project; 0065
+--    deletes them.
 -- 8. The deploy overlap. The old instance keeps serving until this one is
 --    healthy. A task it inserts gets its project from the trigger. A
 --    membership row it writes on a page that is not a project root (its
@@ -51,10 +53,16 @@
 --    project and refused otherwise. An invite it writes on such a page is
 --    refused (`invites_on_project_root`), and the new server invalidates
 --    any invite on such a page when it is accepted rather than widen it to
---    the project. A page it creates or moves takes its project's owner. So
---    nothing it writes widens access or leaves a page to its creator. Its
---    reads join memberships to the page itself, so for those minutes it
---    answers 404 on tabs and sub-pages: closed, never open.
+--    the project. A page it creates or moves takes its project's owner. A
+--    move into a project with other people is refused
+--    (`folders_move_keeps_people`), and a page it promotes to the Library
+--    drops its unread rows and takes its old project's people
+--    (`folders_root_takes_project_people`). So nothing it writes widens
+--    access or leaves a page to its creator. Its reads join memberships to
+--    the page itself: on tabs and sub-pages it answers from the rows 0062
+--    left there. Someone the new server adds to a project gets 404 there
+--    (closed); someone it removes loses those rows too (runRClean), and a
+--    preset it changes is written to them as well (changeMemberAccess).
 --
 -- Any invariant mismatch raises `step 8: <check> <id>`; all pending
 -- migrations roll back together. Forward only.
@@ -335,6 +343,60 @@ $fn$;
 CREATE TRIGGER folders_project_owner_to_pages AFTER UPDATE OF owner_id ON folders
   FOR EACH ROW WHEN (NEW.id = NEW.project_id AND OLD.owner_id IS DISTINCT FROM NEW.owner_id)
   EXECUTE FUNCTION folders_project_owner_to_pages();
+--> statement-breakpoint
+-- 8, moves: a page or a project root that moves into another project must
+-- find the same owner and the same people at the same presets there, or its
+-- people would change (the new moveFolder's samePeople, kept for every
+-- writer, the old instance's move included). A sub-page carried by its
+-- parent's move (ON UPDATE CASCADE, its own parent unchanged) was checked
+-- on that parent. A page becoming a root is the next trigger's.
+CREATE FUNCTION folders_move_keeps_people() RETURNS trigger
+LANGUAGE plpgsql AS $fn$
+BEGIN
+  IF OLD.project_id IS NOT DISTINCT FROM NEW.project_id OR NEW.project_id = NEW.id
+     OR (NEW.parent_folder_id IS NOT NULL AND NEW.parent_folder_id IS NOT DISTINCT FROM OLD.parent_folder_id) THEN
+    RETURN NEW;
+  END IF;
+  IF EXISTS (SELECT 1 FROM folders a JOIN folders b ON b.id = NEW.project_id
+              WHERE a.id = OLD.project_id AND a.owner_id IS DISTINCT FROM b.owner_id)
+     OR EXISTS ((SELECT user_id, access FROM folder_members WHERE folder_id = OLD.project_id
+                 EXCEPT SELECT user_id, access FROM folder_members WHERE folder_id = NEW.project_id)
+                UNION ALL
+                (SELECT user_id, access FROM folder_members WHERE folder_id = NEW.project_id
+                 EXCEPT SELECT user_id, access FROM folder_members WHERE folder_id = OLD.project_id)) THEN
+    RAISE EXCEPTION 'step 8: page % cannot move to a project with other people', NEW.id
+      USING ERRCODE = 'check_violation', CONSTRAINT = 'folders_move_keeps_people';
+  END IF;
+  RETURN NEW;
+END
+$fn$;
+--> statement-breakpoint
+CREATE TRIGGER folders_move_keeps_people BEFORE UPDATE OF project_id ON folders
+  FOR EACH ROW EXECUTE FUNCTION folders_move_keeps_people();
+--> statement-breakpoint
+-- 8, promotions: a page that becomes a project root keeps the people who
+-- saw it, its old project's, at their presets; the rows 0062 left unread on
+-- it (old presets, people since removed) go first. promoteToProjects does
+-- the same with history, and sets `dana.promoting` so this stays out of its
+-- way; this covers every other writer (the old instance's bare
+-- `project_id = id`).
+CREATE FUNCTION folders_root_takes_project_people() RETURNS trigger
+LANGUAGE plpgsql AS $fn$
+BEGIN
+  IF current_setting('dana.promoting', true) IS NOT DISTINCT FROM 'on' THEN
+    RETURN NULL;
+  END IF;
+  DELETE FROM folder_members WHERE folder_id = NEW.id;
+  INSERT INTO folder_members (folder_id, user_id, access, can_edit_own_responsibilities, created_at)
+  SELECT NEW.id, m.user_id, m.access, m.can_edit_own_responsibilities, m.created_at
+    FROM folder_members m WHERE m.folder_id = OLD.project_id;
+  RETURN NULL;
+END
+$fn$;
+--> statement-breakpoint
+CREATE TRIGGER folders_root_takes_project_people AFTER UPDATE OF project_id ON folders
+  FOR EACH ROW WHEN (OLD.project_id <> OLD.id AND NEW.project_id = NEW.id)
+  EXECUTE FUNCTION folders_root_takes_project_people();
 --> statement-breakpoint
 -- Invariants.
 DO $$

@@ -34,6 +34,7 @@ import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import type { Db } from '../../db/client.js'
+import { removeMembership } from '../../src/server/domain/folders.js'
 import { acceptInvite } from '../../src/server/domain/invites.js'
 import { legBaseUrl } from '../support/postgres-leg.js'
 
@@ -432,6 +433,9 @@ describe('AC-1527 migration 0062: people belong to the project', () => {
     await db.exec(sql`INSERT INTO folders (id, owner_id, name) VALUES (${moved}::uuid, ${u.owner}::uuid, 'Moved')`)
     await db.exec(sql`INSERT INTO invites (id, inviter_id, email, folder_id, access)
       VALUES (${pending}::uuid, ${u.owner}::uuid, 'stranger@example.com', ${moved}::uuid, 'full_control')`)
+    // Only a project with the same people takes a root (folders_move_keeps_people).
+    await db.exec(sql`INSERT INTO folder_members (folder_id, user_id, access)
+      SELECT ${moved}::uuid, user_id, access FROM folder_members WHERE folder_id = ${A.root}::uuid`)
     await db.exec(sql`UPDATE folders SET parent_folder_id = ${A.root}::uuid, child_position = 'c0',
       project_id = ${A.root}::uuid, tab_position = NULL, kind = 'doc' WHERE id = ${moved}::uuid`)
     expect(await acceptInvite(db.db, u.stranger, pending)).toEqual({ kind: 'not_pending' })
@@ -439,5 +443,34 @@ describe('AC-1527 migration 0062: people belong to the project', () => {
       .toEqual([{ status: 'invalidated', accepted_by: null }])
     expect(await db.exec(sql`SELECT folder_id FROM folder_members WHERE user_id = ${u.stranger}::uuid`)).toEqual([])
     expect(await db.exec(sql`SELECT count(*)::int AS n FROM connections`)).toEqual([{ n: 0 }])
+  })
+
+  test('after it: the old instance moves a page only between projects with the same people', async () => {
+    const refused: unknown = await db.exec(sql`UPDATE folders SET parent_folder_id = ${D.root}::uuid,
+      child_position = 'z0', project_id = ${D.root}::uuid WHERE id = ${A.sub2}::uuid`).then(() => null, (e: unknown) => e)
+    const err = refused as { constraint?: string; cause?: { constraint?: string } } | null
+    expect(err?.cause?.constraint ?? err?.constraint).toBe('folders_move_keeps_people')
+    expect(await place(A.sub2)).toEqual({ project_id: A.root, parent_folder_id: A.root, owner_id: u.owner, tab_position: null })
+  })
+
+  test('after it: a page the old instance promotes takes its project people, not its stale rows', async () => {
+    // Its assigned task would fail the promotion on the assignee foreign key.
+    await db.exec(sql`UPDATE tasks SET assignee_id = NULL WHERE folder_id = ${A.sub}::uuid`)
+    await db.exec(sql`UPDATE folders SET parent_folder_id = NULL, child_position = NULL,
+      project_id = id, tab_position = 'a0' WHERE id = ${A.sub}::uuid`)
+    expect(await people(A.sub)).toEqual(await people(A.root))
+    expect(await db.exec(sql`SELECT shelf_name FROM folder_members
+      WHERE folder_id = ${A.sub}::uuid AND user_id = ${u.viewer}::uuid`)).toEqual([{ shelf_name: null }])
+  })
+
+  test('after it: a person removed from a project loses the rows 0062 left on its pages', async () => {
+    expect(await people(A.tab)).toContainEqual({ user_id: u.viewer, access: 'can_view' })
+    await removeMembership(db.db, A.root, u.viewer, { transferOwnership: false, actorId: u.owner })
+    expect(await db.exec(sql`SELECT f.id FROM folder_members m JOIN folders f ON f.id = m.folder_id
+      WHERE m.user_id = ${u.viewer}::uuid AND f.project_id = ${A.root}::uuid`)).toEqual([])
+    expect(await people(A.tab)).toEqual([
+      { user_id: u.owner, access: 'full_control' },
+      { user_id: u.editor, access: 'can_edit' },
+    ])
   })
 })
