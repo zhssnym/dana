@@ -827,6 +827,16 @@ export const taskStep = z.object({
 export type TaskStep = z.infer<typeof taskStep>
 
 /*
+A card's rung: overdue (the deadline has passed), started (open, its start
+has arrived, not late), today (its schedule date is today), future, or
+undated (no date at all). The same buckets `rungForTask` in
+client/views/ladder.ts draws, with every rung after today folded into
+future: the week and month headings are the client's to name.
+*/
+export const taskRung = z.enum(['overdue', 'started', 'today', 'future', 'undated'])
+export type TaskRung = z.infer<typeof taskRung>
+
+/*
 TaskCard, field for field as 7.0 gives it.
 
 Each field from its owning section: status is 4.5's CHECK; due_date and
@@ -911,8 +921,13 @@ export const taskCard = z.object({
   blocks_count: z.int().nonnegative().optional(),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
+  /* Where the task stands against the viewer's today, computed once in SQL
+     (`rungOf` in server/views/cards.ts). Only GET /views/focus sends it, so
+     it is optional; every other producer leaves it off. */
+  rung: taskRung.optional(),
 })
 export type TaskCard = z.infer<typeof taskCard>
+
 
 /*
 TaskDetail, TaskCard plus 7.0's seven. section_block_id and created_by live

@@ -28,6 +28,7 @@ import type { Request, Response, Router } from 'express'
 import type { Db, DbClient } from '../../../db/client.js'
 import {
   doneQuery,
+  focusQuery,
   folderTasksQuery,
   plannedCalendarQuery,
   searchQuery,
@@ -48,6 +49,7 @@ import { checkCalendarRange, CALENDAR_RANGE_MAX_DAYS } from '../time/index.js'
 import {
   allView,
   doneView,
+  focusView,
   folderCompletedView,
   folderOpenView,
   importantView,
@@ -122,6 +124,23 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
   router.get('/views/planned', requireSession, page(plannedView))
   router.get('/views/important', requireSession, retiredRoute(securityLog, 'get_views_important'), page(importantView))
   router.get('/views/all', requireSession, page(allView))
+
+  /*
+  The Focus lists' one query (views/focus.ts). No path id, so no ac-397 row;
+  it scopes itself through accessibleTasks like every list here, and
+  guard-list-visibility drives it as a stranger.
+  */
+  router.get('/views/focus', requireSession, async (req: Request, res: Response) => {
+    const db = database(res)
+    if (db === null) return
+    const parsed = focusQuery.safeParse(req.query)
+    if (!parsed.success) {
+      sendValidationError(res, parsed.error)
+      return
+    }
+    const { tz, ...query } = parsed.data
+    res.status(200).json(await focusView(db, viewer(req), tz, query))
+  })
 
   router.get(
     '/views/planned/calendar',

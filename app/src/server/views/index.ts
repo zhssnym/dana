@@ -11,6 +11,7 @@ section 6 opens one directory.
 export { plannedCalendarView } from './calendar.js'
 export { completedPage as doneView } from './done.js'
 export { folderCompletedView, folderOpenView } from './folder.js'
+export { focusView } from './focus.js'
 export {
   allView,
   importantView,

@@ -78,15 +78,19 @@ function automaticClause(viewerId: string, todayLocal: string): SQL {
  * important toggle is a client-side filter over what this returns and
  * changes no query.
  */
-async function openGroups(
+export async function openGroups(
   executor: Executor,
   viewerId: string,
   todayLocal: string,
+  /* focus.ts's two additions: a narrowing conjunct (its `important`) and
+     the rung on every card. My Day passes neither. */
+  focus: { scope?: SQL; rung?: boolean } = {},
 ): Promise<{ carried: TaskCard[]; today: TaskCard[] }> {
   const automatic = automaticClause(viewerId, todayLocal)
   const rows = await readCards(executor, {
     viewerId,
-    where: sql`t.status = 'pending' AND (${automatic} OR e.task_id IS NOT NULL)`,
+    where: sql`t.status = 'pending' AND (${automatic} OR e.task_id IS NOT NULL)${focus.scope ?? sql``}`,
+    ...(focus.rung === true ? { rungOn: todayLocal } : {}),
     // "Sort inside each group: due_date ascending nulls last, due_time
     // ascending nulls first, id." One order for both groups, because the
     // groups are a partition of this sequence rather than two queries.

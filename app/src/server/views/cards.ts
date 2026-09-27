@@ -33,7 +33,7 @@ import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import type { LabelRef, TaskLabels } from '../../shared/labels.js'
-import type { TaskCard } from '../../shared/tasks.js'
+import type { TaskCard, TaskRung } from '../../shared/tasks.js'
 import { LIST_ROW_CAP } from '../../shared/views.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
@@ -168,6 +168,36 @@ export const SCHEDULE_DATE = sql`coalesce(t.due_date, t.start_date)`
  * span and neither is ever outside it.
  */
 export const ACTIVATION_DATE = sql`coalesce(t.start_date, t.due_date)`
+
+/**
+ * Where a row stands against the viewer's today: overdue, started, today,
+ * future or undated (`taskRung` in shared/tasks.ts).
+ *
+ * The one statement of the rule the client wrote four times (`late`,
+ * `stageOf`, `rungForTask`, and Upcoming's filter). Arm for arm it is
+ * `rungForTask` in client/views/ladder.ts with every rung after today folded
+ * into `future`:
+ *
+ * - a deadline before today is overdue, started or not;
+ * - an open task whose start has arrived is started;
+ * - with neither date it is undated;
+ * - otherwise the schedule date decides, and a schedule date before today on
+ *   a row that is not pending (a start-only task someone dropped) is overdue,
+ *   as `rungFor` has it.
+ *
+ * A null date fails its comparison and falls through, which is the point of
+ * the order. guard-rung-parity.test.ts holds the two together.
+ */
+export function rungOf(todayLocal: string): SQL {
+  const day = sql`${todayLocal}::date`
+  return sql`CASE
+      WHEN t.due_date < ${day} THEN 'overdue'
+      WHEN t.status = 'pending' AND t.start_date <= ${day} THEN 'started'
+      WHEN ${SCHEDULE_DATE} IS NULL THEN 'undated'
+      WHEN ${SCHEDULE_DATE} < ${day} THEN 'overdue'
+      WHEN ${SCHEDULE_DATE} = ${day} THEN 'today'
+      ELSE 'future' END`
+}
 
 /* ------------------------------------------------------------------ *
  * The row
@@ -312,6 +342,9 @@ function cardFromRow(
     blocks_count: counts.blocks_count,
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
+    ...(row.rung === null || row.rung === undefined
+      ? {}
+      : { rung: String(row.rung) as TaskRung }),
   }
 }
 
@@ -336,6 +369,8 @@ export interface CardQuery {
   limit?: number
   /** Columns beyond the card, read back through CardRow.raw. */
   extra?: SQL
+  /** The viewer's today; present, every card carries its `rung`. */
+  rungOn?: string
 }
 
 /**
@@ -360,7 +395,9 @@ export async function readCards(
   executor: Executor,
   query: CardQuery,
 ): Promise<CardRow[]> {
-  const extra = query.extra === undefined ? sql`` : sql`, ${query.extra}`
+  const extra = sql`${query.extra === undefined ? sql`` : sql`, ${query.extra}`}${
+    query.rungOn === undefined ? sql`` : sql`, ${rungOf(query.rungOn)} AS rung`
+  }`
   const limit = query.limit === undefined ? sql`` : sql` LIMIT ${query.limit}`
   const found = await rowsOf(
     executor,

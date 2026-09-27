@@ -367,6 +367,40 @@ export const searchQuery = viewQuery.extend({
 })
 export type SearchQuery = z.infer<typeof searchQuery>
 
+/*
+GET /views/focus: the one task query behind the Focus lists. Every list is a
+filter over the viewer's open (pending) tasks, and every field below has a
+reader in server/views/focus.ts.
+
+- `when` narrows by date: `on_today` is Q1's list (assigned to the viewer
+  and begun, or pulled in), `upcoming` is dated work Today does not already
+  hold, `overdue` and `undated` are the card's rung.
+- `important` keeps starred tasks. A query string carries text, so it is the
+  two words; `z.coerce.boolean` would read "false" as true.
+- `group` shapes the answer: `none` is one list, `today` is Today's four
+  headings (only over `on_today`, the one list that knows why a row is
+  there), `person` is one group per assignee.
+*/
+export const focusWhen = z.enum(['any', 'on_today', 'upcoming', 'overdue', 'undated'])
+export type FocusWhen = z.infer<typeof focusWhen>
+export const focusGroup = z.enum(['none', 'today', 'person'])
+export type FocusGroup = z.infer<typeof focusGroup>
+
+export const focusQuery = viewQuery
+  .extend({
+    when: focusWhen.default('any'),
+    important: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    group: focusGroup.default('none'),
+  })
+  .refine((query) => query.group !== 'today' || query.when === 'on_today', {
+    path: ['group'],
+    error: 'group=today needs when=on_today',
+  })
+export type FocusQuery = z.infer<typeof focusQuery>
+
 /* ------------------------------------------------------------------ *
  * The 1000-row cap
  * ------------------------------------------------------------------ */
@@ -574,6 +608,25 @@ export const getFolderTasksOpenResponse = z
 export type GetFolderTasksOpenResponse = z.infer<
   typeof getFolderTasksOpenResponse
 >
+
+/*
+GET /views/focus. Groups in reading order, each with a key the client names:
+`all` for group=none; `carried`, `today`, `started`, `added` for group=today;
+an assignee id or `unassigned` for group=person. An empty group is left out.
+Every card carries its `rung`.
+*/
+export const focusGroupRows = z.object({
+  key: z.string().min(1),
+  rows: z.array(taskCard),
+})
+export type FocusGroupRows = z.infer<typeof focusGroupRows>
+export const getFocusResponse = z
+  .object({
+    groups: z.array(focusGroupRows),
+    truncated: z.boolean(),
+  })
+  .refine((body) => withinCap([groupRows(body.groups)]), { error: OVER_CAP })
+export type GetFocusResponse = z.infer<typeof getFocusResponse>
 
 export const getFolderTasksCompletedResponse = getDoneResponse
 export type GetFolderTasksCompletedResponse = GetDoneResponse

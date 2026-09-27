@@ -120,7 +120,7 @@ const Q3_ORDER = sql`${SCHEDULE_DATE} ASC, ${STATUS_RANK} ASC,
  * that clause names exactly the Inbox. Grouping the stream afterwards needs
  * no second sort: rows of one folder are already contiguous.
  */
-const Q2_ORDER = sql`f.is_default DESC, lower(f.name) ASC, f.id ASC,
+export const Q2_ORDER = sql`f.is_default DESC, lower(f.name) ASC, f.id ASC,
        ${Q2_ROW_ORDER}`
 
 /**
@@ -155,33 +155,38 @@ const Q4_ORDER = sql`(${SCHEDULE_DATE} IS NULL) ASC, ${SCHEDULE_DATE} ASC,
  * The two open halves, which All stacks
  * ------------------------------------------------------------------ */
 
-/** Q3's rows: the scope, plus a Schedule. */
-async function plannedRows(
+/** Q3's rows: the scope, plus a Schedule. `rungOn` is focus.ts's: the
+ * viewer's today, so each card carries its rung. */
+export async function plannedRows(
   executor: Executor,
   viewerId: string,
   extraScope: SQL = sql``,
+  rungOn?: string,
 ): Promise<TaskCard[]> {
   const rows = await readCards(executor, {
     viewerId,
     where: sql`${OPEN_SCOPE} AND ${SCHEDULED}${extraScope}`,
     order: Q3_ORDER,
     limit: CAP_PROBE,
+    ...(rungOn === undefined ? {} : { rungOn }),
   })
   return rows.map((row) => row.card)
 }
 
 /** Q2's rows: the scope, minus a Schedule, in the grouped order. */
-async function tasksRows(
+export async function tasksRows(
   executor: Executor,
   viewerId: string,
   extraScope: SQL = sql``,
   order: SQL = Q2_ORDER,
+  rungOn?: string,
 ): Promise<TaskCard[]> {
   const rows = await readCards(executor, {
     viewerId,
     where: sql`${OPEN_SCOPE} AND ${ANYTIME}${extraScope}`,
     order,
     limit: CAP_PROBE,
+    ...(rungOn === undefined ? {} : { rungOn }),
   })
   return rows.map((row) => row.card)
 }
