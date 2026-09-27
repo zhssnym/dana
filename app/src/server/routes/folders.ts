@@ -37,7 +37,6 @@ import type { RateLimits } from '../security/rate-limit.js'
 import { createSecurityLogger } from '../security/log.js'
 import type { SecurityLogger } from '../security/log.js'
 import {
-  accessOf,
   addMember,
   changeMemberAccess,
   createFolder,
@@ -57,11 +56,12 @@ import {
 } from '../domain/folders.js'
 import {
   accessHistoryOf,
+  accessOf,
   atLeast,
   mayPerform,
   otherFullControlCount,
 } from '../domain/folder-access.js'
-import type { FolderAccess } from '../domain/folders.js'
+import type { FolderAccess } from '../domain/folder-access.js'
 import type { FolderAction } from '../domain/folder-access.js'
 import {
   patchFolderMemberAccessBody,

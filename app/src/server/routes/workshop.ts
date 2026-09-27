@@ -31,8 +31,8 @@ import {
   importWorkflow,
   transferOwnershipTo,
 } from '../domain/acts.js'
-import { accessOf, isEligibleSuccessor } from '../domain/folders.js'
-import { mayPerform } from '../domain/folder-access.js'
+import { isEligibleSuccessor } from '../domain/folders.js'
+import { accessOf, mayPerform } from '../domain/folder-access.js'
 import { PAGE_TREE_EDIT_ACTION } from '../domain/page-tree.js'
 import type { FolderAction } from '../domain/folder-access.js'
 import { WorkflowLabelNameConflict } from '../domain/labels.js'

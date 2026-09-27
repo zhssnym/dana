@@ -34,7 +34,7 @@ import {
   viewQuery,
 } from '../../shared/views.js'
 import { requireSession } from '../auth/index.js'
-import { accessOf } from '../domain/folders.js'
+import { accessOf } from '../domain/folder-access.js'
 import {
   sendError,
   sendFieldValidationError,

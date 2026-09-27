@@ -63,9 +63,8 @@ import {
   FacetDocumentRefusal,
 } from '../domain/facets.js'
 import type { FacetOutcome } from '../domain/facets.js'
-import { accessOf } from '../domain/folders.js'
-import type { FolderAccess } from '../domain/folders.js'
-import { mayPerform } from '../domain/folder-access.js'
+import type { FolderAccess } from '../domain/folder-access.js'
+import { accessOf, mayPerform } from '../domain/folder-access.js'
 import { sendError, sendFieldValidationError } from '../http/errors.js'
 import { parseBody } from '../http/parse-body.js'
 import { createSecurityLogger } from '../security/log.js'

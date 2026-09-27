@@ -59,7 +59,7 @@ import type {
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { searchPattern } from '../views/index.js'
-import { accessOf } from './folders.js'
+import { accessOf } from './folder-access.js'
 import { shelfView } from './shelves.js'
 import { accessibleTask } from './tasks.js'
 

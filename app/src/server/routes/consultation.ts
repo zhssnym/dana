@@ -49,7 +49,7 @@ import {
   updateDiscussion,
 } from '../domain/consultation.js'
 import type { ConsultationOutcome } from '../domain/consultation.js'
-import { accessOf } from '../domain/folders.js'
+import { accessOf } from '../domain/folder-access.js'
 import { removeObjects } from '../domain/trash.js'
 import type { ObjectStore } from '../files/store.js'
 import {

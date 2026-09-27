@@ -62,13 +62,12 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { carryTaskFilesOnMove } from './files.js'
-import { mayPerform, presetOf } from './folder-access.js'
+import { accessOf, mayPerform, presetOf } from './folder-access.js'
 import type {
   FolderAction,
   FolderActionDecision,
   FolderActorFacts,
 } from './folder-access.js'
-import { accessOf } from './folders.js'
 import { dropFolderLabelsOnMove, taskLabelsOf } from './labels.js'
 import { taskDependencyCountsOf } from './task-dependency-counts.js'
 import { positionAfter, positionAtSectionEnd, seededItems } from './page-order.js'

@@ -65,11 +65,6 @@ function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
 }
 
-/* `accessOf` and `FolderAccess` live in `folder-access.ts` beside the facts
- * they return; re-exported here so existing importers keep resolving. */
-export { accessOf } from './folder-access.js'
-export type { FolderAccess } from './folder-access.js'
-
 /* ------------------------------------------------------------------ *
  * The Folder object (7.0) and the 7.4 list
  * ------------------------------------------------------------------ */
