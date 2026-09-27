@@ -581,8 +581,8 @@ async function writeFolderRow(
 
 /**
  * One more page of a sample project: a tab of the root (`tabPosition`) or a
- * child Doc page of a sub-page (`parentId`, with its home block when that
- * sub-page is a Doc: a Work page makes no page links). It has
+ * child Doc page of a sub-page (`parentId`, with its home block, as
+ * migration 0061 gives one on a Doc or Work sub-page). It has
  * its project's people, as every page does (step 8).
  */
 async function writeSamplePage(
@@ -602,8 +602,7 @@ async function writeSamplePage(
   )
   if (page.parentId !== null) {
     await register(tx, userId, 'folder', id)
-    const parent = await rowsOf(tx, sql`SELECT kind FROM folders WHERE id = ${page.parentId}::uuid`)
-    if (parent[0]?.kind === 'doc') await appendHomeBlock(tx, page.parentId, id)
+    await appendHomeBlock(tx, page.parentId, id)
   }
   return id
 }

@@ -34,8 +34,8 @@
 --    `key_after` chains in that order.
 -- 4. Subpages. A `purpose`, `results` or `shared_blank` facet holding content
 --    becomes a child Doc page of that subpage (facet id kept), after its last
---    sibling, with a home block at the end of a Doc subpage's document (a
---    Work subpage makes no page links; its child is reached from the sidebar).
+--    sibling, with a home block at the end of the subpage's document, Doc or
+--    Work, so the page that drew the tab still opens it.
 --    A subpage is `doc` when it held a `page` block or no tasks before this
 --    migration, else `work`.
 -- 5. A `private_blank` facet, root or subpage, becomes its own Doc project
@@ -407,9 +407,9 @@ UPDATE folders f SET kind = CASE
     THEN 'doc' ELSE 'work' END
  WHERE f.parent_folder_id IS NOT NULL AND f.kind IS NULL;
 --> statement-breakpoint
--- Home blocks: each live child Doc page of a Doc subpage, and each live child
--- of a live root that had none. A Work subpage's child pages get none: a Work
--- page makes no page links, so they are reached from the sidebar and the trail.
+-- Home blocks: each live child Doc page of a subpage (Doc or Work: the tab it
+-- was must stay reachable from the page that drew it), and each live child of
+-- a live root that had none. Kinds are already decided above.
 CREATE TEMP TABLE s7_home (id uuid NOT NULL, folder_id uuid NOT NULL, ref_folder_id uuid NOT NULL) ON COMMIT DROP;
 --> statement-breakpoint
 DO $$
@@ -421,8 +421,8 @@ DECLARE
 BEGIN
   FOR c IN
     SELECT s.id AS child, s.parent_id AS parent, 0 AS grp, lpad(s.rank::text, 10, '0') COLLATE "C" AS ord
-      FROM s7_child s JOIN folders sp ON sp.id = s.parent_id
-     WHERE s.homed AND sp.kind = 'doc'
+      FROM s7_child s
+     WHERE s.homed
     UNION ALL
     SELECT ch.id, ch.parent_folder_id, 1, (COALESCE(ch.child_position, '') || ' ' || ch.id::text) COLLATE "C"
       FROM folders ch

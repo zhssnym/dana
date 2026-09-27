@@ -496,13 +496,16 @@ describe('AC-1519 migration 0061 turns roots into projects and facets into tabs'
     ])
   })
 
-  test("a Work subpage's written Purpose becomes its child Doc page with no link in the Work page", async () => {
+  test("a Work subpage's written Purpose becomes its child Doc page, linked from the Work page", async () => {
     // Its tasks and a written Purpose, no page links: the home block the
-    // migration makes must not turn the subpage into a Doc.
+    // migration makes must not turn the subpage into a Doc, and the Purpose
+    // the page drew as a tab stays one click away on it.
     expect(await db.exec(sql`SELECT parent_folder_id, kind, name FROM folders WHERE id = ${H.viewingsPurpose}::uuid`))
       .toEqual([{ parent_folder_id: H.viewings, kind: 'doc', name: 'Purpose' }])
     expect(await homeOf(H.viewingsBlock)).toEqual({ folder_id: H.viewingsPurpose, facet_id: null })
-    expect(await db.exec(sql`SELECT kind FROM page_blocks WHERE folder_id = ${H.viewings}::uuid`)).toEqual([])
+    expect(await db.exec(sql`SELECT kind, ref_folder_id FROM page_blocks WHERE folder_id = ${H.viewings}::uuid`))
+      .toEqual([{ kind: 'page', ref_folder_id: H.viewingsPurpose }])
+    expect(await db.exec(sql`SELECT kind FROM folders WHERE id = ${H.viewings}::uuid`)).toEqual([{ kind: 'work' }])
     expect(await db.exec(sql`SELECT folder_id FROM tasks WHERE id = ${H.viewingsTask}::uuid`))
       .toEqual([{ folder_id: H.viewings }])
   })
