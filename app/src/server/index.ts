@@ -597,7 +597,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   // Load-bearing position: ahead of the bundle router, whose `/views/:id`
   // would shadow this router's six literal `/views/...` pages. See the
   // block above `/api/v1`.
-  app.use('/api/v1', createViewsRouter({ dbClient: options.dbClient, rateLimits }))
+  app.use('/api/v1', createViewsRouter({ dbClient: options.dbClient, rateLimits, securityLog }))
 
   // The invites and connections routers: the 7.5 invite surface with its five transitions and two lists, and
   // 7.3's roster with its one removal. Same position and the same reason. Their

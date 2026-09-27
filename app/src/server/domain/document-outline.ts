@@ -25,7 +25,7 @@ What it refuses:
 What it does not judge: unknown or repeated identities and retention, which
 each applier already checks against its own sets before calling this.
 */
-import { MAX_NEST_DEPTH, mayNest, mayNestUnder } from '../../shared/page-document.js'
+import { MAX_NEST_DEPTH, isMediaKind, mayNest, mayNestUnder } from '../../shared/page-document.js'
 
 export interface NestingItem {
   readonly kind: 'block' | 'task'
@@ -65,4 +65,17 @@ export function nestingProblem(
     if (item.kind === 'block') seen.set(item.id, { section: item.section_block_id, depth })
   }
   return null
+}
+
+/** Issue #267: when the server took this media block's file, or null. Only a
+ * media block that still names no file reports it; a block given a new file,
+ * or turned into another kind, has nothing missing to report. Exported for
+ * every page reader so the rule lives once; it sits here, in the kernel, so
+ * no reader has to import the Work page module to reach it. */
+export function fileReclaimedAt(row: Record<string, unknown>): string | null {
+  if (row.file_id !== null && row.file_id !== undefined) return null
+  if (!isMediaKind(String(row.kind))) return null
+  if (row.file_reclaimed_at === null || row.file_reclaimed_at === undefined) return null
+  const at = row.file_reclaimed_at
+  return at instanceof Date ? at.toISOString() : new Date(String(at)).toISOString()
 }

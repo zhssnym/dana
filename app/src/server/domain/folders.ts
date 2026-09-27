@@ -31,7 +31,8 @@ import {
   presetOf,
   recordAccessTransition,
 } from './folder-access.js'
-import type { FolderActorFacts } from './folder-access.js'
+import { joinVisibleFolder } from './folder-access.js'
+import type { FolderAccess } from './folder-access.js'
 import { folderPersonalLabelsFor } from './labels.js'
 import {
   createInitialResponsibility,
@@ -63,42 +64,6 @@ function toIso(value: unknown): string {
 
 function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
-}
-
-/* ------------------------------------------------------------------ *
- * Access resolution: the 10.2 chokepoint fact
- * ------------------------------------------------------------------ */
-
-/**
- * What every call site of `accessOf` has always had -- ownership, the default
- * flag and the folder's name, which the share-grant email renders -- plus,
- * since issue #228, the member's persisted
- * Access preset and the two ids the resolver needs.
- *
- * It *is* `FolderActorFacts` rather than a shape of its own, so that the
- * twenty-odd existing gates can hand what they already resolved straight to
- * `mayPerform` without a second read and without a conversion that could
- * lose a field.
- */
-export type FolderAccess = FolderActorFacts
-
-/** Null means the folder does not exist, is in Trash, or the viewer is not a
- * member, which 10.2 makes the same answer: 404, never 403.
- *
- * The executor rather than the handle, so a caller inside a transaction
- * resolves access against the same snapshot it will write in; task moves
- * need exactly that, and every Db is an Executor.
- *
- * The body moved to `domain/folder-access.ts` at issue #228. The name stays
- * here because twenty-two call sites across twelve files spell it, and
- * because "resolve the folder" and "decide the action" are two steps that
- * should keep two names. */
-export async function accessOf(
-  executor: Executor,
-  viewerId: string,
-  folderId: string,
-): Promise<FolderAccess | null> {
-  return folderActorFacts(executor, viewerId, folderId)
 }
 
 /* ------------------------------------------------------------------ *
@@ -196,8 +161,8 @@ function folderSelect(viewerId: string, folderId?: string) {
              WHERE mm.folder_id = f.id) AS member_count,
            c.pending, c.completed, c.one_off_done, c.one_off_total,
            c.recurring_active
-    FROM folder_members m
-    JOIN folders f ON f.id = m.folder_id
+    FROM folders f
+    ${joinVisibleFolder(viewerId, { folder: 'f' })}
     -- One pass over the folder's live tasks for all five counts (#205).
     CROSS JOIN LATERAL (
       SELECT
@@ -221,7 +186,7 @@ function folderSelect(viewerId: string, folderId?: string) {
         FROM tasks t
        WHERE t.folder_id = f.id AND t.deleted_at IS NULL
     ) c
-    WHERE m.user_id = ${viewerId} AND f.deleted_at IS NULL${scope}
+    WHERE true${scope}
     ORDER BY f.is_default DESC, lower(f.name) ASC, f.id ASC`
 }
 

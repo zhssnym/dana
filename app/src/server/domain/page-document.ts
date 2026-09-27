@@ -3,6 +3,8 @@ import type { Executor } from '../database.js'
 import { rowsOf } from '../database.js'
 import type { DocumentTransaction, DocumentOperation, DocumentOutlineItem } from '../../shared/pages.js'
 import { BLOCK_FILE_KINDS, MAX_SECTION_DEPTH, isMediaKind } from '../../shared/page-document.js'
+import { allowedIn } from '../../shared/block-kinds.js'
+import { refusedKindMessage } from './document-body.js'
 import { nestingProblem } from './document-outline.js'
 import { hashableBlocks } from './document-hash.js'
 import { initialKeys } from './fractional-index.js'
@@ -77,8 +79,8 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
   // normalization this function does to a put_block, and it is what
   // page_blocks_checked_kind_check states in the database.
   if(op.op==='put_block'){
-   // #213: a native Result belongs to the Results facet alone.
-   if(op.block_kind==='result')throw new DocumentRefusal('not_convertible','A Result lives on the Results tab.')
+   // The registry says what Main stores: everything but a Result (#213).
+   if(!allowedIn(op.block_kind,'work'))throw new DocumentRefusal('not_convertible',refusedKindMessage(op.block_kind,'work'))
    // A presentation heading (heading1-3, `toggleable` or not) is writing on
    // Main as on a facet: it groups nothing, so it never names a Section and
    // `section_block_id` below still admits only a `section` as a parent.
@@ -192,7 +194,7 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
    if(isMediaKind(block.block_kind)&&!(BLOCK_FILE_KINDS[block.block_kind] as readonly string[]).includes(String(file.kind)))throw new DocumentRefusal('file_kind_mismatch',`This ${block.block_kind} block names a file uploaded as ${String(file.kind)}. Upload it again as the kind you mean to insert.`)
   }
   // A `page` block's reference was judged by `pageTreeRules` above.
-  if(block.ref_folder_id!==null&&block.block_kind!=='page'){const refs=await rowsOf(tx,sql`SELECT f.id FROM folders f JOIN folder_members m ON m.folder_id=f.id WHERE f.id=${block.ref_folder_id}::uuid AND m.user_id=${viewerId}::uuid AND f.deleted_at IS NULL`);if(refs.length===0)throw new DocumentRefusal('not_found','Referenced folder is not accessible.')}
+  if(block.ref_folder_id!==null&&block.block_kind!=='page'&&(await folderActorFacts(tx,viewerId,block.ref_folder_id))===null)throw new DocumentRefusal('not_found','Referenced folder is not accessible.')
  }
  const fresh=[...blocks.keys()].filter(id=>!original.has(id)).concat(created.map(t=>t.id),createdPages.map(p=>p.id))
  if(new Set(fresh).size!==fresh.length)throw new DocumentRefusal('not_convertible','An inserted identity already exists.')

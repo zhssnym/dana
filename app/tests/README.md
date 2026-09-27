@@ -13,6 +13,7 @@ The browser leg is `tests/e2e/` under Playwright and is not described here.
 
 - **Security** (`criteria/`): `ac-397` authorization sweep (every id-bearing
   route refuses a stranger), `ac-236` session/CSRF sweep over every route,
+  `guards/guard-list-visibility` (lists and search show a stranger nothing),
   `ac-195` file-serving scope, `ac-057` search scope, `ac-205` comment
   permissions, `ac-231` SVG refusal and polyglot re-encoding.
 - **Data loss**: `ac-138` account deletion scrub, `ac-014` delete/trash/purge

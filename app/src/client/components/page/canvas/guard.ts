@@ -1,15 +1,13 @@
 import { fragmentToBlocks } from '@blocknote/core'
 
 import { removedCanvasPages, removedCanvasTasks, validateCanvasOutline } from './outline.js'
-import { pendingPages } from './adapters.js'
 import type { canvasSchema, CanvasEditor } from './schema.js'
 
 /*
 A sub-page leaves the document only by its own act, "Move page to Trash" in
 the ⋮⋮ menu, which runs its removal inside `removingPages`; every other
 gesture that would drop one (a selection delete, cut, a Backspace merge) is
-refused like a Task's. One `/page` has placed and no save has created yet is
-still just a line, so taking it back (editor undo) is allowed.
+refused like a Task's.
 */
 let removable: ReadonlySet<string> = new Set()
 export function removingPages(folderIds: readonly string[], run: () => void): void {
@@ -39,7 +37,7 @@ export function installCanvasGuard(editor: CanvasEditor, explain: (message: stri
     "Show completed" has hidden it.
     */
     const removed = removedCanvasTasks(before, after)
-    const pages = removedCanvasPages(before, after).filter((id) => !removable.has(id) && !pendingPages.has(id))
+    const pages = removedCanvasPages(before, after).filter((id) => !removable.has(id))
     const failure = removed.length > 0
       ? 'This selection contains a Task (outlined). Select only the writing, or delete the Task from its ⋮⋮ menu.'
       : pages.length > 0

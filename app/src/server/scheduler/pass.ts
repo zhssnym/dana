@@ -72,7 +72,7 @@ import { SWEEP_BATCH, inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { createNotifier } from '../notify/index.js'
 import type { NotificationSink, Notifier, OutboundMessage } from '../notify/index.js'
-import { recordSchedulerPass } from '../routes/health.js'
+import { recordSchedulerPass } from '../observability/scheduler-pass.js'
 import { createSecurityLogger } from '../security/log.js'
 import type { SecurityLogger } from '../security/log.js'
 

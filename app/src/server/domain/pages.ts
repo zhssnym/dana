@@ -42,13 +42,11 @@ import type {
   PageView,
 } from '../../shared/pages.js'
 import { WIDTH_BLOCK_KINDS } from '../../shared/pages.js'
-import { isMediaKind } from '../../shared/page-document.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { readableFileScope } from './files.js'
-import { mayPerform } from './folder-access.js'
-import { accessOf } from './folders.js'
+import { accessOf, mayPerform, visibleFolder } from './folder-access.js'
 import { shelfView } from './shelves.js'
 import { applyShelfDocument, shelfDocumentMetadata, ShelfDocumentRefusal } from './shelf-document.js'
 import { initialKeys } from './fractional-index.js'
@@ -60,6 +58,7 @@ import {
   writeItemPosition,
 } from './page-order.js'
 import { createTaskIn } from './tasks.js'
+import { fileReclaimedAt } from './document-outline.js'
 
 function toIso(value: unknown): string {
   return value instanceof Date
@@ -76,17 +75,6 @@ function nullableString(value: unknown): string | null {
  * as null here, and the contract says null means unknown. */
 function nullableInt(value: unknown): number | null {
   return value === null || value === undefined ? null : Number(value)
-}
-
-/** Issue #267: when the server took this media block's file, or null. Only a
- * media block that still names no file reports it; a block given a new file,
- * or turned into another kind, has nothing missing to report. Exported for
- * every page reader so the rule lives once. */
-export function fileReclaimedAt(row: Record<string, unknown>): string | null {
-  if (row.file_id !== null && row.file_id !== undefined) return null
-  if (!isMediaKind(String(row.kind))) return null
-  if (row.file_reclaimed_at === null || row.file_reclaimed_at === undefined) return null
-  return toIso(row.file_reclaimed_at)
 }
 
 function blockFromRow(row: Record<string, unknown>): PageBlock {
@@ -144,11 +132,7 @@ shelf is its owner's alone (4.18).
 function homeCondition(home: PageHome, viewerId: string) {
   return home.folderId !== null
     ? sql`b.folder_id = ${home.folderId}
-          AND EXISTS (SELECT 1 FROM folders vf
-                        JOIN folder_members vm ON vm.folder_id = vf.id
-                       WHERE vf.id = b.folder_id
-                         AND vm.user_id = ${viewerId}
-                         AND vf.deleted_at IS NULL)`
+          AND ${visibleFolder(sql`b.folder_id`, viewerId)}`
     : sql`b.shelf_id = ${home.shelfId}
           AND EXISTS (SELECT 1 FROM shelves vs
                        WHERE vs.id = b.shelf_id
@@ -203,13 +187,7 @@ async function pageItemsIn(
                    WHERE t.folder_id = ${home.folderId}::uuid
                      AND t.deleted_at IS NULL
 
-                     AND EXISTS (
-                       SELECT 1 FROM folders vf
-                       JOIN folder_members vm ON vm.folder_id = vf.id
-                      WHERE vf.id = t.folder_id
-                        AND vm.user_id = ${viewerId}
-                        AND vf.deleted_at IS NULL
-                     )
+                     AND ${visibleFolder(sql`t.folder_id`, viewerId)}
                 ) item
                ORDER BY item.page_position ASC NULLS LAST,
                         CASE WHEN item.page_position IS NULL THEN item.fallback_kind END,

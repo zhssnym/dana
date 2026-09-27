@@ -54,8 +54,7 @@ import {
   unlikeComment,
 } from '../domain/comments.js'
 import type { CommentThread, CreateCommentResult } from '../domain/comments.js'
-import { accessOf } from '../domain/folders.js'
-import { mayPerform } from '../domain/folder-access.js'
+import { accessOf, mayPerform } from '../domain/folder-access.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { parseBody } from '../http/parse-body.js'
 import { createSecurityLogger } from '../security/log.js'

@@ -44,9 +44,8 @@ import {
 } from '../../shared/consultation-input.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
-import { mayPerform } from './folder-access.js'
+import { accessOf, mayPerform } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
-import { accessOf } from './folders.js'
 
 export type InputOutcome<T> =
   | { kind: 'ok'; value: T }

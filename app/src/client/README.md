@@ -50,12 +50,13 @@ components take rows as props and callbacks as props.
 
 ```tsx
 export function ScheduledPage() {
-  const view = usePlannedView()
+  const view = useFocusView({ when: 'upcoming', group: 'none' })
+  const rows = (view.data?.groups ?? []).flatMap((group) => group.rows)
   const me = useMe()
   const actions = useRowActions()
   return (
-    <PageBody query={view} isEmpty={(view.data?.rows.length ?? 0) === 0} emptyCopy={PLANNED_EMPTY}>
-      <TaskList tasks={view.data?.rows ?? []} viewerId={me.data?.user.id ?? null} {...actions} />
+    <PageBody query={view} isEmpty={rows.length === 0} emptyCopy={PLANNED_EMPTY}>
+      <TaskList tasks={rows} viewerId={me.data?.user.id ?? null} {...actions} />
     </PageBody>
   )
 }

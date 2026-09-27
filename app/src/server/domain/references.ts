@@ -59,7 +59,7 @@ import type {
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { searchPattern } from '../views/index.js'
-import { accessOf } from './folders.js'
+import { accessOf, joinVisibleFolder, resolveScoped } from './folder-access.js'
 import { shelfView } from './shelves.js'
 import { accessibleTask } from './tasks.js'
 
@@ -85,9 +85,8 @@ const facetLabel = sql`(fo.name || ' · ' || COALESCE(ff.display_name,
 
 /* A Discussion or an Outcome the viewer may open (#320): the Discussion not
    trashed, its Folder live, the viewer a member of it. `d` is the Discussion. */
-const discussionGate = (viewerId: string): SQL => sql`
-  JOIN folders fo ON fo.id = d.folder_id AND fo.deleted_at IS NULL
-  JOIN folder_members m ON m.folder_id = d.folder_id AND m.user_id = ${viewerId}`
+const discussionGate = (viewerId: string): SQL =>
+  joinVisibleFolder(viewerId, { folderId: sql`d.folder_id` })
 
 /** The most characters of an Outcome statement a chip draws. A statement may
  * run to 4000 characters and a chip is one line; the full text is the
@@ -111,8 +110,7 @@ export function outcomeLabel(statement: string): string {
 const resultGate = (viewerId: string): SQL => sql`
   JOIN folder_facets ff
     ON ff.id = pb.facet_id AND ff.kind = 'results' AND ff.deleted_at IS NULL
-  JOIN folders fo ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
-  JOIN folder_members m ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}`
+  ${joinVisibleFolder(viewerId, { folderId: sql`ff.folder_id` })}`
 
 /** A Result's label: its statement on one line, cut as an Outcome's is; an
  * empty statement reads "Untitled result". */
@@ -148,22 +146,13 @@ export async function resolveReference(
       return shelf === null ? null : summary('shelf', shelf.id, shelf.name)
     }
     case 'facet': {
-      const found = await rowsOf(
-        executor,
-        sql`SELECT ff.id, ${facetLabel} AS label
-              FROM folder_facets ff
-              JOIN folders fo
-                ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
-              JOIN folder_members m
-                ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
-             WHERE ff.id = ${target.id}::uuid
-               AND ${documentNativeFacet}
-               AND ff.deleted_at IS NULL`,
-      )
-      const row = found[0]
-      return row === undefined
+      const found = await resolveScoped(executor, 'facet', target.id, viewerId, {
+        columns: sql`ff.id, ${facetLabel} AS label`,
+        where: documentNativeFacet,
+      })
+      return found === null
         ? null
-        : summary('facet', String(row.id), String(row.label))
+        : summary('facet', String(found.row.id), String(found.row.label))
     }
     case 'discussion': {
       const found = await rowsOf(
@@ -226,9 +215,7 @@ function taskQuery(viewerId: string, pattern: string, scope: SQL): SQL {
   return sql`
     SELECT t.id, t.title
     FROM tasks t
-    JOIN folder_members m
-      ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-    JOIN folders fo ON fo.id = t.folder_id AND fo.deleted_at IS NULL
+    ${joinVisibleFolder(viewerId, { folderId: sql`t.folder_id` })}
     WHERE t.deleted_at IS NULL AND t.title ILIKE ${pattern}${scope}
     ORDER BY t.updated_at DESC, t.id DESC
     LIMIT ${REFERENCE_SEARCH_LIMIT}`
@@ -241,10 +228,7 @@ function purposeQuery(viewerId: string, pattern: string, scope: SQL): SQL {
   return sql`
     SELECT ff.id, ${facetLabel} AS label
     FROM folder_facets ff
-    JOIN folders fo
-      ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
-    JOIN folder_members m
-      ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
+    ${joinVisibleFolder(viewerId, { folderId: sql`ff.folder_id` })}
     WHERE ${documentNativeFacet}
       AND ff.deleted_at IS NULL
       AND ${facetLabel} ILIKE ${pattern}
@@ -305,9 +289,8 @@ export async function searchReferences(
     executor,
     sql`SELECT f.id, f.name
         FROM folders f
-        JOIN folder_members m
-          ON m.folder_id = f.id AND m.user_id = ${viewerId}
-        WHERE f.deleted_at IS NULL AND f.name ILIKE ${pattern}
+        ${joinVisibleFolder(viewerId, { folder: 'f' })}
+        WHERE f.name ILIKE ${pattern}
         ORDER BY lower(f.name) ASC, f.id ASC
         LIMIT ${REFERENCE_SEARCH_LIMIT}`,
   )

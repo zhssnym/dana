@@ -41,6 +41,7 @@ import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
+import { allowedIn } from '../../shared/block-kinds.js'
 import { documentTransaction } from '../../shared/page-document.js'
 import type { DocumentOperation } from '../../shared/page-document.js'
 import type { SampleCounts, SampleStatus } from '../../shared/sample.js'
@@ -399,6 +400,8 @@ async function writeFacetDocument(
 ): Promise<void> {
   const keys = initialKeys(blocks.length)
   for (const [index, block] of blocks.entries()) {
+    // The facet applier's kind rule, since this insert does not go through it.
+    if (!allowedIn(block.kind, 'doc')) throw new Error(`The sample puts a ${block.kind} block on a facet.`)
     const { text, rich } = richText(ctx, block.text)
     await ctx.tx.execute(
       sql`INSERT INTO page_blocks (facet_id, kind, position, page_position, text, rich_content, checked)

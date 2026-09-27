@@ -37,6 +37,7 @@ import type { TaskCard } from '../../shared/tasks.js'
 import { LIST_ROW_CAP } from '../../shared/views.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
+import { joinVisibleFolder } from '../domain/folder-access.js'
 import { taskLabelsFor } from '../domain/labels.js'
 import { taskDependencyCountsFor } from '../domain/task-dependency-counts.js'
 import type { TaskDependencyCounts } from '../domain/task-dependency-counts.js'
@@ -168,6 +169,36 @@ export const SCHEDULE_DATE = sql`coalesce(t.due_date, t.start_date)`
  */
 export const ACTIVATION_DATE = sql`coalesce(t.start_date, t.due_date)`
 
+/**
+ * Where a row stands against the viewer's today: overdue, started, today,
+ * future or undated.
+ *
+ * The server's statement of the rule, for GET /views/focus's filters. It stays server-side and is not on the card: the client
+ * still has its own copies (`rungForTask` in client/views/ladder.ts for
+ * Upcoming's headings, `stageOf`, grouping.ts, BoardView). Arm for arm it is
+ * `rungForTask` with every rung after today folded into `future`:
+ *
+ * - a deadline before today is overdue, started or not;
+ * - an open task whose start has arrived is started;
+ * - with neither date it is undated;
+ * - otherwise the schedule date decides, and a schedule date before today on
+ *   a row that is not pending (a start-only task someone dropped) is overdue,
+ *   as `rungFor` has it.
+ *
+ * A null date fails its comparison and falls through, which is the point of
+ * the order. guard-rung-parity.test.ts holds the two together.
+ */
+export function rungOf(todayLocal: string): SQL {
+  const day = sql`${todayLocal}::date`
+  return sql`CASE
+      WHEN t.due_date < ${day} THEN 'overdue'
+      WHEN t.status = 'pending' AND t.start_date <= ${day} THEN 'started'
+      WHEN ${SCHEDULE_DATE} IS NULL THEN 'undated'
+      WHEN ${SCHEDULE_DATE} < ${day} THEN 'overdue'
+      WHEN ${SCHEDULE_DATE} = ${day} THEN 'today'
+      ELSE 'future' END`
+}
+
 /* ------------------------------------------------------------------ *
  * The row
  * ------------------------------------------------------------------ */
@@ -229,11 +260,7 @@ export function accessibleTasks(viewerId: string): SQL {
   // is (4.5). Written here once so no view can scope itself differently.
   return sql`
     FROM tasks t
-    JOIN folder_members m
-      ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-    JOIN folders f
-      ON f.id = t.folder_id
-     AND f.deleted_at IS NULL
+    ${joinVisibleFolder(viewerId, { folderId: sql`t.folder_id`, folder: 'f' })}
      AND t.deleted_at IS NULL`
 }
 

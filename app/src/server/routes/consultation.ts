@@ -49,7 +49,7 @@ import {
   updateDiscussion,
 } from '../domain/consultation.js'
 import type { ConsultationOutcome } from '../domain/consultation.js'
-import { accessOf } from '../domain/folders.js'
+import { accessOf } from '../domain/folder-access.js'
 import { removeObjects } from '../domain/trash.js'
 import type { ObjectStore } from '../files/store.js'
 import {
@@ -62,6 +62,7 @@ import { createSecurityLogger } from '../security/log.js'
 import type { SecurityLogger } from '../security/log.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
+import { retiredRoute } from '../observability/retired-route.js'
 import { routerWithPreamble } from './preamble.js'
 
 export interface ConsultationRouterOptions {
@@ -324,6 +325,7 @@ export function createConsultationRouter(
   router.get(
     '/discussions/:id/outcomes',
     requireSession,
+    retiredRoute(securityLog, 'get_discussion_outcomes'),
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return

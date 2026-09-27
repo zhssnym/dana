@@ -30,17 +30,8 @@ so a query that forgot the gate would return nothing rather than somebody
 else's writing.
 
 **A document-bearing facet uses 4.17's `page_blocks` scoped by `facet_id`.** #210 began with blank facets; #211 adds native Purpose; #213 adds native Results on the same terms.
-`applyFacetDocument` below is a facet-scoped sibling of
-`domain/page-document.ts`'s `applyDocument` rather than a parameterization of
-it, and that is a decision worth stating. The folder page's applier carries
-Tasks, Sections, folder references, a `files` scope and a previous-outline
-diff. A facet refuses `create_task`, semantic `section` and `folder_ref`; #211
-admits list nesting for a facet-homed list item while keeping Section membership
-folder-only. Threading a third home through that function
-would have put a branch inside every one of those rules; what is here instead
-is the subset a facet actually admits, with the refusals named. The **wire
-contract is 7.16's, unchanged**: the same `document_transaction` body, the
-same `base_revision` token, the same `{revision, blocks, items}` read.
+Its page and its writer live in facet-document.ts, in the documents brick,
+so that the one body writer stays above this brick.
 */
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
@@ -49,29 +40,22 @@ import type { Db } from '../../../db/client.js'
 import {
   DEFAULT_FACET_NAMES,
   isBlankFacetKind,
-  isDocumentNativeFacetKind,
   isHideableFacetKind,
   isNativeFacetKind,
   isRenameableFacetKind,
   NATIVE_TAB_ORDER,
 } from '../../shared/facets.js'
 import type { Facet, FacetKind } from '../../shared/facets.js'
-import type {
-  DocumentOperation,
-  DocumentTransaction,
-  PageBlock,
-  PageView,
-} from '../../shared/pages.js'
 import type { TrashedFacet } from '../../shared/trash.js'
-import { nestingProblem } from './document-outline.js'
-import { hashableBlocks } from './document-hash.js'
-import { fileReclaimedAt } from './pages.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
-import { documentHash } from './document-hash.js'
 import { recordEvent } from './events.js'
-import { syncMentions } from './mentions.js'
-import { mayPerform, presetOf } from './folder-access.js'
+import {
+  joinVisibleFolder,
+  mayPerform,
+  presetFromRow,
+  resolveScoped,
+} from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import { initialKeys, keyBetween } from './fractional-index.js'
 
@@ -87,10 +71,6 @@ function toIso(value: unknown): string {
 
 function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
-}
-
-function nullableInt(value: unknown): number | null {
-  return value === null || value === undefined ? null : Number(value)
 }
 
 /**
@@ -285,7 +265,7 @@ export async function deletePrivateFacetsOf(
  * The locked read every write begins with
  * ------------------------------------------------------------------ */
 
-interface LockedFacet {
+export interface LockedFacet {
   id: string
   folderId: string
   kind: FacetKind
@@ -313,7 +293,7 @@ interface LockedFacet {
  * such row" in order to answer 404 for both deliberately rather than by
  * accident, and to refuse a share of a facet that is not the actor's.
  */
-async function lockedFacet(
+export async function lockedFacet(
   tx: Executor,
   folderId: string,
   facetId: string,
@@ -368,7 +348,7 @@ async function lockedFacet(
  * A private facet belonging to somebody else answers the same as a row that
  * does not exist, which is why both are `null` at every call site.
  */
-function visibleTo(facet: LockedFacet, viewerId: string): boolean {
+export function visibleTo(facet: LockedFacet, viewerId: string): boolean {
   return facet.ownerId === null || facet.ownerId === viewerId
 }
 
@@ -1087,21 +1067,14 @@ export async function trashedFacets(
                (fo.owner_id = ${viewerId}) AS is_owner,
                h1.text AS h1_text
           FROM folder_facets ff
-          JOIN folder_members m
-            ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
-          JOIN folders fo ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
+          ${joinVisibleFolder(viewerId, { folderId: sql`ff.folder_id` })}
           LEFT JOIN page_blocks h1 ON h1.id = ff.h1_block_id
          WHERE ff.deleted_at IS NOT NULL
            AND (ff.owner_id IS NULL OR ff.owner_id = ${viewerId}::uuid)
          ORDER BY ff.deleted_at DESC, ff.id DESC`,
   )
   return rows.map((row): TrashedFacet => {
-    const access = presetOf(row.access)
-    if (access === null) {
-      throw new Error(
-        `folder_members.access holds an unknown preset for ${viewerId} in ${String(row.folder_id)}`,
-      )
-    }
+    const access = presetFromRow(row.access, viewerId, String(row.folder_id))
     const kind = String(row.kind) as FacetKind
     return {
       id: String(row.id),
@@ -1134,36 +1107,10 @@ async function trashedFacetFacts(
   viewerId: string,
   facetId: string,
 ): Promise<{ facts: FolderActorFacts; folderTrashed: boolean } | null> {
-  const found = await rowsOf(
-    tx,
-    sql`SELECT ff.folder_id, fo.name, fo.is_default, m.access,
-               (fo.owner_id = ${viewerId}) AS is_owner,
-               (fo.deleted_at IS NOT NULL) AS folder_trashed
-          FROM folder_facets ff
-          JOIN folder_members m
-            ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
-          JOIN folders fo ON fo.id = ff.folder_id
-         WHERE ff.id = ${facetId}::uuid`,
-  )
-  const row = found[0]
-  if (row === undefined) return null
-  const access = presetOf(row.access)
-  if (access === null) {
-    throw new Error(
-      `folder_members.access holds an unknown preset for ${viewerId} in ${String(row.folder_id)}`,
-    )
-  }
-  return {
-    facts: {
-      folderId: String(row.folder_id),
-      actorId: viewerId,
-      access,
-      isOwner: row.is_owner === true,
-      isDefault: row.is_default === true,
-      name: String(row.name),
-    },
-    folderTrashed: row.folder_trashed === true,
-  }
+  return resolveScoped(tx, 'facet', facetId, viewerId, {
+    row: 'any',
+    folder: 'any',
+  })
 }
 
 /**
@@ -1283,551 +1230,5 @@ export async function destroyFacet(
       detail: 'deleted a facet permanently',
     })
     return { kind: 'ok', value: null } as const
-  })
-}
-
-/* ------------------------------------------------------------------ *
- * The facet document (7.16's contract, facet-scoped)
- * ------------------------------------------------------------------ */
-
-/**
- * A facet's page, or null when the caller may not see the facet.
- *
- * The shape is 7.16's `PageView` exactly: `revision`, `blocks`, `items`, and
- * an always-empty `task_placements`, because **no Task row ever belongs to a
- * facet** and the absence is #210's core rule rather than a gap. It is sent
- * rather than omitted so that one client reader serves both pages.
- */
-function facetBlockFromRow(row: Record<string, unknown>): PageBlock {
-  return {
-    id: String(row.id),
-    kind: String(row.kind) as PageBlock['kind'],
-    position: Number(row.position),
-    page_position: nullableString(row.page_position),
-    section_block_id: null,
-    list_parent_block_id: nullableString(row.list_parent_block_id),
-    toggleable: row.toggleable === true ? true : null,
-    checked: row.checked === null || row.checked === undefined ? null : Boolean(row.checked),
-    rich_content: (row.rich_content ?? null) as PageBlock['rich_content'],
-    text: nullableString(row.text),
-    file_id: nullableString(row.file_id),
-    file_width: nullableInt(row.file_width),
-    file_height: nullableInt(row.file_height),
-    file_reclaimed_at: fileReclaimedAt(row),
-    file_name: nullableString(row.file_name),
-    ref_folder_id: null,
-    width_pct: row.width_pct === null || row.width_pct === undefined ? null : Number(row.width_pct),
-    updated_at: toIso(row.updated_at),
-  }
-}
-
-async function facetDocumentMetadata(
-  tx: Executor,
-  facetId: string,
-): Promise<{ revision: string }> {
-  const blocks = await rowsOf(
-    tx,
-    sql`SELECT id, kind, text, rich_content, file_id, width_pct, checked,
-               list_parent_block_id, page_position, position, toggleable
-          FROM page_blocks WHERE facet_id = ${facetId}::uuid ORDER BY id`,
-  ).then(hashableBlocks)
-  /* The facet id is inside the hash, and that is load-bearing rather than
-     decorative. `page_document_receipts` is keyed (actor, folder, mutation),
-     with no room for a facet, so a client that sent one mutation id to two
-     documents of one folder would otherwise be handed the other document's
-     receipt and told `replayed: true`. With the id in the hash it is told
-     `stale` instead, which is the honest answer to "this retry identity
-     already belongs to a different edit". */
-  return { revision: documentHash({ facet: facetId, blocks, tasks: [] }) }
-}
-
-export async function facetPageView(
-  db: Db,
-  facetId: string,
-): Promise<PageView> {
-  return inTransaction(db, async (tx) => {
-    const blocks = await rowsOf(
-      tx,
-      sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
-                 b.list_parent_block_id, b.toggleable, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
-                 f.width AS file_width, f.height AS file_height, f.name AS file_name
-            FROM page_blocks b
-            LEFT JOIN files f ON f.id = b.file_id
-           WHERE b.facet_id = ${facetId}::uuid
-           ORDER BY b.page_position ASC NULLS LAST, b.position, b.updated_at, b.id`,
-    )
-    const metadata = await facetDocumentMetadata(tx, facetId)
-    return {
-      revision: metadata.revision,
-      task_placements: [],
-      blocks: blocks.map(facetBlockFromRow),
-      items: blocks.map((row) => ({ kind: 'block' as const, id: String(row.id) })),
-    }
-  })
-}
-
-/**
- * A refusal from the facet document applier. The four kinds map onto 7.16's
- * own answers: `stale` is 409, `not_found` is 404, and `invalid` is the 422
- * the route formats with the field name.
- */
-export class FacetDocumentRefusal extends Error {
-  constructor(
-    /** `forbidden` joined the three on 2026-09-21: the page gate now runs
-     * inside this function's own transaction, so its 403 has to leave by the
-     * same door its 404 does. */
-    readonly outcome: 'stale' | 'not_found' | 'invalid' | 'forbidden',
-    message: string,
-    readonly field?: string,
-  ) {
-    super(message)
-  }
-}
-
-/**
- * 7.16's document transaction over a facet's own blocks.
- *
- * **Three operational things are refused here that the folder page admits**:
- *
- * - `create_task`, because no Task row ever belongs to a facet (#210's core
- *   rule, and the reason no column on `tasks` names one);
- * - a `section` block, because a facet document has no Sections --
- *   `page_blocks_section_membership_check` says the same thing in the database
- *   and was already exactly right before #210 touched anything;
- * - a `folder_ref` block, because a facet is a view of one Folder and a
- *   reference out of it is Main's to carry.
- *
- * #211 supersedes #210's temporary no-nested-list limitation: a nested list
- * item is admitted only when both ends are list items of this same facet and
- * the parent occurs earlier in the final outline. Migration 0028 widens the
- * database CHECK in the same direction.
- *
- * A media block's `file_id` is scoped to the facet's **folder**, which is
- * `domain/pages.ts`'s `fileScopeCondition` for a folder-homed page: a facet
- * belongs to one folder and its pictures are that folder's.
- */
-export async function applyFacetDocument(
-  db: Db,
-  facts: FolderActorFacts,
-  facetId: string,
-  body: DocumentTransaction,
-): Promise<PageView> {
-  const viewerId = facts.actorId
-  const folderId = facts.folderId
-  return inTransaction(db, async (tx) => {
-    /*
-    **The gate runs here, inside the transaction that writes**, and that is a
-    correction rather than a tidy-up (adversarial review of 16ce81b). It used
-    to run in `facetPageGate`, which opened a transaction of its own and
-    committed before this one started: the `FOR UPDATE` it took was released
-    before the first statement of the write, so a conversion landing in that
-    window was authorized by a row this function never saw. #228's
-    Assigned-work rule -- the fact a gate reads must be the fact the mutation
-    sees, in one snapshot under one lock -- is what `whenOwnPrivateFacet`
-    inherits, and it was not being kept.
-
-    Everything below therefore runs against a facet row this transaction holds
-    a lock on until it commits.
-    */
-    const gated = await facetPageGateIn(tx, facts, facetId, true)
-    if (gated.kind === 'not_found') {
-      throw new FacetDocumentRefusal('not_found', 'Not found.')
-    }
-    if (gated.kind === 'forbidden') {
-      throw new FacetDocumentRefusal('forbidden', gated.reason)
-    }
-    /* `facetPageGateIn` answers only those three and `ok`, so this arm is
-       unreachable; it exists because a discriminated union with an unhandled
-       member is a defect waiting for the day somebody adds one. */
-    if (gated.kind !== 'ok') {
-      throw new FacetDocumentRefusal('invalid', gated.message, 'operations')
-    }
-
-    const hash = documentHash({ facet: facetId, body })
-    const receipts = await rowsOf(
-      tx,
-      sql`SELECT payload_hash, committed_revision FROM page_document_receipts
-           WHERE actor_id = ${viewerId}::uuid AND folder_id = ${folderId}::uuid
-             AND mutation_id = ${body.mutation_id}::uuid`,
-    )
-    const receipt = receipts[0]
-    if (receipt !== undefined) {
-      if (receipt.payload_hash !== hash) {
-        throw new FacetDocumentRefusal(
-          'stale',
-          'This retry identity already belongs to a different edit.',
-        )
-      }
-      const replayed = await facetPageViewIn(tx, facetId)
-      return {
-        ...replayed,
-        mutation: {
-          mutation_id: body.mutation_id,
-          committed_revision: String(receipt.committed_revision),
-          replayed: true,
-          created_task_ids: [],
-        },
-      }
-    }
-
-    const before = await facetDocumentMetadata(tx, facetId)
-    if (before.revision !== body.base_revision) {
-      throw new FacetDocumentRefusal(
-        'stale',
-        'The page changed. Your draft is retained; reconcile it with the current page.',
-      )
-    }
-
-    const stored = await rowsOf(
-      tx,
-      sql`SELECT id, kind, list_parent_block_id FROM page_blocks WHERE facet_id = ${facetId}::uuid FOR UPDATE`,
-    )
-    const original = new Set(stored.map((row) => String(row.id)))
-    const blocks = new Set(original)
-
-    const writes = new Map<string, Extract<DocumentOperation, { op: 'put_block' }>>()
-    const storedKinds = new Map(
-      stored.map((row) => [String(row.id), String(row.kind)]),
-    )
-    /**
-     * Every id the operations **name**, whether or not it survives the merge.
-     *
-     * This set exists because the merged set does not answer the question.
-     * `blocks` is what the document will hold when the transaction is done, so
-     * an id that a `put_block` added and a `delete_block` took away again is
-     * absent from it -- and that pair is exactly what the adversarial review
-     * of 16ce81b used to reach somebody else's rows. The scope check below
-     * reads this instead, so an id is audited because it was *mentioned*, not
-     * because it happened to still be in the document afterwards.
-     */
-    const named = new Set<string>()
-    let outline: { id: string; kind: 'block' | 'task'; listParent: string | null }[] = []
-
-    for (const op of body.operations) {
-      if (op.op === 'create_task') {
-        throw new FacetDocumentRefusal(
-          'invalid',
-          'a facet holds no Tasks; create it on the Folder page instead',
-          'operations',
-        )
-      }
-      /* Wave 2: sub-pages live in a Folder's Main document alone. Named
-         before anything else so a new op never falls into the outline
-         branch below. */
-      if (
-        op.op === 'create_page' ||
-        op.op === 'trash_page' ||
-        (op.op === 'put_block' && op.block_kind === 'page')
-      ) {
-        throw new FacetDocumentRefusal('invalid', "A page block lives only on a folder's page.", 'operations')
-      }
-      if (op.op === 'put_block') {
-        if (op.block_kind === 'section') {
-          throw new FacetDocumentRefusal(
-            'invalid',
-            'a facet document has no Sections',
-            'operations',
-          )
-        }
-        if (op.block_kind === 'folder_ref') {
-          throw new FacetDocumentRefusal(
-            'invalid',
-            'a folder reference belongs on the Folder page',
-            'operations',
-          )
-        }
-        /* #213: a native Result belongs to the Results facet alone. */
-        if (op.block_kind === 'result' && gated.value.kind !== 'results') {
-          throw new FacetDocumentRefusal('invalid', 'A Result lives on the Results tab.', 'operations')
-        }
-        writes.set(op.id, op)
-        blocks.add(op.id)
-        named.add(op.id)
-        continue
-      }
-      if (op.op === 'delete_block') {
-        if (!blocks.delete(op.id)) {
-          /* **404 and not the 422 below, on 10.2.** With no `put_block` beside
-             it the caller has named a block this document does not hold and
-             has asked for nothing to be written; "Block not found" says
-             nothing about whether the id exists somewhere else, which is the
-             answer a prober must get. The 422 below fires only where the
-             caller also tried to *write* the id, which 7.16's own folder-page
-             applier already answers with a refusal naming the clash. */
-          throw new FacetDocumentRefusal('not_found', 'Block not found.')
-        }
-        named.add(op.id)
-        continue
-      }
-      outline = op.items.map((item) => ({
-        id: item.id,
-        kind: item.kind,
-        listParent: item.list_parent_block_id,
-      }))
-    }
-
-    if (blocks.size > 500) {
-      throw new FacetDocumentRefusal('invalid', 'A page holds at most 500 blocks.', 'operations')
-    }
-
-    const seen = new Set<string>()
-    for (const item of outline) {
-      if (item.kind !== 'block' || !blocks.has(item.id) || seen.has(item.id)) {
-        throw new FacetDocumentRefusal(
-          'invalid',
-          'The outline has unknown or repeated identities.',
-          'operations',
-        )
-      }
-      seen.add(item.id)
-    }
-    if (seen.size !== blocks.size) {
-      throw new FacetDocumentRefusal(
-        'invalid',
-        'The outline must retain every undeleted block.',
-        'operations',
-      )
-    }
-    // Block nesting (0038), the rule every document home shares.
-    const nesting = nestingProblem(
-      outline.map((item) => ({
-        kind: item.kind,
-        id: item.id,
-        section_block_id: null,
-        list_parent_block_id: item.listParent,
-      })),
-      (id) => (blocks.has(id) ? (writes.get(id)?.block_kind ?? storedKinds.get(id)) : undefined),
-    )
-    if (nesting !== null) {
-      throw new FacetDocumentRefusal('invalid', nesting, 'list_parent_block_id')
-    }
-
-    /* The file scope, asked only of the blocks this transaction writes and
-       never of the merged document -- the scoping #220's adversarial review
-       settled for the folder page, transcribed rather than re-argued. A file
-       must be in this facet's folder; a file that is elsewhere and a file that
-       does not exist answer the same thing (10.2). */
-    for (const write of writes.values()) {
-      if (write.file_id === null) continue
-      const files = await rowsOf(
-        tx,
-        sql`SELECT 1 AS present FROM files
-             WHERE id = ${write.file_id}::uuid AND folder_id = ${folderId}::uuid`,
-      )
-      if (files.length === 0) {
-        throw new FacetDocumentRefusal(
-          'invalid',
-          'must name a file you can reach',
-          'file_id',
-        )
-      }
-    }
-
-    /*
-    **The scope check, and it is the one this function got wrong.** Found by
-    the adversarial review of 16ce81b: `[put_block(victimId),
-    delete_block(victimId), set_outline(...)]` made the id vanish from the
-    merged set before the collision check read it, and the write pass then
-    issued `DELETE FROM page_blocks WHERE id = $1` with no `facet_id` clause.
-    **Any block in Dana could be deleted by anyone holding its id**, through a
-    private facet in their own Desk, with no membership of the folder it lived
-    in.
-
-    Three things close it, and each is load-bearing on its own:
-
-    1. **This check reads `named` rather than the merged set**, so an id is
-       audited because the operations mentioned it. `original` holds every
-       block this facet has, so an id outside it that exists anywhere at all --
-       another facet, a folder page, a shelf page, or a Task -- is not this
-       facet's to write.
-    2. **Deletions are derived rather than accumulated**, below: `original`
-       minus the final set, which is `page-document.ts`'s own shape and cannot
-       name a row the facet did not already hold.
-    3. **The statement carries `AND facet_id = $facetId`.** Redundant given (2)
-       and written anyway, because (2) is an invariant of twenty lines of
-       merging while this is a clause on the statement that does the damage.
-
-    `tasks` is in the union for the reason 7.16's applier puts it there: ids
-    are one space across the two tables, and a block minted over a Task's id
-    would make one identity name two things.
-    */
-    const foreign = [...named].filter((id) => !original.has(id))
-    if (foreign.length > 0) {
-      const ids = sql.join(
-        foreign.map((id) => sql`${id}::uuid`),
-        sql`, `,
-      )
-      const clashes = await rowsOf(
-        tx,
-        sql`SELECT id FROM page_blocks WHERE id IN (${ids})
-            UNION ALL
-            SELECT id FROM tasks WHERE id IN (${ids})`,
-      )
-      if (clashes.length > 0) {
-        throw new FacetDocumentRefusal(
-          'invalid',
-          "names a block this facet does not hold; an identity that already exists elsewhere is not this facet's to write",
-          'operations',
-        )
-      }
-    }
-
-    /* Every refusal precedes the first write, and the deletions are whatever
-       is left of this facet's **own** blocks after the merge -- never a set the
-       operations built. */
-    const removed = [...original].filter((id) => !blocks.has(id))
-    for (const id of [...writes.keys()]) {
-      /* A block put and then deleted in one transaction is written by neither
-         pass. Without this it would be inserted after being "removed", which
-         is the merged set's own semantics said out loud. */
-      if (!blocks.has(id)) writes.delete(id)
-    }
-    for (const id of removed) {
-      await tx.execute(
-        sql`DELETE FROM page_blocks
-             WHERE id = ${id}::uuid AND facet_id = ${facetId}::uuid`,
-      )
-    }
-    for (const write of writes.values()) {
-      await tx.execute(
-        sql`INSERT INTO page_blocks
-              (id, facet_id, kind, position, text, rich_content, file_id, width_pct, checked, toggleable)
-            VALUES (${write.id}::uuid, ${facetId}::uuid, ${write.block_kind}, 0,
-                    ${write.text},
-                    ${write.rich_content === null ? null : JSON.stringify(write.rich_content)}::jsonb,
-                    ${write.file_id}::uuid, ${write.width_pct},
-                    ${write.block_kind === 'checklist' ? (write.checked ?? false) : null},
-                    ${write.toggleable === true ? true : null})
-            ON CONFLICT (id) DO UPDATE
-               SET kind = EXCLUDED.kind, text = EXCLUDED.text,
-                   rich_content = EXCLUDED.rich_content,
-                   file_id = EXCLUDED.file_id, width_pct = EXCLUDED.width_pct,
-                   checked = EXCLUDED.checked, toggleable = EXCLUDED.toggleable,
-                   file_reclaimed_at = CASE
-                     WHEN EXCLUDED.file_id IS NULL AND EXCLUDED.kind = page_blocks.kind
-                     THEN page_blocks.file_reclaimed_at END,
-                   updated_at = now()`,
-      )
-    }
-    await syncMentions(tx, { pageFolderId: folderId, actorId: viewerId, blockIds: writes.keys(), refuse: (m) => new FacetDocumentRefusal('invalid', m, 'rich_content') })
-    /* **`AND facet_id` here is the same belt-and-braces the DELETE two loops
-       above carries, and it is unreachable today for the same reason.** Every
-       id in `outline` was checked against `blocks` a hundred lines up, and
-       `blocks` is seeded from this facet's own rows and can only have grown by
-       ids the scope check cleared -- so an `item.id` that is not this facet's
-       cannot exist by the time this loop runs. The clause is written anyway,
-       because that argument is an invariant of a long merge and this is a
-       clause on the statement that would do the damage. The same sentence, in
-       the same words, as the delete's: the adversarial review of 16ce81b found
-       the merge wrong once. */
-    const keys = initialKeys(outline.length)
-    for (const [index, item] of outline.entries()) {
-      await tx.execute(
-        sql`UPDATE page_blocks
-               SET page_position = ${keys[index] as string}, position = ${index},
-                   list_parent_block_id = ${item.listParent}::uuid
-             WHERE id = ${item.id}::uuid AND facet_id = ${facetId}::uuid`,
-      )
-    }
-
-    const committed = await facetDocumentMetadata(tx, facetId)
-    // An object, not an array: only an array-valued receipt marks the Folder
-    // page itself as on the document path (pages.ts), and a facet document's
-    // write must not shut the deployed client's legacy Folder page writer.
-    await tx.execute(
-      sql`INSERT INTO page_document_receipts
-            (actor_id, folder_id, mutation_id, payload_hash, committed_revision, created_task_ids)
-          VALUES (${viewerId}::uuid, ${folderId}::uuid, ${body.mutation_id}::uuid,
-                  ${hash}, ${committed.revision}, ${JSON.stringify({ facet_id: facetId })}::jsonb)`,
-    )
-    const view = await facetPageViewIn(tx, facetId)
-    return {
-      ...view,
-      mutation: {
-        mutation_id: body.mutation_id,
-        committed_revision: committed.revision,
-        replayed: false,
-        created_task_ids: [],
-      },
-    }
-  })
-}
-
-/** `facetPageView`'s body, for a caller that already has a transaction. */
-async function facetPageViewIn(tx: Executor, facetId: string): Promise<PageView> {
-  const blocks = await rowsOf(
-    tx,
-    sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
-               b.list_parent_block_id, b.toggleable, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
-               f.width AS file_width, f.height AS file_height, f.name AS file_name
-          FROM page_blocks b
-          LEFT JOIN files f ON f.id = b.file_id
-         WHERE b.facet_id = ${facetId}::uuid
-         ORDER BY b.page_position ASC NULLS LAST, b.position, b.updated_at, b.id`,
-  )
-  const metadata = await facetDocumentMetadata(tx, facetId)
-  return {
-    revision: metadata.revision,
-    task_placements: [],
-    blocks: blocks.map(facetBlockFromRow),
-    items: blocks.map((row) => ({ kind: 'block' as const, id: String(row.id) })),
-  }
-}
-
-/**
- * The gate the two facet page routes share, and the one place the two
- * different answers live.
- *
- * A **shared** blank facet's document is ordinary shared Work and is governed
- * by the existing `folder.page.edit`. A **private** one is governed by
- * `facet.read` alone, which no preset satisfies -- so Full control and the
- * structural owner are refused by the same line that refuses everybody else.
- *
- * A **Work facet has no page of its own**: it reads and writes
- * `/folders/:id/page`, and asking for its page is 404 rather than an empty
- * document, because an empty document would be a second place to write that
- * nothing ever reads back.
- */
-async function facetPageGateIn(
-  tx: Executor,
-  facts: FolderActorFacts,
-  facetId: string,
-  writing: boolean,
-): Promise<FacetOutcome<LockedFacet>> {
-  const facet = await lockedFacet(tx, facts.folderId, facetId, writing)
-  if (
-    facet === null ||
-    !visibleTo(facet, facts.actorId) ||
-    facet.deletedAt !== null ||
-    !(isBlankFacetKind(facet.kind) || isDocumentNativeFacetKind(facet.kind))
-  ) {
-    return notFound
-  }
-  const action = facet.ownerId === null ? 'folder.page.edit' : 'facet.read'
-  /* A shared facet's *read* is any member's, which is `folder.read`; only
-     the write takes `folder.page.edit`. A private facet's read and write are
-     the same question, because the only person who may read it is the only
-     person who may write it. */
-  const asked = facet.ownerId === null && !writing ? 'folder.read' : action
-  const decision = mayPerform(facts, asked, { facetOwnerId: facet.ownerId })
-  if (!decision.allowed) {
-    return { kind: 'forbidden', reason: decision.reason } as const
-  }
-  return { kind: 'ok', value: facet } as const
-}
-
-/** The **read** gate, for `GET /folders/:id/facets/:facetId/page` and nothing
- * else. It locks nothing, because a read has no write to serialise against;
- * the write path reaches the same rule through `facetPageGateIn` inside its
- * own transaction, which is what keeps the answer and the write together. */
-export async function facetPageGate(
-  db: Db,
-  facts: FolderActorFacts,
-  facetId: string,
-): Promise<FacetOutcome<{ facetId: string }>> {
-  return inTransaction(db, async (tx) => {
-    const gated = await facetPageGateIn(tx, facts, facetId, false)
-    if (gated.kind !== 'ok') return gated
-    return { kind: 'ok', value: { facetId: gated.value.id } } as const
   })
 }

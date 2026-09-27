@@ -3,8 +3,9 @@ The Focus lists under the sidebar's Focus heading. Today and Upcoming for
 everyone, and Assigned only for a viewer on a page that has another member,
 because for someone alone it is every task they have (M4). The rest (Important,
 Overdue, No date, All open) are lists a viewer adds from the heading's "+":
-saved filters over the open tasks of every page, drawn by
-`pages/FocusListPage.tsx` at `/app/lists/<key>`.
+filters over the open tasks of every page, drawn by `pages/FocusListPage.tsx`
+at `/app/lists/<key>`. Every one of them is GET /views/focus: the server
+filters and groups (`server/views/focus.ts`), and a page draws what it gets.
 
 The viewer's choice and order live on the account (`focus_lists`, migration
 0050). A key left out is a hidden list, and the "+" offers it back. Each list
@@ -12,14 +13,13 @@ also carries its own identity, an icon, colour and cover (#353, #355).
 */
 import { useEffect } from 'react'
 
-import type { TaskCard } from '../../shared/tasks.js'
 import { DEFAULT_FOCUS_LISTS, FOCUS_LISTS } from '../../shared/bundle.js'
 import type { FocusAppearance, FocusListKey } from '../../shared/bundle.js'
 import { markIcon } from '../components/page/icon-manifest.js'
 import type { LucideIcon } from '../lib/icons.js'
 import { CalendarDays, CalendarX, CircleAlert, ListTodo, Star, SunMedium, UserRoundCheck } from '../lib/icons.js'
+import type { FocusAsk } from '../api/queries.js'
 import { paths } from '../routes.js'
-import { rungForTask } from '../views/ladder.js'
 import type { Place } from '../views/usePlace.js'
 
 export type { FocusListKey }
@@ -38,14 +38,12 @@ export interface FocusMark {
   readonly color?: string
 }
 
-/** A filtered list's rows out of every open task, given today's date. */
-export type FocusFilter = (task: TaskCard, today: string) => boolean
-
-export const FOCUS_FILTERS: Partial<Record<FocusListKey, FocusFilter>> = {
-  important: (task) => task.important,
-  overdue: (task, today) => task.due_date !== null && task.due_date < today,
-  undated: (task) => task.due_date === null && task.start_date === null,
-  open: () => true,
+/** What each added list asks GET /views/focus for. */
+export const FOCUS_ASKS: Partial<Record<FocusListKey, FocusAsk>> = {
+  important: { when: 'any', important: true, group: 'none' },
+  overdue: { when: 'overdue', group: 'none' },
+  undated: { when: 'undated', group: 'none' },
+  open: { when: 'any', group: 'none' },
 }
 
 export const FOCUS_EMPTY: Partial<Record<FocusListKey, string>> = {
@@ -123,32 +121,6 @@ export function isFocusKey(value: string | undefined): value is FocusListKey {
  */
 export function focusRows(lists: readonly FocusListKey[], shared: boolean): readonly FocusList[] {
   return lists.filter((key) => shared || key !== 'assignments').map(focusList)
-}
-
-/**
- * Upcoming's rows: from tomorrow on, for what Today already lists. Today (Q1)
- * holds the viewer's own late, started and due-today work, and any task the
- * viewer pulled in, so those are said once, there. A teammate's or an
- * unassigned task that is late, started or due today is on no Today, so it
- * stays here under its own heading rather than vanishing from both lists.
- */
-export function upcomingRows(
-  rows: readonly TaskCard[],
-  today: string,
-  viewerId: string | null,
-): readonly TaskCard[] {
-  return rows.filter((task) => {
-    if (task.pulled) return false
-    const rung = rungForTask(task, today).key
-    if (rung === 'undated') return false
-    const onToday = viewerId !== null && task.assignee?.id === viewerId
-    return !onToday || (rung !== 'overdue' && rung !== 'started' && rung !== 'today')
-  })
-}
-
-/** An open list's rows: a dropped task leaves the list; a done one lingers until the list refreshes. */
-export function withoutDropped(rows: readonly TaskCard[]): readonly TaskCard[] {
-  return rows.filter((task) => task.status !== 'abandoned')
 }
 
 /**

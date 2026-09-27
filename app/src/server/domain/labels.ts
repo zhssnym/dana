@@ -81,7 +81,12 @@ import type {
 import { idSet, inTransaction, pairSet, rowsOf } from '../database.js'
 import type { Executor, IdPair } from '../database.js'
 import { recordEvent } from './events.js'
-import { folderActorFacts, mayPerform } from './folder-access.js'
+import {
+  folderActorFacts,
+  joinVisibleFolder,
+  mayPerform,
+  visibleFolder,
+} from './folder-access.js'
 import type { FolderAction } from './folder-access.js'
 
 /* ------------------------------------------------------------------ *
@@ -175,9 +180,7 @@ export async function taskLabelsFor(
             FROM task_personal_labels tpl
             JOIN labels l ON l.id = tpl.label_id
             JOIN tasks t ON t.id = tpl.task_id AND t.deleted_at IS NULL
-            JOIN folders f ON f.id = t.folder_id AND f.deleted_at IS NULL
-            JOIN folder_members m
-              ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
+            ${joinVisibleFolder(viewerId, { folderId: sql`t.folder_id`, folder: 'f' })}
            WHERE tpl.owner_user_id = ${viewerId}
              AND tpl.task_id IN ${ids}
           UNION ALL
@@ -185,9 +188,7 @@ export async function taskLabelsFor(
             FROM task_folder_labels tfl
             JOIN labels l ON l.id = tfl.label_id
             JOIN tasks t ON t.id = tfl.task_id AND t.deleted_at IS NULL
-            JOIN folders f ON f.id = t.folder_id AND f.deleted_at IS NULL
-            JOIN folder_members m
-              ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
+            ${joinVisibleFolder(viewerId, { folderId: sql`t.folder_id`, folder: 'f' })}
            WHERE tfl.task_id IN ${ids}
         ) applied
         ORDER BY target_id ASC, bucket ASC, ${LABEL_ORDER}`,
@@ -237,9 +238,7 @@ export async function folderPersonalLabelsFor(
     sql`SELECT fpl.folder_id AS target_id, ${LABEL_COLUMNS}
         FROM folder_personal_labels fpl
         JOIN labels l ON l.id = fpl.label_id
-        JOIN folders f ON f.id = fpl.folder_id AND f.deleted_at IS NULL
-        JOIN folder_members m
-          ON m.folder_id = fpl.folder_id AND m.user_id = ${viewerId}
+        ${joinVisibleFolder(viewerId, { folderId: sql`fpl.folder_id`, folder: 'f' })}
        WHERE fpl.owner_user_id = ${viewerId}
          AND fpl.folder_id IN ${idSet(folderIds)}
        ORDER BY target_id ASC, ${LABEL_ORDER}`,
@@ -281,14 +280,11 @@ export async function listLabels(
   viewerId: string,
   query: GetLabelsQuery,
 ): Promise<ListLabelsResult> {
-  if (query.folder_id !== undefined) {
-    const reachable = await rowsOf(
-      db,
-      sql`SELECT 1 FROM folders f
-          JOIN folder_members m ON m.folder_id = f.id AND m.user_id = ${viewerId}
-          WHERE f.id = ${query.folder_id} AND f.deleted_at IS NULL`,
-    )
-    if (reachable.length === 0) return { kind: 'folder_not_found' }
+  if (
+    query.folder_id !== undefined &&
+    (await folderActorFacts(db, viewerId, query.folder_id)) === null
+  ) {
+    return { kind: 'folder_not_found' }
   }
 
   const state =
@@ -313,9 +309,7 @@ export async function listLabels(
     halves.push(sql`
       SELECT 1 AS scope_rank, l.folder_id AS folder_rank, ${LABEL_COLUMNS}
         FROM labels l
-        JOIN folders f ON f.id = l.folder_id AND f.deleted_at IS NULL
-        JOIN folder_members m
-          ON m.folder_id = l.folder_id AND m.user_id = ${viewerId}
+        ${joinVisibleFolder(viewerId, { folderId: sql`l.folder_id`, folder: 'f' })}
        WHERE l.scope = 'folder'${one}${state}`)
   }
   if (halves.length === 0) {
@@ -546,10 +540,7 @@ function writableLabel(
           AND l.owner_user_id = ${viewerId}`
     : sql`l.id = ${labelId} AND l.scope = 'folder'
           AND l.folder_id = ${folderId}
-          AND EXISTS (SELECT 1 FROM folders f
-                      JOIN folder_members m
-                        ON m.folder_id = f.id AND m.user_id = ${viewerId}
-                      WHERE f.id = l.folder_id AND f.deleted_at IS NULL)`
+          AND ${visibleFolder(sql`l.folder_id`, viewerId)}`
 }
 
 /**
@@ -706,11 +697,8 @@ async function visibleLabel(
         WHERE l.id = ${labelId}
           AND (
             (l.scope = 'personal' AND l.owner_user_id = ${viewerId})
-            OR (l.scope = 'folder' AND EXISTS (
-                  SELECT 1 FROM folders f
-                  JOIN folder_members m
-                    ON m.folder_id = f.id AND m.user_id = ${viewerId}
-                  WHERE f.id = l.folder_id AND f.deleted_at IS NULL))
+            OR (l.scope = 'folder'
+                AND ${visibleFolder(sql`l.folder_id`, viewerId)})
           )`,
   )
   const row = found[0]

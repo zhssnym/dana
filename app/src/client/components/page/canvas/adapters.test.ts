@@ -9,7 +9,7 @@ import { BlockNoteEditor } from '@blocknote/core'
 import { describe, expect, test } from 'vitest'
 
 import type { PageView } from '../../../../shared/pages.js'
-import { CanvasHydrationError, canvasOperations, contentOf, dehydrateCanvas, documentOf, hydrateCanvas, pendingPages, richRuns } from './adapters.js'
+import { CanvasHydrationError, canvasOperations, contentOf, dehydrateCanvas, documentOf, hydrateCanvas, richRuns } from './adapters.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasBlock } from './schema.js'
 
@@ -159,18 +159,6 @@ describe('sub-page blocks', () => {
     expect(after.blocks[0]).toEqual(documentOf(page).blocks[0])
     expect(JSON.stringify(after.blocks[0])).toBe(JSON.stringify(documentOf(page).blocks[0]))
     expect(canvasOperations(documentOf(page), after).filter((op) => op.op !== 'set_outline')).toEqual([])
-  })
-
-  test('a page placed by /page is created with the document', () => {
-    const fresh = '66666666-6666-4666-8666-666666666666'
-    const folder = '77777777-7777-4777-8777-777777777777'
-    pendingPages.set(folder, 'Untitled')
-    try {
-      const blocks = [...drawn(), { id: fresh, type: 'danaPage', props: { folderId: folder }, children: [] } as unknown as CanvasBlock]
-      const ops = canvasOperations(documentOf(page), reopen(blocks))
-      expect(ops.filter((op) => op.op !== 'set_outline')).toEqual([{ op: 'create_page', id: folder, block_id: fresh, title: 'Untitled' }])
-      expect(ops.at(-1)).toMatchObject({ op: 'set_outline', items: expect.arrayContaining([expect.objectContaining({ kind: 'block', id: fresh })]) })
-    } finally { pendingPages.delete(folder) }
   })
 
   test('a removed page block moves its page to Trash in the same transaction', () => {

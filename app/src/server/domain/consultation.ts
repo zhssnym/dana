@@ -55,8 +55,14 @@ import {
   onDiscussionResolved,
 } from './consultation-hooks.js'
 import { recordEvent } from './events.js'
-import { folderActorFacts, mayPerform, presetOf } from './folder-access.js'
+import {
+  folderActorFacts,
+  joinVisibleFolder,
+  mayPerform,
+  presetFromRow,
+} from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
+import { UNSTARTED_TASK_THREAD } from './tasks.js'
 
 export type ConsultationOutcome<T> =
   | { kind: 'ok'; value: T }
@@ -109,21 +115,6 @@ const DISCUSSION_COLUMNS = sql`
 /* The linked task (M5) is shown only while it is live and in the
    Discussion's own Folder, so the link never names a task its readers
    cannot open. */
-/**
- * A thread "Discuss" made on a task that nobody has written in yet (M5): no
- * post, no input round, no context, no decision, and made after its task (a
- * thread turned into a task is older than the task, so it never matches). The list and the
- * task page's link skip it, and the next "Discuss" reuses it, so looking
- * without talking leaves nothing behind. Reads `d`.
- */
-export const UNSTARTED_TASK_THREAD = sql`(
-  d.task_id IS NOT NULL AND d.context IS NULL AND d.current_outcome_id IS NULL
-  AND NOT EXISTS (SELECT 1 FROM comments uc WHERE uc.discussion_id = d.id)
-  AND NOT EXISTS (SELECT 1 FROM discussion_input_rounds ur
-                   WHERE ur.discussion_id = d.id)
-  AND EXISTS (SELECT 1 FROM tasks ut
-               WHERE ut.id = d.task_id AND ut.created_at <= d.created_at))`
-
 const DISCUSSION_FROM = sql`
   discussions d
   LEFT JOIN discussion_outcomes o ON o.id = d.current_outcome_id
@@ -1226,9 +1217,7 @@ export async function trashedDiscussions(
                fo.name AS folder_name, m.access,
                (fo.owner_id = ${viewerId}) AS is_owner
           FROM discussions d
-          JOIN folder_members m
-            ON m.folder_id = d.folder_id AND m.user_id = ${viewerId}
-          JOIN folders fo ON fo.id = d.folder_id AND fo.deleted_at IS NULL
+          ${joinVisibleFolder(viewerId, { folderId: sql`d.folder_id` })}
          WHERE d.trashed_at IS NOT NULL
          ORDER BY d.trashed_at DESC, d.id DESC`,
   )
@@ -1273,12 +1262,7 @@ function shapeTrashedDiscussion(
   row: Record<string, unknown>,
   viewerId: string,
 ): TrashedDiscussion {
-  const access = presetOf(row.access)
-  if (access === null) {
-    throw new Error(
-      `folder_members.access holds an unknown preset for ${viewerId} in ${String(row.folder_id)}`,
-    )
-  }
+  const access = presetFromRow(row.access, viewerId, String(row.folder_id))
   return {
     id: String(row.id),
     title: String(row.title),

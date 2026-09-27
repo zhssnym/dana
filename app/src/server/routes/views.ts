@@ -28,24 +28,28 @@ import type { Request, Response, Router } from 'express'
 import type { Db, DbClient } from '../../../db/client.js'
 import {
   doneQuery,
+  focusQuery,
   folderTasksQuery,
   plannedCalendarQuery,
   searchQuery,
   viewQuery,
 } from '../../shared/views.js'
 import { requireSession } from '../auth/index.js'
-import { accessOf } from '../domain/folders.js'
+import { accessOf } from '../domain/folder-access.js'
 import {
   sendError,
   sendFieldValidationError,
   sendValidationError,
 } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
+import { createSecurityLogger } from '../security/log.js'
+import type { SecurityLogger } from '../security/log.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { checkCalendarRange, CALENDAR_RANGE_MAX_DAYS } from '../time/index.js'
 import {
   allView,
   doneView,
+  focusView,
   folderCompletedView,
   folderOpenView,
   importantView,
@@ -55,16 +59,19 @@ import {
   searchView,
   tasksView,
 } from '../views/index.js'
+import { retiredRoute } from '../observability/retired-route.js'
 import { routerWithPreamble } from './preamble.js'
 
 export interface ViewsRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
+  securityLog?: SecurityLogger
 }
 
 export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const searchLimit = optionalLimit(options.rateLimits?.search)
+  const securityLog = options.securityLog ?? createSecurityLogger()
 
   /**
    * The tz every view takes (7.0), and the whole of what six of the nine
@@ -88,6 +95,7 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
   router.get(
     '/views/my-day',
     requireSession,
+    retiredRoute(securityLog, 'get_views_my_day'),
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -113,10 +121,27 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
       res.status(200).json(await read(db, viewer(req)))
     }
 
-  router.get('/views/tasks', requireSession, page(tasksView))
-  router.get('/views/planned', requireSession, page(plannedView))
-  router.get('/views/important', requireSession, page(importantView))
+  router.get('/views/tasks', requireSession, retiredRoute(securityLog, 'get_views_tasks'), page(tasksView))
+  router.get('/views/planned', requireSession, retiredRoute(securityLog, 'get_views_planned'), page(plannedView))
+  router.get('/views/important', requireSession, retiredRoute(securityLog, 'get_views_important'), page(importantView))
   router.get('/views/all', requireSession, page(allView))
+
+  /*
+  The Focus lists' one query (views/focus.ts). No path id, so no ac-397 row;
+  it scopes itself through accessibleTasks like every list here, and
+  guard-list-visibility drives it as a stranger.
+  */
+  router.get('/views/focus', requireSession, async (req: Request, res: Response) => {
+    const db = database(res)
+    if (db === null) return
+    const parsed = focusQuery.safeParse(req.query)
+    if (!parsed.success) {
+      sendValidationError(res, parsed.error)
+      return
+    }
+    const { tz, ...query } = parsed.data
+    res.status(200).json(await focusView(db, viewer(req), tz, query))
+  })
 
   router.get(
     '/views/planned/calendar',

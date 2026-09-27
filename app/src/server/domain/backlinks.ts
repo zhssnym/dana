@@ -50,6 +50,7 @@ import { parseDanaLink } from '../../shared/references.js'
 import type { ReferenceTarget } from '../../shared/references.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
+import { joinVisibleFolder } from './folder-access.js'
 
 /** A safety bound on the rows one source query scans after the uuid prefilter.
  * Far above any real count; it exists so no call is unbounded. */
@@ -117,9 +118,7 @@ export async function backlinksOf(
     sql`SELECT pb.id, pb.kind, pb.ref_folder_id, pb.rich_content,
                f.id AS home_id, f.name AS label
           FROM page_blocks pb
-          JOIN folders f ON f.id = pb.folder_id AND f.deleted_at IS NULL
-          JOIN folder_members m
-            ON m.folder_id = f.id AND m.user_id = ${viewerId}
+          ${joinVisibleFolder(viewerId, { folderId: sql`pb.folder_id`, folder: 'f' })}
          WHERE (pb.rich_content::text LIKE ${pattern} OR ${folderRef})
          ORDER BY pb.page_position ASC NULLS LAST, pb.position ASC, pb.id ASC
          LIMIT ${SCAN_BOUND}`,
@@ -174,9 +173,7 @@ export async function backlinksOf(
           JOIN folder_facets ff
             ON ff.id = pb.facet_id AND ff.deleted_at IS NULL
            AND (ff.owner_id IS NULL OR ff.owner_id = ${viewerId})
-          JOIN folders fo ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
-          JOIN folder_members m
-            ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
+          ${joinVisibleFolder(viewerId, { folderId: sql`ff.folder_id` })}
          WHERE (pb.rich_content::text LIKE ${pattern} OR ${folderRef})
          ORDER BY pb.page_position ASC NULLS LAST, pb.position ASC, pb.id ASC
          LIMIT ${SCAN_BOUND}`,
@@ -200,9 +197,7 @@ export async function backlinksOf(
                t.id AS home_id, t.folder_id, t.title AS label
           FROM page_blocks pb
           JOIN tasks t ON t.id = pb.task_id AND t.deleted_at IS NULL
-          JOIN folders fo ON fo.id = t.folder_id AND fo.deleted_at IS NULL
-          JOIN folder_members m
-            ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
+          ${joinVisibleFolder(viewerId, { folderId: sql`t.folder_id` })}
          WHERE pb.rich_content::text LIKE ${pattern}
          ORDER BY pb.page_position ASC NULLS LAST, pb.position ASC, pb.id ASC
          LIMIT ${SCAN_BOUND}`,
@@ -224,9 +219,7 @@ export async function backlinksOf(
     executor,
     sql`SELECT r.content, r.member_id, f.id AS home_id, f.name AS label
           FROM folder_responsibilities r
-          JOIN folders f ON f.id = r.folder_id AND f.deleted_at IS NULL
-          JOIN folder_members m
-            ON m.folder_id = r.folder_id AND m.user_id = ${viewerId}
+          ${joinVisibleFolder(viewerId, { folderId: sql`r.folder_id`, folder: 'f' })}
          WHERE r.ended_at IS NULL AND r.content::text LIKE ${pattern}
          ORDER BY r.created_at ASC, r.id ASC
          LIMIT ${SCAN_BOUND}`,
@@ -249,9 +242,7 @@ export async function backlinksOf(
     sql`SELECT c.id, c.content, c.folder_id,
                d.id AS home_id, d.title AS label
           FROM comments c
-          JOIN folders fo ON fo.id = c.folder_id AND fo.deleted_at IS NULL
-          JOIN folder_members m
-            ON m.folder_id = c.folder_id AND m.user_id = ${viewerId}
+          ${joinVisibleFolder(viewerId, { folderId: sql`c.folder_id` })}
           JOIN discussions d
             ON d.id = c.discussion_id AND d.trashed_at IS NULL
          WHERE c.content IS NOT NULL

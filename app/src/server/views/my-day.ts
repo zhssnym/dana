@@ -78,7 +78,7 @@ function automaticClause(viewerId: string, todayLocal: string): SQL {
  * important toggle is a client-side filter over what this returns and
  * changes no query.
  */
-async function openGroups(
+export async function openGroups(
   executor: Executor,
   viewerId: string,
   todayLocal: string,

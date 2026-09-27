@@ -36,8 +36,7 @@ import type { ObjectStore } from '../files/store.js'
 import { SWEEP_BATCH, inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import type { SecurityLogger } from '../security/log.js'
-import { mayPerform } from './folder-access.js'
-import { accessOf } from './folders.js'
+import { accessOf, mayPerform, visibleFolder } from './folder-access.js'
 import {
   AUDIO_MIMES,
   FOLDERLESS_UPLOAD_KINDS,
@@ -497,12 +496,7 @@ a join — so a caller needs nothing in its FROM clause but `files f`.
 export function readableFileScope(viewerId: string): SQL {
   return sql`(
     (f.folder_id IS NULL AND (f.kind = 'avatar' OR f.owner_id = ${viewerId}))
-    OR EXISTS (
-      SELECT 1 FROM folders fo
-      JOIN folder_members m ON m.folder_id = fo.id
-      WHERE fo.id = f.folder_id
-        AND fo.deleted_at IS NULL
-        AND m.user_id = ${viewerId})
+    OR ${visibleFolder(sql`f.folder_id`, viewerId)}
   )`
 }
 

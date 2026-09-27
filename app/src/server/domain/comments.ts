@@ -46,7 +46,7 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { MentionRefusal, syncMentions } from './mentions.js'
-import { presetOf } from './folder-access.js'
+import { resolveScoped } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 
 function toIso(value: unknown): string {
@@ -621,40 +621,19 @@ export async function accessibleComment(
   viewerId: string,
   commentId: string,
 ): Promise<CommentAccess | null> {
-  const found = await rowsOf(
-    executor,
-    sql`SELECT c.id, c.folder_id, c.author_id, c.body,
-               (c.author_id = ${viewerId}) AS is_author,
-               (f.owner_id = ${viewerId}) AS is_folder_owner,
-               f.name AS folder_name, f.is_default, m.access
-        FROM comments c
-        JOIN folders f ON f.id = c.folder_id AND f.deleted_at IS NULL
-        JOIN folder_members m
-          ON m.folder_id = c.folder_id AND m.user_id = ${viewerId}
-        WHERE c.id = ${commentId}`,
-  )
-  const row = found[0]
-  if (row === undefined) return null
-  const access = presetOf(row.access)
-  if (access === null) {
-    throw new Error(
-      `folder_members.access holds an unknown preset for ${viewerId} in ${String(row.folder_id)}`,
-    )
-  }
+  const scoped = await resolveScoped(executor, 'comment', commentId, viewerId, {
+    columns: sql`c.id, c.folder_id, c.author_id, c.body,
+                 (c.author_id = ${viewerId}) AS is_author`,
+  })
+  if (scoped === null) return null
+  const { row, facts } = scoped
   return {
     id: String(row.id),
     folderId: String(row.folder_id),
     authorId: String(row.author_id),
     isAuthor: row.is_author === true,
     body: nullableString(row.body),
-    facts: {
-      folderId: String(row.folder_id),
-      actorId: viewerId,
-      access,
-      isOwner: row.is_folder_owner === true,
-      isDefault: row.is_default === true,
-      name: String(row.folder_name),
-    },
+    facts,
   }
 }
 
