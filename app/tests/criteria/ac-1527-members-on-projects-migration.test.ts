@@ -110,7 +110,7 @@ const u = { owner: id(1, 1), editor: id(1, 2), viewer: id(1, 3), extra: id(1, 4)
 // Responsibilities, a tab and an assigned task.
 const A = { root: id(0xa, 0), sub: id(0xa, 1), tab: id(0xa, 2), task: id(0xa, 3), invite: id(0xa, 4),
   respRoot: id(0xa, 5), respSubE: id(0xa, 6), respSubV: id(0xa, 7), histV: id(0xa, 8), sub2: id(0xa, 9),
-  respSub2V: id(0xa, 10), rootInvite: id(0xa, 11) }
+  respSub2V: id(0xa, 10), rootInvite: id(0xa, 11), histSelf: id(0xa, 12) }
 // (b) a sub-page with one person more, and its grandchild.
 const B = { root: id(0xb, 0), sub: id(0xb, 1), grand: id(0xb, 2), home: id(0xb, 3), task: id(0xb, 4),
   invite: id(0xb, 5) }
@@ -199,6 +199,13 @@ beforeAll(async () => {
     VALUES (${A.histV}::uuid, ${A.sub}::uuid, ${u.viewer}::uuid, ${A.respSubV}::uuid, 'responsibility_created', 1,
             '{"items":[]}'::jsonb, 'h', ${u.owner}::uuid)`)
   await responsibility(A.respSub2V, A.sub2, u.viewer, '2026-01-04T00:00:00Z')
+  // The editor may edit their own Responsibilities on the page, not on the
+  // project, and the page's history says so.
+  await db.exec(sql`UPDATE folder_members SET can_edit_own_responsibilities = (folder_id = ${A.sub}::uuid)
+    WHERE user_id = ${u.editor}::uuid AND folder_id IN (${A.root}::uuid, ${A.sub}::uuid)`)
+  await db.exec(sql`INSERT INTO folder_responsibility_history (id, folder_id, member_id, transition, actor_id, effective_at)
+    VALUES (${A.histSelf}::uuid, ${A.sub}::uuid, ${u.editor}::uuid, 'self_edit_granted', ${u.owner}::uuid,
+            '2026-01-02T00:00:00Z'::timestamptz)`)
 
   await folder(B.root, 'Build')
   await member(B.root, u.owner, 'full_control')
@@ -372,6 +379,18 @@ describe('AC-1527 migration 0062: people belong to the project', () => {
       WHERE transition = 'responsibility_ended' ORDER BY responsibility_id`)).toEqual([
       { responsibility_id: A.respSubE, folder_id: A.root, member_id: u.editor, actor_id: u.owner },
       { responsibility_id: A.respSub2V, folder_id: A.root, member_id: u.viewer, actor_id: u.owner },
+    ])
+  })
+
+  test('a self-edit grant that differed from the project is recorded where the project history ends', async () => {
+    expect(await db.exec(sql`SELECT folder_id, can_edit_own_responsibilities AS may FROM folder_members
+      WHERE user_id = ${u.editor}::uuid AND folder_id IN (${A.root}::uuid, ${A.sub}::uuid) ORDER BY folder_id`))
+      .toEqual([{ folder_id: A.root, may: false }, { folder_id: A.sub, may: true }])
+    expect(await db.exec(sql`SELECT folder_id, responsibility_id, transition, actor_id FROM folder_responsibility_history
+      WHERE member_id = ${u.editor}::uuid AND transition IN ('self_edit_granted', 'self_edit_revoked')
+      ORDER BY effective_at, id`)).toEqual([
+      { folder_id: A.root, responsibility_id: null, transition: 'self_edit_granted', actor_id: u.owner },
+      { folder_id: A.root, responsibility_id: A.respRoot, transition: 'self_edit_revoked', actor_id: u.owner },
     ])
   })
 

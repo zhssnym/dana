@@ -21,7 +21,12 @@
 -- 2. Presets. On a page that stays in its project with the same people, the
 --    project's preset wins. Each difference is written to
 --    `folder_access_history` on that page (`migration_initialized`, page
---    preset -> project preset) and counted in a NOTICE.
+--    preset -> project preset) and counted in a NOTICE. The project's
+--    self-edit grant wins the same way: each difference is listed in a
+--    NOTICE and, once step 4 has moved the page's Responsibility and history,
+--    recorded on the project as a grant or revoke stating the project's flag,
+--    as is any member whose moved history would otherwise end contradicting
+--    it.
 -- 3. Pending invites on a page that stays inside a project are invalidated:
 --    accepting one would add the invitee to the whole project. So are
 --    pending invites on a project root whose project has sub-pages: accepting
@@ -190,6 +195,18 @@ CREATE TEMP TABLE s8_preset ON COMMIT DROP AS
 INSERT INTO folder_access_history (folder_id, member_id, previous_access, new_access, actor_id, transition)
 SELECT folder_id, user_id, page_access, project_access, NULL, 'migration_initialized' FROM s8_preset;
 --> statement-breakpoint
+-- 2, self-edit: the same for `can_edit_own_responsibilities`. The page's
+-- Responsibility moves to the project below and is read under the project's
+-- flag from then on, so each difference is recorded after the moves, on the
+-- project, and listed in a NOTICE.
+CREATE TEMP TABLE s8_flag ON COMMIT DROP AS
+  SELECT m.folder_id, m.user_id, f.project_id,
+         m.can_edit_own_responsibilities AS page_flag, p.can_edit_own_responsibilities AS project_flag
+    FROM folder_members m
+    JOIN folders f ON f.id = m.folder_id AND f.id <> f.project_id
+    JOIN folder_members p ON p.folder_id = f.project_id AND p.user_id = m.user_id
+   WHERE m.can_edit_own_responsibilities <> p.can_edit_own_responsibilities;
+--> statement-breakpoint
 -- 3. Invites on a page that stays inside a project.
 CREATE TEMP TABLE s8_invites ON COMMIT DROP AS
   SELECT i.id FROM invites i JOIN folders f ON f.id = i.folder_id
@@ -234,6 +251,33 @@ SELECT s.project_id, s.member_id, s.id, 'responsibility_ended', p.owner_id
 UPDATE folder_responsibility_history h SET folder_id = f.project_id
   FROM folders f
  WHERE f.id = h.folder_id AND f.id <> f.project_id AND h.responsibility_id IS NULL;
+--> statement-breakpoint
+-- Self-edit, recorded. A member whose flag on a page differed from the
+-- project's, or whose history on the project now ends (after the moves above)
+-- in a grant or revoke the project's flag contradicts, gets one row stating
+-- the project's flag, so the project's history ends where its row stands.
+-- Actor: the project's owner, as for the endings above.
+CREATE TEMP TABLE s8_self_edit ON COMMIT DROP AS
+  SELECT pm.folder_id AS project_id, pm.user_id AS member_id,
+         CASE WHEN pm.can_edit_own_responsibilities THEN 'self_edit_granted' ELSE 'self_edit_revoked' END AS transition,
+         (SELECT r.id FROM folder_responsibilities r
+           WHERE r.folder_id = pm.folder_id AND r.member_id = pm.user_id AND r.ended_at IS NULL
+           ORDER BY r.created_at, r.id LIMIT 1) AS responsibility_id
+    FROM folder_members pm
+    JOIN folders p ON p.id = pm.folder_id AND p.id = p.project_id
+   WHERE EXISTS (SELECT 1 FROM s8_flag x WHERE x.project_id = pm.folder_id AND x.user_id = pm.user_id)
+      OR (EXISTS (SELECT 1 FROM folder_responsibility_history h JOIN s8_resp_history_before b ON b.id = h.id
+                   WHERE h.folder_id = pm.folder_id AND h.member_id = pm.user_id AND b.folder_id <> h.folder_id
+                     AND h.transition IN ('self_edit_granted', 'self_edit_revoked'))
+          AND (SELECT h.transition FROM folder_responsibility_history h
+                WHERE h.folder_id = pm.folder_id AND h.member_id = pm.user_id
+                  AND h.transition IN ('self_edit_granted', 'self_edit_revoked')
+                ORDER BY h.effective_at DESC, h.id DESC LIMIT 1)
+              IS DISTINCT FROM (CASE WHEN pm.can_edit_own_responsibilities THEN 'self_edit_granted' ELSE 'self_edit_revoked' END));
+--> statement-breakpoint
+INSERT INTO folder_responsibility_history (folder_id, member_id, responsibility_id, transition, actor_id)
+SELECT s.project_id, s.member_id, s.responsibility_id, s.transition, p.owner_id
+  FROM s8_self_edit s JOIN folders p ON p.id = s.project_id;
 --> statement-breakpoint
 -- 5. Owner.
 UPDATE folders f SET owner_id = p.owner_id
@@ -674,13 +718,35 @@ BEGIN
      AND NOT (h.transition = 'responsibility_ended'
               AND EXISTS (SELECT 1 FROM s8_resp_move m WHERE m.id = h.responsibility_id AND m.ends
                             AND m.project_id = h.folder_id))
+     AND NOT EXISTS (SELECT 1 FROM s8_self_edit s
+                      WHERE s.project_id = h.folder_id AND s.member_id = h.member_id
+                        AND s.transition = h.transition
+                        AND s.responsibility_id IS NOT DISTINCT FROM h.responsibility_id)
    LIMIT 1;
   IF bad IS NOT NULL THEN
     RAISE EXCEPTION 'step 8: responsibility history added %', bad;
   END IF;
   IF (SELECT count(*) FROM folder_responsibility_history)
-     <> (SELECT count(*) FROM s8_resp_history_before) + (SELECT count(*) FROM s8_resp_move WHERE ends) THEN
+     <> (SELECT count(*) FROM s8_resp_history_before) + (SELECT count(*) FROM s8_resp_move WHERE ends)
+        + (SELECT count(*) FROM s8_self_edit) THEN
     RAISE EXCEPTION 'step 8: responsibility history count changed';
+  END IF;
+  -- Self-edit: every member whose flag differed on a page, or who has a
+  -- grant or revoke moved onto a project, reads a last grant or revoke there
+  -- that matches the project's flag.
+  SELECT (pm.folder_id::text || '/' || pm.user_id::text) INTO bad FROM folder_members pm
+   WHERE (EXISTS (SELECT 1 FROM s8_flag x WHERE x.project_id = pm.folder_id AND x.user_id = pm.user_id)
+          OR EXISTS (SELECT 1 FROM folder_responsibility_history h JOIN s8_resp_history_before b ON b.id = h.id
+                      WHERE h.folder_id = pm.folder_id AND h.member_id = pm.user_id AND b.folder_id <> h.folder_id
+                        AND h.transition IN ('self_edit_granted', 'self_edit_revoked')))
+     AND (SELECT h.transition FROM folder_responsibility_history h
+           WHERE h.folder_id = pm.folder_id AND h.member_id = pm.user_id
+             AND h.transition IN ('self_edit_granted', 'self_edit_revoked')
+           ORDER BY h.effective_at DESC, h.id DESC LIMIT 1)
+         IS DISTINCT FROM (CASE WHEN pm.can_edit_own_responsibilities THEN 'self_edit_granted' ELSE 'self_edit_revoked' END)
+   LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 8: self-edit history disagrees with the project %', bad;
   END IF;
 
   SELECT count(*) INTO n FROM folder_access_history;
@@ -692,6 +758,11 @@ BEGIN
     (SELECT count(*) FROM s8_preset),
     (SELECT string_agg(folder_id::text || '/' || user_id::text || ' ' || page_access || '->' || project_access,
                        ', ' ORDER BY folder_id, user_id) FROM s8_preset);
+  RAISE NOTICE 'step 8: % self-edit grants on pages gave way to the project''s: %',
+    (SELECT count(*) FROM s8_flag),
+    (SELECT string_agg(folder_id::text || '/' || user_id::text || ' ' || page_flag::text || '->' || project_flag::text,
+                       ', ' ORDER BY folder_id, user_id) FROM s8_flag);
+  RAISE NOTICE 'step 8: % self-edit rows recorded on projects', (SELECT count(*) FROM s8_self_edit);
   RAISE NOTICE 'step 8: % pending invites that would now widen were invalidated: %',
     (SELECT count(*) FROM s8_invites),
     (SELECT string_agg(id::text, ', ' ORDER BY id) FROM s8_invites);
