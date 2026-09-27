@@ -33,6 +33,7 @@ move it computes that from the same table; the answer to "may this happen" is
 only ever reached through a route, on facts read here.
 */
 import { sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 
 import type {
   FolderAccessPreset,
@@ -120,34 +121,218 @@ export async function folderActorFacts(
   folderId: string,
   options: { includeTrashed?: boolean } = {},
 ): Promise<FolderActorFacts | null> {
-  const trashed =
-    options.includeTrashed === true ? sql`` : sql` AND f.deleted_at IS NULL`
+  const found = await resolveScoped(executor, 'folder', folderId, actorId, {
+    folder: options.includeTrashed === true ? 'any' : 'live',
+  })
+  return found === null ? null : found.facts
+}
+
+/* ------------------------------------------------------------------ *
+ * The one visibility check (10.2)
+ * ------------------------------------------------------------------ */
+
+/*
+Who sees a row is one sentence: the viewer is a member of the row's Folder,
+and that Folder is not in Trash unless the caller is one of 7.13's acts on
+Trash. Lists, search and single-row reads say it through the three helpers
+below rather than writing the join again, so a query cannot drop half of it.
+
+- `visibleFolder` is the sentence as a predicate, for a WHERE or an EXISTS.
+- `joinVisibleFolder` is the same sentence as joins, for a query that also
+  reads the Folder or the membership row (name, preset, shelf).
+- `resolveScoped` is one row by id with the actor's facts, for the gates.
+
+Aliases are code, never input: `alias` refuses anything but a short
+identifier, because it is spliced into SQL raw.
+*/
+
+/** Which Folders a read admits: the ordinary surface sees `live` ones only;
+ * Trash's own acts see `trashed` or `any`. */
+export type FolderTrash = 'live' | 'trashed' | 'any'
+
+function alias(name: string): SQL {
+  if (!/^[a-z_][a-z0-9_]{0,15}$/.test(name)) {
+    throw new Error(`not a SQL alias: ${name}`)
+  }
+  return sql.raw(name)
+}
+
+function trashClause(folder: SQL, trashed: FolderTrash): SQL {
+  if (trashed === 'live') return sql` AND ${folder}.deleted_at IS NULL`
+  if (trashed === 'trashed') return sql` AND ${folder}.deleted_at IS NOT NULL`
+  return sql``
+}
+
+/**
+ * True when the Folder whose id is `folderId` (a column, such as
+ * sql`t.folder_id`) is visible to `viewerId`.
+ */
+export function visibleFolder(
+  folderId: SQL,
+  viewerId: string,
+  options: { trashed?: FolderTrash } = {},
+): SQL {
+  const trashed = trashClause(sql`vis_f`, options.trashed ?? 'live')
+  return sql`EXISTS (SELECT 1 FROM folders vis_f
+      JOIN folder_members vis_m ON vis_m.folder_id = vis_f.id
+     WHERE vis_f.id = ${folderId} AND vis_m.user_id = ${viewerId}${trashed})`
+}
+
+/**
+ * The same check as joins, binding `folder` (default `fo`) and `member`
+ * (default `m`) for the columns the caller reads.
+ *
+ * With `folderId`, it joins `folders` on that column first. Without it, the
+ * caller's FROM already holds the Folder under `folder`, and only the
+ * membership join is added (carrying the trash clause in its ON, which for an
+ * inner join is the same as a WHERE).
+ */
+export function joinVisibleFolder(
+  viewerId: string,
+  options: {
+    folderId?: SQL
+    folder?: string
+    member?: string
+    trashed?: FolderTrash
+  } = {},
+): SQL {
+  const f = alias(options.folder ?? 'fo')
+  const m = alias(options.member ?? 'm')
+  const trashed = trashClause(f, options.trashed ?? 'live')
+  const membership = sql`JOIN folder_members ${m}
+      ON ${m}.folder_id = ${f}.id AND ${m}.user_id = ${viewerId}`
+  return options.folderId === undefined
+    ? sql`${membership}${trashed}`
+    : sql`JOIN folders ${f} ON ${f}.id = ${options.folderId}${trashed}
+    ${membership}`
+}
+
+/** The rows `resolveScoped` reads, each with its alias and whether it has a
+ * trash column of its own. A comment has none: it leaves with its Discussion
+ * or its Folder. */
+const SCOPED = {
+  folder: { table: 'folders', as: 'fo', trash: true },
+  task: { table: 'tasks', as: 't', trash: true },
+  comment: { table: 'comments', as: 'c', trash: false },
+  facet: { table: 'folder_facets', as: 'ff', trash: true },
+} as const
+
+export type ScopedKind = keyof typeof SCOPED
+
+export interface Scoped {
+  /** The row as the caller's `columns` asked for it. */
+  row: Record<string, unknown>
+  facts: FolderActorFacts
+  folderTrashed: boolean
+}
+
+/**
+ * One row by id, with the actor's Folder facts from the same statement, or
+ * null when the row, its Folder or the membership is not there -- 10.2's one
+ * answer, 404, never 403.
+ *
+ * `columns` are read beside the facts; they may name the row's alias (`t`,
+ * `c`, `ff`, or `fo` for a folder), the Folder as `fo` and the membership as
+ * `m`. `row` and `folder` say which trash states are admitted, `live` by
+ * default. `lock` takes the row itself `FOR UPDATE` and nothing else.
+ */
+export async function resolveScoped(
+  executor: Executor,
+  kind: ScopedKind,
+  id: string,
+  viewerId: string,
+  options: {
+    columns?: SQL
+    row?: FolderTrash
+    folder?: FolderTrash
+    where?: SQL
+    lock?: boolean
+  } = {},
+): Promise<Scoped | null> {
+  const scoped = SCOPED[kind]
+  const r = alias(scoped.as)
+  const folder = options.folder ?? 'live'
+  const from =
+    kind === 'folder'
+      ? sql`FROM folders fo ${joinVisibleFolder(viewerId, { trashed: folder })}`
+      : sql`FROM ${alias(scoped.table)} ${r} ${joinVisibleFolder(viewerId, {
+          folderId: sql`${r}.folder_id`,
+          trashed: folder,
+        })}`
+  const rowTrash =
+    kind === 'folder' || !scoped.trash
+      ? sql``
+      : trashClause(r, options.row ?? 'live')
+  const columns =
+    options.columns === undefined ? sql`` : sql`${options.columns}, `
+  const where =
+    options.where === undefined ? sql`` : sql` AND ${options.where}`
+  const lock = options.lock === true ? sql` FOR UPDATE OF ${r}` : sql``
   const found = await rowsOf(
     executor,
-    sql`SELECT (f.owner_id = ${actorId}) AS is_owner, f.is_default, f.name,
-               m.access
-        FROM folders f
-        JOIN folder_members m ON m.folder_id = f.id
-        WHERE f.id = ${folderId} AND m.user_id = ${actorId}${trashed}`,
+    sql`SELECT ${columns}fo.id AS scoped_folder_id,
+               fo.name AS scoped_folder_name,
+               fo.is_default AS scoped_folder_is_default,
+               (fo.owner_id = m.user_id) AS scoped_is_owner,
+               m.access AS scoped_access,
+               (fo.deleted_at IS NOT NULL) AS scoped_folder_trashed
+        ${from}
+        WHERE ${r}.id = ${id}${rowTrash}${where}${lock}`,
   )
   const row = found[0]
   if (row === undefined) return null
-  const access = presetOf(row.access)
-  if (access === null) {
-    // Unreachable behind the column's CHECK, and loud rather than guessed:
-    // every default here would be a guess about what somebody may do.
-    throw new Error(
-      `folder_members.access holds an unknown preset for ${actorId} in ${folderId}`,
-    )
+  return {
+    row,
+    facts: factsFromRow(
+      {
+        folder_id: row.scoped_folder_id,
+        folder_name: row.scoped_folder_name,
+        folder_is_default: row.scoped_folder_is_default,
+        is_owner: row.scoped_is_owner,
+        access: row.scoped_access,
+      },
+      viewerId,
+    ),
+    folderTrashed: row.scoped_folder_trashed === true,
   }
+}
+
+/**
+ * The actor's facts off a row a visibility join already scoped, reading
+ * `folder_id`, `folder_name`, `folder_is_default`, `is_owner` and `access`.
+ */
+export function factsFromRow(
+  row: Record<string, unknown>,
+  viewerId: string,
+): FolderActorFacts {
+  const folderId = String(row.folder_id)
   return {
     folderId,
-    actorId,
-    access,
+    actorId: viewerId,
+    access: presetFromRow(row.access, viewerId, folderId),
     isOwner: row.is_owner === true,
-    isDefault: row.is_default === true,
-    name: String(row.name),
+    isDefault: row.folder_is_default === true,
+    name: String(row.folder_name),
   }
+}
+
+/**
+ * A membership row's preset, **refused rather than defaulted**: the column's
+ * CHECK makes an unknown value unreachable, and every default here would be a
+ * guess about what somebody may do.
+ */
+export function presetFromRow(
+  value: unknown,
+  viewerId: string,
+  folderId: string,
+): FolderAccessPreset {
+  const access = presetOf(value)
+  if (access === null) {
+    throw new Error(
+      `folder_members.access holds an unknown preset for ${viewerId} in ${folderId}`,
+    )
+  }
+  return access
 }
 
 /* ------------------------------------------------------------------ *
