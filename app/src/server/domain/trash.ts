@@ -37,8 +37,7 @@ import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { trashedDiscussions } from './consultation.js'
 import { trashedFacets } from './facets.js'
-import { mayPerform, presetOf } from './folder-access.js'
-import type { FolderActorFacts } from './folder-access.js'
+import { mayPerform, presetOf, resolveScoped } from './folder-access.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
 import {
   destroyableTrashedWith,
@@ -172,47 +171,6 @@ function accessOfRow(
 /** Clears the mark and records the return; 'not_found' covers the row that
  * does not exist, is not trashed, is out of the viewer's membership, or
  * rides a trashed folder, which 10.2 makes one answer. */
-/**
- * The actor's Folder facts for a **trashed** task (issue #228).
- *
- * `folderActorFacts` refuses a trashed folder and `accessibleTask` refuses a
- * trashed task, both correctly: the ordinary surface must not see either.
- * 7.13's two acts are the exceptions, and they need the same facts over the
- * rows those predicates hide, so this is that read and nothing more.
- */
-async function trashedTaskFacts(
-  tx: Executor,
-  viewerId: string,
-  taskId: string,
-): Promise<FolderActorFacts | null> {
-  const found = await rowsOf(
-    tx,
-    sql`SELECT t.folder_id, f.name, f.is_default, m.access,
-               (f.owner_id = ${viewerId}) AS is_owner
-        FROM tasks t
-        JOIN folder_members m
-          ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-        JOIN folders f ON f.id = t.folder_id
-        WHERE t.id = ${taskId}`,
-  )
-  const row = found[0]
-  if (row === undefined) return null
-  const access = presetOf(row.access)
-  if (access === null) {
-    throw new Error(
-      `folder_members.access holds an unknown preset for ${viewerId} in ${String(row.folder_id)}`,
-    )
-  }
-  return {
-    folderId: String(row.folder_id),
-    actorId: viewerId,
-    access,
-    isOwner: row.is_owner === true,
-    isDefault: row.is_default === true,
-    name: String(row.name),
-  }
-}
-
 export async function restoreTask(
   db: Db,
   viewerId: string,
@@ -222,25 +180,18 @@ export async function restoreTask(
     const homes = await rowsOf(tx,sql`SELECT folder_id FROM tasks WHERE id=${taskId}::uuid`)
     if(homes[0]===undefined)return 'not_found'
     await tx.execute(sql`SELECT 1 FROM folders WHERE id=${homes[0].folder_id}::uuid FOR UPDATE`)
-    const found = await rowsOf(
-      tx,
-      sql`SELECT t.id, t.title, t.folder_id
-          FROM tasks t
-          JOIN folder_members m
-            ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-          JOIN folders f ON f.id = t.folder_id AND f.deleted_at IS NULL
-          WHERE t.id = ${taskId} AND t.deleted_at IS NOT NULL
-          FOR UPDATE OF t`,
-    )
-    const row = found[0]
-    if (row === undefined) return 'not_found'
     /* #228's Can-edit list: restoring from Trash sits with Can edit, beside
-       trashing itself. The task is trashed, so `lockedTask` cannot see it; the read
-       above is the same membership scope with the deleted_at predicate
-       inverted, and the facts come from it. */
-    const held = await trashedTaskFacts(tx, viewerId, taskId)
-    if (held === null) return 'not_found'
-    const decision = mayPerform(held, 'task.restore')
+       trashing itself. The task is trashed, so `lockedTask` cannot see it;
+       this is the same scope with the row's trash predicate inverted, and
+       the facts come from the same locked read. */
+    const found = await resolveScoped(tx, 'task', taskId, viewerId, {
+      columns: sql`t.title, t.folder_id`,
+      row: 'trashed',
+      lock: true,
+    })
+    if (found === null) return 'not_found'
+    const { row } = found
+    const decision = mayPerform(found.facts, 'task.restore')
     if (!decision.allowed) {
       return { kind: 'forbidden', reason: decision.reason }
     }
@@ -269,18 +220,11 @@ export async function restoreFolder(
   return inTransaction(db, async (tx) => {
     // The tree lock before any row lock (page-tree.ts's lock order).
     await lockPageTree(tx)
-    const found = await rowsOf(
-      tx,
-      sql`SELECT f.id, f.name, f.is_default, m.access,
-                 (f.owner_id = ${viewerId}) AS is_owner
-          FROM folders f
-          JOIN folder_members m
-            ON m.folder_id = f.id AND m.user_id = ${viewerId}
-          WHERE f.id = ${folderId} AND f.deleted_at IS NOT NULL
-          FOR UPDATE OF f`,
-    )
-    const row = found[0]
-    if (row === undefined) return 'not_found'
+    const found = await resolveScoped(tx, 'folder', folderId, viewerId, {
+      folder: 'trashed',
+      lock: true,
+    })
+    if (found === null) return 'not_found'
     /*
     #228's Full-control list -- "trash/restore Folder administratively" --
     with governing R5: Full control restores, **and so does the owner whatever
@@ -290,28 +234,11 @@ export async function restoreFolder(
     resolver expresses it as `owner: 'sufficient'` and this reads the
     resolver rather than restating the rule.
 
-    Access is resolved here rather than through `folderActorFacts`, which
-    hides a trashed folder by design; the join above is the same membership
-    scope with the deleted_at predicate inverted (7.13: access to a trashed
-    row is by membership, never by who deleted it).
+    The read above is the ordinary membership scope with the Folder's trash
+    predicate inverted (7.13: access to a trashed row is by membership, never
+    by who deleted it).
     */
-    const access = presetOf(row.access)
-    if (access === null) {
-      throw new Error(
-        `folder_members.access holds an unknown preset for ${viewerId} in ${folderId}`,
-      )
-    }
-    const decision = mayPerform(
-      {
-        folderId,
-        actorId: viewerId,
-        access,
-        isOwner: row.is_owner === true,
-        isDefault: row.is_default === true,
-        name: String(row.name),
-      },
-      'folder.restore',
-    )
+    const decision = mayPerform(found.facts, 'folder.restore')
     if (!decision.allowed) {
       return { kind: 'forbidden', reason: decision.reason }
     }
@@ -320,7 +247,7 @@ export async function restoreFolder(
        initiator brings its set back (`restorePageSubtree`). A page whose
        parent is live comes back with its home `page` block, appended at the
        end of the parent's document when it has none. */
-    await restoreTrashedPage(tx, viewerId, folderId, String(row.name))
+    await restoreTrashedPage(tx, viewerId, folderId, found.facts.name)
     await ensureHomeBlock(tx, folderId)
     return 'restored'
   })
@@ -446,25 +373,18 @@ export async function destroyTask(
   taskId: string,
 ): Promise<DestroyOutcome> {
   return inTransaction(db, async (tx) => {
-    const found = await rowsOf(
-      tx,
-      sql`SELECT t.title, t.folder_id, (f.owner_id = ${viewerId}) AS is_owner
-          FROM tasks t
-          JOIN folder_members m
-            ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-          JOIN folders f ON f.id = t.folder_id AND f.deleted_at IS NULL
-          WHERE t.id = ${taskId} AND t.deleted_at IS NOT NULL
-          FOR UPDATE OF t`,
-    )
-    const row = found[0]
-    if (row === undefined) return { kind: 'not_found' } as const
+    const found = await resolveScoped(tx, 'task', taskId, viewerId, {
+      columns: sql`t.title, t.folder_id`,
+      row: 'trashed',
+      lock: true,
+    })
+    if (found === null) return { kind: 'not_found' } as const
+    const { row } = found
     /* #228 gives permanently deleting a Task from Trash to Full control:
        permanent deletion is an irreversible administrative act. Ownership is
        not authority (#209): a Full-control administrator who never owned the
        folder has it, and an owner who lowered their own Access does not. */
-    const facts = await trashedTaskFacts(tx, viewerId, taskId)
-    if (facts === null) return { kind: 'not_found' } as const
-    const decision = mayPerform(facts, 'task.destroy')
+    const decision = mayPerform(found.facts, 'task.destroy')
     if (!decision.allowed) {
       return { kind: 'forbidden', reason: decision.reason } as const
     }
@@ -500,39 +420,16 @@ export async function destroyFolder(
   folderId: string,
 ): Promise<DestroyOutcome> {
   return inTransaction(db, async (tx) => {
-    const found = await rowsOf(
-      tx,
-      sql`SELECT (f.owner_id = ${viewerId}) AS is_owner, f.name, f.is_default,
-                 m.access
-          FROM folders f
-          JOIN folder_members m
-            ON m.folder_id = f.id AND m.user_id = ${viewerId}
-          WHERE f.id = ${folderId} AND f.deleted_at IS NOT NULL
-          FOR UPDATE OF f`,
-    )
-    const row = found[0]
-    if (row === undefined) return { kind: 'not_found' } as const
+    const found = await resolveScoped(tx, 'folder', folderId, viewerId, {
+      folder: 'trashed',
+      lock: true,
+    })
+    if (found === null) return { kind: 'not_found' } as const
     /* #228 and governing R5: permanent structural destruction requires custody
        **and** active administrative authority together -- the owner, who is
        also currently Full control. Either alone is refused. The resolver
        expresses it as `owner: 'required'` over a `full_control` bar. */
-    const access = presetOf(row.access)
-    if (access === null) {
-      throw new Error(
-        `folder_members.access holds an unknown preset for ${viewerId} in ${folderId}`,
-      )
-    }
-    const decision = mayPerform(
-      {
-        folderId,
-        actorId: viewerId,
-        access,
-        isOwner: row.is_owner === true,
-        isDefault: row.is_default === true,
-        name: String(row.name),
-      },
-      'folder.destroy',
-    )
+    const decision = mayPerform(found.facts, 'folder.destroy')
     if (!decision.allowed) {
       return { kind: 'forbidden', reason: decision.reason } as const
     }

@@ -281,14 +281,11 @@ export async function listLabels(
   viewerId: string,
   query: GetLabelsQuery,
 ): Promise<ListLabelsResult> {
-  if (query.folder_id !== undefined) {
-    const reachable = await rowsOf(
-      db,
-      sql`SELECT 1 FROM folders f
-          JOIN folder_members m ON m.folder_id = f.id AND m.user_id = ${viewerId}
-          WHERE f.id = ${query.folder_id} AND f.deleted_at IS NULL`,
-    )
-    if (reachable.length === 0) return { kind: 'folder_not_found' }
+  if (
+    query.folder_id !== undefined &&
+    (await folderActorFacts(db, viewerId, query.folder_id)) === null
+  ) {
+    return { kind: 'folder_not_found' }
   }
 
   const state =

@@ -71,7 +71,7 @@ import type { Executor } from '../database.js'
 import { documentHash } from './document-hash.js'
 import { recordEvent } from './events.js'
 import { syncMentions } from './mentions.js'
-import { mayPerform, presetOf } from './folder-access.js'
+import { mayPerform, presetOf, resolveScoped } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import { initialKeys, keyBetween } from './fractional-index.js'
 
@@ -1134,36 +1134,10 @@ async function trashedFacetFacts(
   viewerId: string,
   facetId: string,
 ): Promise<{ facts: FolderActorFacts; folderTrashed: boolean } | null> {
-  const found = await rowsOf(
-    tx,
-    sql`SELECT ff.folder_id, fo.name, fo.is_default, m.access,
-               (fo.owner_id = ${viewerId}) AS is_owner,
-               (fo.deleted_at IS NOT NULL) AS folder_trashed
-          FROM folder_facets ff
-          JOIN folder_members m
-            ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
-          JOIN folders fo ON fo.id = ff.folder_id
-         WHERE ff.id = ${facetId}::uuid`,
-  )
-  const row = found[0]
-  if (row === undefined) return null
-  const access = presetOf(row.access)
-  if (access === null) {
-    throw new Error(
-      `folder_members.access holds an unknown preset for ${viewerId} in ${String(row.folder_id)}`,
-    )
-  }
-  return {
-    facts: {
-      folderId: String(row.folder_id),
-      actorId: viewerId,
-      access,
-      isOwner: row.is_owner === true,
-      isDefault: row.is_default === true,
-      name: String(row.name),
-    },
-    folderTrashed: row.folder_trashed === true,
-  }
+  return resolveScoped(tx, 'facet', facetId, viewerId, {
+    row: 'any',
+    folder: 'any',
+  })
 }
 
 /**

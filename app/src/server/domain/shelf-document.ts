@@ -43,6 +43,7 @@ import type { Executor } from '../database.js'
 import { documentHash, hashableBlocks } from './document-hash.js'
 import { nestingProblem } from './document-outline.js'
 import { readableFileScope } from './files.js'
+import { resolveScoped } from './folder-access.js'
 import { initialKeys } from './fractional-index.js'
 
 type BlockOp = Extract<DocumentOperation, { op: 'put_block' }>
@@ -245,16 +246,10 @@ export async function applyShelfDocument(
       }
     }
     if (write.ref_folder_id !== null) {
-      const onShelf = await rowsOf(
-        tx,
-        sql`SELECT 1 AS present FROM folders f
-              JOIN folder_members m ON m.folder_id = f.id
-             WHERE f.id = ${write.ref_folder_id}::uuid
-               AND f.deleted_at IS NULL
-               AND m.user_id = ${viewerId}::uuid
-               AND m.shelf_name = ${shelfName}`,
-      )
-      if (onShelf.length === 0) {
+      const onShelf = await resolveScoped(tx, 'folder', write.ref_folder_id, viewerId, {
+        where: sql`m.shelf_name = ${shelfName}`,
+      })
+      if (onShelf === null) {
         throw new ShelfDocumentRefusal('invalid', 'must name a Folder on this Shelf', 'ref_folder_id')
       }
       if ((placed.get(write.ref_folder_id) ?? 0) > 1) {

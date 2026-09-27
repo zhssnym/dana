@@ -59,7 +59,7 @@ import type {
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { searchPattern } from '../views/index.js'
-import { accessOf } from './folder-access.js'
+import { accessOf, resolveScoped } from './folder-access.js'
 import { shelfView } from './shelves.js'
 import { accessibleTask } from './tasks.js'
 
@@ -148,22 +148,13 @@ export async function resolveReference(
       return shelf === null ? null : summary('shelf', shelf.id, shelf.name)
     }
     case 'facet': {
-      const found = await rowsOf(
-        executor,
-        sql`SELECT ff.id, ${facetLabel} AS label
-              FROM folder_facets ff
-              JOIN folders fo
-                ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
-              JOIN folder_members m
-                ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
-             WHERE ff.id = ${target.id}::uuid
-               AND ${documentNativeFacet}
-               AND ff.deleted_at IS NULL`,
-      )
-      const row = found[0]
-      return row === undefined
+      const found = await resolveScoped(executor, 'facet', target.id, viewerId, {
+        columns: sql`ff.id, ${facetLabel} AS label`,
+        where: documentNativeFacet,
+      })
+      return found === null
         ? null
-        : summary('facet', String(row.id), String(row.label))
+        : summary('facet', String(found.row.id), String(found.row.label))
     }
     case 'discussion': {
       const found = await rowsOf(

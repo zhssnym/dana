@@ -192,7 +192,7 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
    if(isMediaKind(block.block_kind)&&!(BLOCK_FILE_KINDS[block.block_kind] as readonly string[]).includes(String(file.kind)))throw new DocumentRefusal('file_kind_mismatch',`This ${block.block_kind} block names a file uploaded as ${String(file.kind)}. Upload it again as the kind you mean to insert.`)
   }
   // A `page` block's reference was judged by `pageTreeRules` above.
-  if(block.ref_folder_id!==null&&block.block_kind!=='page'){const refs=await rowsOf(tx,sql`SELECT f.id FROM folders f JOIN folder_members m ON m.folder_id=f.id WHERE f.id=${block.ref_folder_id}::uuid AND m.user_id=${viewerId}::uuid AND f.deleted_at IS NULL`);if(refs.length===0)throw new DocumentRefusal('not_found','Referenced folder is not accessible.')}
+  if(block.ref_folder_id!==null&&block.block_kind!=='page'&&(await folderActorFacts(tx,viewerId,block.ref_folder_id))===null)throw new DocumentRefusal('not_found','Referenced folder is not accessible.')
  }
  const fresh=[...blocks.keys()].filter(id=>!original.has(id)).concat(created.map(t=>t.id),createdPages.map(p=>p.id))
  if(new Set(fresh).size!==fresh.length)throw new DocumentRefusal('not_convertible','An inserted identity already exists.')
