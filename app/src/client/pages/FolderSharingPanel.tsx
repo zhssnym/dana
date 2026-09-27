@@ -93,7 +93,6 @@ export function FolderSharingPanel({
   viewer,
   viewerId,
   onClose,
-  onExport,
   onTransfer,
 }: {
   readonly folder: GetFolderResponse
@@ -109,8 +108,6 @@ export function FolderSharingPanel({
    * (leaving is the page menu's Leave project…). */
   readonly viewerId: string | null
   readonly onClose: () => void
-  /** Writes this page to a Dana file (M4: moved here from the page's "…"). */
-  readonly onExport?: () => void
   /** The owner's hand-on, offered only where the viewer may (M4: from the "…"). */
   readonly onTransfer?: () => void
 }): React.JSX.Element {
@@ -531,20 +528,12 @@ export function FolderSharingPanel({
               </div>
             )}
 
-            {/* Who else gets this page, beyond its members: a copy as a
-                template, or the page itself. */}
-            {onExport === undefined && onTransfer === undefined ? null : (
+            {/* Who else gets the page itself. Export is the project's "…" (u2). */}
+            {onTransfer === undefined ? null : (
               <div className="mt-[var(--space-group)] flex flex-col items-start">
-                {onExport === undefined ? null : (
-                  <Button variant="ghost" size="sm" className="font-normal text-muted-foreground" onClick={onExport}>
-                    Export as template
-                  </Button>
-                )}
-                {onTransfer === undefined ? null : (
-                  <Button variant="ghost" size="sm" className="font-normal text-muted-foreground" onClick={onTransfer}>
-                    Transfer ownership…
-                  </Button>
-                )}
+                <Button variant="ghost" size="sm" className="font-normal text-muted-foreground" onClick={onTransfer}>
+                  Transfer ownership…
+                </Button>
               </div>
             )}
             </>

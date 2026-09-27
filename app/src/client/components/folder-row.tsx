@@ -64,6 +64,8 @@ export interface FolderRowProps {
      handlers the folder page's header "…" passes. An act with no handler is
      not drawn. */
   acts?: ActHandlers
+  /** Whose list the menu draws: a Library root is a project. */
+  menuKind?: 'project' | 'folder'
   /** The page's id, marking the row for the tree's drop hit test. */
   pageId?: string
   /** How deep in the page tree: 0 for a root. */
@@ -164,6 +166,7 @@ export function FolderRow({
   proposal = null,
   onSelect,
   acts = {},
+  menuKind = 'folder',
   pageId,
   depth = 0,
   fold,
@@ -338,7 +341,7 @@ export function FolderRow({
             ) : null}
             {hasActions ? (
               <ObjectMenu
-                kind="folder"
+                kind={menuKind}
                 name={name}
                 align="start"
                 trigger={

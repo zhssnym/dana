@@ -66,10 +66,10 @@ address (`?discussion=`, or a notification's `?conversation=open`) on any
 page of the project moves there; a project with no Discussion tab (and the
 Desk) draws the thread on the page it was reached on.
 
-**The "…" is the folder menu, the one list** (`lib/object-acts.ts`): History,
-Rename, Move to…, Move to collection, Cover…, Tabs…, Copy link, Duplicate, Save as workflow,
-then Transfer/Leave/Delete by role, exactly what the Library row's "…" and its
-right-click draw, less Rename, whose home here is the title.
+**The "…" is the project's list** (`lib/object-acts.ts`) on a project and its
+tabs, and the page's on a sub-page: History, Copy link, Duplicate, Export
+project (a project only), then Leave or Delete by role. Rename's home is the
+title.
 */
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -137,11 +137,10 @@ import { mayPerform, ruleFor } from '../../shared/folder-actions.js'
    against #228's closed vocabulary of every Folder action there is. */
 import type { FolderAction as FolderActionName } from '../../shared/folder-actions.js'
 import { paths } from '../routes.js'
-import { FOLDER_ACTION_PARAM, folderActionPath, useAddPageInside } from '../shell/app-sidebar.js'
+import { FOLDER_ACTION_PARAM, folderActionPath } from '../shell/app-sidebar.js'
 import { copyLink } from '../lib/object-acts.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
-import { usePageImport } from '../shell/workflow-import.js'
 import { AddTabMenu, FolderTabs } from '../components/folder-tabs.js'
 import { ProjectPicker } from '../components/project-picker.js'
 import { PageSection } from '../components/page/PageSection.js'
@@ -321,8 +320,6 @@ function FolderPageBody({
   const { id: routeId = '' } = useParams<{ id: string }>()
   const id = folderId ?? routeId
   const navigate = useNavigate()
-  const importFile = usePageImport()
-  const addPageInside = useAddPageInside()
   const [search, setSearch] = useSearchParams()
   /* Set as this page is trashed: its reads stop, so the delete's
      invalidation refetches none of them against a 404 while the page is
@@ -339,6 +336,8 @@ function FolderPageBody({
   /* A tab's header is its project's (the root row); a sub-page's is its own. */
   const onTab = herePage !== undefined && herePage.tab_position !== null
   const headId = onTab ? herePage.project_id : id
+  /* The header names the project on its root and on its tabs. */
+  const atProject = herePage !== undefined && herePage.project_id === headId
   const folder = useFolder(headId, !leaving && herePage !== undefined)
   /* Everything else waits for the page itself: a link the viewer may not
      open is one quiet 404, not one per read. */
@@ -933,10 +932,6 @@ function FolderPageBody({
     [authorPeople],
   )
 
-  /* Where a page made or imported from here lands: under the page on
-     screen, or under the project when that is a Discussion, which holds no
-     writing to link a page from. */
-  const pageHome = kind === 'discussion' ? headId : id
   const headerActions = (
     <>
       {/* With one tab the row is not drawn (a note still reads as a page),
@@ -965,21 +960,19 @@ function FolderPageBody({
         </Button>
       )}
       {/*
-      The folder's one "…", the same list the Library row's "…" and its
-      right-click draw (`lib/object-acts.ts`), with this page's own plumbing
-      for each act.
+      The page's one "…" (`lib/object-acts.ts`): the project's list on a
+      project or its tab, the page's on a sub-page. No Rename (the title
+      renames in place) and no Add a page inside or Import (u2: the `/`
+      menu's Page and the Library's Import project are their one way).
        */}
       <ObjectMenu
-        kind="folder"
+        kind={atProject ? 'project' : 'folder'}
         name={detail?.name ?? ''}
         align="end"
         handlers={{
           history: () => {
             setHistoryOpen(true)
           },
-          /* The Library row's pair (M4: one menu, the same items everywhere). */
-          rename: gates?.identity === true ? () => setRenaming(true) : undefined,
-          'add-page': gates?.identity === true && !isDefault ? () => addPageInside(pageHome) : undefined,
           'copy-link': () => {
             copyLink(folderLink(id))
           },
@@ -992,14 +985,8 @@ function FolderPageBody({
               },
             })
           },
-          /* Import lands under this page, so it needs edit rights here and
-             never runs on the Desk, which takes no sub-pages. */
-          import:
-            gates?.identity === true && !isDefault
-              ? () => {
-                  importFile(pageHome)
-                }
-              : undefined,
+          /* The project as a Dana file; its one home now (it left Share). */
+          export: atProject && !isDefault ? () => void saveAsWorkflow() : undefined,
           /* Any member's, refused to the owner until they transfer and to the
              last Full-control member; `folderGates` reads both off the roster. */
           leave: gates?.leave === true ? askLeave : undefined,
@@ -1140,10 +1127,7 @@ function FolderPageBody({
           onClose={() => {
             setSharing(false)
           }}
-          /* Export and Transfer are Share's (M4), no longer the "…"'s. */
-          onExport={() => {
-            void saveAsWorkflow()
-          }}
+          /* Transfer is Share's (M4); Export is the project's "…" (u2). */
           /* Offered whenever the folder is shared and the viewer owns it,
              rather than only when somebody is eligible: the dialog says what
              to do when nobody is. */
