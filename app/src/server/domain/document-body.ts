@@ -60,7 +60,7 @@ export interface FlatBodyHome {
   /** The home's reference rules, asked of the writes before anything is written. */
   audit: (body: FlatBody) => Promise<void>
   /** Runs after the blocks are written and before they are re-keyed. */
-  afterWrite?: (writes: Map<string, BlockOp>) => Promise<void>
+  afterWrite?: (writes: Map<string, BlockOp>) => Promise<unknown>
 }
 
 const PAGE_HERE = "A page block lives only on a folder's page."
