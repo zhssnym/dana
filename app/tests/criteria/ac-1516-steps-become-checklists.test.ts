@@ -46,6 +46,8 @@ const ids = {
   nearCarry: '20000000-0000-4000-8000-000000000005',
   untouched: '20000000-0000-4000-8000-000000000006',
   nullKey: '20000000-0000-4000-8000-000000000007',
+  oneLongLine: '20000000-0000-4000-8000-000000000008',
+  emojiLine: '20000000-0000-4000-8000-000000000009',
   s1: '30000000-0000-4000-8000-000000000001',
   s2: '30000000-0000-4000-8000-000000000002',
   s3: '30000000-0000-4000-8000-000000000003',
@@ -59,6 +61,7 @@ const ids = {
   s11: '30000000-0000-4000-8000-00000000000b',
   s12: '30000000-0000-4000-8000-00000000000c',
   s13: '30000000-0000-4000-8000-00000000000d',
+  s14: '30000000-0000-4000-8000-00000000000e',
   intro: '40000000-0000-4000-8000-000000000001',
   legacy: '40000000-0000-4000-8000-000000000002',
   last: '40000000-0000-4000-8000-000000000003',
@@ -68,6 +71,11 @@ const ids = {
 
 // Over 4000 characters with a line break inside the window, so it splits.
 const longNotes = `${'a'.repeat(3000)}\n${'b'.repeat(2000)}`
+// One line over 4000 characters: 0031 cuts it mid-line, with no line break.
+const oneLongLine = 'x'.repeat(5000)
+// The same in characters of more than one byte (and two UTF-16 units).
+const emoji = '\u{1F600}'
+const emojiLine = emoji.repeat(4001)
 
 function cutThrough(prefix: string, into: string): void {
   mkdirSync(path.join(into, 'meta'), { recursive: true })
@@ -124,7 +132,9 @@ beforeAll(async () => {
       (${ids.trashed}::uuid, ${ids.folder}::uuid, 'Trashed', ${ids.owner}::uuid, NULL, '2026-06-01 00:00:00+00'),
       (${ids.nearCarry}::uuid, ${ids.folder}::uuid, 'Near carry', ${ids.owner}::uuid, 'Last', NULL),
       (${ids.untouched}::uuid, ${ids.folder}::uuid, 'Untouched', ${ids.owner}::uuid, 'keep me', NULL),
-      (${ids.nullKey}::uuid, ${ids.folder}::uuid, 'Null key', ${ids.owner}::uuid, ${'Keyed\nUnkeyed'}, NULL)`)
+      (${ids.nullKey}::uuid, ${ids.folder}::uuid, 'Null key', ${ids.owner}::uuid, ${'Keyed\nUnkeyed'}, NULL),
+      (${ids.oneLongLine}::uuid, ${ids.folder}::uuid, 'One long line', ${ids.owner}::uuid, ${oneLongLine}, NULL),
+      (${ids.emojiLine}::uuid, ${ids.folder}::uuid, 'Emoji line', ${ids.owner}::uuid, ${emojiLine}, NULL)`)
   await db.execute(sql`
     INSERT INTO page_blocks (id, task_id, kind, position, page_position, text, checked) VALUES
       (${ids.intro}::uuid, ${ids.withBody}::uuid, 'paragraph', 0, 'a0', 'Intro', NULL),
@@ -146,7 +156,9 @@ beforeAll(async () => {
       (${ids.s9}::uuid, ${ids.nearCarry}::uuid, 'Two', true, 2),
       (${ids.s10}::uuid, ${ids.nearCarry}::uuid, 'Three', false, 3),
       (${ids.s11}::uuid, ${ids.nearCarry}::uuid, 'Four', true, 4),
-      (${ids.s12}::uuid, ${ids.nullKey}::uuid, 'After', false, 1)`)
+      (${ids.s12}::uuid, ${ids.nullKey}::uuid, 'After', false, 1),
+      (${ids.s13}::uuid, ${ids.oneLongLine}::uuid, 'Read it', false, 1),
+      (${ids.s14}::uuid, ${ids.emojiLine}::uuid, 'Smile', true, 1)`)
   untouchedBefore = await rows(db, sql`SELECT * FROM tasks WHERE id = ${ids.untouched}::uuid`)
 
   await migrate(db, { migrationsFolder: through0060 })
@@ -175,6 +187,21 @@ describe('AC-1516 migration 0060 moves steps into the task body as checklist ite
       { id: ids.s5, kind: 'checklist', text: 'Go', checked: false, page_position: 'a3', position: 3 },
     ])
     expect(await notesOf(ids.lazyNotes)).toBe(longNotes)
+  })
+
+  test('one line over 4000 characters is cut mid-line and the notes are kept as they were', async () => {
+    expect(await blocksOf(ids.oneLongLine)).toEqual([
+      { id: expect.any(String), kind: 'paragraph', text: 'x'.repeat(4000), checked: null, page_position: 'a0', position: 0 },
+      { id: expect.any(String), kind: 'paragraph', text: 'x'.repeat(1000), checked: null, page_position: 'a1', position: 1 },
+      { id: ids.s13, kind: 'checklist', text: 'Read it', checked: false, page_position: 'a2', position: 2 },
+    ])
+    expect(await notesOf(ids.oneLongLine)).toBe(oneLongLine)
+    expect(await blocksOf(ids.emojiLine)).toEqual([
+      { id: expect.any(String), kind: 'paragraph', text: emoji.repeat(4000), checked: null, page_position: 'a0', position: 0 },
+      { id: expect.any(String), kind: 'paragraph', text: emoji, checked: null, page_position: 'a1', position: 1 },
+      { id: ids.s14, kind: 'checklist', text: 'Smile', checked: true, page_position: 'a2', position: 2 },
+    ])
+    expect(await notesOf(ids.emojiLine)).toBe(emojiLine)
   })
 
   test('steps go after the writing; existing blocks keep their keys; notes skip checklists', async () => {
@@ -214,7 +241,7 @@ describe('AC-1516 migration 0060 moves steps into the task body as checklist ite
   test('a task without steps is untouched, and the steps table is kept', async () => {
     expect(await rows(db, sql`SELECT * FROM tasks WHERE id = ${ids.untouched}::uuid`)).toEqual(untouchedBefore)
     expect(await blocksOf(ids.untouched)).toEqual([])
-    expect(await rows(db, sql`SELECT count(*)::int AS n FROM steps`)).toEqual([{ n: 12 }])
+    expect(await rows(db, sql`SELECT count(*)::int AS n FROM steps`)).toEqual([{ n: 14 }])
   })
 
   test('migration_util.key_after is keyBetween(k, null) on the leg database', async () => {

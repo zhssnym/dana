@@ -120,7 +120,16 @@ describe('AC-1518 Assigned work ticks its own task\'s checklist and changes noth
       { id: stove.id, kind: 'checklist', text: 'Stove', checked: false },
     ])
 
-    const added: StoredBlock = { ...stove, id: randomUUID(), text: 'Map', checked: false }
+    // The history names each tick, never a description edit the worker cannot make.
+    expect(await rows(app.db, sql`
+      SELECT detail FROM events
+       WHERE subject_kind = 'task' AND subject_id = ${task.id}::uuid AND actor_id = ${worker.id}::uuid
+       ORDER BY created_at, id`)).toEqual([
+      { detail: "completed the step 'Tent'" },
+      { detail: "reopened the step 'Tent'" },
+    ])
+
+    const added: StoredBlock ={ ...stove, id: randomUUID(), text: 'Map', checked: false }
     const refusals: [string, unknown[]][] = [
       ['adding an item', [put(added), outline([...doc.blocks, added])]],
       ['renaming an item', [put(stove, { text: 'Two stoves', rich_content: null }), outline(doc.blocks)]],

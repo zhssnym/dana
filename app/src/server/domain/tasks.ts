@@ -78,7 +78,7 @@ import {
   TaskDocumentRefusal,
   appendChecklist,
   applyTaskDocumentLocked,
-  isChecklistTickOnly,
+  checklistTicks,
   legacyNotesWrite,
   materializeNotesLocked,
   needsMaterializing,
@@ -1984,6 +1984,13 @@ export async function taskDocument(
   })
 }
 
+/** A checklist item named inside 4.13's 200-character detail: whole when
+ * short, cut with an ellipsis when not, so a long item never makes the event
+ * refuse. */
+function itemWord(text: string): string {
+  return text.length > 60 ? `${text.slice(0, 59)}…` : text
+}
+
 /**
  * `PUT /tasks/:id/document`: 7.16's document transaction over the Task's
  * blocks, gated on `task.edit` exactly as a `notes` PATCH is, and in the same
@@ -2009,23 +2016,30 @@ export async function writeTaskDocument(
        unticks existing items is admitted under the first, anything else
        needs the second. */
     const decision = mayActOnTask(current, 'task.edit')
-    if (
-      !decision.allowed &&
-      !(mayActOnTask(current, 'step.toggle').allowed && (await isChecklistTickOnly(tx, taskId, body)))
-    ) {
+    const ticks = await checklistTicks(tx, taskId, body)
+    if (!decision.allowed && !(mayActOnTask(current, 'step.toggle').allowed && ticks !== null)) {
       throw new TaskDocumentRefusal('forbidden', decision.reason)
     }
     const result = await applyTaskDocumentLocked(tx, viewerId, current.folderId, taskId, body)
     if (result.changed) {
-      await recordEvent(tx, {
-        actorId: viewerId,
-        verb: 'edited',
-        subjectKind: 'task',
-        subjectId: taskId,
-        subjectName: current.title,
-        folderId: current.folderId,
-        detail: 'edited the description',
-      })
+      /* A tick is not a description edit: each ticked or unticked item is
+         named, in the words a step's tick used before 0060, which the
+         timeline draws as "completed the subtask …". */
+      const details =
+        ticks !== null
+          ? ticks.map((tick) => `${tick.checked ? 'completed' : 'reopened'} the step '${itemWord(tick.text)}'`)
+          : ['edited the description']
+      for (const detail of details) {
+        await recordEvent(tx, {
+          actorId: viewerId,
+          verb: 'edited',
+          subjectKind: 'task',
+          subjectId: taskId,
+          subjectName: current.title,
+          folderId: current.folderId,
+          detail,
+        })
+      }
     }
     return result.view
   })

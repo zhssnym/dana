@@ -21,7 +21,8 @@
 --    `steps` table is not touched and is read by nothing after this.
 -- 5. `tasks.notes` is the plain-text projection of the body, which now skips
 --    checklist blocks (the workflow round trip carries them as `steps`).
---    Rewritten for every task that holds a checklist block.
+--    Rewritten for every task that holds a checklist block, except one whose
+--    notes step 2 just materialized: those keep their notes as they were.
 -- 6. Invariants. Any mismatch raises `step 6: <check> <id>`, which rolls back
 --    every pending migration with this one.
 --
@@ -116,7 +117,13 @@ CREATE TEMP TABLE s6_notes ON COMMIT DROP AS
           AND NOT EXISTS (SELECT 1 FROM page_blocks b WHERE b.task_id = t.id)) AS materialize
     FROM tasks t;
 --> statement-breakpoint
--- 2. 0031's loop, verbatim, over the tasks marked above.
+-- What 0031's loop put after each piece: a newline where it cut at a line
+-- break, nothing where it cut mid-line (one line over 4000 characters) or
+-- at the end. The invariant rebuilds the notes from this.
+CREATE TEMP TABLE s6_pieces (task_id uuid NOT NULL, pos integer NOT NULL, sep text NOT NULL) ON COMMIT DROP;
+--> statement-breakpoint
+-- 2. 0031's loop, verbatim, over the tasks marked above (it also records
+--    each piece's separator in s6_pieces).
 DO $$
 DECLARE
   r record;
@@ -126,6 +133,7 @@ DECLARE
   cut integer;
   nl integer;
   pos integer;
+  sep text;
 BEGIN
   FOR r IN
     SELECT n.task_id AS id, n.notes FROM s6_notes n WHERE n.materialize ORDER BY n.task_id
@@ -136,6 +144,7 @@ BEGIN
       IF char_length(rest) <= 4000 THEN
         piece := rest;
         rest := NULL;
+        sep := '';
       ELSE
         win := substr(rest, 1, 4001);
         cut := position(E'\n' IN reverse(win));
@@ -143,15 +152,18 @@ BEGIN
           nl := 4002 - cut;
           piece := substr(rest, 1, nl - 1);
           rest := substr(rest, nl + 1);
+          sep := E'\n';
         ELSE
           piece := substr(rest, 1, 4000);
           rest := substr(rest, 4001);
+          sep := '';
         END IF;
       END IF;
       INSERT INTO page_blocks (task_id, kind, position, page_position, text)
       VALUES (r.id, 'paragraph', pos,
               'a' || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', pos + 1, 1),
               piece);
+      INSERT INTO s6_pieces (task_id, pos, sep) VALUES (r.id, pos, sep);
       pos := pos + 1;
       EXIT WHEN rest IS NULL;
     END LOOP;
@@ -190,7 +202,10 @@ BEGIN
 END
 $$;
 --> statement-breakpoint
--- 5. The notes projection, checklists skipped (`notesProjection`).
+-- 5. The notes projection, checklists skipped (`notesProjection`). A task
+--    whose notes were materialized in 2 keeps them: they are already the
+--    body's text, and a newline-joined projection would add a line break
+--    at every mid-line cut.
 UPDATE tasks t
    SET notes = p.notes
   FROM (SELECT b.task_id,
@@ -202,6 +217,7 @@ UPDATE tasks t
          WHERE b.task_id IN (SELECT task_id FROM page_blocks WHERE kind = 'checklist' AND task_id IS NOT NULL)
          GROUP BY b.task_id) p
  WHERE p.task_id = t.id
+   AND NOT EXISTS (SELECT 1 FROM s6_notes n WHERE n.task_id = t.id AND n.materialize)
    AND t.notes IS DISTINCT FROM p.notes;
 --> statement-breakpoint
 -- 6. Invariants.
@@ -282,16 +298,21 @@ BEGIN
     RAISE EXCEPTION 'step 6: order changed on task %', bad;
   END IF;
 
-  -- Materialized notes: the new paragraphs reproduce the old notes exactly,
-  -- and the notes column is unchanged.
+  -- Materialized notes: the new paragraphs, each followed by the separator
+  -- 0031's loop cut it with, reproduce the old notes exactly, and the notes
+  -- column is unchanged.
   SELECT n.task_id::text INTO bad FROM s6_notes n
     JOIN tasks t ON t.id = n.task_id
    WHERE n.materialize
      AND (t.notes IS DISTINCT FROM n.notes
-          OR (SELECT string_agg(b.text, E'\n' ORDER BY b.page_position)
+          OR (SELECT string_agg(b.text || p.sep, '' ORDER BY b.page_position COLLATE "C")
                 FROM page_blocks b
+                JOIN s6_pieces p ON p.task_id = b.task_id AND p.pos = b.position
                WHERE b.task_id = n.task_id AND b.kind = 'paragraph')
-             IS DISTINCT FROM n.notes)
+             IS DISTINCT FROM n.notes
+          OR (SELECT count(*) FROM page_blocks b
+               WHERE b.task_id = n.task_id AND b.kind = 'paragraph')
+             <> (SELECT count(*) FROM s6_pieces p WHERE p.task_id = n.task_id))
    LIMIT 1;
   IF bad IS NOT NULL THEN
     RAISE EXCEPTION 'step 6: materialized notes differ on task %', bad;

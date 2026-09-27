@@ -413,7 +413,27 @@ export async function isChecklistTickOnly(
   taskId: string,
   body: DocumentTransaction,
 ): Promise<boolean> {
+  return (await checklistTicks(tx, taskId, body)) !== null
+}
+
+/** A checklist item whose tick a document transaction changes. */
+export interface ChecklistTick {
+  readonly text: string
+  readonly checked: boolean
+}
+
+/**
+ * The ticks a tick-only transaction (`isChecklistTickOnly`) changes, in the
+ * order it sends them, or null when the transaction does anything else. The
+ * task's history names each one, as it named a step's tick before 0060.
+ */
+export async function checklistTicks(
+  tx: Executor,
+  taskId: string,
+  body: DocumentTransaction,
+): Promise<ChecklistTick[] | null> {
   const stored = await blockRows(tx, taskId)
+  const ticks: ChecklistTick[] = []
   const byId = new Map(stored.map((row) => [String(row.id), row]))
   let outlines = 0
   for (const op of body.operations) {
@@ -431,16 +451,16 @@ export async function isChecklistTickOnly(
         section_block_id: item.section_block_id,
         list_parent_block_id: item.list_parent_block_id,
       }))
-      if (JSON.stringify(sent) !== JSON.stringify(current)) return false
+      if (JSON.stringify(sent) !== JSON.stringify(current)) return null
       continue
     }
-    if (op.op !== 'put_block' || op.block_kind !== 'checklist') return false
+    if (op.op !== 'put_block' || op.block_kind !== 'checklist') return null
     const row = byId.get(op.id)
-    if (row === undefined || row.kind !== 'checklist') return false
-    if (str(row.text) !== op.text) return false
-    if (str(row.file_id) !== op.file_id || op.ref_folder_id !== null) return false
-    if ((row.width_pct ?? null) !== op.width_pct) return false
-    if ((op.toggleable ?? null) !== null) return false
+    if (row === undefined || row.kind !== 'checklist') return null
+    if (str(row.text) !== op.text) return null
+    if (str(row.file_id) !== op.file_id || op.ref_folder_id !== null) return null
+    if ((row.width_pct ?? null) !== op.width_pct) return null
+    if ((op.toggleable ?? null) !== null) return null
     const rich = (row.rich_content ?? null) as unknown
     const sameRich =
       canonical(rich) === canonical(op.rich_content) ||
@@ -448,9 +468,11 @@ export async function isChecklistTickOnly(
         (op.rich_content === null ||
           op.rich_content.runs.every((run) => Object.keys(run).length === 1) &&
             op.rich_content.runs.map((run) => run.text).join('') === op.text))
-    if (!sameRich) return false
+    if (!sameRich) return null
+    const was = row.checked === true
+    if (op.checked !== null && op.checked !== was) ticks.push({ text: op.text ?? '', checked: op.checked })
   }
-  return outlines === 1
+  return outlines === 1 ? ticks : null
 }
 
 /** A refusal from the Task document applier: `stale` is 409, `not_found`
