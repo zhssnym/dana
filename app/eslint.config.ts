@@ -31,14 +31,15 @@ sets the same rule replaces its options for the files it matches, so a block
 without it would silently lift the server-to-client wall for those files.
 */
 const BRICKS: ReadonlyArray<readonly [string, readonly string[]]> = [
-  ['kernel', ['fractional-index', 'document-hash', 'document-outline', 'document-body']],
+  ['kernel', ['fractional-index', 'document-hash', 'document-outline']],
   ['activity', ['events', 'mentions']],
   ['access', ['folder-access', 'responsibility', 'invites', 'connections']],
   ['files', ['files']],
   // Labels are Folder-scoped, and folders.ts seeds them, so they sit here
   // rather than with tasks.
-  ['projects', ['folders', 'facets', 'page-tree', 'page-order', 'shelves', 'shelf-document', 'labels']],
-  ['documents', ['pages', 'page-document', 'task-document']],
+  ['projects', ['folders', 'facets', 'page-tree', 'page-order', 'shelves', 'labels']],
+  // The body writer (document-body) and every applier that calls it.
+  ['documents', ['document-body', 'pages', 'page-document', 'task-document', 'facet-document', 'shelf-document']],
   ['tasks', ['tasks', 'task-order', 'task-dependencies', 'task-dependency-counts']],
   ['threads', ['consultation', 'consultation-hooks', 'consultation-input', 'comments']],
   ['views', ['references', 'backlinks', 'bundle', 'covers', 'place-descriptions']],
@@ -48,7 +49,9 @@ const BRICKS: ReadonlyArray<readonly [string, readonly string[]]> = [
 /* Named exceptions, each with the step that removes it. */
 const BRICK_EXCEPTIONS: Readonly<Record<string, readonly string[]>> = {
   // documents -> tasks: a Work page writes Task blocks through createTaskIn.
-  // Step 4's block-kind registry lets the tasks brick register that writer.
+  // Step 4 left this in place: its registry covers what a body stores, not
+  // who writes a Task. Step 6 (Tasks become leaves) rewrites how a body holds
+  // Tasks, and that change inverts this call or keeps it named here.
   pages: ['./tasks.js'],
   'page-document': ['./tasks.js'],
   // tasks -> views: the hand order is the Folder page's own list query, and

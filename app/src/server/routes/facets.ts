@@ -47,12 +47,9 @@ import {
 import { documentTransaction } from '../../shared/page-document.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
 import {
-  applyFacetDocument,
   createFacet,
   deleteFacet,
   destroyFacet,
-  facetPageGate,
-  facetPageView,
   listFacets,
   patchFacet,
   nativeDocumentFacetFolderId,
@@ -60,9 +57,9 @@ import {
   setFacetOrder,
   setMyFacetOrder,
   shareFacet,
-  FacetDocumentRefusal,
 } from '../domain/facets.js'
 import type { FacetOutcome } from '../domain/facets.js'
+import { applyFacetDocument, FacetDocumentRefusal, facetPageGate, facetPageView } from '../domain/facet-document.js'
 import type { FolderAccess } from '../domain/folder-access.js'
 import { accessOf, mayPerform } from '../domain/folder-access.js'
 import { sendError, sendFieldValidationError } from '../http/errors.js'
