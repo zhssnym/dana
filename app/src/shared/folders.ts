@@ -355,6 +355,18 @@ export const folder = z.object({
 })
 export type Folder = z.infer<typeof folder>
 
+/**
+ * `GET /folders?tabs=1` lists every page, a project's tabs included. Without
+ * it the answer keeps the shape a client from before step 7 reads (an
+ * installed PWA on the old bundle): no tab but the root, and a page under a
+ * tab listed under its project root. The default flips with the contract
+ * migration, when the old bundle is gone.
+ */
+export const getFoldersQuery = z.object({
+  tabs: z.literal('1', { error: "must be '1'" }).optional(),
+})
+export type GetFoldersQuery = z.infer<typeof getFoldersQuery>
+
 /** The project's live tabs, in order, from a folder list. */
 export function projectTabs<T extends Pick<Folder, 'id' | 'project_id' | 'tab_position'>>(
   folders: readonly T[],

@@ -22,6 +22,8 @@ import { sql } from 'drizzle-orm'
 import type { Db } from '../../../db/client.js'
 import { DEFAULT_TAB_NAMES } from '../../shared/folders.js'
 import type { PageKind } from '../../shared/folders.js'
+import { DEFAULT_FACET_NAMES } from '../../shared/facets.js'
+import type { Facet } from '../../shared/facets.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
@@ -283,4 +285,58 @@ export async function addDocPage(
   }
   await appendHomeBlock(tx, pageId, id)
   return id
+}
+
+/**
+ * The retired 7.27 facet listing, read from the tab rows, for a client from
+ * before step 7 (an installed PWA on the old bundle) until the contract
+ * migration. On a project root: the root as `main`, and each live Doc or
+ * Discussion tab as the facet it was (a migrated tab keeps its facet's id and
+ * kind) or as a shared blank / consultation. Any other page answers its
+ * `main` alone. A Work tab besides the root has no old shape and is left
+ * out. The caller has gated the viewer on `pageId`.
+ */
+export async function legacyFacets(executor: Executor, pageId: string): Promise<Facet[]> {
+  const rows = await rowsOf(
+    executor,
+    sql`SELECT t.id, t.kind, t.name, t.tab_position, t.created_at, (t.id = p.id) AS is_page,
+               ff.kind AS facet_kind,
+               (SELECT m.id FROM folder_facets m WHERE m.folder_id = p.id AND m.kind = 'main') AS main_id
+          FROM folders p
+          JOIN folders t ON (p.id = p.project_id AND t.project_id = p.id AND t.tab_position IS NOT NULL
+                             AND t.deleted_at IS NULL)
+                         OR t.id = p.id
+          LEFT JOIN folder_facets ff ON ff.id = t.id
+         WHERE p.id = ${pageId}::uuid
+         ORDER BY t.tab_position NULLS FIRST, t.id`,
+  )
+  const facets: Facet[] = []
+  for (const row of rows) {
+    const common = {
+      hidden: false,
+      private: false,
+      owner_id: null,
+      position: row.tab_position === null ? 'a0' : String(row.tab_position),
+      h1_block_id: null,
+      updated_at: new Date(row.created_at as string | Date).toISOString(),
+    }
+    if (row.is_page === true) {
+      const id = row.main_id === null ? String(row.id) : String(row.main_id)
+      facets.push({ ...common, id, kind: 'main', name: DEFAULT_FACET_NAMES.main, display_name: null })
+      continue
+    }
+    const stored = row.facet_kind === null ? null : String(row.facet_kind)
+    const kind =
+      stored === 'purpose' || stored === 'results' || stored === 'shared_blank' || stored === 'consultation'
+        ? stored
+        : row.kind === 'doc' ? 'shared_blank' : row.kind === 'discussion' ? 'consultation' : null
+    if (kind === null) continue
+    const name = String(row.name)
+    const display_name =
+      kind === 'consultation' ? null
+        : kind === 'shared_blank' ? name
+          : name === DEFAULT_FACET_NAMES[kind] ? null : name
+    facets.push({ ...common, id: String(row.id), kind, name, display_name })
+  }
+  return facets
 }

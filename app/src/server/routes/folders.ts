@@ -22,6 +22,7 @@ import type { Request, Response, Router } from 'express'
 
 import type { Db, DbClient } from '../../../db/client.js'
 import {
+  getFoldersQuery,
   patchFolderBody,
   patchFolderLocationBody,
   patchFolderMyMembershipBody,
@@ -55,6 +56,7 @@ import {
   recoverOwnerFullControl,
   removeMembership,
   setMyMembership,
+  withoutProjectTabs,
 } from '../domain/folders.js'
 import {
   accessHistoryOf,
@@ -260,9 +262,15 @@ export function createFoldersRouter(
   router.get('/folders', requireSession, async (req: Request, res: Response) => {
     const db = database(res)
     if (db === null) return
+    const query = getFoldersQuery.safeParse(req.query)
+    if (!query.success) {
+      sendError(res, 422, 'validation_failed', 'tabs: must be 1')
+      return
+    }
     // 7.4 names the Folder objects and their order and no wrapper, so the
     // array answers bare, the literal reading.
-    res.status(200).json(await listFolders(db, viewer(req)))
+    const folders = await listFolders(db, viewer(req))
+    res.status(200).json(query.data.tabs === '1' ? folders : withoutProjectTabs(folders))
   })
 
   router.post(
@@ -610,6 +618,7 @@ export function createFoldersRouter(
          explicitly cannot administer people. AC-024 drives it. */
       const access = await gate(req, res, folderId, 'member.add')
       if (access === null) return
+      if (await refusedOnTab(db, res, folderId)) return
       const result = await addMember(
         db,
         actorId,

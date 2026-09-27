@@ -107,7 +107,9 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
   else if(op.op==='set_outline')outline=op.items
   else {const unknown:never=op;throw new DocumentRefusal('not_convertible',`Unknown operation ${String((unknown as {op?:unknown}).op)}.`)}
  }
- if(blocks.size>500)throw new DocumentRefusal('not_convertible','A page holds at most 500 blocks.')
+ // Only growth past the cap is refused: a page 0061 left over 500 (home blocks
+ // for its tabs and sub-pages) still saves edits that do not add blocks.
+ if(blocks.size>500&&blocks.size>original.size)throw new DocumentRefusal('not_convertible','A page holds at most 500 blocks.')
  if(tasks.size>1000)throw new DocumentRefusal('not_convertible','A page holds at most 1000 Tasks.')
  // A Section's heading level is its depth in this outline and nothing else; depths
  // is the running ancestry measurement, recorded as each Section is accepted so that

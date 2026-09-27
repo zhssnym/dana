@@ -34,13 +34,13 @@ afterAll(async () => {
 })
 
 async function row(actor: Actor, projectId: string): Promise<string[]> {
-  const listed = await actor.browser.json('/folders', 'GET')
+  const listed = await actor.browser.json('/folders?tabs=1', 'GET')
   expectStatus(listed, 200, 'a member lists the folders (7.4)')
   return projectTabs(listed.json() as Folder[], projectId).map((tab) => tab.name)
 }
 
 async function tabIds(actor: Actor, projectId: string): Promise<Map<string, string>> {
-  const listed = await actor.browser.json('/folders', 'GET')
+  const listed = await actor.browser.json('/folders?tabs=1', 'GET')
   return new Map(projectTabs(listed.json() as Folder[], projectId).map((tab) => [tab.name, tab.id]))
 }
 

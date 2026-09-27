@@ -93,6 +93,13 @@ describe("AC-1523 a project's tabs have its people", () => {
     await connect(app.db, owner.id, third.id)
     await addMemberOk(owner, project, member.id, 'can_edit')
 
+    expectStatus(
+      await owner.browser.json(`/folders/${results}/members`, 'POST', { user_id: third.id, access: 'can_view' }),
+      422,
+      'no add to a tab alone',
+    )
+    expect((await rows(app.db, sql`
+      SELECT user_id FROM folder_members WHERE folder_id = ${results}::uuid AND user_id = ${third.id}::uuid`)).length).toBe(0)
     expectStatus(await removeMember(owner, results, member.id), 422, 'no removal from a tab alone')
     expectStatus(
       await owner.browser.json(`/folders/${results}/members/${member.id}`, 'PATCH', { access: 'can_view' }),

@@ -238,6 +238,26 @@ export async function listFolders(db: Db, viewerId: string): Promise<Folder[]> {
   return withPersonalLabels(db, viewerId, await rowsOf(db, folderSelect(viewerId)))
 }
 
+/**
+ * GET /folders as a client from before step 7 reads it (an installed PWA on
+ * the old bundle): a project's other tabs are left out, since that client
+ * takes every parentless row for a project, and a page under a tab is listed
+ * under the project root instead. Retired with the facet shims.
+ */
+export function withoutProjectTabs(folders: readonly Folder[]): Folder[] {
+  const tabProject = new Map(
+    folders
+      .filter((f) => f.tab_position !== null && f.id !== f.project_id)
+      .map((f) => [f.id, f.project_id]),
+  )
+  return folders
+    .filter((f) => !tabProject.has(f.id))
+    .map((f) => {
+      const lifted = f.parent_folder_id == null ? undefined : tabProject.get(f.parent_folder_id)
+      return lifted === undefined ? f : { ...f, parent_folder_id: lifted }
+    })
+}
+
 export async function folderView(
   db: Db,
   viewerId: string,

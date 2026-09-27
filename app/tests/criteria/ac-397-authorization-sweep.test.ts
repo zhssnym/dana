@@ -1820,6 +1820,39 @@ const TABLE = new Map<string, Row>([
       },
     },
   ],
+  /* The retired 7.27 facet reads, kept as shims over the tab rows for one
+     release (installed PWAs on the old bundle). The contract migration
+     deletes them and these rows. */
+  [
+    'GET /api/v1/folders/:id/facets',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/facets` }),
+      stranger: {
+        expected: 404,
+        rule: "step 7 shim and 10.2: the facet listing is the project's tab row, and a non-member sees nothing of the project",
+      },
+    },
+  ],
+  [
+    'GET /api/v1/folders/:id/facets/:facetId/page',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/facets/${fx.tabId}/page` }),
+      stranger: {
+        expected: 404,
+        rule: "step 7 shim and 7.16: a tab's document is read by the tab's members, so a non-member is 404 exactly as on `/folders/:id/page`",
+      },
+    },
+  ],
+  [
+    'GET /api/v1/facets/:id/location',
+    {
+      attempt: (fx) => ({ path: `/facets/${fx.tabId}/location` }),
+      stranger: {
+        expected: 404,
+        rule: "step 7 shim and 10.2: the location names the tab's project, which a non-member must not learn",
+      },
+    },
+  ],
   /* -------------------------------------------------------------- *
    * Consultation (7.28, issue #320)
    * -------------------------------------------------------------- */
@@ -2327,7 +2360,7 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
     }),
     tabId: (fx) => ({
       what: 'the Doc tab, on the folder list',
-      path: '/folders',
+      path: '/folders?tabs=1',
       holds: fx.tabId,
     }),
     discussionId: (fx) => ({

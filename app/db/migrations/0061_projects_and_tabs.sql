@@ -19,7 +19,11 @@
 --      included.
 --    - `shared_blank` becomes a Doc tab, trashed if it was.
 --    - A Work facet over an H1 of Main gets no tab: it stores nothing and is
---      a view of a Main section, which stays in Work.
+--      a view of a Main section, which stays in Work (checked, and each one
+--      is listed in a NOTICE). PLAN-B's rule 8 would move the section into
+--      a Work tab, but that moves tasks, and a task move drops its Folder
+--      Labels and carries files and threads (domain/tasks.ts): a data change
+--      no migration should make unseen.
 --    - A root holding `page` blocks or child pages gains a Doc tab named
 --      `Pages`, right after Work. Its `page` blocks move there in order, its
 --      children move under it, and a live child with no home block gets one.
@@ -703,8 +707,21 @@ BEGIN
     RAISE EXCEPTION 'step 7: visibility changed %', bad;
   END IF;
 
-  RAISE NOTICE 'step 7: % Work facets over an H1 got no tab',
-    (SELECT count(*) FROM s7_facet WHERE becomes = 'h1');
+  -- A Work facet over an H1 was a view of that Main section and stored
+  -- nothing; it gets no tab, and the section it showed stays in Work.
+  SELECT s.id::text INTO bad FROM s7_facet s
+    JOIN folder_facets ff ON ff.id = s.id
+    LEFT JOIN page_blocks b ON b.id = ff.h1_block_id
+   WHERE s.becomes = 'h1'
+     AND (b.id IS NULL OR b.folder_id IS DISTINCT FROM s.folder_id OR b.facet_id IS NOT NULL)
+   LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 7: section of a Work facet left Work %', bad;
+  END IF;
+  RAISE NOTICE 'step 7: % Work facets over an H1 got no tab; their sections stay in Work: %',
+    (SELECT count(*) FROM s7_facet WHERE becomes = 'h1'),
+    (SELECT string_agg(folder_id::text || '/' || id::text, ', ' ORDER BY folder_id, id)
+       FROM s7_facet WHERE becomes = 'h1');
   RAISE NOTICE 'step 7: % hidden facets with content became shown tabs',
     (SELECT count(*) FROM s7_facet WHERE becomes = 'tab' AND hidden AND has_content);
   RAISE NOTICE 'step 7: % private tabs became projects; % left in place (owner not a member)',
