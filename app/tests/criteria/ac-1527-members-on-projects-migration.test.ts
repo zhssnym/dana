@@ -3,10 +3,12 @@ AC-1527: migration 0062 moves people to the project (spec 4.4). For every
 person the set of pages they can see is the same before and after; a page
 whose people differ from its project's, either way, becomes its own project
 with its sub-pages; otherwise the project's preset wins and the change is
-recorded; pending page invites are invalidated; page Responsibilities move to
-the project unless one is already active there; every page gets its
-project's owner; tasks carry their project and their assignee is a member of
-it.
+recorded; a page's own membership rows stay, unread, with their shelf;
+pending invites that would now open more pages are invalidated; every page
+Responsibility moves to the project, ended unless it is the person's one
+active there; a project the split leaves with discussions and no Discussion
+tab gets one; every page gets its project's owner; tasks carry their project
+and their assignee is a member of it.
 
 Built as ac-1519 builds 0061's test: a database is migrated through 0061
 from a copy of the journal cut there, seeded, and a second cut through 0062
@@ -98,14 +100,16 @@ const u = { owner: id(1, 1), editor: id(1, 2), viewer: id(1, 3), extra: id(1, 4)
 // (a) same people, a different preset, owned by someone else, with invites,
 // Responsibilities, a tab and an assigned task.
 const A = { root: id(0xa, 0), sub: id(0xa, 1), tab: id(0xa, 2), task: id(0xa, 3), invite: id(0xa, 4),
-  respRoot: id(0xa, 5), respSubE: id(0xa, 6), respSubV: id(0xa, 7), histV: id(0xa, 8) }
+  respRoot: id(0xa, 5), respSubE: id(0xa, 6), respSubV: id(0xa, 7), histV: id(0xa, 8), sub2: id(0xa, 9),
+  respSub2V: id(0xa, 10), rootInvite: id(0xa, 11) }
 // (b) a sub-page with one person more, and its grandchild.
 const B = { root: id(0xb, 0), sub: id(0xb, 1), grand: id(0xb, 2), home: id(0xb, 3), task: id(0xb, 4),
   invite: id(0xb, 5) }
 // (c) a sub-page missing one of the project's people.
-const C = { root: id(0xc, 0), sub: id(0xc, 1), home: id(0xc, 2) }
+const C = { root: id(0xc, 0), sub: id(0xc, 1), home: id(0xc, 2), invite: id(0xc, 3), talk: id(0xc, 4) }
 // (d) a grandchild that differs while its parent does not.
-const D = { root: id(0xd, 0), sub: id(0xd, 1), grand: id(0xd, 2), task: id(0xd, 3) }
+const D = { root: id(0xd, 0), sub: id(0xd, 1), grand: id(0xd, 2), task: id(0xd, 3), disc: id(0xd, 4),
+  talk: id(0xd, 5) }
 
 let db: Scratch
 let scratch: string
@@ -145,6 +149,9 @@ beforeAll(async () => {
   const invite = (iid: string, fid: string, email: string) =>
     db.exec(sql`INSERT INTO invites (id, inviter_id, email, folder_id, access)
       VALUES (${iid}::uuid, ${u.owner}::uuid, ${email}, ${fid}::uuid, 'can_view')`)
+  const discussion = (did: string, fid: string) =>
+    db.exec(sql`INSERT INTO discussions (id, folder_id, title, created_by)
+      VALUES (${did}::uuid, ${fid}::uuid, 'Talk', ${u.owner}::uuid)`)
   const responsibility = (rid: string, fid: string, uid: string, created: string) =>
     db.exec(sql`INSERT INTO folder_responsibilities
       (id, folder_id, member_id, content, content_hash, current_revision_no, updated_by, created_at)
@@ -164,8 +171,13 @@ beforeAll(async () => {
   await member(A.tab, u.owner, 'full_control')
   await member(A.tab, u.editor, 'can_edit')
   await member(A.tab, u.viewer, 'can_view')
+  await folder(A.sub2, 'Tickets', { parent: A.root })
+  await member(A.sub2, u.owner, 'full_control')
+  await member(A.sub2, u.editor, 'can_edit')
+  await member(A.sub2, u.viewer, 'can_view')
   await task(A.task, A.sub, u.editor)
   await invite(A.invite, A.sub, 'a@example.com')
+  await invite(A.rootInvite, A.root, 'root@example.com')
   await responsibility(A.respRoot, A.root, u.editor, '2026-01-01T00:00:00Z')
   await responsibility(A.respSubE, A.sub, u.editor, '2026-01-02T00:00:00Z')
   await responsibility(A.respSubV, A.sub, u.viewer, '2026-01-03T00:00:00Z')
@@ -173,6 +185,7 @@ beforeAll(async () => {
     (id, folder_id, member_id, responsibility_id, transition, revision_no, content, content_hash, actor_id)
     VALUES (${A.histV}::uuid, ${A.sub}::uuid, ${u.viewer}::uuid, ${A.respSubV}::uuid, 'responsibility_created', 1,
             '{"items":[]}'::jsonb, 'h', ${u.owner}::uuid)`)
+  await responsibility(A.respSub2V, A.sub2, u.viewer, '2026-01-04T00:00:00Z')
 
   await folder(B.root, 'Build')
   await member(B.root, u.owner, 'full_control')
@@ -197,6 +210,8 @@ beforeAll(async () => {
   await member(C.sub, u.owner, 'full_control')
   await member(C.sub, u.editor, 'can_edit')
   await home(C.home, C.root, C.sub)
+  await invite(C.invite, C.sub, 'c@example.com')
+  await discussion(C.talk, C.sub)
 
   await folder(D.root, 'Garden')
   await member(D.root, u.owner, 'full_control')
@@ -207,6 +222,11 @@ beforeAll(async () => {
   await folder(D.grand, 'Secret bed', { parent: D.sub })
   await member(D.grand, u.owner, 'full_control')
   await task(D.task, D.grand, u.owner)
+  // A Discussion tab whose people differ splits off; the talk on D.sub stays.
+  await db.exec(sql`INSERT INTO folders (id, owner_id, name, project_id, kind, tab_position)
+    VALUES (${D.disc}::uuid, ${u.owner}::uuid, 'Discussion', ${D.root}::uuid, 'discussion', 'a1')`)
+  await member(D.disc, u.owner, 'full_control')
+  await discussion(D.talk, D.sub)
 
   visibleBefore = (await db.exec(sql`SELECT user_id, folder_id FROM folder_members ORDER BY user_id, folder_id`))
     .map((row) => `${String(row.user_id)} ${String(row.folder_id)}`)
@@ -225,13 +245,20 @@ const people = async (fid: string) =>
   (await db.exec(sql`SELECT user_id, access FROM folder_members WHERE folder_id = ${fid}::uuid ORDER BY user_id`))
 
 describe('AC-1527 migration 0062: people belong to the project', () => {
-  test('every person sees exactly the pages they saw', async () => {
-    expect(await visibility()).toEqual(visibleBefore)
+  test('every person sees exactly the pages they saw (and the new Discussion tabs)', async () => {
+    const added = (await db.exec(sql`SELECT id FROM folders WHERE kind = 'discussion'
+      AND project_id IN (${C.sub}::uuid, ${D.root}::uuid)`)).map((row) => String(row.id))
+    expect(added).toHaveLength(2)
+    expect((await visibility()).filter((row) => !added.includes(row.split(' ')[1] ?? ''))).toEqual(visibleBefore)
   })
 
-  test('only project roots hold people', async () => {
-    expect(await db.exec(sql`SELECT m.folder_id FROM folder_members m JOIN folders f ON f.id = m.folder_id
-      WHERE f.id <> f.project_id`)).toEqual([])
+  test('a page keeps its own rows, unread, with the shelf step 9 reads', async () => {
+    expect(await db.exec(sql`SELECT user_id, access, shelf_name, color FROM folder_members
+      WHERE folder_id = ${A.sub}::uuid ORDER BY user_id`)).toEqual([
+      { user_id: u.owner, access: 'full_control', shelf_name: null, color: null },
+      { user_id: u.editor, access: 'can_edit', shelf_name: null, color: null },
+      { user_id: u.viewer, access: 'can_comment', shelf_name: 'Mine', color: '#336699' },
+    ])
     expect(await people(A.root)).toEqual([
       { user_id: u.owner, access: 'full_control' },
       { user_id: u.editor, access: 'can_edit' },
@@ -281,21 +308,44 @@ describe('AC-1527 migration 0062: people belong to the project', () => {
     ].sort((x, y) => x.id.localeCompare(y.id)))
   })
 
-  test('invites on a page inside a project are invalidated; one on a new project stays', async () => {
+  test('invites that would now open more pages are invalidated; one on a project without sub-pages stays', async () => {
     expect(await db.exec(sql`SELECT id, status FROM invites ORDER BY id`)).toEqual([
       { id: A.invite, status: 'invalidated' },
-      { id: B.invite, status: 'pending' },
-    ])
+      { id: A.rootInvite, status: 'invalidated' },
+      { id: B.invite, status: 'invalidated' },
+      { id: C.invite, status: 'pending' },
+    ].sort((x, y) => x.id.localeCompare(y.id)))
   })
 
-  test('Responsibilities move to the project unless one is already active there', async () => {
-    expect(await db.exec(sql`SELECT id, folder_id FROM folder_responsibilities ORDER BY id`)).toEqual([
-      { id: A.respRoot, folder_id: A.root },
-      { id: A.respSubE, folder_id: A.sub },
-      { id: A.respSubV, folder_id: A.root },
+  test('every page Responsibility moves to the project, ended unless it is the one active there', async () => {
+    expect(await db.exec(sql`SELECT id, folder_id, ended_at IS NOT NULL AS ended FROM folder_responsibilities
+      ORDER BY id`)).toEqual([
+      { id: A.respRoot, folder_id: A.root, ended: false },
+      { id: A.respSubE, folder_id: A.root, ended: true },
+      { id: A.respSubV, folder_id: A.root, ended: false },
+      { id: A.respSub2V, folder_id: A.root, ended: true },
     ])
     expect(await db.exec(sql`SELECT folder_id FROM folder_responsibility_history WHERE id = ${A.histV}::uuid`))
       .toEqual([{ folder_id: A.root }])
+    expect(await db.exec(sql`SELECT responsibility_id, folder_id, member_id, actor_id FROM folder_responsibility_history
+      WHERE transition = 'responsibility_ended' ORDER BY responsibility_id`)).toEqual([
+      { responsibility_id: A.respSubE, folder_id: A.root, member_id: u.editor, actor_id: u.owner },
+      { responsibility_id: A.respSub2V, folder_id: A.root, member_id: u.viewer, actor_id: u.owner },
+    ])
+  })
+
+  test('a project the split leaves with discussions and no Discussion tab gets one', async () => {
+    // The diverged Discussion tab is a project of its own now.
+    expect(await place(D.disc)).toEqual({ project_id: D.disc, parent_folder_id: null, owner_id: u.owner, tab_position: 'a1' })
+    const tabs = async (project: string) => db.exec(sql`SELECT name, kind, owner_id, tab_position, deleted_at
+      FROM folders WHERE project_id = ${project}::uuid AND kind = 'discussion'`)
+    expect(await tabs(D.root)).toEqual([
+      { name: 'Discussion', kind: 'discussion', owner_id: u.owner, tab_position: 'a1', deleted_at: null },
+    ])
+    expect(await tabs(C.sub)).toEqual([
+      { name: 'Discussion', kind: 'discussion', owner_id: u.owner, tab_position: 'a1', deleted_at: null },
+    ])
+    expect(await tabs(C.root)).toEqual([])
   })
 
   test('after it: a task takes its folder project, and a page takes no people of its own', async () => {
@@ -306,14 +356,18 @@ describe('AC-1527 migration 0062: people belong to the project', () => {
     await db.exec(sql`UPDATE tasks SET folder_id = ${D.sub}::uuid, assignee_id = NULL WHERE id = ${late}::uuid`)
     expect(await db.exec(sql`SELECT project_id FROM tasks WHERE id = ${late}::uuid`)).toEqual([{ project_id: D.root }])
     // The old instance's copy onto a page is dropped for someone already on the project.
+    const before = await people(A.sub)
     await db.exec(sql`INSERT INTO folder_members (folder_id, user_id, access)
-      VALUES (${A.sub}::uuid, ${u.editor}::uuid, 'can_edit')`)
-    expect(await people(A.sub)).toEqual([])
+      VALUES (${D.sub}::uuid, ${u.editor}::uuid, 'can_edit')`)
+    expect(await people(D.sub)).toEqual([
+      { user_id: u.owner, access: 'full_control' },
+      { user_id: u.editor, access: 'can_edit' },
+    ])
     // Anyone else is refused, never let in.
     const refused: unknown = await db.exec(sql`INSERT INTO folder_members (folder_id, user_id, access)
       VALUES (${A.sub}::uuid, ${u.stranger}::uuid, 'can_edit')`).then(() => null, (e: unknown) => e)
     const err = refused as { constraint?: string; cause?: { constraint?: string } } | null
     expect(err?.cause?.constraint ?? err?.constraint).toBe('folder_members_on_project_root')
-    expect(await people(A.sub)).toEqual([])
+    expect(await people(A.sub)).toEqual(before)
   })
 })

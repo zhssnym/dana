@@ -282,6 +282,17 @@ export async function moveFolder(
     return { kind: 'not_movable', field: 'parent_folder_id', reason: 'a Discussion page holds threads, not pages.' }
   }
   const targetProject = String(target[0]?.project_id)
+  /* Step 8: a page's people are its project's, so a move into another
+     project would change who sees it: the mover could hand a project to
+     people its owner never chose, or take it from them. Only a project with
+     the same owner and the same people at the same presets takes it. */
+  if (targetProject !== projectId && !(await samePeople(tx, projectId, targetProject))) {
+    return {
+      kind: 'not_movable',
+      field: 'parent_folder_id',
+      reason: 'a page moves only into a project with the same owner and the same people.',
+    }
+  }
 
   const chain = await chainUp(tx, parentId)
   if (chain.includes(folderId)) return { kind: 'cycle' }
@@ -315,7 +326,7 @@ export async function moveFolder(
     const upper = keys.slice(index + 1).find((key) => lower === null || key > lower)
     position = keyBetween(lower, upper ?? null)
   }
-  if (targetProject !== projectId) await leaveProject(tx, folderId, targetProject, isRoot)
+  if (targetProject !== projectId && isRoot) await leaveProject(tx, actorId, folderId, targetProject)
   /* Step 7: the page joins the parent's project; ON UPDATE CASCADE carries
      its sub-pages. A project root becoming a sub-page stops being a tab,
      and an unpicked one becomes a Doc. */
@@ -329,12 +340,8 @@ export async function moveFolder(
   )
   if (targetProject !== projectId) {
     /* Step 8: a project root that became a sub-page holds no people of its
-       own now, and every page of the project has the project's owner. */
+       own now (the target has the same people and owner, checked above). */
     if (isRoot) await tx.execute(sql`DELETE FROM folder_members WHERE folder_id = ${folderId}::uuid`)
-    await tx.execute(
-      sql`UPDATE folders f SET owner_id = p.owner_id FROM folders p
-           WHERE p.id = ${targetProject}::uuid AND f.project_id = p.id AND f.owner_id <> p.owner_id`,
-    )
   }
   if (oldParent !== parentId) {
     await removeHomeBlock(tx, folderId)
@@ -345,35 +352,60 @@ export async function moveFolder(
 }
 
 /**
- * Step 8, before `folderId` and its sub-pages move into `targetProject`:
- * people belong to the project, so a task there may only be assigned to one
- * of its members. A task assigned to anyone else is unassigned (the
- * assignee no longer sees it). A project root that moves also leaves its
- * pending invites behind: accepting one would join the other project.
+ * Step 8: true when both projects have the same owner and the same people
+ * at the same presets, so a page moving between them changes nobody's access.
+ */
+async function samePeople(tx: Executor, projectId: string, otherId: string): Promise<boolean> {
+  const differs = await rowsOf(
+    tx,
+    sql`SELECT 1 FROM folders a JOIN folders b ON b.id = ${otherId}::uuid
+         WHERE a.id = ${projectId}::uuid AND a.owner_id <> b.owner_id
+        UNION ALL
+        (SELECT 1 FROM (
+           (SELECT user_id, access FROM folder_members WHERE folder_id = ${projectId}::uuid
+            EXCEPT SELECT user_id, access FROM folder_members WHERE folder_id = ${otherId}::uuid)
+           UNION ALL
+           (SELECT user_id, access FROM folder_members WHERE folder_id = ${otherId}::uuid
+            EXCEPT SELECT user_id, access FROM folder_members WHERE folder_id = ${projectId}::uuid)
+         ) d)
+        LIMIT 1`,
+  )
+  return differs.length === 0
+}
+
+/**
+ * Step 8, before a project root becomes a page of `targetProject` (which has
+ * the same people): its pending invites are invalidated, since accepting one
+ * would join the other project, and its Responsibilities move there, each
+ * active one ended by the mover, so every document stays readable in the
+ * project's history instead of sitting unread on a page.
  */
 async function leaveProject(
   tx: Executor,
+  actorId: string,
   folderId: string,
   targetProject: string,
-  isRoot: boolean,
 ): Promise<void> {
   await tx.execute(
-    sql`WITH RECURSIVE sub(id) AS (
-          SELECT ${folderId}::uuid
-          UNION ALL
-          SELECT f.id FROM folders f JOIN sub ON f.parent_folder_id = sub.id
-        )
-        UPDATE tasks t SET assignee_id = NULL, updated_at = now()
-         WHERE t.folder_id IN (SELECT id FROM sub) AND t.assignee_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM folder_members m
-                            WHERE m.folder_id = ${targetProject}::uuid AND m.user_id = t.assignee_id)`,
+    sql`UPDATE invites SET status = 'invalidated', responded_at = now()
+         WHERE folder_id = ${folderId}::uuid AND status = 'pending'`,
   )
-  if (isRoot) {
-    await tx.execute(
-      sql`UPDATE invites SET status = 'invalidated', responded_at = now()
-           WHERE folder_id = ${folderId}::uuid AND status = 'pending'`,
-    )
-  }
+  await tx.execute(
+    sql`WITH ended AS (
+          UPDATE folder_responsibilities SET ended_at = now()
+           WHERE folder_id = ${folderId}::uuid AND ended_at IS NULL
+          RETURNING id, member_id
+        )
+        INSERT INTO folder_responsibility_history (folder_id, member_id, responsibility_id, transition, actor_id)
+        SELECT ${folderId}::uuid, member_id, id, 'responsibility_ended', ${actorId}::uuid FROM ended`,
+  )
+  await tx.execute(
+    sql`UPDATE folder_responsibilities SET folder_id = ${targetProject}::uuid WHERE folder_id = ${folderId}::uuid`,
+  )
+  await tx.execute(
+    sql`UPDATE folder_responsibility_history SET folder_id = ${targetProject}::uuid
+         WHERE folder_id = ${folderId}::uuid`,
+  )
 }
 
 /**
@@ -774,6 +806,12 @@ export async function promoteToProjects(
         )
         UPDATE tasks t SET assignee_id = NULL FROM old WHERE t.id = old.id
         RETURNING old.id, old.assignee_id`,
+  )
+  /* Rows 0062 left unread on a page (old presets, people since removed)
+     must not become the new project's people. */
+  await tx.execute(
+    sql`DELETE FROM folder_members
+         WHERE folder_id IN (${sql.join(pages.map((page) => sql`${page.id}::uuid`), sql`, `)})`,
   )
   await tx.execute(
     sql`UPDATE folders

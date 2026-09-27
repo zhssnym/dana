@@ -1,6 +1,6 @@
 -- 0062: people belong to the project, not to each page (step 8).
 --
--- After this migration a `folder_members` row exists on a project root only,
+-- After this migration a `folder_members` row is read on a project root only,
 -- and a person sees every page of a project they are a member of. Sharing
 -- never widens or narrows here: for every person, the set of pages they can
 -- see is exactly what it was before, and the migration raises otherwise.
@@ -11,24 +11,32 @@
 --    on it. Nobody joins a project they were not on. Deeper pages compare
 --    against the project they are in after the pages above them split. A
 --    split page's home `page` block in its old parent becomes a `folder_ref`
---    link, which a non-member reads as no access.
+--    link, which a non-member reads as no access. A project the split leaves
+--    with discussions and no Discussion tab gets one (0061's rule), so no
+--    thread drops out of the interface.
 -- 2. Presets. On a page that stays in its project with the same people, the
 --    project's preset wins. Each difference is written to
 --    `folder_access_history` on that page (`migration_initialized`, page
 --    preset -> project preset) and counted in a NOTICE.
 -- 3. Pending invites on a page that stays inside a project are invalidated:
---    accepting one would add the invitee to the whole project.
+--    accepting one would add the invitee to the whole project. So are
+--    pending invites on a project root whose project has sub-pages: accepting
+--    one used to add the invitee to the root and its tabs only, and would now
+--    open every sub-page too.
 -- 4. Responsibilities on such a page move to the project, with their
---    history, unless the person already has an active one there (or on an
---    earlier page); those stay where they are, unread, and are counted.
+--    history. Of one person's active ones in a project, the project's own
+--    stays active, else the earliest; every other one moves ended, with a
+--    `responsibility_ended` row (actor: the project's owner), so its text
+--    stays readable in the project's history.
 -- 5. Owner. Every page's owner becomes its project's owner, so account
 --    deletion (8.10), which deletes owned folders, never takes pages out of a
 --    project that survives.
 -- 6. Tasks gain `project_id` (the folder's project, kept by a trigger and a
 --    foreign key) and the assignee must be a member of the project.
--- 7. Every membership row on a page that is not a project root is deleted.
---    A personal shelf or colour on such a row is lost (NOTICE with the
---    count); the person still sees the page through its project.
+-- 7. Membership rows on a page that is not a project root stay, unread:
+--    every read joins memberships to the project, the trigger below refuses
+--    new ones, and a page promoted to a project later drops them before it
+--    copies its people. Step 9 reads their `shelf_name`; 0065 deletes them.
 -- 8. The deploy overlap. The old instance keeps serving until this one is
 --    healthy. A task it inserts gets its project from the trigger. A
 --    membership row it writes on a page that is not a project root (its
@@ -60,6 +68,15 @@ CREATE TEMP TABLE s8_tasks_before ON COMMIT DROP AS
 --> statement-breakpoint
 CREATE TEMP TABLE s8_history_count ON COMMIT DROP AS
   SELECT count(*)::int AS h FROM folder_access_history;
+--> statement-breakpoint
+CREATE TEMP TABLE s8_resp_before ON COMMIT DROP AS
+  SELECT r.id, r.folder_id, r.ended_at FROM folder_responsibilities r;
+--> statement-breakpoint
+CREATE TEMP TABLE s8_resp_history_before ON COMMIT DROP AS
+  SELECT h.id, h.folder_id, h.responsibility_id FROM folder_responsibility_history h;
+--> statement-breakpoint
+CREATE TEMP TABLE s8_invites_before ON COMMIT DROP AS
+  SELECT i.id, i.status FROM invites i;
 --> statement-breakpoint
 -- Depth in the tree as it stands: root-level rows (project roots and tabs)
 -- at 0.
@@ -114,6 +131,26 @@ UPDATE page_blocks b SET kind = 'folder_ref'
   FROM s8_split s
  WHERE b.kind = 'page' AND b.ref_folder_id = s.id;
 --> statement-breakpoint
+-- A project the split touched (a new one, or the one it left) that holds
+-- discussions and no Discussion tab gets one, last in its tab row and
+-- trashed with its root if the root is trashed (0061's rule).
+CREATE TEMP TABLE s8_new_tabs ON COMMIT DROP AS
+  SELECT gen_random_uuid() AS id, r.id AS project_id, r.owner_id, r.deleted_at,
+         CASE WHEN r.deleted_at IS NOT NULL THEN COALESCE(r.trashed_with_folder_id, r.id) END AS trashed_with,
+         migration_util.key_after((SELECT max(t.tab_position COLLATE "C") FROM folders t
+                                    WHERE t.project_id = r.id AND t.tab_position IS NOT NULL)) AS tab_position
+    FROM folders r
+   WHERE r.id = r.project_id
+     AND (r.id IN (SELECT id FROM s8_split) OR r.id IN (SELECT old_project FROM s8_split))
+     AND EXISTS (SELECT 1 FROM discussions d JOIN folders df ON df.id = d.folder_id
+                  WHERE df.project_id = r.id)
+     AND NOT EXISTS (SELECT 1 FROM folders t WHERE t.project_id = r.id AND t.kind = 'discussion');
+--> statement-breakpoint
+INSERT INTO folders (id, owner_id, name, created_at, deleted_at, trashed_with_folder_id,
+                     project_id, kind, tab_position)
+SELECT n.id, n.owner_id, 'Discussion', now(), n.deleted_at, n.trashed_with, n.project_id, 'discussion', n.tab_position
+  FROM s8_new_tabs n;
+--> statement-breakpoint
 -- 2. Presets: the project's wins.
 CREATE TEMP TABLE s8_preset ON COMMIT DROP AS
   SELECT m.folder_id, m.user_id, m.access AS page_access, p.access AS project_access
@@ -128,14 +165,16 @@ SELECT folder_id, user_id, page_access, project_access, NULL, 'migration_initial
 -- 3. Invites on a page that stays inside a project.
 CREATE TEMP TABLE s8_invites ON COMMIT DROP AS
   SELECT i.id FROM invites i JOIN folders f ON f.id = i.folder_id
-   WHERE i.status = 'pending' AND f.id <> f.project_id;
+   WHERE i.status = 'pending'
+     AND (f.id <> f.project_id
+          OR EXISTS (SELECT 1 FROM folders c WHERE c.project_id = f.id AND c.parent_folder_id IS NOT NULL));
 --> statement-breakpoint
 UPDATE invites SET status = 'invalidated', responded_at = now()
  WHERE id IN (SELECT id FROM s8_invites);
 --> statement-breakpoint
--- 4. Responsibilities. Ended documents always move; of the active ones for
--- one person in one project, the project's own stays and otherwise the
--- earliest moves.
+-- 4. Responsibilities. Every document on a page moves to its project. Of
+-- the active ones for one person in one project, the project's own stays
+-- active, else the earliest; every other one moves ended.
 CREATE TEMP TABLE s8_resp ON COMMIT DROP AS
   SELECT r.id, r.folder_id, f.project_id, r.member_id, r.ended_at,
          row_number() OVER (PARTITION BY f.project_id, r.member_id, (r.ended_at IS NULL)
@@ -144,17 +183,25 @@ CREATE TEMP TABLE s8_resp ON COMMIT DROP AS
     JOIN folders f ON f.id = r.folder_id AND f.id <> f.project_id;
 --> statement-breakpoint
 CREATE TEMP TABLE s8_resp_move ON COMMIT DROP AS
-  SELECT s.id, s.folder_id, s.project_id FROM s8_resp s
-   WHERE s.ended_at IS NOT NULL
-      OR (s.nth = 1 AND NOT EXISTS (SELECT 1 FROM folder_responsibilities p
+  SELECT s.id, s.folder_id, s.project_id, s.member_id,
+         (s.ended_at IS NULL
+          AND (s.nth > 1 OR EXISTS (SELECT 1 FROM folder_responsibilities p
                                      WHERE p.folder_id = s.project_id AND p.member_id = s.member_id
-                                       AND p.ended_at IS NULL));
+                                       AND p.ended_at IS NULL))) AS ends
+    FROM s8_resp s;
 --> statement-breakpoint
-UPDATE folder_responsibilities r SET folder_id = s.project_id
+UPDATE folder_responsibilities r
+   SET folder_id = s.project_id,
+       ended_at = CASE WHEN s.ends THEN now() ELSE r.ended_at END
   FROM s8_resp_move s WHERE s.id = r.id;
 --> statement-breakpoint
 UPDATE folder_responsibility_history h SET folder_id = s.project_id
   FROM s8_resp_move s WHERE s.id = h.responsibility_id;
+--> statement-breakpoint
+INSERT INTO folder_responsibility_history (folder_id, member_id, responsibility_id, transition, actor_id)
+SELECT s.project_id, s.member_id, s.id, 'responsibility_ended', p.owner_id
+  FROM s8_resp_move s JOIN folders p ON p.id = s.project_id
+ WHERE s.ends;
 --> statement-breakpoint
 UPDATE folder_responsibility_history h SET folder_id = f.project_id
   FROM folders f
@@ -200,18 +247,6 @@ $fn$;
 CREATE TRIGGER tasks_project_from_folder BEFORE INSERT OR UPDATE OF folder_id ON tasks
   FOR EACH ROW EXECUTE FUNCTION tasks_project_from_folder();
 --> statement-breakpoint
--- 7. Memberships leave every page that is not a project root.
-DO $$
-BEGIN
-  RAISE NOTICE 'step 8: % personal shelves or colours on pages inside a project were dropped',
-    (SELECT count(*) FROM folder_members m JOIN folders f ON f.id = m.folder_id
-      WHERE f.id <> f.project_id AND (m.shelf_name IS NOT NULL OR m.color IS NOT NULL));
-END
-$$;
---> statement-breakpoint
-DELETE FROM folder_members m USING folders f
- WHERE f.id = m.folder_id AND f.id <> f.project_id;
---> statement-breakpoint
 -- 8. The guard, which also covers the overlap: a membership row lives on a
 -- project root. One the person already has through the project is dropped
 -- (the old instance's copies); any other is refused.
@@ -241,13 +276,14 @@ DECLARE
   bad text;
   n integer;
 BEGIN
-  -- Everyone sees exactly the pages they saw.
+  -- Everyone sees exactly the pages they saw (a new Discussion tab is new).
   SELECT (d.user_id::text || ' ' || d.folder_id::text) INTO bad FROM (
     (SELECT user_id, folder_id FROM s8_vis_before
      EXCEPT
      SELECT m.user_id, f.id FROM folders f JOIN folder_members m ON m.folder_id = f.project_id)
     UNION ALL
     (SELECT m.user_id, f.id FROM folders f JOIN folder_members m ON m.folder_id = f.project_id
+      WHERE f.id NOT IN (SELECT id FROM s8_new_tabs)
      EXCEPT
      SELECT user_id, folder_id FROM s8_vis_before)
   ) d
@@ -256,10 +292,9 @@ BEGIN
     RAISE EXCEPTION 'step 8: visibility changed %', bad;
   END IF;
 
-  SELECT m.folder_id::text INTO bad FROM folder_members m JOIN folders f ON f.id = m.folder_id
-   WHERE f.id <> f.project_id LIMIT 1;
-  IF bad IS NOT NULL THEN
-    RAISE EXCEPTION 'step 8: membership left on a page %', bad;
+  -- No membership row was deleted (with the check below, none was added).
+  IF (SELECT count(*) FROM s8_vis_before) <> (SELECT count(*) FROM folder_members) THEN
+    RAISE EXCEPTION 'step 8: membership count changed';
   END IF;
 
   -- A root's own rows are untouched.
@@ -275,22 +310,29 @@ BEGIN
   IF bad IS NOT NULL THEN
     RAISE EXCEPTION 'step 8: owner differs from the project''s %', bad;
   END IF;
+  -- Every project root keeps its own owner.
+  SELECT f.id::text INTO bad FROM folders f JOIN s8_folders_before b ON b.id = f.id
+   WHERE f.id = f.project_id AND f.owner_id <> b.owner_id LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 8: project owner changed %', bad;
+  END IF;
 
   -- Folders: only the split pages moved, only project and owner changed
   -- elsewhere, and a page's project is its parent's.
   SELECT f.id::text INTO bad FROM folders f
     LEFT JOIN s8_folders_before b ON b.id = f.id
     LEFT JOIN s8_split s ON s.id = f.id
-   WHERE b.id IS NULL
-      OR b.rest IS DISTINCT FROM (to_jsonb(f) - 'parent_folder_id' - 'child_position' - 'project_id' - 'tab_position' - 'owner_id')
-      OR (s.id IS NULL AND f.parent_folder_id IS DISTINCT FROM b.parent_folder_id)
-      OR (s.id IS NOT NULL AND (f.parent_folder_id IS NOT NULL OR f.project_id <> f.id))
+   WHERE f.id NOT IN (SELECT id FROM s8_new_tabs)
+     AND (b.id IS NULL
+          OR b.rest IS DISTINCT FROM (to_jsonb(f) - 'parent_folder_id' - 'child_position' - 'project_id' - 'tab_position' - 'owner_id')
+          OR (s.id IS NULL AND f.parent_folder_id IS DISTINCT FROM b.parent_folder_id)
+          OR (s.id IS NOT NULL AND (f.parent_folder_id IS NOT NULL OR f.project_id <> f.id)))
    LIMIT 1;
   IF bad IS NOT NULL THEN
     RAISE EXCEPTION 'step 8: folder changed %', bad;
   END IF;
   SELECT count(*) INTO n FROM s8_folders_before;
-  IF n <> (SELECT count(*) FROM folders) THEN
+  IF n + (SELECT count(*) FROM s8_new_tabs) <> (SELECT count(*) FROM folders) THEN
     RAISE EXCEPTION 'step 8: folder count changed';
   END IF;
   SELECT f.id::text INTO bad FROM folders f JOIN folders p ON p.id = f.parent_folder_id
@@ -336,10 +378,89 @@ BEGIN
     RAISE EXCEPTION 'step 8: home block left for a split page %', bad;
   END IF;
 
-  SELECT i.id::text INTO bad FROM invites i JOIN folders f ON f.id = i.folder_id
-   WHERE i.status = 'pending' AND f.id <> f.project_id LIMIT 1;
+  -- A project the split touched that holds discussions has a Discussion tab.
+  SELECT df.project_id::text INTO bad FROM discussions d JOIN folders df ON df.id = d.folder_id
+   WHERE (df.project_id IN (SELECT id FROM s8_split) OR df.project_id IN (SELECT old_project FROM s8_split))
+     AND NOT EXISTS (SELECT 1 FROM folders t WHERE t.project_id = df.project_id AND t.kind = 'discussion')
+   LIMIT 1;
   IF bad IS NOT NULL THEN
-    RAISE EXCEPTION 'step 8: pending invite on a page %', bad;
+    RAISE EXCEPTION 'step 8: discussions without a tab %', bad;
+  END IF;
+
+  -- Invites: every row stays, and only the planned ones changed, to
+  -- invalidated.
+  SELECT b.id::text INTO bad FROM s8_invites_before b LEFT JOIN invites i ON i.id = b.id
+   WHERE i.id IS NULL
+      OR (b.id IN (SELECT id FROM s8_invites) AND i.status <> 'invalidated')
+      OR (b.id NOT IN (SELECT id FROM s8_invites) AND i.status IS DISTINCT FROM b.status)
+   LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 8: invite changed %', bad;
+  END IF;
+  IF (SELECT count(*) FROM s8_invites_before) <> (SELECT count(*) FROM invites) THEN
+    RAISE EXCEPTION 'step 8: invite count changed';
+  END IF;
+  SELECT i.id::text INTO bad FROM invites i JOIN folders f ON f.id = i.folder_id
+   WHERE i.status = 'pending'
+     AND (f.id <> f.project_id
+          OR EXISTS (SELECT 1 FROM folders c WHERE c.project_id = f.id AND c.parent_folder_id IS NOT NULL))
+   LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 8: pending invite that would widen %', bad;
+  END IF;
+
+  -- Responsibilities: every document stays; the planned ones moved to their
+  -- project (ended where planned), the rest are untouched, none is left on
+  -- a page.
+  SELECT b.id::text INTO bad FROM s8_resp_before b
+    LEFT JOIN folder_responsibilities r ON r.id = b.id
+    LEFT JOIN s8_resp_move m ON m.id = b.id
+   WHERE r.id IS NULL
+      OR (m.id IS NULL AND (r.folder_id <> b.folder_id OR r.ended_at IS DISTINCT FROM b.ended_at))
+      OR (m.id IS NOT NULL AND (r.folder_id <> m.project_id
+                                OR (m.ends AND (b.ended_at IS NOT NULL OR r.ended_at IS NULL))
+                                OR (NOT m.ends AND r.ended_at IS DISTINCT FROM b.ended_at)))
+   LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 8: responsibility changed %', bad;
+  END IF;
+  IF (SELECT count(*) FROM s8_resp_before) <> (SELECT count(*) FROM folder_responsibilities) THEN
+    RAISE EXCEPTION 'step 8: responsibility count changed';
+  END IF;
+  SELECT r.id::text INTO bad FROM folder_responsibilities r JOIN folders f ON f.id = r.folder_id
+   WHERE f.id <> f.project_id LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 8: responsibility left on a page %', bad;
+  END IF;
+
+  -- Responsibility history: every row stays; a row moved only to its
+  -- document's project (with no document, its page's project); the only new
+  -- rows are the planned endings.
+  SELECT b.id::text INTO bad FROM s8_resp_history_before b
+    LEFT JOIN folder_responsibility_history h ON h.id = b.id
+    LEFT JOIN s8_resp_move m ON m.id = b.responsibility_id
+    LEFT JOIN folders o ON o.id = b.folder_id
+   WHERE h.id IS NULL
+      OR (h.folder_id <> b.folder_id
+          AND NOT (m.id IS NOT NULL AND h.folder_id = m.project_id)
+          AND NOT (b.responsibility_id IS NULL AND o.id <> o.project_id AND h.folder_id = o.project_id))
+      OR (m.id IS NOT NULL AND h.folder_id <> m.project_id)
+   LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 8: responsibility history changed %', bad;
+  END IF;
+  SELECT h.id::text INTO bad FROM folder_responsibility_history h
+   WHERE NOT EXISTS (SELECT 1 FROM s8_resp_history_before b WHERE b.id = h.id)
+     AND NOT (h.transition = 'responsibility_ended'
+              AND EXISTS (SELECT 1 FROM s8_resp_move m WHERE m.id = h.responsibility_id AND m.ends
+                            AND m.project_id = h.folder_id))
+   LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 8: responsibility history added %', bad;
+  END IF;
+  IF (SELECT count(*) FROM folder_responsibility_history)
+     <> (SELECT count(*) FROM s8_resp_history_before) + (SELECT count(*) FROM s8_resp_move WHERE ends) THEN
+    RAISE EXCEPTION 'step 8: responsibility history count changed';
   END IF;
 
   SELECT count(*) INTO n FROM folder_access_history;
@@ -351,10 +472,14 @@ BEGIN
     (SELECT count(*) FROM s8_preset),
     (SELECT string_agg(folder_id::text || '/' || user_id::text || ' ' || page_access || '->' || project_access,
                        ', ' ORDER BY folder_id, user_id) FROM s8_preset);
-  RAISE NOTICE 'step 8: % pending invites on pages inside a project were invalidated',
-    (SELECT count(*) FROM s8_invites);
-  RAISE NOTICE 'step 8: % Responsibilities moved to their project; % stayed on their page (one already active)',
+  RAISE NOTICE 'step 8: % pending invites that would now widen were invalidated: %',
+    (SELECT count(*) FROM s8_invites),
+    (SELECT string_agg(id::text, ', ' ORDER BY id) FROM s8_invites);
+  RAISE NOTICE 'step 8: % Responsibilities moved to their project, % of them ended (one already active)',
     (SELECT count(*) FROM s8_resp_move),
-    (SELECT count(*) FROM s8_resp) - (SELECT count(*) FROM s8_resp_move);
+    (SELECT count(*) FROM s8_resp_move WHERE ends);
+  RAISE NOTICE 'step 8: % Discussion tabs added: %',
+    (SELECT count(*) FROM s8_new_tabs),
+    (SELECT string_agg(project_id::text, ', ' ORDER BY project_id) FROM s8_new_tabs);
 END
 $$;
