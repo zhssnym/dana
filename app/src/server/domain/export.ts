@@ -84,11 +84,9 @@ import type {
   ExportStep,
   ExportTask,
 } from '../../shared/export.js'
-import type { FacetKind } from '../../shared/facets.js'
 import { idSet, rowsOf } from '../database.js'
 import { listViews, readBundle } from './bundle.js'
 import { postContentOrNull } from './comments.js'
-import { resolveFacetName } from './facets.js'
 import { listPlaceCovers } from './covers.js'
 import { listPlaceDescriptions } from './place-descriptions.js'
 
@@ -403,6 +401,7 @@ export async function exportForViewer(
     sql`SELECT f.id, f.name, f.is_default, f.icon, f.color, f.description,
                f.cover_file_id, f.cover_preset, f.cover_focal_y,
                f.created_at, f.deleted_at, f.parent_folder_id,
+               f.project_id, f.kind, f.tab_position,
                m.shelf_name AS my_shelf, m.color AS my_color
         FROM folders f
         LEFT JOIN folder_members m
@@ -834,77 +833,9 @@ export async function exportForViewer(
   )
   const blocksByShelf = groupBy(shelfBlockRows, 'shelf_id')
 
-  /*
-  Issue #210: the person's own Folder facets and their documents.
-
-  **The membership join is the scope and it is inside the FROM clause**, as
-  every other statement here has it. Two conditions, and the second is the one
-  that matters: `ff.owner_id = viewer` takes the private facets -- all of them,
-  in every folder this person is currently in, owned or not -- and
-  `fo.owner_id = viewer` takes the shared ones only where the folder page
-  beside them is already being carried under `folders.blocks`. That second
-  clause is 7.22's "shared facets follow the folder page" rule, written as
-  SQL.
-
-  Trashed facets come too, with `trashed` set, as a trashed folder does; the
-  export is what the person has, and a thirty-day window has not closed yet.
-  `h1.text` is joined for the same reason 7.27 joins it: a Work facet's name is
-  its heading's at read time, and an export that stored a different word would
-  read back tabs nobody recognises.
-  */
-  const facetRows = await rowsOf(
-    db,
-    sql`SELECT ff.id, ff.folder_id, ff.kind, ff.owner_id, ff.display_name,
-               ff.hidden, ff.position, ff.h1_block_id, ff.created_at,
-               ff.updated_at, ff.deleted_at, h1.text AS h1_text
-          FROM folder_facets ff
-          JOIN folders fo ON fo.id = ff.folder_id
-          JOIN folder_members m
-            ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
-          LEFT JOIN page_blocks h1 ON h1.id = ff.h1_block_id
-         WHERE ff.owner_id = ${viewerId}
-            OR (ff.owner_id IS NULL AND fo.owner_id = ${viewerId})
-         ORDER BY ff.folder_id ASC, ff.position ASC, ff.id ASC
-         LIMIT ${FETCH}`,
-  )
-  const facets = truncation.apply('facets', facetRows)
-
-  const facetBlockRows =
-    facets.length === 0
-      ? []
-      : await rowsOf(
-          db,
-          cappedPerParent(
-            sql`b.id, b.facet_id, b.kind, b.position, b.text, b.file_id,
-                b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content,
-                b.section_block_id, b.list_parent_block_id, b.checked,
-                b.page_position, b.toggleable`,
-            /* **The scope, restated in this statement's own FROM clause.**
-               `facets` above was already gathered under exactly this
-               predicate, so the `IN` list alone would be correct -- and that
-               is true of `folderBlockRows` and `shelfBlockRows` too, and both
-               of them join their parent and check the owner anyway. This is
-               the house rule rather than a doubt about the line above it:
-               10.2's membership check belongs inside the `FROM`, so that a
-               statement which loses its `IN` list, or is handed one somebody
-               else built, returns nothing rather than another person's
-               writing. Found by the verification of 743a6ac, where this was
-               the only one of the three block reads without it. */
-            sql`FROM page_blocks b
-                JOIN folder_facets ff ON ff.id = b.facet_id
-                JOIN folders fo ON fo.id = ff.folder_id
-                JOIN folder_members m
-                  ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
-                WHERE b.facet_id IN ${idSet(
-                  facets.map((row) => String(row.id)),
-                )}
-                  AND (ff.owner_id = ${viewerId}
-                       OR (ff.owner_id IS NULL AND fo.owner_id = ${viewerId}))`,
-            sql`b.facet_id`,
-            sql`b.page_position ASC NULLS LAST, b.position ASC, b.id ASC`,
-          ),
-        )
-  const blocksByFacet = groupBy(facetBlockRows, 'facet_id')
+  /* Issue #210's facets are tabs since step 7 (migration 0061): pages the
+     person owns, exported with `folders` above. `facets` stays, empty, so a
+     version-6 reader still finds the key. */
 
   const fileRows = await rowsOf(
     db,
@@ -938,6 +869,15 @@ export async function exportForViewer(
          cap) is null, so the export never names a page it does not carry. */
       parent_folder_id:
         parentId !== null && exportedFolderIds.has(parentId) ? parentId : null,
+      /* Version 10 (step 7): the project, the page's kind and its place in
+         the tab row. A project this document does not carry is not named:
+         the page reads as a project of its own, as a missing parent reads
+         as none. */
+      project_id: exportedFolderIds.has(String(row.project_id)) ? String(row.project_id) : id,
+      kind: nullableString(row.kind) as ExportFolder['kind'],
+      tab_position: exportedFolderIds.has(String(row.project_id))
+        ? nullableString(row.tab_position)
+        : (nullableString(row.tab_position) ?? 'a0'),
       icon: nullableString(row.icon),
       color: nullableString(row.color),
       description: nullableString(row.description),
@@ -1037,28 +977,7 @@ export async function exportForViewer(
     }
   })
 
-  const exportedFacets: ExportFacet[] = facets.map((row) => {
-    const id = String(row.id)
-    const kind = String(row.kind) as FacetKind
-    const displayName = nullableString(row.display_name)
-    return {
-      id,
-      folder_id: String(row.folder_id),
-      kind,
-      name: resolveFacetName(kind, displayName, nullableString(row.h1_text)),
-      display_name: displayName,
-      hidden: row.hidden === true,
-      private: row.owner_id !== null && row.owner_id !== undefined,
-      position: String(row.position),
-      h1_block_id: nullableString(row.h1_block_id),
-      created_at: toIso(row.created_at),
-      updated_at: toIso(row.updated_at),
-      trashed: row.deleted_at !== null && row.deleted_at !== undefined,
-      blocks: truncation
-        .apply('facets.blocks', blocksByFacet.get(id) ?? [])
-        .map(blockFrom),
-    }
-  })
+  const exportedFacets: ExportFacet[] = []
 
   return {
     format: EXPORT_FORMAT,

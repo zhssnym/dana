@@ -36,7 +36,6 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { trashedDiscussions } from './consultation.js'
-import { trashedFacets } from './facets.js'
 import {
   joinVisibleFolder,
   mayPerform,
@@ -48,6 +47,7 @@ import {
   destroyableTrashedWith,
   ensureHomeBlock,
   lockPageTree,
+  releaseSurvivors,
   restoreTrashedPage,
 } from './page-tree.js'
 
@@ -114,12 +114,10 @@ export async function trashView(
                                  AND im.user_id = ${viewerId}))
         ORDER BY f.deleted_at DESC, f.id DESC`,
   )
-  /* The third kind (issue #210). It is read by
-     `domain/facets.ts` rather than by a third query here, because the facet
-     read carries the name-resolution rule -- a Work facet's name is its H1's
-     text at read time -- and that rule must have exactly one implementation or
-     a Trash row will one day say a different word from the tab it came from. */
-  const facets = await trashedFacets(db, viewerId)
+  /* The third kind (issue #210). Since step 7 (migration 0061) a facet is a tab, and a trashed tab is
+     listed with the folders above; the field stays, empty, for clients
+     that read it. */
+  const facets: [] = []
   /* The fourth kind (issue #320), read by `domain/consultation.ts` for the
      same one-implementation reason. */
   const discussions = await trashedDiscussions(db, viewerId)
@@ -280,27 +278,29 @@ export async function destroyFolders(
   executor: Executor,
   doomed: SQL,
 ): Promise<DestroyedFolders> {
-  const rows = await rowsOf(
-    executor,
-    sql`WITH doomed AS (${doomed}),
-        victims AS (
-          SELECT f.id AS file_id, f.folder_id
-            FROM files f JOIN doomed d ON d.id = f.folder_id),
-        removed AS (
-          DELETE FROM folders WHERE id IN (SELECT id FROM doomed)
-          RETURNING id)
-        SELECT r.id AS folder_id, v.file_id
-          FROM removed r LEFT JOIN victims v ON v.folder_id = r.id`,
-  )
-  const folderIds = new Set<string>()
-  const fileIds: string[] = []
-  for (const row of rows) {
-    folderIds.add(String(row.folder_id))
-    if (row.file_id !== null && row.file_id !== undefined) {
-      fileIds.push(String(row.file_id))
+  /* Step 7: one transaction (a savepoint inside the caller's), because the
+     claim, the release of survivors and the delete must see the same rows.
+     A project root's pages go with it (`folders_project_id_fkey`), so their
+     files are collected too; a page that survives is released first. */
+  return (executor as unknown as {
+    transaction<T>(run: (tx: Executor) => Promise<T>): Promise<T>
+  }).transaction(async (tx) => {
+    const picked = await rowsOf(tx, sql`WITH doomed AS (${doomed}) SELECT id FROM doomed`)
+    const ids = picked.map((row) => String(row.id))
+    if (ids.length === 0) return { folderIds: [], fileIds: [] }
+    await releaseSurvivors(tx, ids)
+    const list = sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)
+    const files = await rowsOf(
+      tx,
+      sql`SELECT f.id FROM files f JOIN folders fo ON fo.id = f.folder_id
+           WHERE fo.id IN (${list}) OR fo.project_id IN (${list})`,
+    )
+    const removed = await rowsOf(tx, sql`DELETE FROM folders WHERE id IN (${list}) RETURNING id`)
+    return {
+      folderIds: removed.map((row) => String(row.id)),
+      fileIds: files.map((row) => String(row.id)),
     }
-  }
-  return { folderIds: [...folderIds], fileIds }
+  })
 }
 
 /**

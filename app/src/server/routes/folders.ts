@@ -26,7 +26,9 @@ import {
   patchFolderLocationBody,
   patchFolderMyMembershipBody,
   postFolderMembersBody,
+  postFolderTabsBody,
   postFoldersBody,
+  projectTabs,
 } from '../../shared/folders.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
 import { sendError } from '../http/errors.js'
@@ -88,6 +90,7 @@ import { readFolderDependencies } from '../domain/task-dependencies.js'
 import type { GetFolderDependenciesResponse } from '../../shared/task-dependencies.js'
 import { inTransaction } from '../database.js'
 import { moveFolder, visibleAncestors } from '../domain/page-tree.js'
+import { addTab } from '../domain/project-tabs.js'
 import { retiredRoute } from '../observability/retired-route.js'
 import { routerWithPreamble } from './preamble.js'
 
@@ -268,6 +271,7 @@ export function createFoldersRouter(
         const sub = await createSubPageIn(db, viewer(req), parsed.parent_folder_id, {
           name: parsed.name,
           description: parsed.description ?? null,
+          kind: parsed.kind ?? 'doc',
         })
         switch (sub.kind) {
           case 'created':
@@ -281,6 +285,9 @@ export function createFoldersRouter(
             return
           case 'default_parent':
             sendError(res, 422, 'validation_failed', 'parent_folder_id: your personal folder cannot hold sub-pages.')
+            return
+          case 'discussion_parent':
+            sendError(res, 422, 'validation_failed', 'parent_folder_id: a Discussion page holds threads, not pages.')
             return
           case 'too_deep':
             sendError(res, 422, 'validation_failed', 'parent_folder_id: pages can nest at most 20 deep.')
@@ -298,11 +305,14 @@ export function createFoldersRouter(
       /* The description rides the create rather than a PATCH behind it
          (7.4, 2026-09-04). Absent is undefined here and NULL in the row,
          which is every folder made before this. */
+      /* Step 7: absent `kind` is a Work project, what every caller made
+         before; null is an unpicked one (the picker). */
       const result = await createFolder(
         db,
         viewer(req),
         parsed.name,
         parsed.description ?? null,
+        parsed.kind === undefined ? 'work' : parsed.kind,
       )
       if (result.kind === 'folder_cap') {
         sendError(
@@ -484,7 +494,48 @@ export function createFoldersRouter(
           sendError(res, 422, 'validation_failed', 'parent_folder_id: pages can nest at most 20 deep.')
           return
         case 'not_a_sibling':
-          sendError(res, 422, 'validation_failed', 'after_id: must name a page directly inside the new parent.')
+          sendError(res, 422, 'validation_failed', 'after_id: must name a page directly inside the new parent, or a tab of the same project.')
+          return
+        case 'not_movable':
+          sendError(res, 422, 'validation_failed', `${outcome.field}: ${outcome.reason}`)
+          return
+      }
+    },
+  )
+
+  /* Step 7: POST /folders/:id/tabs picks an unpicked project's kind or adds
+     a tab. `:id` is any page of the project: its own gate first (404 to a
+     stranger, 403 below Can edit), then `addTab` gates the project root. */
+  router.post(
+    '/folders/:id/tabs',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const folderId = parsedId(res, req.params.id)
+      if (folderId === null) return
+      const access = await gate(req, res, folderId, 'folder.page.edit')
+      if (access === null) return
+      const parsed = parseBody(postFolderTabsBody, req, res, securityLog)
+      if (parsed === null) return
+      const outcome = await addTab(db, viewer(req), folderId, parsed.kind)
+      switch (outcome.kind) {
+        case 'ok':
+          res.status(201).json(projectTabs(await listFolders(db, viewer(req)), outcome.projectId))
+          return
+        case 'not_found':
+          sendError(res, 404, 'not_found', 'Not found.')
+          return
+        case 'forbidden':
+          sendError(res, 403, 'forbidden', outcome.reason)
+          return
+        case 'invalid':
+          sendError(res, 422, 'validation_failed', outcome.reason)
+          return
+        case 'conflict':
+          sendError(res, 409, 'conflict', outcome.reason)
           return
       }
     },

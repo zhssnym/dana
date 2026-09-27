@@ -31,7 +31,7 @@ export type FlatHome = Exclude<BlockHome, 'work'>
 
 /** Which rows a flat body is: the column that names its home, and the id. */
 export interface FlatScope {
-  column: 'facet_id' | 'task_id' | 'shelf_id'
+  column: 'task_id' | 'shelf_id'
   id: string
 }
 

@@ -90,14 +90,16 @@ export async function visibleAncestors(
   const rows = await rowsOf(
     executor,
     sql`WITH RECURSIVE up (start_id, depth, id, parent_id, name, icon, color) AS (
-          SELECT f.id, 0, f.id, f.parent_folder_id, f.name, f.icon, f.color
+          -- Step 7: above a tab (not the project's own) stands its project.
+          SELECT f.id, 0, f.id, COALESCE(f.parent_folder_id, NULLIF(f.project_id, f.id)),
+                 f.name, f.icon, f.color
             FROM folders f
            WHERE f.id IN (${sql.join(
              unique.map((id) => sql`${id}::uuid`),
              sql`, `,
            )})
           UNION ALL
-          SELECT u.start_id, u.depth + 1, p.id, p.parent_folder_id,
+          SELECT u.start_id, u.depth + 1, p.id, COALESCE(p.parent_folder_id, NULLIF(p.project_id, p.id)),
                  p.name, p.icon, p.color
             FROM up u
             JOIN folders p ON p.id = u.parent_id
@@ -198,6 +200,9 @@ export type MoveFolderResult =
   | { kind: 'cycle' }
   | { kind: 'too_deep' }
   | { kind: 'not_a_sibling' }
+  /** Step 7: a tab stays in its project's tab row, a project with tabs
+   * stays a project, and a Discussion page holds no pages: 422. */
+  | { kind: 'not_movable'; field: string; reason: string }
 
 /**
  * Moves `folderId` under `parentId` (null: make it a root). `afterId` lands
@@ -226,20 +231,46 @@ export async function moveFolder(
   if (!onPage.allowed) return { kind: 'forbidden', reason: onPage.reason }
   const before = await rowsOf(
     tx,
-    sql`SELECT parent_folder_id FROM folders WHERE id = ${folderId}::uuid`,
+    sql`SELECT parent_folder_id, project_id, tab_position, kind FROM folders WHERE id = ${folderId}::uuid`,
   )
   const priorParent = before[0]?.parent_folder_id
   const oldParent =
     priorParent === null || priorParent === undefined ? null : String(priorParent)
+  const projectId = String(before[0]?.project_id)
+  const isTab = before[0]?.tab_position !== null && before[0]?.tab_position !== undefined
+  const isRoot = projectId === folderId
 
+  if (parentId === null && isTab) {
+    return reorderTab(tx, actorId, page, projectId, afterId)
+  }
   if (parentId === null) {
+    /* Step 7: a sub-page moved to the top level becomes a project of its
+       own, and `folders_parent_same_project_fkey`'s ON UPDATE CASCADE
+       carries its sub-pages into it. */
     await tx.execute(
-      sql`UPDATE folders SET parent_folder_id = NULL, child_position = NULL
+      sql`UPDATE folders SET parent_folder_id = NULL, child_position = NULL,
+                             project_id = id, tab_position = 'a0'
            WHERE id = ${folderId}::uuid`,
     )
     await removeHomeBlock(tx, folderId)
     await recordMove(tx, actorId, page)
     return { kind: 'moved' }
+  }
+  if (isTab && !isRoot) {
+    return { kind: 'not_movable', field: 'parent_folder_id', reason: 'a tab stays in its project; move it along the tab row instead.' }
+  }
+  if (isRoot) {
+    const tabs = await rowsOf(
+      tx,
+      sql`SELECT 1 FROM folders WHERE project_id = ${folderId}::uuid AND id <> ${folderId}::uuid
+            AND tab_position IS NOT NULL LIMIT 1`,
+    )
+    if (tabs.length > 0) {
+      return { kind: 'not_movable', field: 'parent_folder_id', reason: 'a project with more than one tab stays a project.' }
+    }
+    if (before[0]?.kind === 'discussion') {
+      return { kind: 'not_movable', field: 'parent_folder_id', reason: 'a Discussion page stays a tab.' }
+    }
   }
 
   const parent = await folderActorFacts(tx, actorId, parentId)
@@ -249,6 +280,11 @@ export async function moveFolder(
   // The default folder stays a root, and nothing goes under one either (the
   // same refusal POST /folders gives a default parent).
   if (page.isDefault || parent.isDefault) return { kind: 'default_folder' }
+  const target = await rowsOf(tx, sql`SELECT project_id, kind FROM folders WHERE id = ${parentId}::uuid`)
+  if (target[0]?.kind === 'discussion') {
+    return { kind: 'not_movable', field: 'parent_folder_id', reason: 'a Discussion page holds threads, not pages.' }
+  }
+  const targetProject = String(target[0]?.project_id)
 
   const chain = await chainUp(tx, parentId)
   if (chain.includes(folderId)) return { kind: 'cycle' }
@@ -282,15 +318,62 @@ export async function moveFolder(
     const upper = keys.slice(index + 1).find((key) => lower === null || key > lower)
     position = keyBetween(lower, upper ?? null)
   }
+  /* Step 7: the page joins the parent's project; ON UPDATE CASCADE carries
+     its sub-pages. A project root becoming a sub-page stops being a tab,
+     and an unpicked one becomes a Doc. */
   await tx.execute(
     sql`UPDATE folders SET parent_folder_id = ${parentId}::uuid,
-                           child_position = ${position}
+                           child_position = ${position},
+                           project_id = ${targetProject}::uuid,
+                           tab_position = NULL,
+                           kind = COALESCE(kind, 'doc')
          WHERE id = ${folderId}::uuid`,
   )
   if (oldParent !== parentId) {
     await removeHomeBlock(tx, folderId)
     await appendHomeBlock(tx, parentId, folderId)
   }
+  await recordMove(tx, actorId, page)
+  return { kind: 'moved' }
+}
+
+/**
+ * Step 7: a tab moved along its project's tab row. `afterId` must be a tab
+ * of the same project (null: first; undefined: last).
+ */
+async function reorderTab(
+  tx: Executor,
+  actorId: string,
+  page: FolderActorFacts,
+  projectId: string,
+  afterId: string | null | undefined,
+): Promise<MoveFolderResult> {
+  await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${projectId}::uuid FOR UPDATE`)
+  const tabs = await rowsOf(
+    tx,
+    sql`SELECT id, tab_position FROM folders
+         WHERE project_id = ${projectId}::uuid AND tab_position IS NOT NULL
+           AND id <> ${page.folderId}::uuid
+         ORDER BY tab_position, id`,
+  )
+  const keys = tabs.map((row) => String(row.tab_position))
+  let position: string
+  if (afterId === undefined) {
+    position = keyBetween(keys[keys.length - 1] ?? null, null)
+  } else if (afterId === null) {
+    position = keyBetween(null, keys[0] ?? null)
+  } else {
+    const after = await folderActorFacts(tx, actorId, afterId)
+    if (after === null) return { kind: 'not_found' }
+    const index = tabs.findIndex((row) => String(row.id) === afterId)
+    if (index < 0) return { kind: 'not_a_sibling' }
+    const lower = keys[index] ?? null
+    const upper = keys.slice(index + 1).find((key) => lower === null || key > lower)
+    position = keyBetween(lower, upper ?? null)
+  }
+  await tx.execute(
+    sql`UPDATE folders SET tab_position = ${position} WHERE id = ${page.folderId}::uuid`,
+  )
   await recordMove(tx, actorId, page)
   return { kind: 'moved' }
 }
@@ -456,11 +539,19 @@ export async function trashPageSubtree(
   for (let depth = 0; depth < PAGE_TREE_MAX_DEPTH && frontier.length > 0; depth += 1) {
     const children = await rowsOf(
       tx,
+      /* Step 7: a project root's other tabs go with it, as its children do
+         (a tab's `project_id` is the root's; no other page names a
+         non-root in that column). */
       sql`SELECT c.id FROM folders c
-           WHERE c.parent_folder_id IN (${sql.join(
-             frontier.map((id) => sql`${id}::uuid`),
-             sql`, `,
-           )})
+           WHERE (c.parent_folder_id IN (${sql.join(
+                    frontier.map((id) => sql`${id}::uuid`),
+                    sql`, `,
+                  )})
+                  OR (c.project_id IN (${sql.join(
+                        frontier.map((id) => sql`${id}::uuid`),
+                        sql`, `,
+                      )})
+                      AND c.tab_position IS NOT NULL AND c.id <> c.project_id))
              AND c.deleted_at IS NULL
            FOR UPDATE OF c`,
     )
@@ -585,4 +676,25 @@ export async function destroyableTrashedWith(
     }
   }
   return ids
+}
+
+/**
+ * Step 7: before `ids` are deleted for good, every page that survives them
+ * but would be taken by `folders_project_id_fkey`'s cascade -- a sub-page
+ * whose parent goes, a tab of a project whose root goes -- becomes a project
+ * of its own, with its sub-pages (ON UPDATE CASCADE). That is what a purged
+ * parent always did to a surviving child: it became a root. Until step 8 a
+ * page's people may differ from its project's, so such survivors exist.
+ */
+export async function releaseSurvivors(tx: Executor, ids: readonly string[]): Promise<void> {
+  if (ids.length === 0) return
+  const list = sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)
+  await tx.execute(
+    sql`UPDATE folders
+           SET parent_folder_id = NULL, child_position = NULL,
+               project_id = id, tab_position = 'a0', kind = COALESCE(kind, 'doc')
+         WHERE id NOT IN (${list})
+           AND (parent_folder_id IN (${list})
+                OR (parent_folder_id IS NULL AND id <> project_id AND project_id IN (${list})))`,
+  )
 }

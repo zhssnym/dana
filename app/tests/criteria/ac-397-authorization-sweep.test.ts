@@ -107,7 +107,7 @@ import {
   makeComment,
   makeDependency,
   makeDiscussion,
-  makeFacet,
+  makeTab,
   makeFile,
   makeInvite,
   makeFolderLabel,
@@ -122,7 +122,6 @@ import {
   memoryFileStore,
   startUpstreamStub,
   trashDiscussion,
-  trashFacet,
   trashFolder,
   trashTask,
   writePage,
@@ -301,20 +300,14 @@ type ResourceId =
   | 'personalLabelId'
   | 'strangerPersonalLabelId'
   | 'folderLabelId'
-  /* Issue #210's two, and both are **shared** blank facets rather than
-     private ones. A private facet is invisible to every other member, Full
-     control and the folder's owner included, so a private fixture would make
-     the `member` rows below answer 404 for the privacy rule instead of 403
-     for the preset -- a green row measuring the wrong refusal, which is the
-     failure this file's two controls exist to catch. */
-  | 'facetId'
-  | 'purposeFacetId'
-  | 'trashedFacetId'
+  /* Step 7: a Doc tab of the folder's project, the target of the facet
+     backlinks route (a facet's id is its tab's). */
+  | 'tabId'
   /* #320/#321: one Discussion seeded as a row, serving as a Dana Link target
      and as the home of an open input round; plus one (superseded) Outcome. */
   | 'discussionId'
   | 'outcomeId'
-  /* #213: a native Result, a block of the folder's Results facet. */
+  /* #213: a native Result, a block of a Results Doc tab (step 7). */
   | 'resultId'
   | 'inputRoundId'
   /* Issue #320: the General discussion the owner's legacy Folder-thread
@@ -399,30 +392,13 @@ async function fixturesOf(): Promise<Fixtures> {
      the run demonstrates. See PLACE, and the last test in this file. */
   await makePlaceCover(owner, PLACE, fileId)
 
-  const facetId = await makeFacet(owner, folderId, 'ac397 the facet')
-  const nativeFacets = await owner.browser.api(`/folders/${folderId}/facets`)
-  if (nativeFacets.status !== 200) {
-    throw new Error(`AC-397 could not read native facets: ${String(nativeFacets.status)}`)
-  }
-  const purposeFacetId = (
-    nativeFacets.json() as { facets: Array<{ id: string; kind: string }> }
-  ).facets.find((facet) => facet.kind === 'purpose')?.id
-  if (purposeFacetId === undefined) {
-    throw new Error('AC-397 folder fixture has no native Purpose facet')
-  }
-  const resultsFacetId = (
-    nativeFacets.json() as { facets: Array<{ id: string; kind: string }> }
-  ).facets.find((facet) => facet.kind === 'results')?.id
-  if (resultsFacetId === undefined) {
-    throw new Error('AC-397 folder fixture has no native Results facet')
-  }
+  const tabId = await makeTab(owner, folderId, 'ac397 the tab')
+  const resultsTabId = await makeTab(owner, folderId, 'Results')
   const resultId = randomUUID()
   await app.db.execute(sql`
-    INSERT INTO page_blocks (id, facet_id, kind, position, text)
-    VALUES (${resultId}::uuid, ${resultsFacetId}::uuid, 'result', 0,
+    INSERT INTO page_blocks (id, folder_id, kind, position, text)
+    VALUES (${resultId}::uuid, ${resultsTabId}::uuid, 'result', 0,
             'ac397 the result')`)
-  const trashedFacetId = await makeFacet(owner, folderId, 'ac397 doomed facet')
-  await trashFacet(owner, folderId, trashedFacetId)
 
   const trashedDiscussionId = await makeDiscussion(
     owner,
@@ -486,9 +462,7 @@ async function fixturesOf(): Promise<Fixtures> {
     personalLabelId,
     strangerPersonalLabelId,
     folderLabelId,
-    facetId,
-    purposeFacetId,
-    trashedFacetId,
+    tabId,
     discussionId,
     outcomeId,
     resultId,
@@ -1615,7 +1589,7 @@ const TABLE = new Map<string, Row>([
   [
     'GET /api/v1/facets/:id/backlinks',
     {
-      attempt: (fx) => ({ path: `/facets/${fx.facetId}/backlinks` }),
+      attempt: (fx) => ({ path: `/facets/${fx.tabId}/backlinks` }),
       stranger: {
         expected: 404,
         rule: 'issue #214 and 10.2: "referenced from" is gated on the target through the Dana Link resolver, so a reader who cannot open the target is told what an id naming nothing is told — 404, and no source is scanned',
@@ -1827,194 +1801,22 @@ const TABLE = new Map<string, Row>([
   ],
 
   /* -------------------------------------------------------------- *
-   * Folder facets (7.27, issue #210)
+   * Project tabs (step 7). 7.27's twelve facet routes are gone with the
+   * facets: a facet is a tab, and a tab is a page the folder rows cover.
    * -------------------------------------------------------------- */
-
-  /*
-  Eleven rows, and every one of the eleven answers a stranger **404**, which is
-  the same sentence the folder rows at the top of this table carry: 10.2
-  forbids a 403 here because it would confirm that the Folder exists. The gate
-  is `foundFolder` in `routes/facets.ts`, which resolves membership through
-  `accessOf` before it looks at the body — that ordering is 7.27's refusal
-  order and it is the reason a stranger's otherwise-valid body is still
-  answered 404 rather than anything about the body.
-
-  **Two of them carry a `member` variant and nine do not, and the split is the
-  decision rather than an oversight.** `fx.member` holds Can edit, and 7.27
-  (issue #210) puts create, rename, hide, reorder and delete at exactly that
-  bar — so there is no act on those routes this actor is refused, and a member
-  row would assert a rule nobody made. The two that do refuse them are
-  `DELETE /api/v1/trash/facets/:id`, which is Full control with ownership
-  ignored (7.13, the Task rule rather than the Folder's), and `POST /api/v1/folders/:id/facets/:facetId/share`, which needs
-  the facet's **owner** as well as the preset and so refuses a Can-edit member
-  who does not own it.
-
-  **What no row here can reach is the private-facet rule**, and that is worth
-  saying because it is the most important rule of 7.27. A
-  private facet is invisible to Full control and to the structural owner, and
-  this sweep drives a stranger and a Can-edit member — neither of whom is
-  either. AC-838 is where that is driven, at every preset and at the owner, and
-  it is the criterion to read before changing the fixtures here from shared to
-  private.
-  */
   [
-    'GET /api/v1/folders/:id/facets',
+    'POST /api/v1/folders/:id/tabs',
     {
-      attempt: (fx) => ({ path: `/folders/${fx.folderId}/facets` }),
-      stranger: {
-        expected: 404,
-        rule: "7.27 and 10.2: the facet listing is `folder.read`'s, and a non-member sees nothing of the Folder, so the answer must not distinguish an empty list from a Folder they may not see",
-      },
-    },
-  ],
-  [
-    'POST /api/v1/folders/:id/facets',
-    {
-      /* A valid body, so the sweep measures the authorization answer rather
-         than the schema's. 7.27 resolves the Folder before it parses, so a
-         stranger is 404 either way; carrying a valid body means a green row
-         here cannot be green because of a 422 that never reached a gate. */
+      /* A valid body, so the row measures the gate rather than the schema.
+         No member variant: `fx.member` holds Can edit, which is what adding
+         a tab needs. */
       attempt: (fx) => ({
-        path: `/folders/${fx.folderId}/facets`,
-        body: { kind: 'shared_blank', display_name: 'ac397 attempt' },
+        path: `/folders/${fx.folderId}/tabs`,
+        body: { kind: 'doc' },
       }),
       stranger: {
         expected: 404,
-        rule: "7.27 and 10.2: a non-member sees nothing, so creating a facet in somebody else's Folder is 404 and never 403",
-      },
-    },
-  ],
-  [
-    'PATCH /api/v1/folders/:id/facets/:facetId',
-    {
-      attempt: (fx) => ({
-        path: `/folders/${fx.folderId}/facets/${fx.facetId}`,
-        body: { display_name: 'ac397 renamed' },
-      }),
-      stranger: { expected: 404, rule: '7.27 and 10.2: a non-member sees nothing' },
-    },
-  ],
-  [
-    'DELETE /api/v1/folders/:id/facets/:facetId',
-    {
-      attempt: (fx) => ({
-        path: `/folders/${fx.folderId}/facets/${fx.facetId}`,
-      }),
-      stranger: { expected: 404, rule: '7.27 and 10.2: a non-member sees nothing' },
-    },
-  ],
-  [
-    'PUT /api/v1/folders/:id/facets/order',
-    {
-      attempt: (fx) => ({
-        path: `/folders/${fx.folderId}/facets/order`,
-        body: { order: [fx.facetId] },
-      }),
-      stranger: {
-        expected: 404,
-        rule: "7.27: the shared sequence is Folder data and a non-member sees no Folder. The body is a one-element list, which is not a valid whole order — and it is answered 404 before that is looked at, which is the refusal order the route's header sets out",
-      },
-    },
-  ],
-  [
-    'PUT /api/v1/folders/:id/facets/my-order',
-    {
-      attempt: (fx) => ({
-        path: `/folders/${fx.folderId}/facets/my-order`,
-        body: { placements: [{ facet_id: fx.facetId, after_facet_id: null }] },
-      }),
-      stranger: {
-        expected: 404,
-        rule: '7.27: arranging your own private facets is `personal.view_preferences`, which is membership and nothing else — so a non-member has no membership to arrange anything under, and 10.2 makes that 404',
-      },
-    },
-  ],
-  [
-    'POST /api/v1/folders/:id/facets/:facetId/share',
-    {
-      attempt: (fx) => ({
-        path: `/folders/${fx.folderId}/facets/${fx.facetId}/share`,
-        body: { confirm: true },
-      }),
-      stranger: { expected: 404, rule: '7.27 and 10.2: a non-member sees nothing' },
-      /* **No member variant, and its absence is the decision**, on the same
-         reading `PATCH /api/v1/folders/:id` above records for itself.
-         Converting needs Can edit **and** the facet's owner, and `fx.member`
-         holds Can edit — so the only thing that could refuse them is the
-         owner half, and the owner half can never produce a 403 through HTTP:
-         the only facet with an owner is a private one, and a private facet is
-         **invisible** to every member but its owner, so a non-owner is
-         answered 404 by the visibility scope before the ownership question is
-         asked. The 403 arm in `domain/facets.ts` is kept anyway, on issue
-         #35's rule that the domain refuses a caller it was handed rather than
-         trusting one, and it says so at the line.
-
-         What a Can-edit member actually gets on this shared fixture is 409,
-         "already shared", which is state rather than authority and belongs to
-         AC-839 rather than to this sweep. */
-    },
-  ],
-  [
-    'GET /api/v1/folders/:id/facets/:facetId/page',
-    {
-      attempt: (fx) => ({
-        path: `/folders/${fx.folderId}/facets/${fx.facetId}/page`,
-      }),
-      stranger: {
-        expected: 404,
-        rule: "7.27 and 7.16: a blank facet's document is read by the Folder's members, so a non-member is 404 exactly as they are on `/folders/:id/page`",
-      },
-    },
-  ],
-  [
-    'POST /api/v1/folders/:id/facets/:facetId/page/actions',
-    {
-      attempt: (fx) => ({
-        path: `/folders/${fx.folderId}/facets/${fx.facetId}/page/actions`,
-        body: {
-          action: 'document_transaction',
-          mutation_id: '00000000-0000-4000-8000-000000000397',
-          base_revision: 'ac397',
-          operations: [{ op: 'set_outline', items: [] }],
-        },
-      }),
-      stranger: {
-        expected: 404,
-        rule: "7.27 and 7.16: the document transaction over a facet, refused before the body is read because the Folder is not the caller's to see",
-      },
-    },
-  ],
-  [
-    'GET /api/v1/facets/:id/location',
-    {
-      attempt: (fx) => ({ path: `/facets/${fx.purposeFacetId}/location` }),
-      stranger: {
-        expected: 404,
-        rule: '7.27 and 10.2: the location read exists only to enter a readable native Purpose or Results through its owning Folder; a non-member must not learn that Folder id or whether the facet exists',
-      },
-    },
-  ],
-  [
-    'POST /api/v1/facets/:id/restore',
-    {
-      attempt: (fx) => ({ path: `/facets/${fx.trashedFacetId}/restore` }),
-      stranger: {
-        expected: 404,
-        rule: '7.13 and 7.27: access to a trashed row is by membership at read time and never by who deleted, so a non-member is 404 — the same answer `POST /folders/:id/restore` gives them',
-      },
-    },
-  ],
-  [
-    'DELETE /api/v1/trash/facets/:id',
-    {
-      attempt: (fx) => ({ path: `/trash/facets/${fx.trashedFacetId}` }),
-      stranger: {
-        expected: 404,
-        rule: '7.13 and 7.27: a non-member sees nothing in Trash either',
-      },
-      member: {
-        expected: 403,
-        rule: "7.27 and 7.13: permanently deleting a facet is **Full control with ownership ignored**, the Task rule rather than the Folder's custody-and-Full-control pair, and `fx.member` holds Can edit",
+        rule: "step 7 and 10.2: adding a tab edits the project's structure, and a non-member sees nothing of it, so 404 before the body is read",
       },
     },
   ],
@@ -2523,20 +2325,10 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       path: '/labels?scope=all',
       holds: fx.folderLabelId,
     }),
-    facetId: (fx) => ({
-      what: 'the facet, on its folder\'s facet listing',
-      path: `/folders/${fx.folderId}/facets`,
-      holds: fx.facetId,
-    }),
-    purposeFacetId: (fx) => ({
-      what: 'the native Purpose facet location',
-      path: `/facets/${fx.purposeFacetId}/location`,
-      holds: fx.folderId,
-    }),
-    trashedFacetId: (fx) => ({
-      what: 'the trashed facet',
-      path: '/trash',
-      holds: fx.trashedFacetId,
+    tabId: (fx) => ({
+      what: 'the Doc tab, on the folder list',
+      path: '/folders',
+      holds: fx.tabId,
     }),
     discussionId: (fx) => ({
       what: 'the discussion, as a Dana Link',

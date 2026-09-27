@@ -406,46 +406,28 @@ export async function writePage(
 }
 
 /**
- * A shared blank facet of a folder (7.27, issue #210).
- *
- * Shared rather than private, deliberately: a private facet is invisible to
- * every other member, so a fixture built as one would make the `member` rows
- * of `ac-397` answer 404 for the privacy rule rather than 403 for the preset,
- * and the sweep would be measuring the wrong refusal.
+ * A Doc tab of a folder's project (step 7), named `name`. The tab copies the
+ * root's people, so a member of the folder is a member of the tab.
  */
-export async function makeFacet(
+export async function makeTab(
   owner: Actor,
   folderId: string,
   name: string,
 ): Promise<string> {
-  const made = await owner.browser.json(`/folders/${folderId}/facets`, 'POST', {
-    kind: 'shared_blank',
-    display_name: name,
-  })
-  expectStatus(
-    made,
-    201,
-    'POST /folders/:id/facets must create a shared blank facet (spec 7.27)',
-  )
-  return String((made.json() as { id: string }).id)
+  const made = await owner.browser.json(`/folders/${folderId}/tabs`, 'POST', { kind: 'doc' })
+  expectStatus(made, 201, 'POST /folders/:id/tabs must add a Doc tab (spec 7.4)')
+  const tabs = made.json() as { id: string; kind: string; tab_position: string }[]
+  const added = tabs.filter((tab) => tab.kind === 'doc').at(-1)
+  if (added === undefined) throw new Error('POST /folders/:id/tabs answered no Doc tab')
+  const named = await owner.browser.json(`/folders/${added.id}`, 'PATCH', { name })
+  expectStatus(named, 200, 'PATCH /folders/:id must rename the tab (spec 7.4)')
+  return added.id
 }
 
-/** A facet in the Trash, addressed afterwards by the restore and the
- * permanent-delete routes. */
-export async function trashFacet(
-  owner: Actor,
-  folderId: string,
-  facetId: string,
-): Promise<void> {
-  const deleted = await owner.browser.json(
-    `/folders/${folderId}/facets/${facetId}`,
-    'DELETE',
-  )
-  expectStatus(
-    deleted,
-    204,
-    'DELETE /folders/:id/facets/:facetId must trash the facet (spec 7.27, 7.13)',
-  )
+/** A tab in the Trash: 7.4's delete, as any page. */
+export async function trashTab(owner: Actor, tabId: string): Promise<void> {
+  const deleted = await owner.browser.json(`/folders/${tabId}`, 'DELETE')
+  expectStatus(deleted, 200, 'DELETE /folders/:id must trash the tab (spec 7.4, 7.13)')
 }
 
 /** A task in the Trash: 7.13's delete is the ordinary one, and the row is

@@ -52,9 +52,9 @@ import type { ObjectStore } from '../files/store.js'
 import { inTransaction, pairSet, rowsOf } from '../database.js'
 import type { Executor, IdPair } from '../database.js'
 import { recordEvent } from './events.js'
-import { createNativeFacets } from './facets.js'
 import { folderActorFacts, mayPerform, recordAccessTransition } from './folder-access.js'
 import { copyParentMembers } from './folders.js'
+import { addDocPage, purposeTabOf } from './project-tabs.js'
 import { copyCoverFile, copyPageFile, readableFileScope } from './files.js'
 import {
   appendHomeBlock,
@@ -256,7 +256,8 @@ export async function duplicateFolder(
         tx,
         sql`SELECT count(*)::int AS n FROM folders
             WHERE owner_id = ${viewerId} AND NOT is_default
-              AND deleted_at IS NULL`,
+              AND deleted_at IS NULL
+              AND (tab_position IS NULL OR id = project_id)`,
       )
       if (Number(owned[0]?.n ?? 0) >= 200) return { kind: 'folder_cap' } as const
 
@@ -284,7 +285,7 @@ export async function duplicateFolder(
         await rowsOf(
           tx,
           sql`SELECT name, icon, color, description, cover_file_id,
-                     cover_preset, cover_focal_y FROM folders
+                     cover_preset, cover_focal_y, kind, project_id FROM folders
               WHERE id = ${sourceFolderId}`,
         )
       )[0]
@@ -336,17 +337,25 @@ export async function duplicateFolder(
            what the source draws too when its object has gone. */
       }
 
+      /* Step 7: a top-level copy is a new project of the source page's kind;
+         a sub-page copy joins its parent's project. */
+      const newId = randomUUID()
+      const sourceKind = source?.kind === null || source?.kind === undefined ? null : String(source.kind)
       const made = await rowsOf(
         tx,
-        sql`INSERT INTO folders (owner_id, name, icon, color, description,
+        sql`INSERT INTO folders (id, owner_id, name, icon, color, description,
                                  cover_file_id, cover_preset, cover_focal_y,
-                                 parent_folder_id, child_position)
-            VALUES (${viewerId}::uuid, ${name}, ${source?.icon ?? null},
+                                 parent_folder_id, child_position,
+                                 project_id, kind, tab_position)
+            VALUES (${newId}::uuid, ${viewerId}::uuid, ${name}, ${source?.icon ?? null},
                     ${source?.color ?? null}, ${source?.description ?? null},
                     ${coverFileId}::uuid,
                     ${coverFileId === null ? (source?.cover_preset ?? null) : null},
                     ${Number(source?.cover_focal_y ?? 50)},
-                    ${place?.parentId ?? null}::uuid, ${place?.childPosition ?? null})
+                    ${place?.parentId ?? null}::uuid, ${place?.childPosition ?? null},
+                    ${place === null ? sql`${newId}::uuid` : sql`(SELECT p.project_id FROM folders p WHERE p.id = ${place.parentId}::uuid)`},
+                    ${place === null ? (sourceKind ?? 'work') : sourceKind === 'discussion' || sourceKind === null ? 'doc' : sourceKind},
+                    ${place === null ? 'a0' : null})
             RETURNING id`,
       )
       const copyId = String(made[0]?.id)
@@ -368,15 +377,6 @@ export async function duplicateFolder(
         actorId: viewerId,
         transition: 'created_owner',
       })
-      /* The four native facets, in this same transaction (issue #210, 4.30:
-         "natives are created with the Folder and never lazily"). **The
-         source's facets do not travel and the file carries none**: a
-         duplicate and an import are new Folders whose only member is the
-         person who made them, which is R10B's rule for member standing read
-         one table over, and #210's out-of-scope list leaves the copy of a
-         facet's content to a later slice. Every `folders` insert needs a call
-         like this beside it. */
-      await createNativeFacets(tx, copyId, viewerId)
       /* Beside the original: a sub-page as `createSubPage` makes one, or a
          top-level page next to it in the duplicator's own Library. */
       if (place === null) await placeBesideInLibrary(tx, viewerId, sourceFolderId, copyId)
@@ -540,66 +540,46 @@ export async function duplicateFolder(
       }
 
       /*
-      #211: Purpose is reusable authored Folder context. The destination's
-      native Purpose row already exists (createNativeFacets above); copy into
-      that identity rather than minting another facet. Blocks and files are
-      independent copies, while Dana Links are remapped only for targets this
+      #211: Purpose is reusable authored Folder context. Since step 7 it is the
+      project's Purpose tab (`purposeTabOf`: the first Doc tab before Work),
+      and a copy of a project gets its own Purpose tab with independent
+      blocks and files. Dana Links are remapped only for targets this
       duplicate already has an identity map for.
       #213: Results is deliberately not copied. It records the source
-      Folder's actual outcomes, not reusable intent, so the copy's native
-      Results stays empty under its default name (7.16).
+      Folder's actual outcomes, not reusable intent (7.16). Nor are the other
+      tabs, as a facet never was.
       */
-      const purposeRows = await rowsOf(
-        tx,
-        sql`SELECT id, folder_id, display_name
-              FROM folder_facets
-             WHERE kind = 'purpose'
-               AND folder_id IN (${sourceFolderId}::uuid, ${copyId}::uuid)`,
-      )
-      const sourcePurpose = purposeRows.find(
-        (row) => String(row.folder_id) === sourceFolderId,
-      )
-      const copiedPurpose = purposeRows.find(
-        (row) => String(row.folder_id) === copyId,
-      )
-      if (sourcePurpose !== undefined && copiedPurpose !== undefined) {
-        const sourcePurposeId = String(sourcePurpose.id)
-        const copiedPurposeId = String(copiedPurpose.id)
-        await tx.execute(
-          sql`UPDATE folder_facets
-                  SET display_name = ${sourcePurpose.display_name ?? null},
-                      updated_at = now()
-                WHERE id = ${copiedPurposeId}::uuid`,
-        )
+      const sourcePurposeTab = place === null ? await purposeTabOf(tx, sourceFolderId) : null
+      if (sourcePurposeTab !== null) {
+        const sourcePurposeId = sourcePurposeTab.id
+        const copiedPurposeId = await addDocPage(tx, viewerId, copyId, sourcePurposeTab.name, 'before')
+        const purposeFiles = new Map<string, string>()
         const purposeBlocks = await rowsOf(
           tx,
           sql`SELECT id, kind, position, text, rich_content, file_id, width_pct,
                      checked, list_parent_block_id, page_position, toggleable
                 FROM page_blocks
-               WHERE facet_id = ${sourcePurposeId}::uuid
+               WHERE folder_id = ${sourcePurposeId}::uuid
                ORDER BY page_position ASC NULLS LAST, position ASC, id ASC`,
         )
         const purposeIdentity = new Map(
           purposeBlocks.map((block) => [String(block.id), randomUUID()]),
         )
         for (const block of purposeBlocks) {
+          if (block.kind === 'page') continue
           let fileId: string | null = null
           if (block.file_id !== null && block.file_id !== undefined) {
             const originalFile = String(block.file_id)
-            fileId = copiedFiles.get(originalFile) ?? null
+            fileId = purposeFiles.get(originalFile) ?? null
             if (fileId === null) {
-              const held = await copyPageFile(
-                tx,
-                store,
-                viewerId,
-                originalFile,
-                copyId,
-              )
+              // A page accepts only its own files: the copy is scoped to the
+              // new Purpose tab.
+              const held = await copyPageFile(tx, store, viewerId, originalFile, copiedPurposeId)
               if (held.kind === 'quota_exceeded') throw new QuotaRefusal()
               if (held.kind === 'copied') {
                 fileId = held.id
                 copiedObjects.push(fileId)
-                copiedFiles.set(originalFile, fileId)
+                purposeFiles.set(originalFile, fileId)
               }
             }
           }
@@ -608,7 +588,7 @@ export async function duplicateFolder(
               ? null
               : remapRichContentLinks(block.rich_content, (kind, id) => {
                   if (kind === 'folder' && id === sourceFolderId) return copyId
-                  if (kind === 'facet' && id === sourcePurposeId) {
+                  if ((kind === 'facet' || kind === 'folder') && id === sourcePurposeId) {
                     return copiedPurposeId
                   }
                   if (kind === 'task') return taskIdentity.get(id) ?? null
@@ -616,7 +596,7 @@ export async function duplicateFolder(
                 })
           await tx.execute(
             sql`INSERT INTO page_blocks
-                  (id, facet_id, kind, position, text, rich_content, file_id,
+                  (id, folder_id, kind, position, text, rich_content, file_id,
                    width_pct, checked, page_position, toggleable)
                 VALUES (${purposeIdentity.get(String(block.id))}::uuid,
                         ${copiedPurposeId}::uuid, ${String(block.kind)},
@@ -643,7 +623,7 @@ export async function duplicateFolder(
           await tx.execute(
             sql`UPDATE page_blocks
                     SET list_parent_block_id = ${parent}::uuid
-                  WHERE id = ${child}::uuid AND facet_id = ${copiedPurposeId}::uuid`,
+                  WHERE id = ${child}::uuid AND folder_id = ${copiedPurposeId}::uuid`,
           )
         }
       }
@@ -953,7 +933,8 @@ export async function importWorkflow(
       tx,
       sql`SELECT count(*)::int AS n FROM folders
           WHERE owner_id = ${viewerId} AND NOT is_default
-            AND deleted_at IS NULL`,
+            AND deleted_at IS NULL
+            AND (tab_position IS NULL OR id = project_id)`,
     )
     if (Number(owned[0]?.n ?? 0) + file.folders.length > 200) {
       return { kind: 'folder_cap' } as const
@@ -970,12 +951,18 @@ export async function importWorkflow(
     for (const [folderIndex, folder] of file.folders.entries()) {
       const childPosition =
         parentId === undefined ? null : await lastChildPosition(tx, parentId)
+      /* Step 7: a top-level import is a Work project; into a page, a Work
+         sub-page of that page's project. */
+      const newId = randomUUID()
       const made = await rowsOf(
         tx,
-        sql`INSERT INTO folders (owner_id, name, created_at,
-                                 parent_folder_id, child_position)
-            VALUES (${viewerId}::uuid, ${folder.name}, ${clock()},
-                    ${parentId ?? null}::uuid, ${childPosition})
+        sql`INSERT INTO folders (id, owner_id, name, created_at,
+                                 parent_folder_id, child_position,
+                                 project_id, kind, tab_position)
+            VALUES (${newId}::uuid, ${viewerId}::uuid, ${folder.name}, ${clock()},
+                    ${parentId ?? null}::uuid, ${childPosition},
+                    ${parentId === undefined ? sql`${newId}::uuid` : sql`(SELECT p.project_id FROM folders p WHERE p.id = ${parentId}::uuid)`},
+                    'work', ${parentId === undefined ? 'a0' : null})
             RETURNING id`,
       )
       const folderId = String(made[0]?.id)
@@ -1002,15 +989,6 @@ export async function importWorkflow(
         await appendHomeBlock(tx, parentId, folderId)
         await copyParentMembers(tx, viewerId, parentId, folderId)
       }
-      /* The four native facets, in this same transaction (issue #210, 4.30:
-         "natives are created with the Folder and never lazily"). **The
-         source's facets do not travel and the file carries none**: a
-         duplicate and an import are new Folders whose only member is the
-         person who made them, which is R10B's rule for member standing read
-         one table over, and #210's out-of-scope list leaves the copy of a
-         facet's content to a later slice. Every `folders` insert needs a call
-         like this beside it. */
-      await createNativeFacets(tx, folderId, viewerId)
       const taskMap = new Map<string,string>()
       /*
       The Folder's reusable vocabulary, before the work that points at it
@@ -1266,28 +1244,14 @@ export async function importWorkflow(
         await applyDocument(tx,viewerId,folderId,{action:'document_transaction',mutation_id:randomUUID(),base_revision:base.revision,operations})
       }
       if (folder.purpose !== undefined) {
-        const purposeFacet = (
-          await rowsOf(
-            tx,
-            sql`SELECT id FROM folder_facets
-                  WHERE folder_id = ${folderId}::uuid
-                    AND kind = 'purpose'
-                    AND deleted_at IS NULL`,
-          )
-        )[0]
-        if (purposeFacet === undefined) {
-          throw new DocumentRefusal(
-            'not_convertible',
-            'The imported Folder has no native Purpose facet.',
-            `folders.${String(folderIndex)}.purpose`,
-          )
-        }
-        const purposeId = String(purposeFacet.id)
-        await tx.execute(
-          sql`UPDATE folder_facets
-                  SET display_name = ${folder.purpose.display_name ?? null},
-                      updated_at = now()
-                WHERE id = ${purposeId}::uuid`,
+        /* Step 7: format 5's Purpose becomes the project's Purpose tab, a Doc
+           tab before Work (a child Doc page when importing into a page). */
+        const purposeId = await addDocPage(
+          tx,
+          viewerId,
+          folderId,
+          folder.purpose.display_name ?? 'Purpose',
+          'before',
         )
         const idOf = new Map<number, string>()
         const carried = folder.purpose.blocks
@@ -1308,7 +1272,7 @@ export async function importWorkflow(
           }
           await tx.execute(
             sql`INSERT INTO page_blocks
-                  (id, facet_id, kind, position, text, rich_content, file_id,
+                  (id, folder_id, kind, position, text, rich_content, file_id,
                    width_pct, checked, page_position)
                 VALUES (${id}::uuid, ${purposeId}::uuid, ${block.kind},
                         ${position}, ${block.text ?? null},
@@ -1337,7 +1301,7 @@ export async function importWorkflow(
           await tx.execute(
             sql`UPDATE page_blocks
                     SET list_parent_block_id = ${parent}::uuid
-                  WHERE id = ${child}::uuid AND facet_id = ${purposeId}::uuid`,
+                  WHERE id = ${child}::uuid AND folder_id = ${purposeId}::uuid`,
           )
         }
       }

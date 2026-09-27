@@ -9,7 +9,7 @@ else's rows. This guard covers that half.
 
 **How.** An owner and a member share a folder full of one of everything a list
 shows: tasks (open, due today, completed, trashed), a discussion (live and
-trashed), a comment, a facet (live and trashed), a folder label, a file, a
+trashed), a comment, a tab (live and trashed), a folder label, a file, a
 trashed folder, an assignment notification. A stranger who shares nothing
 then calls every mounted `GET /api/v1` route that takes no path parameter,
 plus the query-id forms listed in `QUERY_ID_READS`, and no response may carry
@@ -33,7 +33,7 @@ import type { AuthTestApp } from '../support/auth-harness.js'
 import {
   makeComment,
   makeDiscussion,
-  makeFacet,
+  makeTab,
   makeFile,
   makeFolderLabel,
   makeInvite,
@@ -42,7 +42,7 @@ import {
   makeTask,
   memoryFileStore,
   trashDiscussion,
-  trashFacet,
+  trashTab,
   trashFolder,
   trashTask,
 } from '../support/authorization-harness.js'
@@ -119,8 +119,8 @@ interface Fixtures {
   commentId: string
   discussionId: string
   trashedDiscussionId: string
-  facetId: string
-  trashedFacetId: string
+  tabId: string
+  trashedTabId: string
   folderLabelId: string
   fileId: string
   inviteId: string
@@ -139,8 +139,8 @@ const HIDDEN: ReadonlyArray<keyof Fixtures> = [
   'commentId',
   'discussionId',
   'trashedDiscussionId',
-  'facetId',
-  'trashedFacetId',
+  'tabId',
+  'trashedTabId',
   'folderLabelId',
   'fileId',
   'inviteId',
@@ -149,9 +149,9 @@ const HIDDEN: ReadonlyArray<keyof Fixtures> = [
 
 /** The ids some list must show the member, which proves each fixture is
  * reachable through a list at all. Hidden-only: the invite (the owner's own
- * list, not the member's), and the facet and the file, whose lists take the
- * folder as a path id and are ac-397's. */
-const HIDDEN_ONLY: ReadonlyArray<keyof Fixtures> = ['inviteId', 'facetId', 'fileId']
+ * list, not the member's), and the file, whose list takes the folder as a
+ * path id and is ac-397's. A tab (step 7) is a page, listed with the folders. */
+const HIDDEN_ONLY: ReadonlyArray<keyof Fixtures> = ['inviteId', 'fileId']
 const LISTABLE: ReadonlyArray<keyof Fixtures> = HIDDEN.filter(
   (key) => !HIDDEN_ONLY.includes(key),
 )
@@ -203,9 +203,9 @@ async function fixturesOf(tz: string): Promise<Fixtures> {
     `${NEEDLE} doomed discussion`,
   )
   await trashDiscussion(owner, trashedDiscussionId)
-  const facetId = await makeFacet(owner, folderId, `${NEEDLE} facet`)
-  const trashedFacetId = await makeFacet(owner, folderId, `${NEEDLE} doomed facet`)
-  await trashFacet(owner, folderId, trashedFacetId)
+  const tabId = await makeTab(owner, folderId, `${NEEDLE} tab`)
+  const trashedTabId = await makeTab(owner, folderId, `${NEEDLE} doomed tab`)
+  await trashTab(owner, trashedTabId)
   const folderLabelId = await makeFolderLabel(owner, folderId, `${NEEDLE} label`)
   const fileId = await makeFile(owner, folderId, `${NEEDLE}.png`)
   const inviteId = await makeInvite(
@@ -235,8 +235,8 @@ async function fixturesOf(tz: string): Promise<Fixtures> {
     commentId,
     discussionId,
     trashedDiscussionId,
-    facetId,
-    trashedFacetId,
+    tabId,
+    trashedTabId,
     folderLabelId,
     fileId,
     inviteId,

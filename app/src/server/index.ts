@@ -36,7 +36,6 @@ import {
 import { createEventsRouter } from './routes/events.js'
 import { createExportRouter } from './routes/export.js'
 import { createConsultationRouter } from './routes/consultation.js'
-import { createFacetsRouter } from './routes/facets.js'
 import { createFilesRouter } from './routes/files.js'
 import { createFoldersRouter } from './routes/folders.js'
 import { HEALTH_PATH, healthRouter, recordDatabaseKind } from './routes/health.js'
@@ -728,33 +727,8 @@ export function createApp(options: AppOptions = {}): express.Express {
     }),
   )
 
-  /*
-  7.27's Folder facets (issue #210, extended by #211). **Twelve** routes:
-  nine under `/folders/:id/facets`, the Purpose navigation read
-  `GET /facets/:id/location`, and `POST /facets/:id/restore` plus
-  `DELETE /trash/facets/:id`, which are 7.13's shape for the Trash pair.
-
-  **Position is deliberate and is not load-bearing**, which is worth
-  separating, exactly as the Label router's block above says of itself.
-  Express matches whole paths, and nothing here is a whole path any earlier
-  router claims: `/folders/:id` is one segment past the prefix and
-  `/folders/:id/facets` is two; `/folders/:id/page` is a different literal
-  from `/folders/:id/facets`; `/trash/facets/:id` differs from
-  `/trash/tasks/:id` and `/trash/folders/:id` in its literal segment; and
-  `/facets/:id/restore` meets nothing at all. So this would work anywhere
-  ahead of the catch-all, and it is here because reading it after the
-  workshop router -- which owns the Folder page these facets sit beside -- is
-  how a person finds it.
-
-  **The order *inside* the router is load-bearing**, and that file says so:
-  `/folders/:id/facets/order` and `/folders/:id/facets/my-order` are
-  registered ahead of `/folders/:id/facets/:facetId`, which would otherwise
-  claim both.
-  */
-  app.use(
-    '/api/v1',
-    createFacetsRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
-  )
+  /* 7.27's Folder facet routes are gone since step 7 (migration 0061): a
+     facet is a tab, and a tab is a page served by the folder routes. */
 
   // Consultation input rounds (issue #321): `/discussions/:id/input-rounds`
   // and `/input-rounds/:id...`. The literal `input-rounds` segment meets

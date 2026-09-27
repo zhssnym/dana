@@ -44,7 +44,6 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import { createDbClient } from '../../../db/client.js'
 import type { Db } from '../../../db/client.js'
 import { rowsOf } from '../database.js'
-import { createNativeFacets } from '../domain/facets.js'
 import type { Executor } from '../database.js'
 
 import { plannedCalendarView } from './calendar.js'
@@ -123,15 +122,12 @@ async function seed(db: Db): Promise<{ viewer: string; folder: string }> {
   ): Promise<string> => {
     const inserted = await rowsOf(
       db,
-      sql`INSERT INTO folders (owner_id, name, is_default)
-          VALUES (${owner}::uuid, ${name}, ${isDefault}) RETURNING id`,
+      sql`INSERT INTO folders (id, owner_id, name, is_default, project_id, kind, tab_position)
+          SELECT g.id, ${owner}::uuid, ${name}, ${isDefault}, g.id, 'work', 'a0'
+            FROM (SELECT gen_random_uuid() AS id) g
+          RETURNING id`,
     )
     const id = String(inserted[0]?.id)
-    /* The four native facets (issue #210, 4.30). This corpus exists to read
-       query plans over, so its folders must have the rows a real folder has
-       or the plans it measures are not production's -- the same reason the
-       preset below is written explicitly rather than left to a default. */
-    await createNativeFacets(db, id, owner)
     for (const member of members) {
       // Explicit since issue #228: this diagnostic builds a synthetic corpus
       // to read query plans over, and the preset it writes is the one

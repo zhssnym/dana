@@ -11,8 +11,7 @@ content, with the same predicate the source's own page read applies:
 
 - a Folder page: a membership of a live Folder (`accessOf`'s join);
 - a Shelf page: the Shelf's owner (`shelfView`'s predicate);
-- a Facet page: a membership of the facet's live Folder, the facet live, and
-  either shared or private *to the reader* (`facetPageGateIn`'s `visibleTo`);
+- (a facet's page is a Folder page since step 7, migration 0061);
 - a Responsibility document: a membership of the live Folder, the document
   active. 7.4's `responsibility.read` is `can_view`, which every member holds;
 - a Task document (#221): a membership of the Task's live Folder and the Task
@@ -45,7 +44,6 @@ import type {
   BacklinkSurface,
   GetBacklinksResponse,
 } from '../../shared/backlinks.js'
-import { DEFAULT_FACET_NAMES } from '../../shared/facets.js'
 import { parseDanaLink } from '../../shared/references.js'
 import type { ReferenceTarget } from '../../shared/references.js'
 import { rowsOf } from '../database.js'
@@ -116,7 +114,11 @@ export async function backlinksOf(
   const folderRows = await rowsOf(
     executor,
     sql`SELECT pb.id, pb.kind, pb.ref_folder_id, pb.rich_content,
-               f.id AS home_id, f.name AS label
+               f.id AS home_id,
+               -- Step 7: a tab other than the project's own reads "Project · Tab".
+               CASE WHEN f.tab_position IS NOT NULL AND f.id <> f.project_id
+                    THEN (SELECT pr.name FROM folders pr WHERE pr.id = f.project_id) || ' · ' || f.name
+                    ELSE f.name END AS label
           FROM page_blocks pb
           ${joinVisibleFolder(viewerId, { folderId: sql`pb.folder_id`, folder: 'f' })}
          WHERE (pb.rich_content::text LIKE ${pattern} OR ${folderRef})
@@ -153,38 +155,6 @@ export async function backlinksOf(
       home: 'shelf',
       homeId: String(row.home_id),
       folderId: null,
-      memberId: null,
-      label: String(row.label),
-      blockId: String(row.id),
-    })
-  }
-
-  const facetRows = await rowsOf(
-    executor,
-    sql`SELECT pb.id, pb.kind, pb.ref_folder_id, pb.rich_content,
-               ff.id AS home_id, ff.folder_id,
-               fo.name || ' · ' || COALESCE(ff.display_name, CASE ff.kind
-                 WHEN 'main' THEN ${DEFAULT_FACET_NAMES.main}
-                 WHEN 'purpose' THEN ${DEFAULT_FACET_NAMES.purpose}
-                 WHEN 'consultation' THEN ${DEFAULT_FACET_NAMES.consultation}
-                 WHEN 'results' THEN ${DEFAULT_FACET_NAMES.results}
-                 ELSE ${DEFAULT_FACET_NAMES.main} END) AS label
-          FROM page_blocks pb
-          JOIN folder_facets ff
-            ON ff.id = pb.facet_id AND ff.deleted_at IS NULL
-           AND (ff.owner_id IS NULL OR ff.owner_id = ${viewerId})
-          ${joinVisibleFolder(viewerId, { folderId: sql`ff.folder_id` })}
-         WHERE (pb.rich_content::text LIKE ${pattern} OR ${folderRef})
-         ORDER BY pb.page_position ASC NULLS LAST, pb.position ASC, pb.id ASC
-         LIMIT ${SCAN_BOUND}`,
-  )
-  for (const row of facetRows) {
-    if (!pageBlock(row)) continue
-    hits.push({
-      surface: 'page',
-      home: 'facet',
-      homeId: String(row.home_id),
-      folderId: String(row.folder_id),
       memberId: null,
       label: String(row.label),
       blockId: String(row.id),

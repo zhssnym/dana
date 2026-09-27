@@ -214,7 +214,6 @@ const SCOPED = {
   folder: { table: 'folders', as: 'fo', trash: true },
   task: { table: 'tasks', as: 't', trash: true },
   comment: { table: 'comments', as: 'c', trash: false },
-  facet: { table: 'folder_facets', as: 'ff', trash: true },
 } as const
 
 export type ScopedKind = keyof typeof SCOPED

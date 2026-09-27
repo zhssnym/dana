@@ -1,12 +1,13 @@
 /*
-AC-1250: given a Folder's Results tab, when a member writes a native Result
-(#213), then it is stored as a `result` block of that Results facet, a Result
-written anywhere else leaves no row, its Dana Link resolves with its statement
-for a member and is a bare 404 for a stranger (resolver and picker alike), and
-a Duplicate of the Folder carries no Result (R2: Results follow historical
-truth, not reusable structure).
+AC-1250: given a project's Results tab, when a member writes a native Result
+(#213), then it is stored as a `result` block of that Doc page, a Result
+written on a Work page leaves no row, its Dana Link resolves with its
+statement for a member and is a bare 404 for a stranger (resolver and picker
+alike), and a Duplicate of the project carries no Result (R2: Results follow
+historical truth, not reusable structure). Since step 7 the Results tab is a
+Doc page.
 
-Spec: 4.30, 7.24, 10.2.
+Spec: 4.3, 7.24, 10.2.
 */
 import { randomUUID } from 'node:crypto'
 
@@ -64,18 +65,8 @@ function putResult(base: string, id: string, text: string): DocumentTransaction 
   }
 }
 
-async function facetOf(owner: Actor, folderId: string, kind: string): Promise<string> {
-  const listed = await owner.browser.json(`/folders/${folderId}/facets`, 'GET')
-  expectStatus(listed, 200, 'the owner lists the facets (7.27)')
-  const found = (listed.json() as { facets: { id: string; kind: string }[] }).facets.find(
-    (facet) => facet.kind === kind,
-  )
-  expect(found, `every Folder has a native ${kind} facet (4.30)`).toBeDefined()
-  return found!.id
-}
-
-async function write(actor: Actor, folderId: string, facetId: string, id: string) {
-  const page = `/folders/${folderId}/facets/${facetId}/page`
+async function write(actor: Actor, pageId: string, id: string) {
+  const page = `/folders/${pageId}/page`
   const read = await actor.browser.json(page, 'GET')
   expectStatus(read, 200, 'the writer reads the document')
   return actor.browser.json(`${page}/actions`, 'POST', putResult((read.json() as PageView).revision!, id, STATEMENT))
@@ -86,21 +77,22 @@ describe('AC-1250 a native Result', () => {
     const [owner, member, stranger] = (await cast.of(app)) as [Actor, Actor, Actor]
     const folderId = await createFolder(owner, 'ac1250 results')
     await seedMembership(app.db, folderId, member.id)
-    const resultsId = await facetOf(owner, folderId, 'results')
-    const purposeId = await facetOf(owner, folderId, 'purpose')
+    const added = await owner.browser.json(`/folders/${folderId}/tabs`, 'POST', { kind: 'doc' })
+    expectStatus(added, 201, 'a Doc tab for Results')
+    const resultsId = (added.json() as { id: string; kind: string }[]).find((tab) => tab.kind === 'doc')!.id
 
     const resultId = randomUUID()
-    expectStatus(await write(owner, folderId, resultsId, resultId), 200, 'the owner writes a Result on Results')
+    expectStatus(await write(owner, resultsId, resultId), 200, 'the owner writes a Result on Results')
     const stored = await countRows(
       app.db,
       sql`SELECT count(*)::int AS n FROM page_blocks
-           WHERE id = ${resultId}::uuid AND facet_id = ${resultsId}::uuid
+           WHERE id = ${resultId}::uuid AND folder_id = ${resultsId}::uuid
              AND kind = 'result' AND text = ${STATEMENT}`,
     )
-    expect(stored, 'the Result is a result block of the Results facet').toBe(1)
+    expect(stored, 'the Result is a result block of the Results tab').toBe(1)
 
     const stray = randomUUID()
-    expectStatus(await write(owner, folderId, purposeId, stray), 422, 'a Result lives on Results alone')
+    expectStatus(await write(owner, folderId, stray), 422, 'a Work page holds no Result')
     expect(
       await countRows(app.db, sql`SELECT count(*)::int AS n FROM page_blocks WHERE id = ${stray}::uuid`),
       'the refused Result left no row',
@@ -128,8 +120,8 @@ describe('AC-1250 a native Result', () => {
       await countRows(
         app.db,
         sql`SELECT count(*)::int AS n FROM page_blocks pb
-              JOIN folder_facets ff ON ff.id = pb.facet_id
-             WHERE ff.folder_id = ${copyId}::uuid AND ff.kind = 'results'`,
+              JOIN folders f ON f.id = pb.folder_id
+             WHERE f.project_id = ${copyId}::uuid AND pb.kind = 'result'`,
       ),
       'a Duplicate starts with an empty Results tab (R2)',
     ).toBe(0)

@@ -11,18 +11,19 @@ layer owns the mapping onto 7.0's taxonomy and this file stays testable
 without HTTP.
 */
 import { notSamplePerson } from '../sample/people.js'
+import { randomUUID } from 'node:crypto'
+
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
-import type { Folder, SectionProgress } from '../../shared/folders.js'
+import type { Folder, PageKind, SectionProgress } from '../../shared/folders.js'
 import type { LabelRef } from '../../shared/labels.js'
 import type { ResponsibilityDocument } from '../../shared/responsibility.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
-import { createNativeFacets, deletePrivateFacetsOf } from './facets.js'
 import {
   folderActorFacts,
   lockedMembership,
@@ -31,7 +32,7 @@ import {
   presetOf,
   recordAccessTransition,
 } from './folder-access.js'
-import { joinVisibleFolder } from './folder-access.js'
+import { joinVisibleFolder, visibleFolder } from './folder-access.js'
 import type { FolderAccess } from './folder-access.js'
 import { folderPersonalLabelsFor } from './labels.js'
 import {
@@ -44,6 +45,7 @@ import {
   lastChildPosition,
   lockPageTree,
   mayAddChildUnder,
+  releaseSurvivors,
   removeHomeBlock,
   trashPageSubtree,
   visibleParentPredicate,
@@ -118,7 +120,15 @@ function folderFromRow(
        both columns unless the parent is live and the viewer a member of it. */
     parent_folder_id: nullableString(row.parent_folder_id),
     child_position: nullableString(row.child_position),
+    project_id: String(row.project_id),
+    kind: pageKindOf(row.kind),
+    tab_position: nullableString(row.tab_position),
   }
+}
+
+/** A stored `folders.kind`, or null for a root whose kind is unpicked. */
+export function pageKindOf(value: unknown): PageKind | null {
+  return value === 'doc' || value === 'work' || value === 'discussion' ? value : null
 }
 
 /**
@@ -149,7 +159,16 @@ function folderSelect(viewerId: string, folderId?: string) {
     SELECT f.id, f.name, f.is_default,
            (f.owner_id = ${viewerId}) AS is_owner,
            f.icon, f.color, f.cover_file_id, f.cover_preset, f.cover_focal_y,
-           f.description,
+           f.description, f.kind,
+           -- Step 7: the project as this viewer may see it. Until step 8 a
+           -- page's people may differ from its project's; a viewer who is not
+           -- a member of the project root reads the page as a project of its
+           -- own, as a hidden parent already reads as no parent, so the root's
+           -- id never leaks (10.2).
+           CASE WHEN f.id = f.project_id OR ${visibleFolder(sql`f.project_id`, viewerId)}
+                THEN f.project_id ELSE f.id END AS project_id,
+           CASE WHEN f.id = f.project_id OR ${visibleFolder(sql`f.project_id`, viewerId)}
+                THEN f.tab_position ELSE 'a0' END AS tab_position,
            -- Wave 2: a hidden or trashed parent is no parent to this viewer.
            CASE WHEN ${visibleParentPredicate(viewerId)}
                 THEN f.parent_folder_id END AS parent_folder_id,
@@ -310,6 +329,7 @@ export async function createFolder(
   viewerId: string,
   name: string,
   description: string | null = null,
+  kind: PageKind | null = 'work',
 ): Promise<CreateFolderResult> {
   return inTransaction(db, async (tx) => {
     const id = await insertOwnedFolder(tx, viewerId, {
@@ -317,6 +337,7 @@ export async function createFolder(
       description,
       parentId: null,
       childPosition: null,
+      kind,
     })
     if (id === null) return { kind: 'folder_cap' }
     return {
@@ -349,6 +370,9 @@ export async function createFolder(
         description,
         parent_folder_id: null,
         child_position: null,
+        project_id: id,
+        kind,
+        tab_position: 'a0',
       },
     }
   })
@@ -357,8 +381,12 @@ export async function createFolder(
 /**
  * The insert every new owned page shares, root or sub-page, in the caller's
  * transaction: the cap behind the owner's row lock, the row, the owner's
- * Full-control membership and its transition, the native facets and the
- * `created` event. Answers the new id, or null at the 10.3 cap.
+ * Full-control membership and its transition, and the `created` event.
+ * Answers the new id, or null at the 10.3 cap.
+ *
+ * Step 7: a root is a new project (`project_id` its own id, its first tab at
+ * `a0`); a sub-page joins its parent's project. `kind` null is allowed on a
+ * root only (the project picker).
  */
 async function insertOwnedFolder(
   tx: Executor,
@@ -369,6 +397,7 @@ async function insertOwnedFolder(
     description: string | null
     parentId: string | null
     childPosition: string | null
+    kind: PageKind | null
   },
 ): Promise<string | null> {
   await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
@@ -376,25 +405,34 @@ async function insertOwnedFolder(
   // Trashed folders are out of the count: a person who deleted their way
   // under the cap has done exactly what the cap asks of them, and the
   // purge would otherwise change what an account may do 30 days late.
+  // Step 7: a project's extra tabs are not pages anybody made one by one;
+  // the count is projects and sub-pages, as it was before tabs were rows.
   const owned = await rowsOf(
     tx,
     sql`SELECT count(*)::int AS n FROM folders
         WHERE owner_id = ${viewerId} AND NOT is_default
-          AND deleted_at IS NULL`,
+          AND deleted_at IS NULL
+          AND (tab_position IS NULL OR id = project_id)`,
   )
   if (Number(owned[0]?.n ?? 0) >= 200) return null
 
   // 7.4: folder plus owner membership, one transaction, which this now
   // shares with the guard that admitted them.
-  const idValue =
-    input.id === undefined ? sql`gen_random_uuid()` : sql`${input.id}::uuid`
+  const newId = input.id ?? randomUUID()
+  const project =
+    input.parentId === null
+      ? sql`${newId}::uuid`
+      : sql`(SELECT p.project_id FROM folders p WHERE p.id = ${input.parentId}::uuid)`
+  const kind = input.parentId === null ? input.kind : (input.kind ?? 'doc')
   const inserted = await rowsOf(
     tx,
     sql`INSERT INTO folders (id, owner_id, name, description,
-                             parent_folder_id, child_position)
-        VALUES (${idValue}, ${viewerId}::uuid, ${input.name},
+                             parent_folder_id, child_position,
+                             project_id, kind, tab_position)
+        VALUES (${newId}::uuid, ${viewerId}::uuid, ${input.name},
                 ${input.description}, ${input.parentId}::uuid,
-                ${input.childPosition})
+                ${input.childPosition}, ${project}, ${kind},
+                ${input.parentId === null ? 'a0' : null})
         RETURNING id`,
   )
   const id = String(inserted[0]?.id)
@@ -418,15 +456,6 @@ async function insertOwnedFolder(
     actorId: viewerId,
     transition: 'created_owner',
   })
-  /* The four native facets, **in this transaction and never lazily**
-     (issue #210). #210's "stable internal
-     identity" is a fact of the folder rather than of whoever looked first,
-     and lazy creation would mean a GET writes, two members race
-     `folder_facets_folder_native_kind_idx`, and a Can-view member's read
-     either creates rows or answers differently from a Can-edit member's.
-     Migration 0027 did the same for every folder that already existed,
-     trashed ones included. */
-  await createNativeFacets(tx, id, viewerId)
   await recordEvent(tx, {
     actorId: viewerId,
     verb: 'created',
@@ -449,6 +478,8 @@ export type CreateSubPageResult =
   | { kind: 'default_parent' }
   /** One more level would make the tree deeper than 20: 422. */
   | { kind: 'too_deep' }
+  /** Step 7: the parent is a Discussion page, which holds threads: 422. */
+  | { kind: 'discussion_parent' }
 
 /**
  * A new page under `parentId`, in the caller's transaction (POST /folders
@@ -474,7 +505,7 @@ export async function createSubPage(
   tx: Executor,
   actorId: string,
   parentId: string,
-  input: { id?: string; name: string; description?: string | null; homeBlock?: boolean },
+  input: { id?: string; name: string; description?: string | null; homeBlock?: boolean; kind?: PageKind | null },
 ): Promise<CreateSubPageResult> {
   await lockPageTree(tx)
   const parent = await folderActorFacts(tx, actorId, parentId)
@@ -482,6 +513,8 @@ export async function createSubPage(
   const decision = mayPerform(parent, PAGE_TREE_EDIT_ACTION)
   if (!decision.allowed) return { kind: 'forbidden', reason: decision.reason }
   if (parent.isDefault) return { kind: 'default_parent' }
+  const parentKind = await rowsOf(tx, sql`SELECT kind FROM folders WHERE id = ${parentId}::uuid`)
+  if (parentKind[0]?.kind === 'discussion') return { kind: 'discussion_parent' }
   if (!(await mayAddChildUnder(tx, parentId))) return { kind: 'too_deep' }
 
   const id = await insertOwnedFolder(tx, actorId, {
@@ -490,6 +523,7 @@ export async function createSubPage(
     description: input.description ?? null,
     parentId,
     childPosition: await lastChildPosition(tx, parentId),
+    kind: input.kind ?? 'doc',
   })
   if (id === null) return { kind: 'folder_cap' }
   if (input.homeBlock !== false) await appendHomeBlock(tx, parentId, id)
@@ -539,7 +573,7 @@ export async function createSubPageIn(
   db: Db,
   actorId: string,
   parentId: string,
-  input: { name: string; description?: string | null },
+  input: { name: string; description?: string | null; kind?: PageKind | null },
 ): Promise<CreateSubPageResult> {
   return inTransaction(db, (tx) => createSubPage(tx, actorId, parentId, input))
 }
@@ -718,6 +752,15 @@ export async function trashFolderSubtree(
   }
 }
 
+/** The rows of `folder_facets` private to `memberId` in `folderId`, deleted
+ * with their blocks (R-CLEAN, 4.30). Unread since step 7; see runRClean. */
+async function deletePrivateFacetsOf(tx: Executor, folderId: string, memberId: string): Promise<void> {
+  await tx.execute(
+    sql`DELETE FROM folder_facets
+        WHERE folder_id = ${folderId}::uuid AND owner_id = ${memberId}::uuid`,
+  )
+}
+
 /** The recipients of a folder-scoped fan-out (4.14); recordEvent drops the
  * actor from whatever this answers. */
 export async function memberIdsOf(
@@ -744,6 +787,7 @@ export async function deleteFolderRow(
   tx: Executor,
   folderId: string,
 ): Promise<void> {
+  await releaseSurvivors(tx, [folderId])
   await tx.execute(sql`DELETE FROM folders WHERE id = ${folderId}`)
 }
 
@@ -1233,25 +1277,12 @@ export async function runRClean(
     options.actorId ?? leaverId,
   )
   /*
-  Issue #210: the departing person's **private** facets in this folder, and their blocks, are
-  permanently deleted in this same transaction.
-
-  It is here rather than in `removeMembership` for the reason the paragraph
-  above gives about `endResponsibilityStanding`, and it is the reason that
-  paragraph is worth reading twice: **8.10 does not call `removeMembership` at
-  all**, it calls this function once per surviving membership, so a hook on the
-  caller would have covered a leave and a removal and silently missed every
-  account deletion.
-
-  Deleted rather than trashed. A trashed row here
-  is unreadable by its owner, who is no longer a member, and unreadable by
-  everybody else, because `facet.read` admits no preset -- and unrestorable by
-  either. `folder_facets.owner_id` is RESTRICT, so nothing about a scrubbed
-  `users` row would ever have cleared it: this statement is the whole of the
-  cleanup, which is #253's class stated for one more table.
-
-  **Shared facets are Folder data and are untouched**, exactly as the Tasks
-  below are unassigned rather than deleted.
+  Issue #210: the departing person's **private** facets in this folder are
+  permanently deleted in this same transaction. Since step 7 (migration 0061)
+  a private tab is a project of its own and nothing reads `folder_facets`;
+  what is left there is a row whose owner had already left when the
+  migration ran, which nobody could read. It goes with the membership, as it
+  always did, until the contract migration drops the table.
   */
   await deletePrivateFacetsOf(tx, folderId, leaverId)
   await tx.execute(

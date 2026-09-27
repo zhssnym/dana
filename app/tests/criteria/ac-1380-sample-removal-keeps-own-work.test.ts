@@ -92,8 +92,17 @@ describe('AC-1380 removing the sample keeps the person’s own work', () => {
     expect(folder[0]?.deleted_at).not.toBeNull()
 
     // What is removed as well as what is kept: the untouched pages are gone.
+    // Since step 7 a sub-page's Purpose is a child Doc page, so the tree
+    // under the target is two deep: everything in it goes to Trash with it.
+    const parentOf = new Map(folders.map((row) => [String(row.id), row.parent_folder_id]))
+    const underTarget = (id: string): boolean => {
+      for (let at: unknown = id; at !== null && at !== undefined; at = parentOf.get(String(at))) {
+        if (at === target.id) return true
+      }
+      return false
+    }
     const others = folders
-      .filter((row) => row.id !== target.id && row.parent_folder_id !== target.id)
+      .filter((row) => !underTarget(String(row.id)))
       .map((row) => String(row.id))
     const survivors = await rows(
       app.db,

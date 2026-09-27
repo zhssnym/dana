@@ -93,8 +93,37 @@ export const postFoldersBody = z.object({
      the parent's members and their presets at this moment (Hassan's
      decision 1); the creator gets full control. Absent or null is a root. */
   parent_folder_id: z.uuid({ error: 'must be a uuid' }).nullable().optional(),
+  /* Step 7: what the page is for. On a new project, absent means Work (what
+     every caller made before), and null leaves it unpicked: the project's
+     page offers the picker, and `POST /folders/:id/tabs` picks. On a
+     sub-page, absent or null means Doc. */
+  kind: z.enum(['doc', 'work', 'discussion']).nullable().optional(),
 })
 export type PostFoldersBody = z.infer<typeof postFoldersBody>
+
+/* Step 7: a page's kind. */
+export const PAGE_KINDS = ['doc', 'work', 'discussion'] as const
+export type PageKind = (typeof PAGE_KINDS)[number]
+
+/* A tab's name when it is made, and the project root's tab label (the root's
+   own `name` is the project's). */
+export const DEFAULT_TAB_NAMES: Readonly<Record<PageKind, string>> = {
+  doc: 'Doc',
+  work: 'Work',
+  discussion: 'Discussion',
+}
+
+/*
+POST /folders/:id/tabs. `:id` is any page of the project. While the project's
+kind is unpicked, `kind` picks it; `usual` makes the root Work with Purpose
+(Doc) before it and Results (Doc) and Discussion after. Once picked, it adds
+one tab after the last; `usual` then answers 422, and a second live
+Discussion 409. Answers the project's live tabs in order.
+*/
+export const postFolderTabsBody = z.object({
+  kind: z.enum(['doc', 'work', 'discussion', 'usual']),
+})
+export type PostFolderTabsBody = z.infer<typeof postFolderTabsBody>
 
 // PATCH /folders/:id. Body { name }: the rename, default folder included
 // (7.4). The same name rule as the create, declared separately so each
@@ -257,7 +286,8 @@ export type SectionProgress = z.infer<typeof sectionProgress>
 
 export const folder = z.object({
   id: z.uuid(),
-  name: folderName,
+  /* Up to 120 since step 7: a tab made from a facet keeps its facet name. */
+  name: z.string().min(1).max(120),
   is_default: z.boolean(),
   is_owner: z.boolean(),
   member_count: z.int().min(1),
@@ -314,8 +344,28 @@ export const folder = z.object({
      still parses. */
   parent_folder_id: z.uuid().nullable().optional(),
   child_position: z.string().nullable().optional(),
+  /* Step 7 (migration 0061). The project this page belongs to (its root's
+     id; a root is its own), what the page is for (null only on a root
+     nobody has picked a kind for), and its place in the project's tab row
+     (null on a sub-page). A project's tabs are its pages with a
+     `tab_position`, in that order. */
+  project_id: z.uuid(),
+  kind: z.enum(PAGE_KINDS).nullable(),
+  tab_position: z.string().nullable(),
 })
 export type Folder = z.infer<typeof folder>
+
+/** The project's live tabs, in order, from a folder list. */
+export function projectTabs<T extends Pick<Folder, 'id' | 'project_id' | 'tab_position'>>(
+  folders: readonly T[],
+  projectId: string,
+): T[] {
+  return folders
+    .filter((f) => f.project_id === projectId && f.tab_position !== null)
+    .sort((a, b) =>
+      a.tab_position! < b.tab_position! ? -1 : a.tab_position! > b.tab_position! ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+    )
+}
 
 /* One step of a page's breadcrumb: enough to draw and route. */
 export const folderCrumb = z.object({

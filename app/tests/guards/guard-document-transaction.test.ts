@@ -96,7 +96,7 @@ test('duplicate, export and workflow import retain hierarchy and rich content wi
     `parent_folder_id`.
     **8 to 9 at issue #353**: settings gains the durable `focus_appearance`
     map, so an older reader cannot silently discard the viewer's Focus identity. */
- expect(data.version).toBe(9);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
+ expect(data.version).toBe(10);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
  const current=await read(owner,folder)
  expectStatus(await owner.browser.json(`/folders/${folder}/page/actions`,'POST',{action:'document_transaction',mutation_id:randomUUID(),base_revision:current.revision,operations:[{op:'delete_block',id:h1},{op:'set_outline',items:[{kind:'block',id:h2,section_block_id:null,list_parent_block_id:null},{kind:'block',id:p,section_block_id:h2,list_parent_block_id:null}]}]}),200,'remove H1 promotes subgroup')
  expect((await read(owner,folder)).blocks.find(b=>b.id===h2)?.section_block_id).toBeNull()
@@ -251,10 +251,11 @@ test('a Task document and a Purpose document nest blocks and store a toggle head
  expect(flat.blocks.find(x=>x.id===p)?.list_parent_block_id).toBeNull()
  expect(flat.blocks.find(x=>x.id===b)?.list_parent_block_id).toBe(p)
 
- // Purpose: the same rule and the same column on a facet.
- const facets=(await owner.browser.json(`/folders/${folder}/facets`,'GET')).json() as {facets:{id:string;kind:string}[]}
- const purpose=facets.facets.find(f=>f.kind==='purpose')!
- const page=`/folders/${folder}/facets/${purpose.id}/page`
+ // A Doc tab (Purpose since step 7): the same rule and the same column.
+ const tabs=await owner.browser.json(`/folders/${folder}/tabs`,'POST',{kind:'doc'})
+ expectStatus(tabs,201,'a Doc tab')
+ const purpose=(tabs.json() as {id:string;kind:string}[]).find(f=>f.kind==='doc')!
+ const page=`/folders/${purpose.id}/page`
  const fbase=(await owner.browser.json(page,'GET')).json() as PageView
  const fh=randomUUID(),fq=randomUUID()
  expectStatus(await transact(owner,`${page}/actions`,fbase.revision!,[put(fh,'heading1','Why',{toggleable:true}),put(fq,'quote','Because'),{op:'set_outline',items:[at(fh),at(fq,fh)]}]),200,'a quote under a toggle heading on Purpose')
@@ -267,8 +268,9 @@ test('a Task document and a Purpose document nest blocks and store a toggle head
 Wave 2 (pages in pages): a `page` block is a sub-page's home in its parent's
 Main document, retained like a Task. Deleting one without `trash_page`, or
 retyping it, is refused before the first write -- the revision, the block row
-and the sub-page are all as they were. Every other document home (a Purpose
-facet, a Task document, a Shelf) refuses the two tree ops and the kind.
+and the sub-page are all as they were. Every other document home (a Task
+document, a Shelf, and since step 7 a Discussion tab) refuses the two tree ops
+and the kind.
 */
 test('a page block leaves only with trash_page, keeps its kind, and lives only on a folder page',async()=>{
  const [owner]=await cast.of(app) as [Actor,Actor]
@@ -303,11 +305,13 @@ test('a page block leaves only with trash_page, keeps its kind, and lives only o
  const taskBase=((await owner.browser.api(taskUrl)).json() as PageView).revision!
  for(const ops of treeOps){const r=await transact(owner,taskUrl,taskBase,ops,'PUT');expect(r.status,`task document: ${ops[0]!.op}`).toBe(422)}
  expect(((await owner.browser.api(taskUrl)).json() as PageView).revision).toBe(taskBase)
- const facets=(await owner.browser.json(`/folders/${folder}/facets`,'GET')).json() as {facets:{id:string;kind:string}[]}
- const purpose=`/folders/${folder}/facets/${facets.facets.find(f=>f.kind==='purpose')!.id}/page`
- const facetBase=((await owner.browser.json(purpose,'GET')).json() as PageView).revision!
- for(const ops of treeOps){const r=await transact(owner,`${purpose}/actions`,facetBase,ops);expect(r.status,`facet document: ${ops[0]!.op}`).toBe(422)}
- expect(((await owner.browser.json(purpose,'GET')).json() as PageView).revision).toBe(facetBase)
+ // Step 7: a Discussion tab holds threads, not writing, and refuses them all.
+ const talk=await owner.browser.json(`/folders/${folder}/tabs`,'POST',{kind:'discussion'})
+ expectStatus(talk,201,'a Discussion tab')
+ const discussion=`/folders/${(talk.json() as {id:string;kind:string}[]).find(f=>f.kind==='discussion')!.id}/page`
+ const talkBase=((await owner.browser.json(discussion,'GET')).json() as PageView).revision!
+ for(const ops of treeOps){const r=await transact(owner,`${discussion}/actions`,talkBase,ops);expect(r.status,`discussion page: ${ops[0]!.op}`).toBe(422)}
+ expect(((await owner.browser.json(discussion,'GET')).json() as PageView).revision).toBe(talkBase)
  const shelf=await owner.browser.json('/shelves','POST',{name:'page retention shelf'});expectStatus(shelf,201,'shelf')
  const shelfPage=`/shelves/${String((shelf.json() as {id:unknown}).id)}/page`
  const shelfBase=((await owner.browser.json(shelfPage,'GET')).json() as PageView).revision!

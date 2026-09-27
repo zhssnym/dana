@@ -423,7 +423,7 @@ describe('AC-881 to AC-885: the Task document routes', () => {
       version: number
       folders: { id: string; tasks: { id: string; document: { kind: string; text: string | null }[] }[] }[]
     }
-    expect(data.version).toBe(9)
+    expect(data.version).toBe(10)
     const task = data.folders.find((f) => f.id === folderId)?.tasks.find((t) => t.id === taskId)
     expect(task?.document.map((b) => [b.kind, b.text])).toEqual([
       ['paragraph', 'carried'],
