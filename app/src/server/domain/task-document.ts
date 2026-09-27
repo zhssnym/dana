@@ -46,7 +46,7 @@ import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { documentHash, hashableBlocks } from './document-hash.js'
 import { nestingProblem } from './document-outline.js'
-import { fileReclaimedAt } from './pages.js'
+import { fileReclaimedAt } from './document-outline.js'
 import { initialKeys } from './fractional-index.js'
 import { syncMentions } from './mentions.js'
 

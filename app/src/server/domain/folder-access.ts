@@ -61,6 +61,43 @@ export type {
 } from '../../shared/folder-actions.js'
 
 /* ------------------------------------------------------------------ *
+ * Access resolution: the 10.2 chokepoint fact
+ * ------------------------------------------------------------------ */
+
+/**
+ * What every call site of `accessOf` has always had -- ownership, the default
+ * flag and the folder's name, which the share-grant email renders -- plus,
+ * since issue #228, the member's persisted
+ * Access preset and the two ids the resolver needs.
+ *
+ * It *is* `FolderActorFacts` rather than a shape of its own, so that the
+ * twenty-odd existing gates can hand what they already resolved straight to
+ * `mayPerform` without a second read and without a conversion that could
+ * lose a field.
+ */
+export type FolderAccess = FolderActorFacts
+
+/** Null means the folder does not exist, is in Trash, or the viewer is not a
+ * member, which 10.2 makes the same answer: 404, never 403.
+ *
+ * The executor rather than the handle, so a caller inside a transaction
+ * resolves access against the same snapshot it will write in; task moves
+ * need exactly that, and every Db is an Executor.
+ *
+ * A second name for `folderActorFacts`, kept because "resolve the folder"
+ * and "decide the action" are two steps that should keep two names. It moved
+ * here from `folders.ts` so that lower modules (files, invites) reach it
+ * without importing the Folder module and closing an import cycle. */
+export async function accessOf(
+  executor: Executor,
+  viewerId: string,
+  folderId: string,
+): Promise<FolderAccess | null> {
+  return folderActorFacts(executor, viewerId, folderId)
+}
+
+
+/* ------------------------------------------------------------------ *
  * Reading the facts
  * ------------------------------------------------------------------ */
 

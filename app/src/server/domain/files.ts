@@ -36,8 +36,7 @@ import type { ObjectStore } from '../files/store.js'
 import { SWEEP_BATCH, inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import type { SecurityLogger } from '../security/log.js'
-import { mayPerform } from './folder-access.js'
-import { accessOf } from './folders.js'
+import { accessOf, mayPerform } from './folder-access.js'
 import {
   AUDIO_MIMES,
   FOLDERLESS_UPLOAD_KINDS,

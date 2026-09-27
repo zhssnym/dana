@@ -31,7 +31,7 @@ import {
   presetOf,
   recordAccessTransition,
 } from './folder-access.js'
-import type { FolderActorFacts } from './folder-access.js'
+import type { FolderAccess } from './folder-access.js'
 import { folderPersonalLabelsFor } from './labels.js'
 import {
   createInitialResponsibility,
@@ -65,41 +65,10 @@ function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
 }
 
-/* ------------------------------------------------------------------ *
- * Access resolution: the 10.2 chokepoint fact
- * ------------------------------------------------------------------ */
-
-/**
- * What every call site of `accessOf` has always had -- ownership, the default
- * flag and the folder's name, which the share-grant email renders -- plus,
- * since issue #228, the member's persisted
- * Access preset and the two ids the resolver needs.
- *
- * It *is* `FolderActorFacts` rather than a shape of its own, so that the
- * twenty-odd existing gates can hand what they already resolved straight to
- * `mayPerform` without a second read and without a conversion that could
- * lose a field.
- */
-export type FolderAccess = FolderActorFacts
-
-/** Null means the folder does not exist, is in Trash, or the viewer is not a
- * member, which 10.2 makes the same answer: 404, never 403.
- *
- * The executor rather than the handle, so a caller inside a transaction
- * resolves access against the same snapshot it will write in; task moves
- * need exactly that, and every Db is an Executor.
- *
- * The body moved to `domain/folder-access.ts` at issue #228. The name stays
- * here because twenty-two call sites across twelve files spell it, and
- * because "resolve the folder" and "decide the action" are two steps that
- * should keep two names. */
-export async function accessOf(
-  executor: Executor,
-  viewerId: string,
-  folderId: string,
-): Promise<FolderAccess | null> {
-  return folderActorFacts(executor, viewerId, folderId)
-}
+/* `accessOf` and `FolderAccess` live in `folder-access.ts` beside the facts
+ * they return; re-exported here so existing importers keep resolving. */
+export { accessOf } from './folder-access.js'
+export type { FolderAccess } from './folder-access.js'
 
 /* ------------------------------------------------------------------ *
  * The Folder object (7.0) and the 7.4 list

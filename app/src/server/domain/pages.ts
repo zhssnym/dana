@@ -42,7 +42,6 @@ import type {
   PageView,
 } from '../../shared/pages.js'
 import { WIDTH_BLOCK_KINDS } from '../../shared/pages.js'
-import { isMediaKind } from '../../shared/page-document.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
@@ -60,6 +59,7 @@ import {
   writeItemPosition,
 } from './page-order.js'
 import { createTaskIn } from './tasks.js'
+import { fileReclaimedAt } from './document-outline.js'
 
 function toIso(value: unknown): string {
   return value instanceof Date
@@ -76,17 +76,6 @@ function nullableString(value: unknown): string | null {
  * as null here, and the contract says null means unknown. */
 function nullableInt(value: unknown): number | null {
   return value === null || value === undefined ? null : Number(value)
-}
-
-/** Issue #267: when the server took this media block's file, or null. Only a
- * media block that still names no file reports it; a block given a new file,
- * or turned into another kind, has nothing missing to report. Exported for
- * every page reader so the rule lives once. */
-export function fileReclaimedAt(row: Record<string, unknown>): string | null {
-  if (row.file_id !== null && row.file_id !== undefined) return null
-  if (!isMediaKind(String(row.kind))) return null
-  if (row.file_reclaimed_at === null || row.file_reclaimed_at === undefined) return null
-  return toIso(row.file_reclaimed_at)
 }
 
 function blockFromRow(row: Record<string, unknown>): PageBlock {

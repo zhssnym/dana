@@ -65,7 +65,7 @@ import type {
 import type { TrashedFacet } from '../../shared/trash.js'
 import { nestingProblem } from './document-outline.js'
 import { hashableBlocks } from './document-hash.js'
-import { fileReclaimedAt } from './pages.js'
+import { fileReclaimedAt } from './document-outline.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { documentHash } from './document-hash.js'
