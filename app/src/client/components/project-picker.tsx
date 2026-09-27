@@ -21,17 +21,17 @@ const KIND: Record<Pick, { readonly card: string; readonly ink: string; readonly
   doc: {
     card: 'bg-[var(--kind-doc)] border-[var(--kind-doc-line)] enabled:hover:border-[var(--kind-doc-ink)]',
     ink: 'text-[var(--kind-doc-ink)]',
-    chip: 'bg-[var(--kind-doc)] border-[var(--kind-doc-line)] text-[var(--kind-doc-ink)]',
+    chip: 'border-[var(--kind-doc-line)] text-[var(--kind-doc-ink)]',
   },
   work: {
     card: 'bg-[var(--kind-work)] border-[var(--kind-work-line)] enabled:hover:border-[var(--kind-work-ink)]',
     ink: 'text-[var(--kind-work-ink)]',
-    chip: 'bg-[var(--kind-work)] border-[var(--kind-work-line)] text-[var(--kind-work-ink)]',
+    chip: 'border-[var(--kind-work-line)] text-[var(--kind-work-ink)]',
   },
   discussion: {
     card: 'bg-[var(--kind-discussion)] border-[var(--kind-discussion-line)] enabled:hover:border-[var(--kind-discussion-ink)]',
     ink: 'text-[var(--kind-discussion-ink)]',
-    chip: 'bg-[var(--kind-discussion)] border-[var(--kind-discussion-line)] text-[var(--kind-discussion-ink)]',
+    chip: 'border-[var(--kind-discussion-line)] text-[var(--kind-discussion-ink)]',
   },
   usual: {
     card: 'bg-[var(--kind-usual)] border-[var(--kind-usual-line)] enabled:hover:border-[var(--kind-usual-ink)]',
@@ -83,7 +83,7 @@ export function ProjectPicker({
     <section aria-label="Start this project" className="mx-auto mt-6 flex w-full max-w-2xl flex-col gap-3">
       <p className="mb-4 text-center text-sm text-muted-foreground">How do you want to start?</p>
       <button type="button" disabled={pending} onClick={() => onPick('usual')} className={cn(CARD, 'gap-3', KIND.usual.card)}>
-        <span className={cn('font-title text-[length:var(--text-heading-size)] leading-[var(--text-heading-line)]', KIND.usual.ink)}>
+        <span className="font-title text-[length:var(--text-heading-size)] leading-[var(--text-heading-line)] text-foreground">
           The usual project
         </span>
         <span className="flex flex-wrap justify-center gap-2">
@@ -108,7 +108,7 @@ export function ProjectPicker({
             <span className={cn('grid size-11 place-items-center rounded-md bg-background', KIND[option.kind].ink)}>
               <option.icon className="size-5" aria-hidden />
             </span>
-            <span className={cn('font-title text-sm', KIND[option.kind].ink)}>{option.name}</span>
+            <span className="font-title text-sm text-foreground">{option.name}</span>
             <span className="text-xs text-muted-foreground">{option.line}</span>
           </button>
         ))}
