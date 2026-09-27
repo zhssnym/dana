@@ -37,7 +37,6 @@ deployed client edits `tasks.notes` as one string, so both stay:
 */
 import { sql } from 'drizzle-orm'
 import type {
-  DocumentOperation,
   DocumentTransaction,
   PageBlock,
   PageView,
@@ -45,8 +44,9 @@ import type {
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { documentHash, hashableBlocks } from './document-hash.js'
-import { nestingProblem } from './document-outline.js'
-import { fileReclaimedAt } from './pages.js'
+import { applyFlatBody, folderFileAudit } from './document-body.js'
+import type { Refuse } from './document-body.js'
+import { fileReclaimedAt } from './document-outline.js'
 import { initialKeys } from './fractional-index.js'
 import { syncMentions } from './mentions.js'
 
@@ -383,157 +383,21 @@ export async function applyTaskDocumentLocked(
     )
   }
 
-  const stored = await rowsOf(
+  const refuse: Refuse = (outcome, message, field) => new TaskDocumentRefusal(outcome, message, field)
+  await applyFlatBody(
     tx,
-    sql`SELECT id, kind FROM page_blocks WHERE task_id = ${taskId}::uuid FOR UPDATE`,
-  )
-  const original = new Set(stored.map((row) => String(row.id)))
-  const storedKinds = new Map(stored.map((row) => [String(row.id), String(row.kind)]))
-  const blocks = new Set(original)
-  const writes = new Map<string, Extract<DocumentOperation, { op: 'put_block' }>>()
-  const named = new Set<string>()
-  let outline: { id: string; kind: 'block' | 'task'; listParent: string | null }[] = []
-
-  for (const op of body.operations) {
-    if (op.op === 'create_task') {
-      throw new TaskDocumentRefusal('invalid', 'a Task document holds no Tasks; use Steps', 'operations')
-    }
-    // Wave 2: sub-pages live in a Folder's Main document alone.
-    if (
-      op.op === 'create_page' ||
-      op.op === 'trash_page' ||
-      (op.op === 'put_block' && op.block_kind === 'page')
-    ) {
-      throw new TaskDocumentRefusal('invalid', "A page block lives only on a folder's page.", 'operations')
-    }
-    if (op.op === 'put_block') {
-      if (op.block_kind === 'section') {
-        throw new TaskDocumentRefusal('invalid', 'a Task document has no Sections; use a heading', 'operations')
-      }
-      if (op.block_kind === 'folder_ref') {
-        throw new TaskDocumentRefusal('invalid', 'a folder reference belongs on the Folder page', 'operations')
-      }
-      if (op.block_kind === 'result') {
-        throw new TaskDocumentRefusal('invalid', 'A Result lives on the Results tab.', 'operations')
-      }
-      writes.set(op.id, op)
-      blocks.add(op.id)
-      named.add(op.id)
-      continue
-    }
-    if (op.op === 'delete_block') {
-      if (!blocks.delete(op.id)) throw new TaskDocumentRefusal('not_found', 'Block not found.')
-      named.add(op.id)
-      continue
-    }
-    outline = op.items.map((item) => ({
-      id: item.id,
-      kind: item.kind,
-      listParent: item.list_parent_block_id,
-    }))
-  }
-
-  if (blocks.size > 500) {
-    throw new TaskDocumentRefusal('invalid', 'A page holds at most 500 blocks.', 'operations')
-  }
-  const seen = new Set<string>()
-  for (const item of outline) {
-    if (item.kind !== 'block' || !blocks.has(item.id) || seen.has(item.id)) {
-      throw new TaskDocumentRefusal('invalid', 'The outline has unknown or repeated identities.', 'operations')
-    }
-    seen.add(item.id)
-  }
-  if (seen.size !== blocks.size) {
-    throw new TaskDocumentRefusal('invalid', 'The outline must retain every undeleted block.', 'operations')
-  }
-  // Block nesting (0038), the rule every document home shares.
-  const nesting = nestingProblem(
-    outline.map((item) => ({
-      kind: item.kind,
-      id: item.id,
-      section_block_id: null,
-      list_parent_block_id: item.listParent,
-    })),
-    (id) => (blocks.has(id) ? (writes.get(id)?.block_kind ?? storedKinds.get(id)) : undefined),
-  )
-  if (nesting !== null) {
-    throw new TaskDocumentRefusal('invalid', nesting, 'list_parent_block_id')
-  }
-
-  // A file must be in the Task's folder; elsewhere and nonexistent answer
-  // alike (10.2). Asked of the blocks this transaction writes only.
-  for (const write of writes.values()) {
-    if (write.file_id === null) continue
-    const files = await rowsOf(
-      tx,
-      sql`SELECT 1 AS present FROM files WHERE id = ${write.file_id}::uuid AND folder_id = ${folderId}::uuid`,
-    )
-    if (files.length === 0) {
-      throw new TaskDocumentRefusal('invalid', 'must name a file you can reach', 'file_id')
-    }
-  }
-
-  // An id this Task does not hold that exists anywhere else is not its to
-  // write (the facet applier's scope check, for the same attack).
-  const foreign = [...named].filter((id) => !original.has(id))
-  if (foreign.length > 0) {
-    const ids = sql.join(foreign.map((id) => sql`${id}::uuid`), sql`, `)
-    const clashes = await rowsOf(
-      tx,
-      sql`SELECT id FROM page_blocks WHERE id IN (${ids})
-          UNION ALL
-          SELECT id FROM tasks WHERE id IN (${ids})`,
-    )
-    if (clashes.length > 0) {
-      throw new TaskDocumentRefusal(
-        'invalid',
+    {
+      home: 'task',
+      scope: { column: 'task_id', id: taskId },
+      refuse,
+      noTasks: 'a Task document holds no Tasks; use Steps',
+      foreignId:
         "names a block this Task does not hold; an identity that already exists elsewhere is not this Task's to write",
-        'operations',
-      )
-    }
-  }
-
-  const removed = [...original].filter((id) => !blocks.has(id))
-  for (const id of [...writes.keys()]) if (!blocks.has(id)) writes.delete(id)
-  for (const id of removed) {
-    await tx.execute(sql`DELETE FROM page_blocks WHERE id = ${id}::uuid AND task_id = ${taskId}::uuid`)
-  }
-  for (const write of writes.values()) {
-    await tx.execute(
-      sql`INSERT INTO page_blocks
-            (id, task_id, kind, position, text, rich_content, file_id, width_pct, checked, toggleable)
-          VALUES (${write.id}::uuid, ${taskId}::uuid, ${write.block_kind}, 0,
-                  ${write.text},
-                  ${write.rich_content === null ? null : JSON.stringify(write.rich_content)}::jsonb,
-                  ${write.file_id}::uuid, ${write.width_pct},
-                  ${write.block_kind === 'checklist' ? (write.checked ?? false) : null},
-                  ${write.toggleable === true ? true : null})
-          ON CONFLICT (id) DO UPDATE
-             SET kind = EXCLUDED.kind, text = EXCLUDED.text,
-                 rich_content = EXCLUDED.rich_content,
-                 file_id = EXCLUDED.file_id, width_pct = EXCLUDED.width_pct,
-                 checked = EXCLUDED.checked, toggleable = EXCLUDED.toggleable,
-                 -- Issue #267's rule, as in every other block writer: the
-                 -- mark survives a same-kind rewrite with no file and clears
-                 -- once the block gets a file or changes kind.
-                 file_reclaimed_at = CASE
-                   WHEN EXCLUDED.file_id IS NULL AND EXCLUDED.kind = page_blocks.kind
-                   THEN page_blocks.file_reclaimed_at END,
-                 updated_at = now()
-           WHERE page_blocks.task_id = ${taskId}::uuid`,
-    )
-  }
-  await syncMentions(tx, { pageFolderId: folderId, actorId: viewerId, blockIds: writes.keys(), refuse: (m) => new TaskDocumentRefusal('invalid', m, 'rich_content') })
-  const keys = initialKeys(outline.length)
-  for (const [index, item] of outline.entries()) {
-    await tx.execute(
-      sql`UPDATE page_blocks
-             SET page_position = ${keys[index] as string}, position = ${index},
-                 list_parent_block_id = ${item.listParent}::uuid
-           WHERE id = ${item.id}::uuid AND task_id = ${taskId}::uuid`,
-    )
-  }
-
+      audit: folderFileAudit(tx, folderId, refuse),
+      afterWrite: (writes) => syncMentions(tx, { pageFolderId: folderId, actorId: viewerId, blockIds: writes.keys(), refuse: (m) => refuse('invalid', m, 'rich_content') }),
+    },
+    body.operations,
+  )
   const texts = (await blockRows(tx, taskId)).map((row) => str(row.text))
   await tx.execute(
     sql`UPDATE tasks SET notes = ${notesProjection(texts)}, updated_at = now()

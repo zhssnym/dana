@@ -21,7 +21,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '../domain/events.js'
-import { accessOf } from '../domain/folders.js'
+import { accessOf } from '../domain/folder-access.js'
 import { shelfView } from '../domain/shelves.js'
 import { accessibleTask } from '../domain/tasks.js'
 import { sendError, sendValidationError } from '../http/errors.js'

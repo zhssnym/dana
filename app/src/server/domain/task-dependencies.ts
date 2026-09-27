@@ -85,6 +85,7 @@ import type {
 import type { TaskStatus } from '../../shared/tasks.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
+import { joinVisibleFolder } from './folder-access.js'
 import { accessibleTask, mayActOnTask } from './tasks.js'
 
 /**
@@ -170,9 +171,7 @@ async function edgesOf(
           SELECT t.id, t.title, t.status, f.id AS folder_id,
                  f.name AS folder_name, f.is_default AS folder_is_default
           FROM tasks t
-          JOIN folder_members m
-            ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-          JOIN folders f ON f.id = t.folder_id AND f.deleted_at IS NULL
+          ${joinVisibleFolder(viewerId, { folderId: sql`t.folder_id`, folder: 'f' })}
           WHERE t.id = d.${farColumn} AND t.deleted_at IS NULL
         ) far ON true
         WHERE d.${nearColumn} = ${taskId}

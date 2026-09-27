@@ -120,7 +120,7 @@ const Q3_ORDER = sql`${SCHEDULE_DATE} ASC, ${STATUS_RANK} ASC,
  * that clause names exactly the Inbox. Grouping the stream afterwards needs
  * no second sort: rows of one folder are already contiguous.
  */
-const Q2_ORDER = sql`f.is_default DESC, lower(f.name) ASC, f.id ASC,
+export const Q2_ORDER = sql`f.is_default DESC, lower(f.name) ASC, f.id ASC,
        ${Q2_ROW_ORDER}`
 
 /**
@@ -156,7 +156,7 @@ const Q4_ORDER = sql`(${SCHEDULE_DATE} IS NULL) ASC, ${SCHEDULE_DATE} ASC,
  * ------------------------------------------------------------------ */
 
 /** Q3's rows: the scope, plus a Schedule. */
-async function plannedRows(
+export async function plannedRows(
   executor: Executor,
   viewerId: string,
   extraScope: SQL = sql``,
@@ -171,7 +171,7 @@ async function plannedRows(
 }
 
 /** Q2's rows: the scope, minus a Schedule, in the grouped order. */
-async function tasksRows(
+export async function tasksRows(
   executor: Executor,
   viewerId: string,
   extraScope: SQL = sql``,

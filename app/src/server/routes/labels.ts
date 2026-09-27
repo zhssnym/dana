@@ -111,9 +111,9 @@ import {
   postPersonalLabelBody,
 } from '../../shared/labels.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
-import { mayPerform } from '../domain/folder-access.js'
+import { accessOf, mayPerform } from '../domain/folder-access.js'
 import type { FolderAction } from '../domain/folder-access.js'
-import { accessOf, folderView } from '../domain/folders.js'
+import { folderView } from '../domain/folders.js'
 import {
   attachFolderLabel,
   attachTaskLabel,

@@ -1,5 +1,7 @@
 /*
-Today, at /app/today: 6 Q1's open list, carried-over work first, then the
+Today, at /app/today: 6 Q1's open list (GET /views/focus, when=on_today and
+group=today, which sorts the rows under the headings below), carried-over
+work first, then the
 "New task" row. No View menu (M4): no grouping, no sort and no "Show
 completed"; a task ticked here goes when the list refreshes.
 
@@ -12,24 +14,24 @@ tomorrow, so none of these groups is said twice.
 */
 import type { TaskCard } from '../../shared/tasks.js'
 
-import { useMyDayView } from '../api/queries.js'
+import { useFocusView } from '../api/queries.js'
 import { NEW_TASK_ROW_PHONE, QuickAdd } from '../components/quick-add.js'
 import { SampleStrip } from '../onboarding/SampleStrip.js'
 import { StarterOffer, useMayBeFresh } from '../onboarding/StarterOffer.js'
-import { stageOf } from '../views/linear/stage.js'
 import { PLACES } from '../views/place-pages.js'
 import { PlaceGroup, PlaceHead, usePlace } from '../views/usePlace.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { PageBody } from '../components/page/PageStates.js'
-import { useNoStoredLabel, withoutDropped } from '../shell/focus-lists.js'
+import { useNoStoredLabel } from '../shell/focus-lists.js'
 import { MY_DAY_EMPTY } from './empty-states.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 import { useRowKeys } from '../components/row-keys.js'
 
 const SPINE = PLACES.today
+const ASK = { when: 'on_today', group: 'today' } as const
 
 export function TodayPage(): React.JSX.Element {
-  const view = useMyDayView()
+  const view = useFocusView(ASK)
   const actions = useRowActions()
   const confirm = useConfirm()
   const basis = useRowBasis()
@@ -38,9 +40,10 @@ export function TodayPage(): React.JSX.Element {
   /* 9.13's first-run offer takes the place of Today's empty state. */
   const mayBeFresh = useMayBeFresh()
 
-  const carried = view.data?.carried ?? []
-  const today = view.data?.today ?? []
-  const open = [...carried, ...today]
+  const groups = view.data?.groups ?? []
+  const open = groups.flatMap((group) => group.rows)
+  const group = (key: string): readonly TaskCard[] =>
+    groups.find((held) => held.key === key)?.rows ?? []
 
   const place = usePlace(SPINE, open)
   useNoStoredLabel(place)
@@ -49,7 +52,7 @@ export function TodayPage(): React.JSX.Element {
   /* `day`: under the "Today" heading a row keeps only its time, as on Upcoming. */
   const rows = (tasks: readonly TaskCard[], day = false): React.JSX.Element => (
     <TaskRows
-      tasks={withoutDropped(tasks)}
+      tasks={tasks}
       context={context}
       actions={actions}
       onAsk={confirm.ask}
@@ -57,34 +60,20 @@ export function TodayPage(): React.JSX.Element {
     />
   )
 
-  /* Why each row is here. Overdue work is "Carried over", started or not.
-     Started work that is not late is "Started" (AC-1010): a range begun last
-     week and due Friday is under way, not left over. */
-  const late = (task: TaskCard): boolean => task.due_date !== null && task.due_date < place.today
-  const underWay = (task: TaskCard): boolean =>
-    stageOf(task, place.today) === 'present' && !late(task)
-  const carriedShown: TaskCard[] = []
-  const dueToday: TaskCard[] = []
-  const started: TaskCard[] = []
-  const added: TaskCard[] = []
-  for (const task of carried) {
-    if (underWay(task)) started.push(task)
-    else carriedShown.push(task)
-  }
-  for (const task of today) {
-    if (underWay(task)) started.push(task)
-    else if (late(task)) carriedShown.push(task)
-    else if (task.due_date === null || task.due_date <= place.today) dueToday.push(task)
-    else added.push(task)
-  }
-  /* One order across both sources, the server's own: due date, undated last. */
-  started.sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'))
+  /* Why each row is here, the server's answer (server/views/focus.ts).
+     Overdue work is "Carried over", started or not. Started work that is not
+     late is "Started" (AC-1010): a range begun last week and due Friday is
+     under way, not left over. */
+  const carriedShown = group('carried')
+  const dueToday = group('today')
+  const started = group('started')
+  const added = group('added')
   const reasons = (started.length === 0 ? 0 : 1) + (added.length === 0 ? 0 : 1)
 
   const pageBody = (
     <PageBody
       query={view}
-      isEmpty={withoutDropped(open).length === 0}
+      isEmpty={open.length === 0}
       emptyCopy={MY_DAY_EMPTY}
       truncated={view.data?.truncated ?? false}
     >

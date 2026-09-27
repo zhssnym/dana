@@ -61,15 +61,19 @@ import type { ObjectStore } from '../files/store.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
-import { UNSTARTED_TASK_THREAD } from './consultation.js'
 import { carryTaskFilesOnMove } from './files.js'
-import { mayPerform, presetOf } from './folder-access.js'
+import {
+  accessOf,
+  joinVisibleFolder,
+  mayPerform,
+  resolveScoped,
+} from './folder-access.js'
+import type { Scoped } from './folder-access.js'
 import type {
   FolderAction,
   FolderActionDecision,
   FolderActorFacts,
 } from './folder-access.js'
-import { accessOf } from './folders.js'
 import { dropFolderLabelsOnMove, taskLabelsOf } from './labels.js'
 import { taskDependencyCountsOf } from './task-dependency-counts.js'
 import { positionAfter, positionAtSectionEnd, seededItems } from './page-order.js'
@@ -99,6 +103,24 @@ function toIso(value: unknown): string {
 function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
 }
+
+/**
+ * A thread "Discuss" made on a task that nobody has written in yet (M5): no
+ * post, no input round, no context, no decision, and made after its task (a
+ * thread turned into a task is older than the task, so it never matches). The list and the
+ * task page's link skip it, and the next "Discuss" reuses it, so looking
+ * without talking leaves nothing behind. Reads `d`.
+ *
+ * Here rather than in consultation.ts because the task page reads it too, and
+ * tasks sit below threads: threads import it from tasks, never the reverse.
+ */
+export const UNSTARTED_TASK_THREAD = sql`(
+  d.task_id IS NOT NULL AND d.context IS NULL AND d.current_outcome_id IS NULL
+  AND NOT EXISTS (SELECT 1 FROM comments uc WHERE uc.discussion_id = d.id)
+  AND NOT EXISTS (SELECT 1 FROM discussion_input_rounds ur
+                   WHERE ur.discussion_id = d.id)
+  AND EXISTS (SELECT 1 FROM tasks ut
+               WHERE ut.id = d.task_id AND ut.created_at <= d.created_at))`
 
 /*
 Floating dates and times are read through to_char rather than through the
@@ -151,29 +173,17 @@ export interface TaskAccess {
   facts: FolderActorFacts
 }
 
-/* The three columns issue #228 added carry the actor's Folder facts: the
-   persisted preset from the membership row the join already makes, and the
-   owner flag and name from the folders row it already joins. No extra
-   statement, and no window in which the preset could be read from a
-   different snapshot than the assignee. */
+/* The actor's Folder facts ride the same statement as these columns
+   (`resolveScoped`), so there is no window in which the preset could be read
+   from a different snapshot than the assignee. */
 const TASK_ACCESS_COLUMNS = sql`t.id, t.folder_id, t.title, t.status,
        t.assignee_id, ${START_DATE} AS start_date,
        ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
-       t.recurrence_rule, t.section_block_id,
-       m.access AS actor_access, fo.name AS folder_name,
-       fo.is_default AS folder_is_default,
-       (fo.owner_id = m.user_id) AS actor_is_owner`
+       t.recurrence_rule, t.section_block_id`
 
-function taskAccessFromRow(
-  row: Record<string, unknown>,
-  viewerId: string,
-): TaskAccess {
-  const access = presetOf(row.actor_access)
-  if (access === null) {
-    throw new Error(
-      `folder_members.access holds an unknown preset for ${viewerId} in ${String(row.folder_id)}`,
-    )
-  }
+function taskAccessFrom(scoped: Scoped | null): TaskAccess | null {
+  if (scoped === null) return null
+  const { row, facts } = scoped
   return {
     id: String(row.id),
     folderId: String(row.folder_id),
@@ -185,14 +195,7 @@ function taskAccessFromRow(
     recurrenceRule: nullableString(row.recurrence_rule),
     sectionBlockId: nullableString(row.section_block_id),
     startDate: nullableString(row.start_date),
-    facts: {
-      folderId: String(row.folder_id),
-      actorId: viewerId,
-      access,
-      isOwner: row.actor_is_owner === true,
-      isDefault: row.folder_is_default === true,
-      name: String(row.folder_name),
-    },
+    facts,
   }
 }
 
@@ -220,17 +223,11 @@ export async function accessibleTask(
   viewerId: string,
   taskId: string,
 ): Promise<TaskAccess | null> {
-  const found = await rowsOf(
-    executor,
-    sql`SELECT ${TASK_ACCESS_COLUMNS}
-        FROM tasks t
-        JOIN folder_members m
-          ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-        JOIN folders fo ON fo.id = t.folder_id AND fo.deleted_at IS NULL
-        WHERE t.id = ${taskId} AND t.deleted_at IS NULL`,
+  return taskAccessFrom(
+    await resolveScoped(executor, 'task', taskId, viewerId, {
+      columns: TASK_ACCESS_COLUMNS,
+    }),
   )
-  const row = found[0]
-  return row === undefined ? null : taskAccessFromRow(row, viewerId)
 }
 
 /*
@@ -255,18 +252,12 @@ async function lockedTask(
   viewerId: string,
   taskId: string,
 ): Promise<TaskAccess | null> {
-  const found = await rowsOf(
-    tx,
-    sql`SELECT ${TASK_ACCESS_COLUMNS}
-        FROM tasks t
-        JOIN folder_members m
-          ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-        JOIN folders fo ON fo.id = t.folder_id AND fo.deleted_at IS NULL
-        WHERE t.id = ${taskId} AND t.deleted_at IS NULL
-        FOR UPDATE OF t`,
+  return taskAccessFrom(
+    await resolveScoped(tx, 'task', taskId, viewerId, {
+      columns: TASK_ACCESS_COLUMNS,
+      lock: true,
+    }),
   )
-  const row = found[0]
-  return row === undefined ? null : taskAccessFromRow(row, viewerId)
 }
 
 /*
@@ -380,9 +371,7 @@ export async function taskView(
                    AND d.trashed_at IS NULL
                    AND NOT ${UNSTARTED_TASK_THREAD}) AS discussion_id
         FROM tasks t
-        JOIN folder_members m
-          ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-        JOIN folders f ON f.id = t.folder_id AND f.deleted_at IS NULL
+        ${joinVisibleFolder(viewerId, { folderId: sql`t.folder_id`, folder: 'f' })}
         LEFT JOIN users a ON a.id = t.assignee_id
         LEFT JOIN users cb ON cb.id = t.created_by AND cb.deleted_at IS NULL
         LEFT JOIN reminders r ON r.task_id = t.id
@@ -1897,9 +1886,7 @@ async function accessibleStep(
     sql`SELECT s.id, s.title AS step_title, s.task_id, t.title, t.folder_id
         FROM steps s
         JOIN tasks t ON t.id = s.task_id AND t.deleted_at IS NULL
-        JOIN folder_members m
-          ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-        JOIN folders fo ON fo.id = t.folder_id AND fo.deleted_at IS NULL
+        ${joinVisibleFolder(viewerId, { folderId: sql`t.folder_id` })}
         WHERE s.id = ${stepId}`,
   )
   const row = found[0]

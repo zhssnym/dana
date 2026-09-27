@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router'
 
 import { useFolders } from '../../../api/queries.js'
 import { folderMark } from '../../../parts/presenters.js'
-import { pendingPages } from './adapters.js'
 
 const ROW = 'flex h-8 w-full min-w-0 items-center gap-2 rounded-sm px-1 text-left no-underline outline-none'
 
@@ -11,23 +10,12 @@ const ROW = 'flex h-8 w-full min-w-0 items-center gap-2 rounded-sm px-1 text-lef
  * One sub-page of this Folder (Wave 2, `page` block): its mark and its own
  * name, read from the viewer's `GET /folders` and never stored on the block.
  * A page the viewer cannot open (not a member, or in Trash) looks the same
- * as one that does not exist: no name, no way in. A page made by `/page`
- * that the save has not created yet shows the title it will be created with.
+ * as one that does not exist: no name, no way in.
  */
 export function CanvasPage({ folderId }: { readonly folderId: string }): React.JSX.Element {
   const folders = useFolders()
   const navigate = useNavigate()
   const folder = folders.data?.find((candidate) => candidate.id === folderId)
-  const pending = pendingPages.get(folderId)
-  if (folder === undefined && pending !== undefined) {
-    const mark = folderMark(undefined)
-    return (
-      <div contentEditable={false} data-canvas-page-id={folderId} className={ROW}>
-        <mark.icon className="size-4 shrink-0" style={{ color: mark.color }} strokeWidth={1.75} aria-hidden="true" />
-        <span className="min-w-0 truncate text-sm text-foreground">{pending}</span>
-      </div>
-    )
-  }
   if (folder === undefined) {
     if (folders.isPending) return <div contentEditable={false} data-canvas-page-id={folderId} aria-busy="true" className="h-8" />
     return <p contentEditable={false} data-canvas-page-id={folderId} className={`${ROW} text-sm text-muted-foreground`}>Page you can't open</p>

@@ -230,6 +230,27 @@ export default function PostEditor({
     editor.focus()
   }
 
+  /* Attach, in the new-post row and the edit row alike: an edited post can
+     gain a file without paste or drop (a phone has neither handy). */
+  const attachButton = (
+    <>
+      <input
+        ref={picker}
+        type="file"
+        multiple
+        hidden
+        tabIndex={-1}
+        onChange={(event) => {
+          const files = event.target.files
+          void attach(files).finally(() => { event.target.value = '' })
+        }}
+      />
+      <Button type="button" variant="ghost" size="icon-sm" aria-label="Attach a file" title="Attach a file" className="text-muted-foreground" onClick={() => picker.current?.click()}>
+        <Paperclip strokeWidth={1.75} aria-hidden="true" />
+      </Button>
+    </>
+  )
+
   /** The composer's @: the canvas's own mention menu, at the end of the writing. */
   function mention(): void {
     const last = editor.document.at(-1)
@@ -311,7 +332,10 @@ export default function PostEditor({
         </div>
         {editing ? (
           <div className="flex items-center justify-end gap-2 px-2 pb-2">
-            {error !== '' ? <p role="alert" className="mr-auto min-w-0 px-1 text-xs text-destructive">{error}</p> : null}
+            <div className="mr-auto flex min-w-0 items-center gap-0.5">
+              {attachButton}
+              {error !== '' ? <p role="alert" className="min-w-0 px-1 text-xs text-destructive">{error}</p> : null}
+            </div>
             {onCancel !== undefined ? (
               <Button type="button" variant="ghost" onClick={onCancel}>
                 Cancel

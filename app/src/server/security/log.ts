@@ -225,6 +225,9 @@ export type OperationLogEvent =
    * unset, which in production is a boot that has already been refused. */
   | 'canonical_host_enforced'
   | 'boot_failed'
+  /** A route marked for removal was called (observability/retired-route.ts).
+   * `reason` names the route. */
+  | 'retired_route_hit'
 
 export interface SecurityLogger {
   authEvent(event: AuthLogEvent, fields?: AuthLogFields): void

@@ -7,7 +7,6 @@ A `/page` placement no save has created yet is still just a line.
 import { BlockNoteEditor } from '@blocknote/core'
 import { describe, expect, test, vi } from 'vitest'
 
-import { pendingPages } from './adapters.js'
 import { installCanvasGuard, removingPages } from './guard.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasEditor } from './schema.js'
@@ -46,13 +45,4 @@ describe('the canvas guard and sub-pages', () => {
     expect(editor.getBlock(BLOCK)).toBeDefined()
   })
 
-  test('a page /page placed and no save created yet may be taken back', () => {
-    const { editor, explain } = editorWithPage()
-    pendingPages.set(CHILD, 'Untitled')
-    try {
-      editor.removeBlocks([BLOCK])
-      expect(editor.getBlock(BLOCK)).toBeUndefined()
-      expect(explain).not.toHaveBeenCalled()
-    } finally { pendingPages.delete(CHILD) }
-  })
 })

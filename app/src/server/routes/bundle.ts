@@ -54,6 +54,7 @@ import { createSecurityLogger } from '../security/log.js'
 import type { SecurityLogger } from '../security/log.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
+import { retiredRoute } from '../observability/retired-route.js'
 import { routerWithPreamble } from './preamble.js'
 
 export interface BundleRouterOptions {
@@ -111,7 +112,7 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
     },
   )
 
-  router.get('/views', requireSession, async (req: Request, res: Response) => {
+  router.get('/views', requireSession, retiredRoute(securityLog, 'get_views'), async (req: Request, res: Response) => {
     const db = database(res)
     if (db === null) return
     res.status(200).json(await listViews(db, viewer(req)))
@@ -120,6 +121,7 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
   router.post(
     '/views',
     requireSession,
+    retiredRoute(securityLog, 'post_view'),
     requireCsrf,
     mutationLimit,
     async (req: Request, res: Response) => {
@@ -153,6 +155,7 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
   router.get(
     '/views/:id',
     requireSession,
+    retiredRoute(securityLog, 'get_view'),
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -170,6 +173,7 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
   router.patch(
     '/views/:id',
     requireSession,
+    retiredRoute(securityLog, 'patch_view'),
     requireCsrf,
     mutationLimit,
     async (req: Request, res: Response) => {
@@ -191,6 +195,7 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
   router.delete(
     '/views/:id',
     requireSession,
+    retiredRoute(securityLog, 'delete_view'),
     requireCsrf,
     mutationLimit,
     async (req: Request, res: Response) => {
