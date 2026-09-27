@@ -349,7 +349,10 @@ export async function taskView(
                cb.id AS creator_id, cb.display_name AS creator_display_name,
                cb.avatar_url AS creator_avatar_url,
                t.created_at, t.updated_at,
-               f.id AS folder_id, f.name AS folder_name,
+               f.id AS folder_id,
+    CASE WHEN f.tab_position IS NOT NULL AND f.project_id <> f.id
+                 THEN (SELECT pr.name FROM folders pr WHERE pr.id = f.project_id)
+                 ELSE f.name END AS folder_name,
                f.is_default AS folder_is_default,
                a.id AS assignee_id, a.display_name AS assignee_display_name,
                a.avatar_url AS assignee_avatar_url,

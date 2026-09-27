@@ -122,7 +122,8 @@ export function useAllPages(enabled = true): UseQueryResult<GetFoldersResponse> 
  * request or from a widened response shape.
  */
 export function useMultiMemberFolderIds(): ReadonlySet<string> {
-  const folders = useFolders()
+  /* Every page, tabs included: a task on a Work or Doc tab names its page. */
+  const folders = useAllPages()
   return new Set(
     (folders.data ?? []).filter((f) => f.member_count > 1).map((f) => f.id),
   )

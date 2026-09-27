@@ -137,7 +137,7 @@ import { mayPerform, ruleFor } from '../../shared/folder-actions.js'
    against #228's closed vocabulary of every Folder action there is. */
 import type { FolderAction as FolderActionName } from '../../shared/folder-actions.js'
 import { paths } from '../routes.js'
-import { FOLDER_ACTION_PARAM, useAddPageInside } from '../shell/app-sidebar.js'
+import { FOLDER_ACTION_PARAM, folderActionPath, useAddPageInside } from '../shell/app-sidebar.js'
 import { copyLink } from '../lib/object-acts.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
@@ -455,8 +455,9 @@ function FolderPageBody({
   */
   const facts = viewerFacts(detail, members, basis.viewerId)
   const gates = facts === null ? null : folderGates(facts)
-  /* The Desk keeps no tab row (it has one tab, and Discuss adds none there). */
-  const shownTabs = onTab && !isDefault ? tabs : []
+  /* The Desk draws its tab row only when migration 0061 gave it Doc tabs
+     (writing its Purpose, Results or Notes facets held); nothing adds one. */
+  const shownTabs = onTab && (!isDefault || tabs.length > 1) ? tabs : []
   const discussionTab = tabs.find((tab) => tab.kind === 'discussion')
   /* A thread's address: `?discussion=` (ConsultationLinkPage, Discuss, an
      old link) or a notification's `?conversation=open` about the page's own
@@ -1107,7 +1108,7 @@ function FolderPageBody({
                       ? {
                           presentationHeadings: true,
                           results: resultsTab(tabs)?.id === id,
-                          ...(sharedPageEditable ? { onCreatePage: () => { addPageInside(id) } } : {}),
+                          ...(sharedPageEditable ? { onCreatePage: (made: string) => { void navigate(folderActionPath(made, 'rename')) } } : {}),
                         }
                       : {})}
                   /> : page.isError ? <p role="alert" className="text-sm text-muted-foreground">Could not load writing. Reload to try again.</p> : null}

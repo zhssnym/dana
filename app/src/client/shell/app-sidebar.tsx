@@ -661,7 +661,7 @@ export const FOLDER_ACTION_PARAM = 'folder-action'
 /** The query the collection page reads to open its History from the Library. */
 export const SHELF_ACTION_PARAM = 'shelf-action'
 
-function folderActionPath(id: string, action: FolderAction): string {
+export function folderActionPath(id: string, action: FolderAction): string {
   return `${paths.folder(id)}?${FOLDER_ACTION_PARAM}=${action}`
 }
 

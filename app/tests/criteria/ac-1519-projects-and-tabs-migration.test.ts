@@ -117,7 +117,7 @@ const H = { root: id(0x7, 0), sub: id(0x7, 1), subPurpose: id(0x7, 2), subResult
   subPara: id(0x7, 5), subTask: id(0x7, 6), grandHome: id(0x7, 7), purposeBlock: id(0x7, 8), subHome: id(0x7, 9),
   tasksOnly: id(0x7, 10), empty: id(0x7, 11), tasksOnlyHome: id(0x7, 12), tasksOnlyTask: id(0x7, 13) }
 const J = { desk: id(0x8, 0), main: id(0x8, 1), purpose: id(0x8, 2), consult: id(0x8, 3), results: id(0x8, 4),
-  pBlock: id(0x8, 5), discussion: id(0x8, 6), deskTwo: id(0x8, 10), main2: id(0x8, 11), purpose2: id(0x8, 12),
+  pBlock: id(0x8, 5), discussion: id(0x8, 6), notes: id(0x8, 7), notesBlock: id(0x8, 8), deskTwo: id(0x8, 10), main2: id(0x8, 11), purpose2: id(0x8, 12),
   consult2: id(0x8, 13), results2: id(0x8, 14) }
 const K = { root: id(0x9, 0), main: id(0x9, 1), blank: id(0x9, 2), blankBlock: id(0x9, 3) }
 const N = { root: id(0xe, 0), main: id(0xe, 1), consult: id(0xe, 2), sub: id(0xe, 3), discussion: id(0xe, 4),
@@ -190,6 +190,8 @@ beforeAll(async () => {
   await block(B.h1, { folder: B.root }, 'heading1', 0, 'a0', { text: 'Phase one' })
   await facet(B.work, B.root, 'work', 'a5', { h1: B.h1 })
   await block(B.result, { facet: B.results }, 'result', 0, 'a0', { text: 'We shipped' })
+  // A renamed Results facet: its tab is named Results again (resultsTab).
+  await db.exec(sql`UPDATE folder_facets SET display_name = 'Outcomes' WHERE id = ${B.results}::uuid`)
 
   // (c) hidden Purpose with content, hidden empty Results and Discussion.
   await folder(C.root, 'Quiet')
@@ -252,11 +254,14 @@ beforeAll(async () => {
   await folder(H.empty, 'Nothing', { parent: H.root, child: 'a2' })
   await member(H.empty, u.owner, 'full_control')
 
-  // (j) Desk with Purpose content and a discussion; another Desk, empty.
+  // (j) Desk with Purpose content, a written blank and a discussion;
+  // another Desk, empty.
   await folder(J.desk, 'Desk', { isDefault: true })
   await member(J.desk, u.owner, 'full_control')
   await natives(J.desk, J)
   await block(J.pBlock, { facet: J.purpose }, 'paragraph', 0, 'a0', { text: 'This week' })
+  await facet(J.notes, J.desk, 'shared_blank', 'a4', { name: 'Notes' })
+  await block(J.notesBlock, { facet: J.notes }, 'paragraph', 0, 'a0', { text: 'Paint colours' })
   await db.exec(sql`INSERT INTO discussions (id, folder_id, title, created_by)
     VALUES (${J.discussion}::uuid, ${J.desk}::uuid, 'Plans', ${u.owner}::uuid)`)
   await folder(J.deskTwo, 'Desk', { isDefault: true, owner: u.deskTwo })
@@ -378,7 +383,7 @@ describe('AC-1519 migration 0061 turns roots into projects and facets into tabs'
     expect(await homeOf(A.orphanBlock)).toEqual({ folder_id: null, facet_id: A.orphan })
   })
 
-  test('a reordered root keeps its stored order; an H1 Work facet gets no tab; a Result moves', async () => {
+  test('a reordered root keeps its stored order; an H1 Work facet gets no tab; a Result moves; Results keeps its name', async () => {
     expect(await tabs(B.root)).toEqual([
       tab(B.notes, 'Notes', 'doc', 'a0'),
       tab(B.root, 'Build', 'work', 'a1'),
@@ -482,7 +487,9 @@ describe('AC-1519 migration 0061 turns roots into projects and facets into tabs'
       tab(J.purpose, 'Purpose', 'doc', 'a0'),
       tab(J.desk, 'Desk', 'work', 'a1'),
       tab(J.consult, 'Discussion', 'discussion', 'a2'),
+      tab(J.notes, 'Notes', 'doc', 'a3'),
     ])
+    expect(await homeOf(J.notesBlock)).toEqual({ folder_id: J.notes, facet_id: null })
     expect(await tabs(J.deskTwo)).toEqual([tab(J.deskTwo, 'Desk', 'work', 'a0')])
   })
 

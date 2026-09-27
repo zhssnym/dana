@@ -37,7 +37,7 @@ import {
 } from "./task-pickers.js"
 import { TaskHistory } from "./thread/TaskHistory.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
-import { useFolders, useMe, useTask } from "../api/queries.js"
+import { useAllPages, useMe, useTask } from "../api/queries.js"
 import { useDiscussTask } from "../api/consultation.js"
 import { mayDraw } from "../lib/folder-authority.js"
 import { paths } from "../routes.js"
@@ -236,13 +236,19 @@ export function useStateMoves(
    assignee's own reach is added here (folder-actions.ts's
    whenAssignedToActor). */
 function useTaskMay(taskId: string, folderId: string | null) {
-  const folders = useFolders()
+  /* Every page, tabs and pages under them included: a task on a Work or Doc
+     tab is not in the Library list. The Desk mark is the project root's. */
+  const pages = useAllPages()
   const me = useMe()
   const detail = useTask(taskId).data
-  const row = folders.data?.find((folder) => folder.id === folderId)
+  const row = pages.data?.find((folder) => folder.id === folderId)
+  const root = row === undefined ? undefined : pages.data?.find((folder) => folder.id === row.project_id)
   const viewerId = me.data?.user.id ?? null
   const mine = viewerId !== null && detail?.assignee?.id === viewerId
-  const facts = row === undefined ? null : { access: row.my_access, isOwner: row.is_owner, isDefault: row.is_default }
+  const facts =
+    row === undefined
+      ? null
+      : { access: row.my_access, isOwner: row.is_owner, isDefault: (root ?? row).is_default }
   return {
     complete:
       facts !== null &&

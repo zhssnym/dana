@@ -226,7 +226,11 @@ const CARD_COLUMNS = sql`
     t.id, t.title, t.status, t.important,
     ${START_DATE} AS start_date,
     ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
-    f.id AS folder_id, f.name AS folder_name,
+    /* A tab is labelled with its project (step 7). */
+    f.id AS folder_id,
+    CASE WHEN f.tab_position IS NOT NULL AND f.project_id <> f.id
+                 THEN (SELECT pr.name FROM folders pr WHERE pr.id = f.project_id)
+                 ELSE f.name END AS folder_name,
     f.is_default AS folder_is_default,
     a.id AS assignee_id, a.display_name AS assignee_display_name,
     a.avatar_url AS assignee_avatar_url,

@@ -236,9 +236,11 @@ SELECT r.id, r.id, 'root', NULL, 'work', r.name, r.created_at, r.deleted_at, r.t
 UNION ALL
 SELECT r.id, s.id, 'facet', s.id,
        CASE WHEN s.kind = 'consultation' THEN 'discussion' ELSE 'doc' END,
-       COALESCE(s.display_name, CASE s.kind WHEN 'purpose' THEN 'Purpose'
-                                            WHEN 'results' THEN 'Results'
-                                            WHEN 'consultation' THEN 'Discussion' END),
+       -- A Results tab is found by its name (shared/folders.ts resultsTab),
+       -- so a renamed Results facet takes the name back.
+       CASE WHEN s.kind = 'results' THEN 'Results'
+            ELSE COALESCE(s.display_name, CASE s.kind WHEN 'purpose' THEN 'Purpose'
+                                                      WHEN 'consultation' THEN 'Discussion' END) END,
        s.created_at,
        COALESCE(s.deleted_at, r.deleted_at),
        CASE WHEN s.deleted_at IS NULL AND r.deleted_at IS NOT NULL
@@ -320,8 +322,8 @@ SELECT e.page_id, r.owner_id, e.name, e.created_at, e.deleted_at, e.trashed_with
 -- Child Doc pages of subpages, and private projects.
 CREATE TEMP TABLE s7_child ON COMMIT DROP AS
   SELECT s.id, s.folder_id AS parent_id, p.project_id, p.owner_id,
-         COALESCE(s.display_name, CASE s.kind WHEN 'purpose' THEN 'Purpose'
-                                              WHEN 'results' THEN 'Results' END) AS name,
+         CASE WHEN s.kind = 'results' THEN 'Results'
+              ELSE COALESCE(s.display_name, CASE s.kind WHEN 'purpose' THEN 'Purpose' END) END AS name,
          s.created_at,
          COALESCE(s.deleted_at, p.deleted_at) AS deleted_at,
          CASE WHEN s.deleted_at IS NULL AND p.deleted_at IS NOT NULL
@@ -603,8 +605,8 @@ BEGIN
       OR f.name IS DISTINCT FROM CASE
            WHEN m.source = 'pages' THEN 'Pages'
            WHEN m.source = 'discussion' THEN 'Discussion'
+           WHEN ff.kind = 'results' THEN 'Results'
            ELSE COALESCE(ff.display_name, CASE ff.kind WHEN 'purpose' THEN 'Purpose'
-                                                       WHEN 'results' THEN 'Results'
                                                        WHEN 'consultation' THEN 'Discussion' END) END
    LIMIT 1;
   IF bad IS NOT NULL THEN

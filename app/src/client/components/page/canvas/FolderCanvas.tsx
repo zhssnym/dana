@@ -43,8 +43,8 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   /** A Doc page (step 7): flat headings that never make Work Sections, and no
    * thread. Without it the canvas is a Work page's thread. */
   readonly presentationHeadings?: boolean
-  /** A Doc page's `/` Page: a sub-page made here. */
-  readonly onCreatePage?: () => void
+  /** A Doc page's `/` Page: a sub-page made here, where the slash was; told its id once saved. */
+  readonly onCreatePage?: (madeId: string) => void
   /** The Results tab: `/result` makes a native Result (#213). */
   readonly results?: boolean
   readonly workRootId?: string
@@ -334,8 +334,9 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
       onSaved(next)
       if (checkpoint) onCheckpoint(next)
       // A sub-page trashed or restored, or a Task made, changes the folder list.
-      if (operations.some((op) => op.op === 'create_task' || op.op === 'trash_page' || (op.op === 'put_block' && op.block_kind === 'page'))) {
+      if (operations.some((op) => op.op === 'create_task' || op.op === 'create_page' || op.op === 'trash_page' || (op.op === 'put_block' && op.block_kind === 'page'))) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.folders(), exact: true })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.allPages(), exact: true })
       }
     },
   ))
@@ -452,20 +453,45 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     if (resume !== undefined) resume.taskId = id
     // A failed send is reported by the save status below, whose Retry
     // re-sends this exact request, Task included.
-    try { await writer.flush({ id, title: taskTitle.trim() }) } finally {
+    try { await writer.flush({ op: 'create_task', id, title: taskTitle.trim() }) } finally {
       setCreating(false)
       if ((writer.state as string) === 'failed') resumeAfter.delete(draftKey)
     }
   }
-  /* A Doc's `/` Page: the writing is saved first (the menu has already
-     cleared its `/page` query), because the new page's link is appended to
-     this document by the server, and a save still waiting would then be
-     refused as stale. */
+  /* A Doc's `/` Page: the page and its link are made in one save
+     (`create_page`), the link where the slash was typed. The menu has already
+     cleared its `/page` query, so an empty line becomes the link; a line
+     with text keeps it and the link follows. The writing is saved first, as
+     for a Task, so the save that makes the page carries nothing else. */
   const makePage = onCreatePage === undefined ? undefined : (): void => {
+    const at = editor.getTextCursorPosition().block
     void (async () => {
+      if (writer.state === 'failed') { setError(pageBlocked); return }
       await writer.flush()
       if (writer.state !== 'saved') { setError(pageBlocked); return }
-      onCreatePage()
+      const id = crypto.randomUUID()
+      const blockId = crypto.randomUUID()
+      const empty = at.type === 'paragraph' && richRuns(at).every((run) => !run.text.trim())
+      const replace = (blocks: readonly CanvasInput[]): CanvasInput[] => blocks.flatMap((block) => {
+        if (block.id === at.id) {
+          const link: CanvasInput = { id: blockId, type: 'danaPage', props: { folderId: id } }
+          return empty ? [link, ...replace(block.children ?? [])] : [{ ...block, children: block.children ? replace(block.children) : [] }, link]
+        }
+        return [{ ...block, children: block.children ? replace(block.children) : [] }]
+      })
+      let temporary: ReturnType<typeof BlockNoteEditor.create> | null = null
+      let drafted: CanvasDocument
+      try {
+        temporary = BlockNoteEditor.create({ schema: canvasSchema, initialContent: replace(editor.document) })
+        drafted = dehydrateCanvas(temporary.document, width, folderRefs)
+      } catch (failure) {
+        setError(failure instanceof Error ? failure.message : 'Could not make this page.')
+        return
+      } finally { temporary?.unmount() }
+      writer.change(drafted)
+      await writer.flush({ op: 'create_page', id, block_id: blockId, title: 'Untitled' })
+      if ((writer.state as string) === 'failed') return
+      onCreatePage(id)
     })()
   }
   const pageBlocked = 'Your writing has not saved, so a page cannot be made yet. Use Load latest below; your writing is kept.'
@@ -694,6 +720,7 @@ interface RailMark { readonly id: string; readonly x: number; readonly y: number
 
 type Card = Rows['tasks'][number]
 const noFacts: ThreadFacts = { next: null, shared: false, completedOn: new Map() }
+const sharedNoThread: ThreadFacts = { ...noFacts, shared: true }
 /** Block `id` anywhere in the document, or undefined. */
 function findBlock(blocks: readonly ThreadBlock[], id: string): ThreadBlock | undefined {
   for (const block of blocks) {
@@ -859,7 +886,8 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
     window.addEventListener('mousedown', onPress, true)
     return () => window.removeEventListener('mousedown', onPress, true)
   }, [enabled, folderId])
-  if (!enabled) return <ThreadFactsProvider value={noFacts}>{children}</ThreadFactsProvider>
+  /* A Doc draws no thread, but its tasks still show who has them. */
+  if (!enabled) return <ThreadFactsProvider value={shared ? sharedNoThread : noFacts}>{children}</ThreadFactsProvider>
   return (
     <ThreadFactsProvider value={facts}>
       <style>{css}</style>
