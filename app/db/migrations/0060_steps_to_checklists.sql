@@ -246,6 +246,11 @@ UPDATE tasks t
         OR t.notes IS NOT DISTINCT FROM (SELECT o.projection FROM s6_old_projection o WHERE o.task_id = t.id))
    AND t.notes IS DISTINCT FROM p.notes;
 --> statement-breakpoint
+-- Postgres never gathers statistics on temporary tables by itself; without
+-- these the checks below plan as if every table were tiny (53 s instead of
+-- 3 s on the rehearsal database).
+ANALYZE s6_steps, s6_before, s6_notes, s6_old_projection, s6_pieces, page_blocks, tasks;
+--> statement-breakpoint
 -- 6. Invariants.
 DO $$
 DECLARE
@@ -304,22 +309,26 @@ BEGIN
            row_number() OVER (PARTITION BY o.task_id
                               ORDER BY o.page_position ASC NULLS LAST,
                                        (o.whole->>'position')::integer,
-                                       (o.whole->>'updated_at')::timestamptz, o.id) AS ord
+                                       (o.whole->>'updated_at')::timestamptz, o.id) AS ord,
+           count(*) OVER (PARTITION BY o.task_id) AS n_before
       FROM s6_before o
   ), expected AS (
     SELECT s.task_id, s.id, c.n + s.rank AS ord
       FROM s6_steps s JOIN old_count c ON c.task_id = s.task_id
   )
-  SELECT e.task_id::text INTO bad
-    FROM expected e LEFT JOIN after_order a ON a.id = e.id
-   WHERE a.ord IS DISTINCT FROM e.ord
-  UNION ALL
-  SELECT bo.task_id::text
-    FROM before_order bo
-    JOIN old_count c ON c.task_id = bo.task_id
-    LEFT JOIN after_order a ON a.id = bo.id
-   WHERE a.ord IS DISTINCT FROM bo.ord + (c.n - (SELECT count(*) FROM s6_before x WHERE x.task_id = bo.task_id))
-  LIMIT 1;
+  -- An aggregate, not LIMIT 1: under LIMIT the planner bets on finding a
+  -- mismatch at once and picks a nested loop (11 s on the rehearsal).
+  SELECT min(q.task_id) INTO bad FROM (
+    SELECT e.task_id::text AS task_id
+      FROM expected e LEFT JOIN after_order a ON a.id = e.id
+     WHERE a.ord IS DISTINCT FROM e.ord
+    UNION ALL
+    SELECT bo.task_id::text
+      FROM before_order bo
+      JOIN old_count c ON c.task_id = bo.task_id
+      LEFT JOIN after_order a ON a.id = bo.id
+     WHERE a.ord IS DISTINCT FROM bo.ord + (c.n - bo.n_before)
+  ) q;
   IF bad IS NOT NULL THEN
     RAISE EXCEPTION 'step 6: order changed on task %', bad;
   END IF;

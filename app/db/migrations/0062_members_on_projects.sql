@@ -525,6 +525,11 @@ $fn$;
 CREATE TRIGGER folders_lift_to_project BEFORE UPDATE OF parent_folder_id ON folders
   FOR EACH ROW EXECUTE FUNCTION folders_lift_to_project();
 --> statement-breakpoint
+-- Postgres never gathers statistics on temporary tables by itself; without
+-- these the checks below plan as if every table were tiny (53 s instead of
+-- 3 s on the rehearsal database).
+ANALYZE s8_vis_before, s8_folders_before, s8_blocks_before, s8_tasks_before, s8_history_count, s8_resp_before, s8_resp_history_before, s8_invites_before, s8_depth, s8_split, s8_new_tabs, s8_preset, s8_flag, s8_invites, s8_resp, s8_resp_move, s8_self_edit, folders, folder_members, page_blocks, tasks;
+--> statement-breakpoint
 -- Invariants.
 DO $$
 DECLARE

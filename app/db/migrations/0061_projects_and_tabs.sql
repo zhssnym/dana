@@ -492,6 +492,11 @@ CREATE INDEX folders_project_id_idx ON folders (project_id);
 CREATE INDEX folders_project_tab_position_idx
   ON folders (project_id, tab_position, id) WHERE tab_position IS NOT NULL;
 --> statement-breakpoint
+-- Postgres never gathers statistics on temporary tables by itself; without
+-- these the checks below plan as if every table were tiny (53 s instead of
+-- 3 s on the rehearsal database).
+ANALYZE s7_folders_before, s7_files_before, s7_blocks_before, s7_rows_before, s7_members_before, s7_vis_before, s7_root, s7_facet, s7_entry, s7_untouched, s7_child, s7_map, s7_home, s7_files, folders, folder_members, page_blocks, files;
+--> statement-breakpoint
 -- Invariants.
 DO $$
 DECLARE
