@@ -784,8 +784,10 @@ export async function discussTask(
     const mayCreate = mayPerform(facts, 'discussion.create')
     const project = await projectOf(tx, folderId)
     const rootFacts = project === null ? null : await folderActorFacts(tx, viewerId, project)
+    /* The Desk keeps no tab row: its task threads open on the Desk itself. */
     const mayAddTab =
-      mayCreate.allowed && rootFacts !== null && mayPerform(rootFacts, PAGE_TREE_EDIT_ACTION).allowed
+      mayCreate.allowed && rootFacts !== null && !rootFacts.isDefault &&
+      mayPerform(rootFacts, PAGE_TREE_EDIT_ACTION).allowed
     const tabId = mayAddTab
       ? await ensureDiscussionTab(tx, viewerId, folderId)
       : project === null ? null : await liveDiscussionTab(tx, project)

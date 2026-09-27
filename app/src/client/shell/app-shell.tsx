@@ -53,6 +53,7 @@ import {
 } from '../api/mutations.js'
 import {
   useBundle,
+  useAllPages,
   useFolders,
   useMe,
   usePendingInvites,
@@ -187,7 +188,6 @@ function TopTrail(): React.JSX.Element {
     const list = new URLSearchParams(search)
     list.delete('discussion')
     list.delete('outcome')
-    if (discussionId !== null && !list.has('facet')) list.set('conversation', 'open')
     const listTo = list.size === 0 ? pathname : `${pathname}?${list.toString()}`
     trail = (
       <BreadcrumbTrail
@@ -435,9 +435,14 @@ export function AppShell(): React.JSX.Element {
   /* The one write path out of a card. See the provider at this component's
      root. */
   const taskPatch = useApiTaskPatch()
-  const activeFolderId = location.pathname.startsWith(FOLDER_PREFIX)
+  const pathFolderId = location.pathname.startsWith(FOLDER_PREFIX)
     ? location.pathname.slice(FOLDER_PREFIX.length)
     : null
+  /* A tab is no Library row (step 7): its project's row is the one lit. */
+  const allPages = useAllPages(pathFolderId !== null)
+  const onTab = allPages.data?.find((page) => page.id === pathFolderId)
+  const activeFolderId =
+    onTab !== undefined && onTab.tab_position !== null ? onTab.project_id : pathFolderId
 
 
   // F-8's other half: while the document load above is in flight, the shell

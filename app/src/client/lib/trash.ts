@@ -45,7 +45,6 @@ import { useMemo } from 'react'
 
 import { useDestroyTrashedDiscussion } from '../api/consultation.js'
 import {
-  useDestroyTrashedFacet,
   useDestroyTrashedFolder,
   useDestroyTrashedTask,
 } from '../api/mutations.js'
@@ -53,7 +52,9 @@ import { useTrash as useTrashRead } from '../api/queries.js'
 import { folderGates, mayDraw } from './folder-authority.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
 
-export type TrashKind = 'task' | 'folder' | 'facet' | 'discussion'
+/* Step 7: a tab is a page, so a trashed tab is a `folder` row; the 7.13
+   answer's `facets` array is always empty and is not read. */
+export type TrashKind = 'task' | 'folder' | 'discussion'
 
 export interface TrashItem {
   id: string
@@ -164,17 +165,6 @@ export function useTrash(): TrashItem[] {
           purgeable: mayPurge(folder, 'folder'),
         }),
       ),
-      ...data.facets.map(
-        (facet): TrashItem => ({
-          id: `facet-${facet.id}`,
-          kind: 'facet',
-          subject: facet.id,
-          name: facet.name,
-          at: Date.parse(facet.deleted_at),
-          from: facet.folder_name,
-          purgeable: mayPurge(facet, 'facet'),
-        }),
-      ),
       ...data.discussions.map(
         (discussion): TrashItem => ({
           id: `discussion-${discussion.id}`,
@@ -216,13 +206,11 @@ export function usePurge(): {
 } {
   const task = useDestroyTrashedTask()
   const folder = useDestroyTrashedFolder()
-  const facet = useDestroyTrashedFacet()
   const discussion = useDestroyTrashedDiscussion()
   const purge = async (item: TrashItem): Promise<void> => {
     if (item.kind === 'task') await task.mutateAsync(item.subject)
     else if (item.kind === 'folder') await folder.mutateAsync(item.subject)
-    else if (item.kind === 'discussion') await discussion.mutateAsync(item.subject)
-    else await facet.mutateAsync(item.subject)
+    else await discussion.mutateAsync(item.subject)
   }
   return {
     purge: (item) => purge(item).catch(() => undefined),
@@ -233,6 +221,6 @@ export function usePurge(): {
         /* Toasted by the mutation cache; the list refetches as it stands. */
       }
     },
-    pending: task.isPending || folder.isPending || facet.isPending || discussion.isPending,
+    pending: task.isPending || folder.isPending || discussion.isPending,
   }
 }

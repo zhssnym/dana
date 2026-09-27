@@ -378,7 +378,13 @@ function DiscussionRow({
         className={PROPERTY_ROW}
         disabled={discuss.isPending}
         onClick={() => {
-          discuss.mutate(taskId, { onSuccess: (thread) => { void navigate(threadAt(thread.id)) } })
+          /* Step 7: the thread opens on the project's Discussion tab, which
+             Discuss adds when the project has none. */
+          discuss.mutate(taskId, {
+            onSuccess: ({ discussion, tabId }) => {
+              void navigate(tabId === null ? threadAt(discussion.id) : `${paths.folder(tabId)}?discussion=${discussion.id}`)
+            },
+          })
         }}
       >
         {label}

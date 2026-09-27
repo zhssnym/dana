@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 
 import { useCreateFolder } from '../api/mutations.js'
-import { useBundle, useFolders, useShelves, useTask } from '../api/queries.js'
+import { useAllPages, useBundle, useFolders, useShelves, useTask } from '../api/queries.js'
 import { CheckCircle2, FileText, Folders, Plus, Search, Settings, Trash2, X } from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
 import { SHORTCUTS_RESULT, useSearchAnswer, type SearchAnswer } from '../lib/search-items.js'
@@ -404,7 +404,20 @@ function OpenPlacePicker({
 export function TabStrip() {
   const location = useLocation()
   const navigate = useNavigate()
-  const folders = useFolders().data ?? NO_FOLDERS
+  const library = useFolders().data ?? NO_FOLDERS
+  const allPages = useAllPages().data
+  /* A project's tab (step 7) is no Library row: its address is named and
+     marked as its project. */
+  const folders = useMemo(() => {
+    if (allPages === undefined) return library
+    const byId = new Map(allPages.map((page) => [page.id, page]))
+    const tabs = allPages.flatMap((page) => {
+      if (page.tab_position === null || page.id === page.project_id) return []
+      const root = byId.get(page.project_id)
+      return root === undefined ? [] : [{ ...root, id: page.id }]
+    })
+    return tabs.length === 0 ? library : [...library, ...tabs]
+  }, [library, allPages])
   const shelves = useShelves().data ?? NO_SHELVES
   const bundle = useBundle().data
   const focusKeys = bundle?.focus_lists ?? DEFAULT_FOCUS_LISTS
@@ -493,8 +506,9 @@ export function TabStrip() {
   function createPage(): void {
     if (creatingPage.current) return
     creatingPage.current = true
+    /* A new project, unpicked: its page offers the picker (step 7). */
     createFolder.mutate(
-      { name: 'Untitled' },
+      { name: 'Untitled', kind: null },
       {
         onSuccess: (made) => {
           go(openInNewTab(`${paths.folder(made.id)}?${FOLDER_ACTION_PARAM}=rename`))

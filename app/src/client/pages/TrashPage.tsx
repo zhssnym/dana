@@ -20,14 +20,13 @@ not be narrower than the rule.
 shell honours by the floating button's own rule; this file adds none.
 */
 import { useRestoreDiscussion } from '../api/consultation.js'
-import { useRestoreFacet, useRestoreFolder, useTransitionTask } from '../api/mutations.js'
+import { useRestoreFolder, useTransitionTask } from '../api/mutations.js'
 import { TrashScreen } from '../screens/trash-screen.js'
 import { showToast } from '../state/toasts.js'
 
 export function TrashPage(): React.JSX.Element {
   const restoreFolder = useRestoreFolder()
   const restoreTask = useTransitionTask()
-  const restoreFacet = useRestoreFacet()
   const restoreDiscussion = useRestoreDiscussion()
 
   return (
@@ -47,10 +46,7 @@ export function TrashPage(): React.JSX.Element {
           else if (item.kind === 'task') {
             restoreTask.mutate({ id: item.subject, event: 'restore' }, { onSuccess: said })
           }
-          else if (item.kind === 'discussion') {
-            restoreDiscussion.mutate(item.subject, { onSuccess: said })
-          }
-          else restoreFacet.mutate(item.subject, { onSuccess: said })
+          else restoreDiscussion.mutate(item.subject, { onSuccess: said })
         }}
       />
     </div>

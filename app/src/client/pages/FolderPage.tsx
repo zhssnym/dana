@@ -1,13 +1,18 @@
 /*
-9.6's folder page, in round 2's page shape: a header (mark and name with
-"Share" and one "…" at the right; no progress count under it (round 7). When there is
-finite work, and no description line -- Purpose holds that), a row of plain
-text tabs in intro-to-conclusion order (Purpose · Work · Results · Discussion,
-then custom tabs), and the tab's body. The page opens on Work (`main`), whose
-body is the canvas drawn as the thread (M4), where a finished Task stays in
-place, checked and muted. It is Work's one rendering: there is no view switch
-and no "Show completed". Linear, Board and the issue page are gone; an old
-`?issue=<id>` address lands on `/app/tasks/<id>`, the one task page.
+9.6's page, in step 7's shape: a project's header (mark and name with
+"Share" and one "…" at the right), its row of tabs, and the tab's body. Every
+tab is a page of its own (`/app/folders/<id>`), and the header on each of
+them is the project root's: the project is its root row, and renaming,
+sharing or deleting it acts on the project. A sub-page (no `tab_position`)
+draws its own header and no tab row.
+
+The body is drawn by the page's kind: Work is the canvas drawn as the thread
+(M4), where a finished Task stays in place, checked and muted; a Doc is the
+same canvas with flat headings and no thread; a Discussion is the project's
+threads; a new project nobody has picked a kind for is the picker. Linear,
+Board and the issue page are gone; an old `?issue=<id>` address lands on
+`/app/tasks/<id>`, the one task page, and an old `?facet=<id>` address on
+that tab's own page (0061 kept each facet's id).
 
 What is deliberate rather than transcription:
 
@@ -56,9 +61,10 @@ and titles only.
 the mutation cache already raises as the toast, and the page refetches its
 blocks at the same moment so the winning write replaces the loser on screen.
 
-**The folder's conversation has one home: the Consultation tab**, as its
-General discussion. The foot section and the side panel it could move to are
-gone; a notification arriving with `?conversation=open` lands on Consultation.
+**A project's conversation has one home: its Discussion tab.** A thread's
+address (`?discussion=`, or a notification's `?conversation=open`) on any
+page of the project moves there; a project with no Discussion tab (and the
+Desk) draws the thread on the page it was reached on.
 
 **The "…" is the folder menu, the one list** (`lib/object-acts.ts`): History,
 Rename, Move to…, Move to collection, Cover…, Tabs…, Copy link, Duplicate, Save as workflow,
@@ -70,31 +76,25 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Navigate, useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router'
 
 import {
-  useCreateFacet,
-  useDeleteFacet,
-  useRestoreFacet,
+  useCreateTab,
   useDeleteFolder,
   useLeaveFolder,
   useDuplicateFolder,
-  usePatchFacet,
-  usePutFacetOrder,
-  usePutMyFacetOrder,
+  useMoveFolder,
   useRenameFolder,
   useRestoreFolder,
-  useShareFacet,
   useTransferOwnership,
 } from '../api/mutations.js'
 import {
   mergeCompletedDays,
+  useAllPages,
   useConnections,
   useFolder,
   useFolderCompletedTasks,
   useFolderOpenTasks,
-  useFolderFacets,
   useFolderPage,
-  useFacetPage,
 } from '../api/queries.js'
-import { getPlain } from '../api/http.js'
+import { getPlain, getView } from '../api/http.js'
 import { queryKeys } from '../api/keys.js'
 import { showToast } from '../state/toasts.js'
 const FolderCanvas = lazy(() => import('../components/page/canvas/FolderCanvas.js'))
@@ -142,15 +142,15 @@ import { copyLink } from '../lib/object-acts.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { usePageImport } from '../shell/workflow-import.js'
-import { FolderTabs } from '../components/folder-facets.js'
-import type { FacetCapabilities } from '../components/folder-facets.js'
+import { AddTabMenu, FolderTabs } from '../components/folder-tabs.js'
+import { ProjectPicker } from '../components/project-picker.js'
 import { PageSection } from '../components/page/PageSection.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel, MEMBER_PARAM } from './FolderSharingPanel.js'
 import { PersonFace } from '../components/person-face.js'
 import { cn } from '../components/ui/utils.js'
-import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
+import { ConfirmDialog, useConfirm, useRowBasis } from './task-rows.js'
 import { getLabelsResponse } from '../../shared/labels.js'
 import type { LabelDefinition } from '../../shared/labels.js'
 import { getTaskResponse } from '../../shared/tasks.js'
@@ -158,10 +158,11 @@ import type { TaskDetail } from '../../shared/tasks.js'
 import { folderToWorkflowFile } from '../../shared/workflows.js'
 import type { WorkflowDependencyEdge } from '../../shared/workflows.js'
 import { getFolderDependenciesResponse } from '../../shared/task-dependencies.js'
-import type { Facet, GetFacetsResponse } from '../../shared/facets.js'
 import { getPageResponse } from '../../shared/pages.js'
 import type { PageView } from '../../shared/pages.js'
-import { workPageOf } from '../components/page/canvas/adapters.js'
+import { getFolderTasksOpenResponse } from '../../shared/views.js'
+import { projectTabs, purposeTab, resultsTab } from '../../shared/folders.js'
+import type { Folder, GetFoldersResponse, PageKind } from '../../shared/folders.js'
 
 /*
 The width the sharing panel reserves at the right edge, restated from its
@@ -290,7 +291,26 @@ export function FolderPage({
      Answered before any of the page's reads start, and only for a real id. */
   const issueId = search.get('issue') ?? ''
   if (issueId !== '') return <Navigate to={paths.task(encodeURIComponent(issueId))} replace />
+  /* An old tab address (`?facet=<id>`, before step 7) is that tab's page now:
+     0061 gave each tab its facet's id. */
+  const facetId = search.get('facet') ?? ''
+  if (facetId !== '') return <FacetAddress facetId={facetId} />
   return <FolderPageBody folderId={folderId} />
+}
+
+/* Where an old `?facet=` address goes: the tab's own page when the viewer has
+   one by that id, otherwise this page without the parameter (Work had no
+   address of its own, and a Work facet over a heading became no page). */
+function FacetAddress({ facetId }: { readonly facetId: string }): React.JSX.Element | null {
+  const pages = useAllPages()
+  const { pathname } = useLocation()
+  const [search] = useSearchParams()
+  if (pages.data === undefined && !pages.isError) return null
+  const rest = new URLSearchParams(search)
+  rest.delete('facet')
+  const query = rest.size === 0 ? '' : `?${rest.toString()}`
+  const found = pages.data?.some((page) => page.id === facetId) === true
+  return <Navigate replace to={`${found ? paths.folder(facetId) : pathname}${query}`} />
 }
 
 function FolderPageBody({
@@ -312,13 +332,25 @@ function FolderPageBody({
      draws without remounting. */
   const [leftId, setLeftId] = useState<string | null>(null)
   const leaving = leftId === id
-  const folder = useFolder(id, !leaving)
-  /* Everything else waits for the folder itself: a link the viewer may not
+  /* The page on screen: a tab, a sub-page or a project root. */
+  const here = useFolder(id, !leaving)
+  const herePage = here.data
+  const kind = herePage?.kind ?? null
+  /* A tab's header is its project's (the root row); a sub-page's is its own. */
+  const onTab = herePage !== undefined && herePage.tab_position !== null
+  const headId = onTab ? herePage.project_id : id
+  const folder = useFolder(headId, !leaving && herePage !== undefined)
+  /* Everything else waits for the page itself: a link the viewer may not
      open is one quiet 404, not one per read. */
-  const folderOk = folder.status === 'success' && !leaving
-  const open = useFolderOpenTasks(id, folderOk)
-  const page = useFolderPage(id, folderOk)
-  const facets = useFolderFacets(id, folderOk)
+  const folderOk = here.status === 'success' && !leaving
+  const writes = folderOk && (kind === 'work' || kind === 'doc')
+  const open = useFolderOpenTasks(id, writes)
+  const page = useFolderPage(id, writes)
+  const allPages = useAllPages(folderOk)
+  const tabs = useMemo(
+    () => (herePage === undefined ? [] : projectTabs(allPages.data ?? [], herePage.project_id)),
+    [allPages.data, herePage],
+  )
   /* "Save as workflow" reads each row's 7.6 detail before it writes the
      file, through the cache the row already stores one in. */
   const cache = useQueryClient()
@@ -330,13 +362,8 @@ function FolderPageBody({
   const patch = useRenameFolder()
   const leave = useLeaveFolder()
   const transfer = useTransferOwnership()
-  const createFacet = useCreateFacet()
-  const patchFacet = usePatchFacet()
-  const deleteFacet = useDeleteFacet()
-  const restoreFacet = useRestoreFacet()
-  const putFacetOrder = usePutFacetOrder()
-  const putMyFacetOrder = usePutMyFacetOrder()
-  const shareFacet = useShareFacet()
+  const createTab = useCreateTab()
+  const moveTab = useMoveFolder()
   const duplicate = useDuplicateFolder()
   const [sharing, setSharing] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -387,7 +414,7 @@ function FolderPageBody({
   /* Always read: the thread draws each finished Task in place from these
      cards. One request for the first 50, where a by-id read per finished
      placement is what #312 removed. */
-  const completed = useFolderCompletedTasks(id, folderOk)
+  const completed = useFolderCompletedTasks(id, writes)
   /* The canvas waits for them, so no finished placement is read by id while
      the list is still on its way. */
   const completedReady = completed.data !== undefined || completed.isError
@@ -405,7 +432,7 @@ function FolderPageBody({
   `lib/page-identity.ts`'s folder half: a place page's cover is 4.20's, per
   viewer, and a folder's is 4.3's `cover_file_id`, shared by every member.
   */
-  const coverKey = `${FOLDER_PREFIX}${id}`
+  const coverKey = `${FOLDER_PREFIX}${headId}`
   /* Off once trashed: the cover read is a folder read too. */
   const hasCover = usePageHasCover(leaving ? '' : coverKey)
 
@@ -428,45 +455,35 @@ function FolderPageBody({
   */
   const facts = viewerFacts(detail, members, basis.viewerId)
   const gates = facts === null ? null : folderGates(facts)
-  /* Desk's Consultation facet is its page-level conversation, which Desk does
-     not have (issue #195). It stays in the data, counted as hidden so the
-     shared reorder below still names every row, and is left off the strip. */
-  const facetRows = (facets.data?.facets ?? []).map((facet) =>
-    isDefault && facet.kind === 'consultation' ? { ...facet, hidden: true } : facet,
-  )
-  const requestedFacetId = search.get('facet')
-  const mainFacet = facetRows.find((facet) => facet.kind === 'main')
-  const purposeFacet = facetRows.find((facet) => facet.kind === 'purpose')
-  /* A Discussion address (`?discussion=`, from ConsultationLinkPage) opens the
-     Consultation facet even when it is hidden or not named: a link to a
-     Discussion must land on it. On Desk, which has no Discussion tab, only
-     a thread about one of its tasks has such an address (M5: "Discuss" on a
-     Desk task, and a Desk task's old comments), so it opens there too and
-     closing it goes back to Work. */
-  /* `?conversation=open` is the address a notification about the folder's
-     thread carries; that thread is the General discussion, so it lands here
-     too, never on Desk. */
-  const linkedDiscussion =
+  /* The Desk keeps no tab row (it has one tab, and Discuss adds none there). */
+  const shownTabs = onTab && !isDefault ? tabs : []
+  const discussionTab = tabs.find((tab) => tab.kind === 'discussion')
+  /* A thread's address: `?discussion=` (ConsultationLinkPage, Discuss, an
+     old link) or a notification's `?conversation=open` about the page's own
+     thread, never on Desk. On a project with a Discussion tab it moves there;
+     otherwise (the Desk, a project without one) the thread is drawn here. */
+  const threadAsked =
     search.get('discussion') !== null || (search.get('conversation') === 'open' && !isDefault)
-  const linkedConsultation = (facet: Facet): boolean => linkedDiscussion && facet.kind === 'consultation'
-  const activeFacet = facetRows.find(
-    (facet) => facet.id === requestedFacetId && (!facet.hidden || facet.kind === 'purpose' || facet.kind === 'results' || linkedConsultation(facet)),
-  ) ?? facetRows.find(linkedConsultation) ?? mainFacet
+  const moveThreadTo =
+    threadAsked && kind !== 'discussion' && discussionTab !== undefined && discussionTab.id !== id
+      ? discussionTab.id
+      : null
+  useEffect(() => {
+    if (moveThreadTo === null) return
+    const next = new URLSearchParams(search)
+    next.delete('conversation')
+    const query = next.size === 0 ? '' : `?${next.toString()}`
+    void navigate(`${paths.folder(moveThreadTo)}${query}`, { replace: true })
+  }, [moveThreadTo, search, navigate])
+  const threadHere = kind === 'discussion' || (threadAsked && moveThreadTo === null)
+  const threadOpen = threadHere && search.get('discussion') !== null
+  useThreadScroll(id, kind === 'work' && page.data !== undefined && completedReady)
 
-  const threadOpen = activeFacet?.kind === 'consultation' && search.get('discussion') !== null
-  useThreadScroll(id, activeFacet?.kind === 'main' && page.data !== undefined && completedReady)
-
-  const selectFacet = useCallback((facet: Facet): void => {
-    setSearch((current) => {
-      const next = new URLSearchParams(current)
-      if (facet.kind === 'main') next.delete('facet')
-      else next.set('facet', facet.id)
-      next.delete('discussion')
-      next.delete('outcome')
-      next.delete('result')
-      return next
-    }, { replace: true })
-  }, [setSearch])
+  /* A tab is a page of its own: choosing one goes there, in place, so Back
+     leaves the project rather than stepping through its tabs. */
+  const selectTab = useCallback((tab: Folder): void => {
+    void navigate(paths.folder(tab.id), { replace: true })
+  }, [navigate])
 
   /* Drops one parameter in place: a stale ?member= would reopen that member
      later without being asked. */
@@ -479,45 +496,21 @@ function FolderPageBody({
     }, { replace: true })
   }, [setSearch])
 
+  /* May edit the project's pages: its tabs, and a Doc's writing. Asked of
+     the header's folder, the project root on a tab. */
   const sharedPageEditable =
     facts !== null &&
     basis.viewerId !== null &&
     detail !== undefined &&
     mayPerform({
-      folderId: id,
+      folderId: headId,
       actorId: basis.viewerId,
       access: facts.access,
       isOwner: facts.isOwner,
       isDefault: facts.isDefault,
       name: detail.name,
     }, 'folder.page.edit').allowed
-
-  const facetCapabilities = useCallback((facet: Facet | null): FacetCapabilities => {
-    if (facts === null || basis.viewerId === null || detail === undefined) {
-      return { createShared: false, createPrivate: false, reorderShared: false, reorderPrivate: false, rename: false, hide: false, delete: false, share: false }
-    }
-    const actor = {
-      folderId: id,
-      actorId: basis.viewerId,
-      access: facts.access,
-      isOwner: facts.isOwner,
-      isDefault: facts.isDefault,
-      name: detail.name,
-    }
-    const target = { facetOwnerId: facet?.owner_id ?? null }
-    const allowed = (action: Parameters<typeof mayPerform>[1]): boolean =>
-      mayPerform(actor, action, target).allowed
-    return {
-      createShared: mayPerform(actor, 'facet.create', { facetOwnerId: null }).allowed,
-      createPrivate: mayPerform(actor, 'facet.create', { facetOwnerId: basis.viewerId }).allowed,
-      reorderShared: allowed('facet.reorder'),
-      reorderPrivate: facet?.private === true && allowed('facet.reorder'),
-      rename: facet !== null && allowed('facet.rename'),
-      hide: facet !== null && allowed('facet.hide'),
-      delete: facet !== null && allowed('facet.delete'),
-      share: facet?.private === true && facet.owner_id === basis.viewerId && allowed('facet.convert_to_shared'),
-    }
-  }, [basis.viewerId, detail, facts, id])
+  const tabsEditable = sharedPageEditable && !isDefault
   /* Ownership passes only to a member who *currently* holds Full control, and
      there is no default successor; offering anyone else would be offering a
      choice the server answers 422. */
@@ -577,110 +570,77 @@ function FolderPageBody({
     // Lands on the page it sat in, as in Notion; a top-level page on Today.
     const parent = detail?.parent_folder_id
     navigate(parent ? paths.folder(parent) : paths.today)
-    remove.mutateAsync(id).then(
+    remove.mutateAsync(headId).then(
       () => {
         pushUndo(undoLabel('Deleted', name), () => {
-          restore.mutate(id)
+          restore.mutate(headId)
         })
       },
       () => {},
     )
   }
 
-  /* The tab row's "+": a blank shared tab after the one open. */
-  function addFolderFacet(name: string): void {
-    createFacet.mutate({
-      folderId: id,
-      body: { kind: 'shared_blank', display_name: name, after_facet_id: activeFacet?.id },
-    }, { onSuccess: selectFacet })
-  }
-
-  function renameFolderFacet(facet: Facet, name: string | null): void {
-    patchFacet.mutate({
-      folderId: id,
-      facetId: facet.id,
-      body: { display_name: name, updated_at: facet.updated_at },
-    })
-  }
-
-  function hideFolderFacet(facet: Facet, hidden: boolean): void {
-    patchFacet.mutate({
-      folderId: id,
-      facetId: facet.id,
-      body: { hidden, updated_at: facet.updated_at },
-    }, {
-      onSuccess: () => {
-        if (hidden && activeFacet?.id === facet.id && mainFacet) selectFacet(mainFacet)
+  /* The tab row's "+": a tab of that kind after the last, then go to it. */
+  function addTab(tabKind: PageKind): void {
+    const had = new Set(tabs.map((tab) => tab.id))
+    createTab.mutate({ folderId: id, kind: tabKind }, {
+      onSuccess: (answer) => {
+        const made = answer.find((tab) => !had.has(tab.id))
+        if (made !== undefined) selectTab(made)
       },
     })
   }
 
-  /* Like every delete: to Trash at once, with Undo. */
-  function removeFolderFacet(facet: Facet): void {
-    deleteFacet.mutate({ folderId: id, facetId: facet.id }, {
-      onSuccess: () => {
-        if (mainFacet) selectFacet(mainFacet)
-        pushUndo(undoLabel('Deleted', facet.name), () => {
-          restoreFacet.mutate(facet.id, { onSuccess: () => { void cache.invalidateQueries({ queryKey: queryKeys.folderFacets(id) }) } })
+  function renameTab(tab: Folder, name: string): void {
+    patch.mutate({ id: tab.id, body: { name } })
+  }
+
+  /* Like every delete: to Trash at once, with Undo. Leaving the tab on
+     screen goes to the project first, so nothing reads it after it is gone. */
+  function removeTab(tab: Folder): void {
+    if (tab.id === id) {
+      setLeftId(id)
+      void navigate(paths.folder(tab.project_id), { replace: true })
+    }
+    remove.mutateAsync(tab.id).then(
+      () => {
+        pushUndo(undoLabel('Deleted', tab.name), () => {
+          restore.mutate(tab.id)
         })
       },
-    })
-  }
-
-  function exposeFolderFacet(facet: Facet): void {
-    confirm.ask(
-      `Share ${facet.name} with everyone in ${detail?.name ?? 'this page'}? Its current writing becomes visible to them.`,
-      () => shareFacet.mutate({ folderId: id, facetId: facet.id }),
+      () => {},
     )
   }
 
-  function reorderFolderFacets(dragged: Facet, orderedVisible: readonly Facet[]): void {
-    /* The row takes its new order at once: the visible tabs in the dropped
-       order, hidden ones after, each keyed so the row reads it as the stored
-       order (never the untouched default). The answer replaces it. */
-    const key = queryKeys.folderFacets(id)
-    const previous = cache.getQueryData<GetFacetsResponse>(key)
+  function reorderTabs(dragged: Folder, ordered: readonly Folder[]): void {
+    /* The row takes its new order at once: each tab of the project keyed in
+       the dropped order. The refetch after the move replaces it. */
+    const key = queryKeys.allPages()
+    const previous = cache.getQueryData<GetFoldersResponse>(key)
     if (previous !== undefined) {
-      const shown = new Set(orderedVisible.map((facet) => facet.id))
-      const byId = new Map(previous.facets.map((facet) => [facet.id, facet]))
-      const next = [
-        ...orderedVisible.map((facet) => byId.get(facet.id) ?? facet),
-        ...previous.facets.filter((facet) => !shown.has(facet.id)),
-      ].map((facet, index) => ({ ...facet, position: `b${String(index).padStart(3, '0')}` }))
-      cache.setQueryData<GetFacetsResponse>(key, { facets: next })
+      const rank = new Map(ordered.map((tab, index) => [tab.id, `b${String(index).padStart(3, '0')}`]))
+      cache.setQueryData<GetFoldersResponse>(
+        key,
+        previous.map((page) => {
+          const position = rank.get(page.id)
+          return position === undefined ? page : { ...page, tab_position: position }
+        }),
+      )
     }
-    const settle = {
-      onSuccess: (answer: GetFacetsResponse) => cache.setQueryData(key, answer),
-      onError: () => {
-        if (previous !== undefined) cache.setQueryData(key, previous)
+    const at = ordered.findIndex((tab) => tab.id === dragged.id)
+    moveTab.mutate(
+      { id: dragged.id, body: { parent_folder_id: null, after_id: at > 0 ? ordered[at - 1]!.id : null } },
+      {
+        onError: () => {
+          if (previous !== undefined) cache.setQueryData(key, previous)
+        },
       },
-    }
-    if (dragged.private) {
-      const index = orderedVisible.findIndex((facet) => facet.id === dragged.id)
-      const anchor = index > 0 ? orderedVisible[index - 1] : null
-      putMyFacetOrder.mutate({
-        folderId: id,
-        body: { placements: [{ facet_id: dragged.id, after_facet_id: anchor?.id ?? null }] },
-      }, settle)
-      return
-    }
-    const visibleShared = orderedVisible.filter((facet) => !facet.private).map((facet) => facet.id)
-    let visibleIndex = 0
-    const sharedOrder = facetRows.filter((facet) => !facet.private).map((facet) => {
-      if (facet.hidden) return facet.id
-      const next = visibleShared[visibleIndex]
-      visibleIndex += 1
-      return next ?? facet.id
-    })
-    putFacetOrder.mutate({
-      folderId: id,
-      body: { order: sharedOrder },
-    }, settle)
+    )
   }
 
   function askLeave(): void {
     confirm.ask(leaveFolderConfirm(detail?.name ?? ''), () => {
-      leave.mutate(id, { onSuccess: () => navigate(paths.today) })
+      leave.mutate(headId, { onSuccess: () => navigate(paths.today) })
     })
   }
 
@@ -697,7 +657,36 @@ function FolderPageBody({
   */
   async function saveAsWorkflow(): Promise<void> {
     const folderName = detail?.name ?? 'Folder'
-    const pending = [...scheduled, ...unscheduled].filter(
+    /* The file is the header's page (the project root, on a tab): its work
+       and writing, read here when another tab is on screen. Purpose is the
+       project's Purpose tab, and only a project root has one. */
+    const workId = headId
+    const purpose = herePage !== undefined && herePage.project_id === workId ? purposeTab(tabs) : undefined
+    let workCards: typeof scheduled
+    let workPage: PageView | undefined
+    try {
+      if (workId === id) {
+        workCards = [...scheduled, ...unscheduled]
+        workPage = page.data
+      } else {
+        const [cards, document] = await Promise.all([
+          cache.fetchQuery({
+            queryKey: queryKeys.folderTasks(workId, 'open'),
+            queryFn: () => getView(getFolderTasksOpenResponse, `/folders/${workId}/tasks`, { section: 'open' }),
+          }),
+          cache.fetchQuery({
+            queryKey: queryKeys.folderPage(workId),
+            queryFn: () => getPlain(getPageResponse, `/folders/${workId}/page`),
+          }),
+        ])
+        workCards = [...cards.scheduled, ...cards.unscheduled]
+        workPage = document
+      }
+    } catch {
+      showToast('Could not read this page, so nothing was exported.')
+      return
+    }
+    const pending = workCards.filter(
       (task) => task.status === 'pending',
     )
     /*
@@ -735,22 +724,22 @@ function FolderPageBody({
           ),
         ),
         cache.fetchQuery({
-          queryKey: queryKeys.folderLabels(id),
+          queryKey: queryKeys.folderLabels(workId),
           queryFn: () =>
             getPlain(
               getLabelsResponse,
-              `/labels?scope=folder&folder_id=${encodeURIComponent(id)}`,
+              `/labels?scope=folder&folder_id=${encodeURIComponent(workId)}`,
             ),
         }),
         getPlain(
           getFolderDependenciesResponse,
-          `/folders/${encodeURIComponent(id)}/dependencies`,
+          `/folders/${encodeURIComponent(workId)}/dependencies`,
         ),
-        purposeFacet === undefined
+        purpose === undefined
           ? Promise.resolve(undefined)
           : cache.fetchQuery({
-              queryKey: queryKeys.facetPage(id, purposeFacet.id),
-              queryFn: () => getPlain(getPageResponse, `/folders/${id}/facets/${purposeFacet.id}/page`),
+              queryKey: queryKeys.folderPage(purpose.id),
+              queryFn: () => getPlain(getPageResponse, `/folders/${purpose.id}/page`),
             }),
       ])
       tasks = details
@@ -764,12 +753,12 @@ function FolderPageBody({
     const saved = folderToWorkflowFile(
       folderName,
       tasks,
-      page.data?.blocks ?? [],
-      page.data,
+      workPage?.blocks ?? [],
+      workPage,
       labels,
-      purposeFacet === undefined || purposePage === undefined
+      purpose === undefined || purposePage === undefined
         ? undefined
-        : { display_name: purposeFacet.display_name, page: purposePage },
+        : { display_name: purpose.name, page: purposePage },
       dependencies,
     )
     const file = JSON.stringify(saved.file, null, 2)
@@ -935,8 +924,17 @@ function FolderPageBody({
     [authorPeople],
   )
 
+  /* Where a page made or imported from here lands: under the page on
+     screen, or under the project when that is a Discussion, which holds no
+     writing to link a page from. */
+  const pageHome = kind === 'discussion' ? headId : id
   const headerActions = (
     <>
+      {/* With one tab the row is not drawn (a note still reads as a page),
+          so its "+" waits here. */}
+      {shownTabs.length === 1 && tabsEditable && kind !== null ? (
+        <AddTabMenu tabs={shownTabs} onAdd={addTab} />
+      ) : null}
       {/* 9.6's Share control, a word rather than a glyph. Withheld on a
           default folder, which INV-2 makes single-member and 5.3 refuses an
           add on. AC-162 and AC-183 reach the sharing panel through it. */}
@@ -972,14 +970,14 @@ function FolderPageBody({
           },
           /* The Library row's pair (M4: one menu, the same items everywhere). */
           rename: gates?.identity === true ? () => setRenaming(true) : undefined,
-          'add-page': gates?.identity === true && !isDefault ? () => addPageInside(id) : undefined,
+          'add-page': gates?.identity === true && !isDefault ? () => addPageInside(pageHome) : undefined,
           'copy-link': () => {
             copyLink(folderLink(id))
           },
           duplicate: () => {
             /* Duplicated server-side; the copy is the duplicator's own private
                folder, and the page goes to it: arriving there is the feedback. */
-            duplicate.mutate(id, {
+            duplicate.mutate(headId, {
               onSuccess: (made) => {
                 navigate(paths.folder(made.id))
               },
@@ -990,7 +988,7 @@ function FolderPageBody({
           import:
             gates?.identity === true && !isDefault
               ? () => {
-                  importFile(id)
+                  importFile(pageHome)
                 }
               : undefined,
           /* Any member's, refused to the owner until they transfer and to the
@@ -1009,9 +1007,9 @@ function FolderPageBody({
 
   return (
     <div className="space-y-6">
-      {/* The header is the folder read, so a folder the viewer cannot see
-          renders 10.2's answer here: nonexistent, never forbidden. */}
-      <PageBody query={folder} isEmpty={false} emptyCopy="">
+      {/* The page read, so a page the viewer cannot see renders 10.2's
+          answer here: nonexistent, never forbidden. */}
+      <PageBody query={here} isEmpty={false} emptyCopy="">
         {/* An open thread is its own page (r9): the breadcrumb names it and
             its head is the thread's, so the page's head and tabs step aside. */}
         <div className={threadOpen ? 'hidden' : 'space-y-4'}>
@@ -1033,13 +1031,13 @@ function FolderPageBody({
               renaming={renaming}
               onRenamingChange={setRenaming}
               onRename={(name) => {
-                patch.mutate({ id, body: { name } })
+                patch.mutate({ id: headId, body: { name } })
               }}
               onPickIdentity={(next) => {
-                patch.mutate({ id, body: next })
+                patch.mutate({ id: headId, body: next })
               }}
               onRemoveIcon={() => {
-                patch.mutate({ id, body: { icon: null } })
+                patch.mutate({ id: headId, body: { icon: null } })
               }}
               actions={headerActions}
               /* Covers are for projects; the Desk is not one (M4). */
@@ -1047,34 +1045,41 @@ function FolderPageBody({
             />
           </PageSection>
 
-          {facets.data ? (
-            <FolderTabs
-              folderId={id}
-              facets={isDefault ? facetRows.filter((facet) => facet.kind !== 'consultation') : facetRows}
-              activeId={activeFacet?.id ?? ''}
-              onSelect={selectFacet}
-              canMove={(facet) => {
-                const caps = facetCapabilities(facet)
-                return facet.private ? caps.reorderPrivate : caps.reorderShared
-              }}
-              onReorder={reorderFolderFacets}
-              capabilities={facetCapabilities}
-              onAdd={addFolderFacet}
-              onRename={renameFolderFacet}
-              onHide={hideFolderFacet}
-              onDelete={removeFolderFacet}
-              onShare={exposeFolderFacet}
-            />
-          ) : facets.isError ? (
+          {allPages.isError && onTab ? (
             <p role="alert" className="text-sm text-muted-foreground">
               Could not load this page’s tabs. Reload to try again.
             </p>
-          ) : null}
+          ) : (
+            <FolderTabs
+              tabs={shownTabs}
+              activeId={id}
+              onSelect={selectTab}
+              editable={tabsEditable}
+              onReorder={reorderTabs}
+              onAdd={addTab}
+              onRename={renameTab}
+              onDelete={removeTab}
+            />
+          )}
         </div>
 
-        {activeFacet?.kind === 'main' ? (
+        {herePage === undefined ? null : kind === null ? (
+          <ProjectPicker
+            editable={tabsEditable}
+            pending={createTab.isPending}
+            onPick={(pick) => {
+              createTab.mutate({ folderId: id, kind: pick })
+            }}
+          />
+        ) : threadHere ? (
+          <ConsultationPanel
+            folderId={id}
+            viewer={facts === null || basis.viewerId === null ? null : { viewerId: basis.viewerId, facts }}
+            personOf={personOf}
+          />
+        ) : (
           <div className="space-y-2">
-            <PageSection name="Work">
+            <PageSection name={kind === 'doc' ? 'Doc' : 'Work'}>
               <PageBody
                 query={open}
                 /* The thread ends in its own add line, which an empty page
@@ -1094,35 +1099,23 @@ function FolderPageBody({
                     context={context}
                     actions={actions}
                     onAsk={confirm.ask}
-                    arrangeable
+                    /* A Doc passes the reader's edit right: a reader who
+                       cannot write there has nothing filtered to hear about. */
+                    arrangeable={kind === 'doc' ? sharedPageEditable : true}
                     resultsWritable={sharedPageEditable}
+                    {...(kind === 'doc'
+                      ? {
+                          presentationHeadings: true,
+                          results: resultsTab(tabs)?.id === id,
+                          ...(sharedPageEditable ? { onCreatePage: () => { addPageInside(id) } } : {}),
+                        }
+                      : {})}
                   /> : page.isError ? <p role="alert" className="text-sm text-muted-foreground">Could not load writing. Reload to try again.</p> : null}
                 </Suspense>
               </PageBody>
             </PageSection>
           </div>
-        ) : activeFacet ? (
-          <FacetContent
-            facet={activeFacet}
-            folderId={id}
-            folderPage={page.data}
-            tasks={openRows}
-            completed={completedRows}
-            completedReady={completedReady}
-            context={context}
-            actions={actions}
-            onAsk={confirm.ask}
-            consultation={
-              <ConsultationPanel
-                folderId={id}
-                viewer={facts === null || basis.viewerId === null ? null : { viewerId: basis.viewerId, facts }}
-                personOf={personOf}
-              />
-            }
-            sharedPageEditable={sharedPageEditable}
-            onOpenMain={() => { if (mainFacet) selectFacet(mainFacet) }}
-          />
-        ) : null}
+        )}
       </PageBody>
 
       <FolderCoverDialog storageName={coverKey} open={coverOpen} onOpenChange={setCoverOpen} />
@@ -1168,7 +1161,7 @@ function FolderPageBody({
        */}
       <HistorySheet
         kind="folder"
-        subject={id}
+        subject={headId}
         name={detail?.name ?? ''}
         open={historyOpen}
         onOpenChange={setHistoryOpen}
@@ -1259,7 +1252,7 @@ function FolderPageBody({
                   onClick={() => {
                     if (heir === undefined) return
                     transfer.mutate(
-                      { id, to: heir.user.id },
+                      { id: headId, to: heir.user.id },
                       {
                         onSuccess: () => {
                           setTransferOpen(false)
@@ -1281,84 +1274,6 @@ function FolderPageBody({
       </Dialog>
 
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />
-    </div>
-  )
-}
-
-function FacetContent({
-  facet,
-  folderId,
-  folderPage,
-  tasks,
-  completed,
-  completedReady,
-  context,
-  actions,
-  onAsk,
-  consultation,
-  sharedPageEditable,
-  onOpenMain,
-}: {
-  readonly facet: Facet
-  readonly folderId: string
-  readonly folderPage: PageView | undefined
-  readonly tasks: readonly Parameters<typeof TaskRows>[0]['tasks'][number][]
-  readonly completed: readonly Parameters<typeof TaskRows>[0]['tasks'][number][]
-  readonly completedReady: boolean
-  readonly context: RowContext
-  readonly actions: ReturnType<typeof useRowActions>
-  readonly onAsk: (message: string, action: () => void) => void
-  readonly consultation: React.ReactNode
-  readonly sharedPageEditable: boolean
-  readonly onOpenMain: () => void
-}): React.JSX.Element {
-  const blank = facet.kind === 'shared_blank' || facet.kind === 'private_blank'
-  const document = useFacetPage(folderId, facet.id, blank || facet.kind === 'purpose' || facet.kind === 'results')
-
-  if (facet.kind === 'consultation') {
-    return <>{consultation}</>
-  }
-  if (facet.kind === 'purpose' || facet.kind === 'results') {
-    const purpose = facet.kind === 'purpose'
-    return (
-      <div className="mt-2">
-        {document.data ? (
-          <>
-            <Suspense fallback={<p role="status" className="sr-only">Loading writing…</p>}>
-              <FolderCanvas key={`${folderId}:${facet.id}`} page={document.data} tasks={[]} folderId={folderId} facetId={facet.id} presentationHeadings results={!purpose} context={context} actions={actions} onAsk={onAsk} arrangeable={sharedPageEditable} />
-            </Suspense>
-          </>
-        ) : <p role={document.isError ? 'alert' : 'status'} className={document.isError ? undefined : 'sr-only'}>{document.isError ? `Could not load ${purpose ? 'Purpose' : 'Results'}. Reload to try again.` : 'Loading writing…'}</p>}
-      </div>
-    )
-  }
-  if (facet.kind === 'work') {
-    const focused = folderPage && facet.h1_block_id ? workPageOf(folderPage, facet.h1_block_id) : null
-    const ids = new Set(focused?.items.map((item) => item.id) ?? [])
-    const focusedTasks = tasks.filter((task) => ids.has(task.id))
-    return (
-      <div className="mt-2 space-y-3">
-        <p className="text-xs text-muted-foreground">
-          The same section as on Work.{' '}
-          <button type="button" onClick={onOpenMain} className="underline-offset-2 hover:text-foreground hover:underline">
-            Open Work
-          </button>
-        </p>
-        {focused && completedReady ? (
-          <Suspense fallback={<p role="status" className="sr-only">Loading section…</p>}>
-            <FolderCanvas key={`${folderId}:${facet.id}`} page={folderPage!} tasks={focusedTasks} completed={completed} folderId={folderId} workRootId={facet.h1_block_id ?? undefined} context={context} actions={actions} onAsk={onAsk} arrangeable />
-          </Suspense>
-        ) : <p role="status" className="sr-only">Loading section…</p>}
-      </div>
-    )
-  }
-  return (
-    <div className="mt-2">
-      {document.data ? (
-        <Suspense fallback={<p role="status" className="sr-only">Loading writing…</p>}>
-          <FolderCanvas key={`${folderId}:${facet.id}`} page={document.data} tasks={[]} folderId={folderId} facetId={facet.id} context={context} actions={actions} onAsk={onAsk} arrangeable />
-        </Suspense>
-      ) : <p role={document.isError ? 'alert' : 'status'} className={document.isError ? undefined : 'sr-only'}>{document.isError ? 'Could not load this facet. Reload to try again.' : 'Loading writing…'}</p>}
     </div>
   )
 }

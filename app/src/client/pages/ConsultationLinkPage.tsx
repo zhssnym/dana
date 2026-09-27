@@ -1,21 +1,19 @@
 /*
 The two Dana Link addresses of #320: `/app/discussions/:id` and `/app/outcomes/:id`.
 
-Neither is a page of its own. A Discussion lives in its Folder's Consultation
-facet, so this reads the one row the address names, finds that facet, and
-replaces itself with the Folder's address carrying `?facet=&discussion=`
-(and `&outcome=` for an Outcome, which the Discussion view scrolls to).
+Neither is a page of its own. This reads the one row the address names and
+replaces itself with its page's address carrying `?discussion=` (and
+`&outcome=` for an Outcome, which the Discussion view scrolls to); the page
+takes it on to its project's Discussion tab when there is one (step 7).
 `replace`, so the back button never bounces off this hop.
 
 A 404 answers with the same not-found copy a task's address does (`PageBody`),
 which is also what an inaccessible id gets: the server answers 404 there too.
-No consultation facet found (or its read failed) still navigates, without
-`facet=`, and the Folder page's own mount resolves `discussion=`.
 */
 import { Navigate, useParams } from 'react-router'
 
 import { useOutcome } from '../api/consultation.js'
-import { useDiscussion, useFolderFacets } from '../api/queries.js'
+import { useDiscussion } from '../api/queries.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { paths } from '../routes.js'
 
@@ -32,11 +30,7 @@ function ToFolder(props: {
   readonly discussionId: string
   readonly outcomeId: string | null
 }): React.JSX.Element {
-  const facets = useFolderFacets(props.folderId)
-  if (facets.isPending) return <Opening />
-  const facetId = facets.data?.facets.find((facet) => facet.kind === 'consultation')?.id
   const query = new URLSearchParams()
-  if (facetId !== undefined) query.set('facet', facetId)
   query.set('discussion', props.discussionId)
   if (props.outcomeId !== null) query.set('outcome', props.outcomeId)
   return <Navigate replace to={`${paths.folder(props.folderId)}?${query.toString()}`} />

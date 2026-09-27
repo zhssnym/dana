@@ -379,6 +379,28 @@ export function projectTabs<T extends Pick<Folder, 'id' | 'project_id' | 'tab_po
     )
 }
 
+type TabRow = Pick<Folder, 'id' | 'project_id' | 'tab_position' | 'kind' | 'name'>
+
+/**
+ * The project's Purpose tab: the first Doc tab before the root's own tab, as
+ * the usual project and migration 0061 place it (the server's `purposeTabOf`).
+ * `tabs` is `projectTabs`' answer.
+ */
+export function purposeTab<T extends TabRow>(tabs: readonly T[]): T | undefined {
+  const root = tabs.findIndex((tab) => tab.id === tab.project_id)
+  return root < 0 ? undefined : tabs.slice(0, root).find((tab) => tab.kind === 'doc')
+}
+
+/**
+ * The project's Results tab: the first Doc tab after the root's own tab named
+ * Results, the name the usual project and 0061 give it. A renamed one is an
+ * ordinary Doc, and the Work thread then offers no "Write what came of it".
+ */
+export function resultsTab<T extends TabRow>(tabs: readonly T[]): T | undefined {
+  const root = tabs.findIndex((tab) => tab.id === tab.project_id)
+  return root < 0 ? undefined : tabs.slice(root + 1).find((tab) => tab.kind === 'doc' && tab.name === 'Results')
+}
+
 /* One step of a page's breadcrumb: enough to draw and route. */
 export const folderCrumb = z.object({
   id: z.uuid(),

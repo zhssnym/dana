@@ -272,18 +272,24 @@ export function usePostDiscussionComment(): UseMutationResult<
 
 /**
  * POST /tasks/:id/discussion (M5): the task's one Discussion, made on first
- * use and found after that (201, then 200). The caller goes to it.
+ * use and found after that (201, then 200). The caller goes to it: on the
+ * project's Discussion tab, which the server adds when there is none (step 7;
+ * null when this viewer may not see or add it).
  */
-export function useDiscussTask(): UseMutationResult<Discussion, Error, string> {
+export function useDiscussTask(): UseMutationResult<
+  { readonly discussion: Discussion; readonly tabId: string | null },
+  Error,
+  string
+> {
   const client = useQueryClient()
   return useMutation({
     onSuccess: (_thread, taskId) => {
       void client.invalidateQueries({ queryKey: queryKeys.task(taskId) })
     },
     mutationFn: (taskId: string) =>
-      mutateApi(z.object({ discussion: discussionSchema }), {
-        method: 'POST',
-        path: `/tasks/${taskId}/discussion`,
-      }).then((answer) => answer.discussion),
+      mutateApi(
+        z.object({ discussion: discussionSchema, discussion_tab_id: z.uuid().nullable().optional() }),
+        { method: 'POST', path: `/tasks/${taskId}/discussion` },
+      ).then((answer) => ({ discussion: answer.discussion, tabId: answer.discussion_tab_id ?? null })),
   })
 }
