@@ -53,6 +53,7 @@ import { inTransaction, pairSet, rowsOf } from '../database.js'
 import type { Executor, IdPair } from '../database.js'
 import { recordEvent } from './events.js'
 import { folderActorFacts, mayPerform, recordAccessTransition } from './folder-access.js'
+import { projectCapReached } from './folders.js'
 import { addDocPage, purposeTabOf } from './project-tabs.js'
 import { copyCoverFile, copyPageFile, readableFileScope } from './files.js'
 import {
@@ -250,15 +251,11 @@ export async function duplicateFolder(
          place beside the original cannot move under it. */
       await lockPageTree(tx)
       const place = await placeOfCopy(tx, viewerId, sourceFolderId)
-      await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
-      const owned = await rowsOf(
-        tx,
-        sql`SELECT count(*)::int AS n FROM folders
-            WHERE owner_id = ${viewerId} AND NOT is_default
-              AND deleted_at IS NULL
-              AND (tab_position IS NULL OR id = project_id)`,
-      )
-      if (Number(owned[0]?.n ?? 0) >= 200) return { kind: 'folder_cap' } as const
+      /* Step 8: a copy into a page is a sub-page, which the cap does not
+         count (projectCapReached). */
+      if (place === null && (await projectCapReached(tx, viewerId, 1))) {
+        return { kind: 'folder_cap' } as const
+      }
 
       /* Before anything is written, because a request is one unit and a copy
          half-made in the wrong zone is worse than no copy — and since issue
@@ -934,15 +931,9 @@ export async function importWorkflow(
       if (parent.isDefault) return { kind: 'default_parent' } as const
       if (!(await mayAddChildUnder(tx, parentId))) return { kind: 'too_deep' } as const
     }
-    await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
-    const owned = await rowsOf(
-      tx,
-      sql`SELECT count(*)::int AS n FROM folders
-          WHERE owner_id = ${viewerId} AND NOT is_default
-            AND deleted_at IS NULL
-            AND (tab_position IS NULL OR id = project_id)`,
-    )
-    if (Number(owned[0]?.n ?? 0) + file.folders.length > 200) {
+    /* Step 8: into a page, the file's folders are sub-pages, which the cap
+       does not count (projectCapReached). */
+    if (parentId === undefined && (await projectCapReached(tx, viewerId, file.folders.length))) {
       return { kind: 'folder_cap' } as const
     }
 

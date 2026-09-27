@@ -397,6 +397,28 @@ export async function createFolder(
 }
 
 /**
+ * The 10.3 cap on custom projects per account, behind the account's row lock:
+ * true when adding `adding` projects would pass 200. Step 8: only project
+ * roots count. A sub-page is charged to its project's owner whoever makes
+ * it, so counting sub-pages would let a Can edit member spend the owner's
+ * cap; tabs never counted.
+ */
+export async function projectCapReached(
+  tx: Executor,
+  viewerId: string,
+  adding: number,
+): Promise<boolean> {
+  await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
+  const owned = await rowsOf(
+    tx,
+    sql`SELECT count(*)::int AS n FROM folders
+        WHERE owner_id = ${viewerId} AND NOT is_default
+          AND deleted_at IS NULL AND id = project_id`,
+  )
+  return Number(owned[0]?.n ?? 0) + adding > 200
+}
+
+/**
  * The insert every new owned page shares, root or sub-page, in the caller's
  * transaction: the cap behind the owner's row lock, the row, a new project's
  * Full-control membership and its transition, and the `created` event.
@@ -418,21 +440,13 @@ async function insertOwnedFolder(
     kind: PageKind | null
   },
 ): Promise<string | null> {
-  await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
-
   // Trashed folders are out of the count: a person who deleted their way
   // under the cap has done exactly what the cap asks of them, and the
   // purge would otherwise change what an account may do 30 days late.
-  // Step 7: a project's extra tabs are not pages anybody made one by one;
-  // the count is projects and sub-pages, as it was before tabs were rows.
-  const owned = await rowsOf(
-    tx,
-    sql`SELECT count(*)::int AS n FROM folders
-        WHERE owner_id = ${viewerId} AND NOT is_default
-          AND deleted_at IS NULL
-          AND (tab_position IS NULL OR id = project_id)`,
-  )
-  if (Number(owned[0]?.n ?? 0) >= 200) return null
+  // Step 8: the cap counts projects. A sub-page belongs to its project and
+  // takes the project owner's owner_id whoever makes it, so counting it
+  // would let a collaborator spend the owner's cap.
+  if (input.parentId === null && (await projectCapReached(tx, viewerId, 1))) return null
 
   // 7.4: folder plus owner membership, one transaction, which this now
   // shares with the guard that admitted them.
