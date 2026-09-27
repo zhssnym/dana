@@ -3,6 +3,8 @@ import type { Executor } from '../database.js'
 import { rowsOf } from '../database.js'
 import type { DocumentTransaction, DocumentOperation, DocumentOutlineItem } from '../../shared/pages.js'
 import { BLOCK_FILE_KINDS, MAX_SECTION_DEPTH, isMediaKind } from '../../shared/page-document.js'
+import { allowedIn } from '../../shared/block-kinds.js'
+import { refusedKindMessage } from './document-body.js'
 import { nestingProblem } from './document-outline.js'
 import { hashableBlocks } from './document-hash.js'
 import { initialKeys } from './fractional-index.js'
@@ -77,8 +79,8 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
   // normalization this function does to a put_block, and it is what
   // page_blocks_checked_kind_check states in the database.
   if(op.op==='put_block'){
-   // #213: a native Result belongs to the Results facet alone.
-   if(op.block_kind==='result')throw new DocumentRefusal('not_convertible','A Result lives on the Results tab.')
+   // The registry says what Main stores: everything but a Result (#213).
+   if(!allowedIn(op.block_kind,'work'))throw new DocumentRefusal('not_convertible',refusedKindMessage(op.block_kind,'work'))
    // A presentation heading (heading1-3, `toggleable` or not) is writing on
    // Main as on a facet: it groups nothing, so it never names a Section and
    // `section_block_id` below still admits only a `section` as a parent.
