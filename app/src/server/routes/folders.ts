@@ -88,6 +88,7 @@ import { readFolderDependencies } from '../domain/task-dependencies.js'
 import type { GetFolderDependenciesResponse } from '../../shared/task-dependencies.js'
 import { inTransaction } from '../database.js'
 import { moveFolder, visibleAncestors } from '../domain/page-tree.js'
+import { retiredRoute } from '../observability/retired-route.js'
 import { routerWithPreamble } from './preamble.js'
 
 export interface FoldersRouterOptions {
@@ -532,6 +533,7 @@ export function createFoldersRouter(
   router.post(
     '/folders/:id/members',
     requireSession,
+    retiredRoute(securityLog, 'post_folder_member'),
     requireCsrf,
     mutationLimit,
     async (req: Request, res: Response) => {
@@ -912,6 +914,7 @@ export function createFoldersRouter(
   router.get(
     '/folders/:id/access-history',
     requireSession,
+    retiredRoute(securityLog, 'get_folder_access_history'),
     async (req: Request, res: Response) => {
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
@@ -969,6 +972,7 @@ export function createFoldersRouter(
   router.get(
     '/folders/:id/members/:userId/responsibility',
     requireSession,
+    retiredRoute(securityLog, 'get_member_responsibility'),
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return

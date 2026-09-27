@@ -42,6 +42,7 @@ import { createSecurityLogger } from '../security/log.js'
 import type { SecurityLogger } from '../security/log.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
+import { retiredRoute } from '../observability/retired-route.js'
 import { routerWithPreamble } from './preamble.js'
 
 export interface FilesRouterOptions {
@@ -340,6 +341,7 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
   router.delete(
     '/files/:id',
     requireSession,
+    retiredRoute(securityLog, 'delete_file'),
     requireCsrf,
     mutationLimit,
     async (req: Request, res: Response) => {

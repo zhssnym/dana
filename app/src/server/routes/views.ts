@@ -41,6 +41,8 @@ import {
   sendValidationError,
 } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
+import { createSecurityLogger } from '../security/log.js'
+import type { SecurityLogger } from '../security/log.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { checkCalendarRange, CALENDAR_RANGE_MAX_DAYS } from '../time/index.js'
 import {
@@ -55,16 +57,19 @@ import {
   searchView,
   tasksView,
 } from '../views/index.js'
+import { retiredRoute } from '../observability/retired-route.js'
 import { routerWithPreamble } from './preamble.js'
 
 export interface ViewsRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
+  securityLog?: SecurityLogger
 }
 
 export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const searchLimit = optionalLimit(options.rateLimits?.search)
+  const securityLog = options.securityLog ?? createSecurityLogger()
 
   /**
    * The tz every view takes (7.0), and the whole of what six of the nine
@@ -113,9 +118,9 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
       res.status(200).json(await read(db, viewer(req)))
     }
 
-  router.get('/views/tasks', requireSession, page(tasksView))
+  router.get('/views/tasks', requireSession, retiredRoute(securityLog, 'get_views_tasks'), page(tasksView))
   router.get('/views/planned', requireSession, page(plannedView))
-  router.get('/views/important', requireSession, page(importantView))
+  router.get('/views/important', requireSession, retiredRoute(securityLog, 'get_views_important'), page(importantView))
   router.get('/views/all', requireSession, page(allView))
 
   router.get(

@@ -62,6 +62,7 @@ import { createSecurityLogger } from '../security/log.js'
 import type { SecurityLogger } from '../security/log.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
+import { retiredRoute } from '../observability/retired-route.js'
 import { routerWithPreamble } from './preamble.js'
 
 export interface ConsultationRouterOptions {
@@ -324,6 +325,7 @@ export function createConsultationRouter(
   router.get(
     '/discussions/:id/outcomes',
     requireSession,
+    retiredRoute(securityLog, 'get_discussion_outcomes'),
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return

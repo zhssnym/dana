@@ -59,6 +59,7 @@ import { createSecurityLogger } from '../security/log.js'
 import type { SecurityLogger } from '../security/log.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
+import { retiredRoute } from '../observability/retired-route.js'
 import { routerWithPreamble } from './preamble.js'
 
 export interface WorkshopRouterOptions {
@@ -194,6 +195,7 @@ export function createWorkshopRouter(
   router.put(
     '/folders/:id/page',
     requireSession,
+    retiredRoute(securityLog, 'put_folder_page'),
     requireCsrf,
     mutationLimit,
     async (req: Request, res: Response) => {
@@ -541,6 +543,7 @@ export function createWorkshopRouter(
   router.put(
     '/shelves/:id/page',
     requireSession,
+    retiredRoute(securityLog, 'put_shelf_page'),
     requireCsrf,
     mutationLimit,
     async (req: Request, res: Response) => {
