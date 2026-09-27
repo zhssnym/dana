@@ -1,28 +1,23 @@
 /*
 The one slash menu, for every canvas: a Folder's Work, Purpose and Results, a
 Task body and a Shelf. Each canvas renders `<CanvasSlashMenu>` with the surface
-it is; what a surface offers is what its server stores:
+it is, and its `/` menu is the registry's list for that page kind
+(`SLASH_MENUS` in `shared/block-kinds.ts`): only what the page is for.
 
-- `work` (Folder Main): "Heading n" is a Section (it groups Tasks, and folds)
-  where a Section of that level stands, and a presentation heading anywhere
-  else; "Toggle heading n" is a presentation heading that folds, as on a
-  document. Task and Page (a sub-page, Wave 2) are offered. Purpose and Results are facet documents,
-  where the server stores no page, so Page is Work's alone.
-- `document` (Purpose, Results): flat headings, and toggle headings 1-3 (a
-  heading that folds the blocks nested under it); no Task, no Section.
-- `plain` (a facet with no headings).
-- `shelf`: one heading level, stored flat; no toggle list.
-- `task`: the Task composer's own schema (callout and divider; no toggle
-  list), with toggle headings as on a document. Subtask is offered: the line
-  joins the Task's subtasks, as Task turns a Work line into a Task.
-- `post`: a discussion post; a document without toggle headings (the post
-  contract has none).
+- `work` (Folder Main): Text, Heading 1-3 and Task. "Heading n" is a Section
+  (it groups Tasks, and folds) where a Section of that level stands, and a
+  presentation heading anywhere else.
+- `document` (Purpose, Results) and `plain` (a facet with no headings): Text,
+  flat headings, Checklist and Media.
+- `task`: Text, headings, Checklist (the line joins the Task's subtasks),
+  Blocked by and Media.
+- `shelf`: unchanged until Shelves are decided.
+- `post`: no `/` menu.
 
-No To-do list anywhere: Task covers it and people took one for the other. A
-to-do already stored still renders and turns into anything (`turn-into.ts`).
-Toggle heading 1-3 are found by typing ("toggle", "th1"), not listed, as in
-Notion. Each row is an icon box, the name, and the markdown shortcut that makes
-the same block on this surface, muted on the right.
+Everything else a page stores is still made by its markdown shortcut or by
+Turn into, and blocks already stored still render and save. Each row is an
+icon box, the name, and the markdown shortcut that makes the same block on
+this surface, muted on the right.
 
 Every surface nests any block under a writing block (0038); Tab does it.
 
@@ -36,12 +31,10 @@ import { SuggestionMenuController, getDefaultReactSlashMenuItems, useComponentsC
 import type { DefaultReactSuggestionItem, SuggestionMenuProps } from '@blocknote/react'
 import { SuggestionMenu, insertOrUpdateBlockForSlashMenu } from '@blocknote/core/extensions'
 
-import { CheckCircle2, Code, FileText, Flag, Heading1, Heading2, Heading3, IconMotion, Image as ImageIcon, Lightbulb, Link2, List, ListCollapse, ListOrdered, Minus, Network, Quote, Type, Workflow } from '../../../lib/icons.js'
+import { CheckCircle2, Code, FileText, Flag, Heading1, Heading2, Heading3, IconMotion, Image as ImageIcon, Lightbulb, Link2, List, ListChecks, ListCollapse, ListOrdered, Minus, Network, Quote, Type, Workflow } from '../../../lib/icons.js'
 import type { LucideIcon } from '../../../lib/icons.js'
 import './slash-menu.css'
 import { linkSlashItem } from '../../links/dana-link-picker.js'
-import { folderMark } from '../../../parts/presenters.js'
-import { openOnCreate, pendingPages } from './adapters.js'
 import { placeSection, sectionPlace } from './commands.js'
 import { TOGGLE_HEADING_SURFACES, TOGGLE_SURFACES, bindCanvasSurface, bindResultCanvas, offersResults, surfaceOf } from './markdown.js'
 import { shelfOutlineFailure, validateCanvasOutline } from './outline.js'
@@ -51,6 +44,8 @@ import { blockSelection, setBlockSelection } from './block-selection.js'
 import type { TreeBlock, TurnKey, TurnTarget } from './turn-into.js'
 import type { CanvasSurfaceKind } from './markdown.js'
 import type { CanvasEditor } from './schema.js'
+import { SLASH_MENUS } from '../../../../shared/block-kinds.js'
+import type { BlockHome, SlashCommand } from '../../../../shared/block-kinds.js'
 
 export type { CanvasSurfaceKind } from './markdown.js'
 
@@ -72,14 +67,10 @@ type Item = DefaultReactSuggestionItem & {
   readonly group: 'Basic blocks' | 'Media' | 'Advanced' | 'Turn into'
   /** The markdown shortcut that makes the same block here, shown muted. */
   readonly hint?: string
-  /** Listed only once something is typed (Notion's toggle headings). */
-  readonly searchOnly?: boolean
 }
 type AnyEditor = CanvasEditor
 
 const TURN_TRIGGER = '⁣turn'
-/** What the sidebar names a new page (`app-sidebar.tsx`). */
-const NEW_PAGE_TITLE = 'Untitled'
 
 const has = (editor: AnyEditor, type: string): boolean => type in editor.schema.blockSchema
 
@@ -199,106 +190,104 @@ function turnItems(editor: AnyEditor): Item[] {
 
 /* ------------------------------------------------------------ insert */
 
+/** The registry's home for a surface; a post has no `/` menu. */
+export function slashHomeOf(surface: CanvasSurfaceKind, results: boolean): BlockHome | null {
+  if (surface === 'post') return null
+  if (surface === 'document' || surface === 'plain') return results ? 'results' : 'doc'
+  return surface
+}
+
+/** The `/` menu for this surface: the registry's list for its home (`SLASH_MENUS`), in order. */
 export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item[] {
   const { surface, onCreateTask, onCreateSubtask, onCreateBlocker, media = true, results = false } = context
+  const home = slashHomeOf(surface, results)
+  if (home === null) return []
   const defaults = getDefaultReactSlashMenuItems(editor)
   const byKey = (key: string): DefaultReactSuggestionItem | undefined => defaults.find((item) => 'key' in item && item.key === key)
   const items: Item[] = []
-  const add = (group: Item['group'], title: string, aliases: readonly string[], onItemClick: () => void, icon?: JSX.Element, extra: { hint?: string; searchOnly?: boolean } = {}): void => {
+  const add = (group: Item['group'], title: string, aliases: readonly string[], onItemClick: () => void, icon?: JSX.Element, extra: { hint?: string } = {}): void => {
     items.push({ title, aliases: [...aliases], group, icon, onItemClick, ...extra })
   }
   const insert = (type: string, props: Record<string, unknown> = {}) => (): void => {
     insertOrUpdateBlockForSlashMenu(editor, { type, props } as never)
     editor.focus()
   }
-
-  /* #213: a native Result, made only on purpose — ordinary writing on Results
-     stays writing. First on the tab that exists for it. */
-  if (results && has(editor, 'result')) add('Basic blocks', 'Result', ['result', 'outcome', 'finding', 'deliverable'], insert('result'), glyph(Flag))
-  add('Basic blocks', 'Text', ['text', 'paragraph', 'plain', 'p'], insert('paragraph'), kindIcon('paragraph'))
-
-  // Headings, by what the surface stores.
-  if (surface === 'work') {
-    const canvas = editor
-    const cursor = canvas.getTextCursorPosition().block
-    // The line as it will be once the menu clears its `/query`: empty, it
-    // becomes the Section; written, the Section follows it.
-    const written = Array.isArray(cursor.content) ? cursor.content.map((run) => run.type === 'text' ? run.text : '*').join('') : '*'
-    const empty = written.replace(/\/[^/]*$/, '').trim() === ''
-    for (const level of [1, 2, 3] as const) {
-      // A Section where one of this level may stand, exactly as `#` makes one
-      // (`markdown.ts`); a presentation heading elsewhere.
-      const section = sectionPlace(canvas.document, cursor, level, !empty) !== null
-      add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading', ...(section ? ['section'] : [])], section ? () => {
-        // The query is already cleared: an empty line becomes the Section.
-        const block = canvas.getTextCursorPosition().block
-        placeSection(canvas, block, level, Array.isArray(block.content) && block.content.length === 0)
-      } : insert('heading', { level, isToggleable: false, presentation: false }), kindIcon('heading', level), { hint: '#'.repeat(level) })
-    }
-  } else if (surface === 'shelf') {
-    add('Basic blocks', 'Heading 1', ['h1', '#', 'title', 'heading'], insert('heading', { level: 1, isToggleable: true }), kindIcon('heading', 1), { hint: '#' })
-  } else if (surface !== 'plain') {
-    for (const level of [1, 2, 3] as const) {
-      add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading'], insert('heading', { level, isToggleable: false, presentation: false }), kindIcon('heading', level), { hint: '#'.repeat(level) })
-    }
-  }
-  /*
-  The arrow wrapper is load-bearing. `SuggestionMenuController` calls
-  `item.onItemClick(editor)` although the type says `() => void`, so handing
-  `onCreateTask` itself gave it the editor as its optional block (#204, #234).
-  Task answers "todo" and "checkbox" too: it is what a to-do became, and it
-  sits right under Text and the headings, as a to-do does in Notion.
-  */
-  if (surface === 'work' && onCreateTask !== undefined) add('Basic blocks', 'Task', ['task', 'todo', 'to-do', 'checkbox', 'action', '[]'], () => { onCreateTask() }, glyph(CheckCircle2), { hint: '[]' })
-  // Inside a Task the to-do is a subtask, one list above the writing (#221).
-  if (surface === 'task' && onCreateSubtask !== undefined) add('Basic blocks', 'Subtask', ['subtask', 'step', 'todo', 'to-do', 'checkbox', '[]'], () => { onCreateSubtask() }, glyph(CheckCircle2), { hint: '[]' })
-  if (surface === 'task' && onCreateBlocker !== undefined) add('Basic blocks', 'Blocked by', ['blocked', 'blocked by', 'waits', 'waits on', 'depends', 'dependency'], () => { onCreateBlocker() }, glyph(Workflow))
-  /* A sub-page: its folder is created by the next save (`create_page`), with
-     the title the sidebar gives a new page, and then opens with that title
-     selected to be typed over (`FolderCanvas`), as Notion opens a new page. */
-  if (surface === 'work' && has(editor, 'danaPage')) {
-    const PageIcon = folderMark(undefined).icon
-    add('Basic blocks', 'Page', ['page', 'subpage', 'sub-page'], () => {
-      const folderId = crypto.randomUUID()
-      pendingPages.set(folderId, NEW_PAGE_TITLE)
-      openOnCreate.add(folderId)
-      const current = editor.getTextCursorPosition().block
-      const empty = current.type === 'paragraph' && Array.isArray(current.content) && current.content.length === 0 && current.children.length === 0
-      // A fresh block id: a block the page already stored cannot become a page.
-      editor.insertBlocks([{ id: crypto.randomUUID(), type: 'danaPage', props: { folderId } }], current, empty ? 'before' : 'after')
-      editor.focus()
-    }, glyph(PageIcon))
-  }
   const toggles = has(editor, 'toggleListItem') && TOGGLE_SURFACES.has(surface)
-  add('Basic blocks', 'Bulleted list', ['bullet', 'bulleted', '-', '*', 'ul', 'unordered'], insert('bulletListItem'), kindIcon('bulletListItem'), { hint: '-' })
-  add('Basic blocks', 'Numbered list', ['num', 'numbered', '1.', 'ol', 'ordered'], insert('numberedListItem'), kindIcon('numberedListItem'), { hint: '1.' })
-  if (toggles) add('Basic blocks', 'Toggle list', ['toggle', '>', 'collapsible', 'details'], insert('toggleListItem'), kindIcon('toggleListItem'), { hint: '>' })
-  // A heading that folds the blocks nested under it (stored with `toggleable`),
-  // found by typing: Notion does not list them either.
-  if (TOGGLE_HEADING_SURFACES.has(surface)) {
-    for (const level of [1, 2, 3] as const) {
-      add('Basic blocks', `Toggle heading ${level}`, [`toggle heading ${level}`, `toggle h${level}`, `toggleh${level}`, `th${level}`, 'toggle', 'collapsible'], insert('heading', { level, isToggleable: true, presentation: true }), kindIcon('heading', level), { searchOnly: true })
-    }
-  }
-  // `>` is the toggle list's where there is one, and the quote's elsewhere (`markdown.ts`).
-  add('Basic blocks', 'Quote', ['quote', 'blockquote', '"'], insert('quote'), kindIcon('quote'), { hint: toggles ? '"' : '>' })
-  if (has(editor, 'callout')) add('Basic blocks', 'Callout', ['callout', 'note', 'tip', 'info'], insert('callout'), kindIcon('callout'))
-  if (has(editor, 'divider')) add('Basic blocks', 'Divider', ['div', 'divider', '---', 'hr', 'line', 'separator'], insert('divider'), kindIcon('divider'), { hint: '---' })
-  if (has(editor, 'codeBlock')) add('Basic blocks', 'Code', ['code', '```', 'snippet'], byKey('code_block')?.onItemClick ?? insert('codeBlock'), kindIcon('codeBlock'), { hint: '```' })
 
-  if (media) {
-    const image = byKey('image')
-    const file = byKey('file')
-    // Upstream's items open the file panel on the new block (`CanvasFilePanel`).
-    // Media is one command (#220): an empty image block whose chosen file
-    // decides image, audio or video. File is the generic attachment.
-    if (image !== undefined) add('Media', 'Media', ['media', 'img', 'image', 'picture', 'photo', 'audio', 'sound', 'music', 'video', 'movie'], () => { image.onItemClick() }, glyph(ImageIcon))
-    if (file !== undefined) add('Media', 'File', ['file', 'attachment', 'upload', 'document'], () => { file.onItemClick() }, glyph(FileText))
+  const commands: Record<SlashCommand, () => void> = {
+    text: () => { add('Basic blocks', 'Text', ['text', 'paragraph', 'plain', 'p'], insert('paragraph'), kindIcon('paragraph')) },
+    // Headings, by what the surface stores.
+    heading: () => {
+      if (surface === 'work') {
+        const canvas = editor
+        const cursor = canvas.getTextCursorPosition().block
+        // The line as it will be once the menu clears its `/query`: empty, it
+        // becomes the Section; written, the Section follows it.
+        const written = Array.isArray(cursor.content) ? cursor.content.map((run) => run.type === 'text' ? run.text : '*').join('') : '*'
+        const empty = written.replace(/\/[^/]*$/, '').trim() === ''
+        for (const level of [1, 2, 3] as const) {
+          // A Section where one of this level may stand, exactly as `#` makes one
+          // (`markdown.ts`); a presentation heading elsewhere.
+          const section = sectionPlace(canvas.document, cursor, level, !empty) !== null
+          add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading', ...(section ? ['section'] : [])], section ? () => {
+            // The query is already cleared: an empty line becomes the Section.
+            const block = canvas.getTextCursorPosition().block
+            placeSection(canvas, block, level, Array.isArray(block.content) && block.content.length === 0)
+          } : insert('heading', { level, isToggleable: false, presentation: false }), kindIcon('heading', level), { hint: '#'.repeat(level) })
+        }
+      } else if (surface === 'shelf') {
+        add('Basic blocks', 'Heading 1', ['h1', '#', 'title', 'heading'], insert('heading', { level: 1, isToggleable: true }), kindIcon('heading', 1), { hint: '#' })
+      } else if (surface !== 'plain') {
+        for (const level of [1, 2, 3] as const) {
+          add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading'], insert('heading', { level, isToggleable: false, presentation: false }), kindIcon('heading', level), { hint: '#'.repeat(level) })
+        }
+      }
+    },
+    /*
+    Inside a Task the checklist is the Task's subtasks, one list above the
+    writing (#221); on a Doc it is a checklist block. `[]` + space still makes
+    no to-do on a Doc (`legacyCheckList`): the menu is the one way to start one.
+    */
+    checklist: () => {
+      if (surface === 'task') {
+        if (onCreateSubtask !== undefined) add('Basic blocks', 'Checklist', ['checklist', 'check', 'subtask', 'step', 'todo', 'to-do', 'checkbox', '[]'], () => { onCreateSubtask() }, glyph(ListChecks), { hint: '[]' })
+      } else if (has(editor, 'checkListItem')) {
+        add('Basic blocks', 'Checklist', ['checklist', 'check', 'todo', 'to-do', 'checkbox'], insert('checkListItem'), glyph(ListChecks))
+      }
+    },
+    /*
+    The arrow wrapper is load-bearing. `SuggestionMenuController` calls
+    `item.onItemClick(editor)` although the type says `() => void`, so handing
+    `onCreateTask` itself gave it the editor as its optional block (#204, #234).
+    Task answers "todo" and "checkbox" too: it is what a to-do became.
+    */
+    task: () => { if (surface === 'work' && onCreateTask !== undefined) add('Basic blocks', 'Task', ['task', 'todo', 'to-do', 'checkbox', 'action', '[]'], () => { onCreateTask() }, glyph(CheckCircle2), { hint: '[]' }) },
+    blocked_by: () => { if (onCreateBlocker !== undefined) add('Basic blocks', 'Blocked by', ['blocked', 'blocked by', 'waits', 'waits on', 'depends', 'dependency'], () => { onCreateBlocker() }, glyph(Workflow)) },
+    /* Upstream's item opens the file panel on the new block (`CanvasFilePanel`).
+       Media is one command (#220): an empty image block whose chosen file
+       decides image, audio or video. */
+    media: () => {
+      const image = byKey('image')
+      if (media && image !== undefined) add('Media', 'Media', ['media', 'img', 'image', 'picture', 'photo', 'audio', 'sound', 'music', 'video', 'movie'], () => { image.onItemClick() }, glyph(ImageIcon))
+    },
+    bullet: () => { add('Basic blocks', 'Bulleted list', ['bullet', 'bulleted', '-', '*', 'ul', 'unordered'], insert('bulletListItem'), kindIcon('bulletListItem'), { hint: '-' }) },
+    numbered: () => { add('Basic blocks', 'Numbered list', ['num', 'numbered', '1.', 'ol', 'ordered'], insert('numberedListItem'), kindIcon('numberedListItem'), { hint: '1.' }) },
+    // `>` is the toggle list's where there is one, and the quote's elsewhere (`markdown.ts`).
+    quote: () => { add('Basic blocks', 'Quote', ['quote', 'blockquote', '"'], insert('quote'), kindIcon('quote'), { hint: toggles ? '"' : '>' }) },
+    callout: () => { if (has(editor, 'callout')) add('Basic blocks', 'Callout', ['callout', 'note', 'tip', 'info'], insert('callout'), kindIcon('callout')) },
+    divider: () => { if (has(editor, 'divider')) add('Basic blocks', 'Divider', ['div', 'divider', '---', 'hr', 'line', 'separator'], insert('divider'), kindIcon('divider'), { hint: '---' }) },
+    code: () => { if (has(editor, 'codeBlock')) add('Basic blocks', 'Code', ['code', '```', 'snippet'], byKey('code_block')?.onItemClick ?? insert('codeBlock'), kindIcon('codeBlock'), { hint: '```' }) },
+    file: () => {
+      const file = byKey('file')
+      if (media && file !== undefined) add('Media', 'File', ['file', 'attachment', 'upload', 'document'], () => { file.onItemClick() }, glyph(FileText))
+    },
+    diagram: () => { if (has(editor, 'diagram')) add('Advanced', 'Diagram', ['diagram', 'flowchart', 'mermaid', 'chart'], insert('diagram'), glyph(Network)) },
+    link: () => {
+      const link = linkSlashItem(editor)
+      add('Advanced', link.title, ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, glyph(Link2))
+    },
   }
-
-  if (has(editor, 'diagram')) add('Advanced', 'Diagram', ['diagram', 'flowchart', 'mermaid', 'chart'], insert('diagram'), glyph(Network))
-  const link = linkSlashItem(editor)
-  add('Advanced', link.title, ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, glyph(Link2))
+  for (const command of SLASH_MENUS[home]) commands[command]()
   return items
 }
 
@@ -321,7 +310,7 @@ function score(item: Item, query: string): number {
 /** Rank by closeness; group headers only while nothing has been typed. */
 export function filterSlashItems(items: readonly Item[], raw: string): DefaultReactSuggestionItem[] {
   const query = raw.trim().toLowerCase()
-  if (query === '') return items.filter((item) => item.searchOnly !== true).map((item) => ({ ...item, size: 'small' as const }))
+  if (query === '') return items.map((item) => ({ ...item, size: 'small' as const }))
   return items
     .map((item, index) => ({ item, index, score: score(item, query) }))
     .filter((entry) => entry.score > 0)
@@ -476,7 +465,8 @@ export function CanvasSlashMenu({ editor, context }: { readonly editor: AnyEdito
   const getItems = useMemo(() => async (query: string) => withNoResults(editor, query, slashItemsFor(editor, context, query)), [editor, context])
   const getTurnItems = useMemo(() => async (query: string) => withNoResults(editor, query, filterSlashItems(turnItems(editor), query)), [editor])
   return <>
-    <SuggestionMenuController triggerCharacter="/" getItems={getItems} suggestionMenuComponent={CanvasSuggestionList} />
+    {/* A post has no `/` menu: a slash there is a slash (and/or). Cmd/Ctrl+/ still turns a block. */}
+    {slashHomeOf(surface, results) === null ? null : <SuggestionMenuController triggerCharacter="/" getItems={getItems} suggestionMenuComponent={CanvasSuggestionList} />}
     <SuggestionMenuController triggerCharacter={TURN_TRIGGER} getItems={getTurnItems} suggestionMenuComponent={CanvasSuggestionList} />
   </>
 }

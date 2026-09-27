@@ -653,7 +653,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       <CanvasSurface
         peopleFolderId={folderId}
         // Only a reader who can write is asked to.
-        placeholder={!arrangeable ? undefined : results === true ? 'Write what came of this, or type / for a Result' : presentationHeadings === true ? 'Write why this page exists' : placeholder}
+        placeholder={!arrangeable ? undefined : results === true ? 'Write what came of this' : presentationHeadings === true ? 'Write why this page exists' : placeholder}
         editor={editor}
         onChange={changed}
         onCreateTask={facetId === undefined ? askTask : undefined}

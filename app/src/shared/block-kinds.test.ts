@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BLOCK_HOMES, allowedIn } from './block-kinds.js'
+import { BLOCK_HOMES, SLASH_COMMANDS, SLASH_MENUS, allowedIn } from './block-kinds.js'
 import { DOCUMENT_BLOCK_KINDS } from './page-document.js'
 import { WORKFLOW_PAGE_BLOCK_KINDS, WORKFLOW_PURPOSE_BLOCK_KINDS } from './workflows.js'
 
@@ -29,5 +29,16 @@ describe('block-kind registry', () => {
   it('accepts every kind an imported workflow can carry where the import writes it', () => {
     for (const kind of WORKFLOW_PAGE_BLOCK_KINDS) expect(allowedIn(kind, 'work'), kind).toBe(true)
     for (const kind of WORKFLOW_PURPOSE_BLOCK_KINDS) expect(allowedIn(kind, 'doc'), kind).toBe(true)
+  })
+})
+
+describe('slash menus', () => {
+  it('offer on each home only blocks that home stores', () => {
+    for (const home of BLOCK_HOMES) {
+      for (const command of SLASH_MENUS[home]) {
+        const kind = SLASH_COMMANDS[command]
+        if (kind !== null) expect(allowedIn(kind, home), `${home} /${command}`).toBe(true)
+      }
+    }
   })
 })
