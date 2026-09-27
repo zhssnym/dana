@@ -21,6 +21,10 @@ Every domain import is a same-directory `./x.js` specifier, so each block is
 an allowlist: forbid `./*`, then un-forbid the modules the brick may reach.
 A new file not listed below falls into the default block and may import only
 the kernel, so the wall fails closed; add the file to its brick.
+Any other spelling of a domain path (`../domain/x.js`) is refused, and so
+is every server module outside the domain that imports it, for the bricks
+below the lowest brick it reaches. src/server/security reaches no domain
+module, so it stays open.
 
 **Every block repeats SERVER_NO_CLIENT.** In flat config a later block that
 sets the same rule replaces its options for the files it matches, so a block
@@ -56,6 +60,7 @@ function brickWall(
   files: string[],
   allowed: readonly string[],
   belowViews: boolean,
+  belowDocuments: boolean,
   extra: readonly string[] = [],
 ): Linter.Config {
   return {
@@ -76,17 +81,30 @@ function brickWall(
                 'Brick wall: a domain module imports only its own brick and the bricks below it (see BRICKS in eslint.config.ts). Move the code down, or list a new file in its brick.',
             },
             {
+              // The allowlist above sees only `./x.js`, so any spelling that
+              // leaves the directory and climbs back in (`../domain/x.js`,
+              // `../../server/domain/x.js`) is refused outright.
+              group: ['**/domain', '**/domain/**', '../domain/*'],
+              message:
+                'Brick wall: import a sibling domain module as `./x.js`, never by a path that climbs back into src/server/domain.',
+            },
+            {
               group: [
                 '../routes/*',
                 '../scheduler/*',
                 '../auth/*',
                 '../sample/*',
                 '!../sample/people.js',
+                '../index.js',
+                // time/generation.js copies a Task document (documents brick)
+                // and time/index.js re-exports it, so both sit above every
+                // brick below documents. The pure calendar helpers stay open.
+                ...(belowDocuments ? ['../time/generation.js', '../time/index.js'] : []),
                 ...(belowViews ? ['../views/*'] : []),
                 ...extra.filter((s) => s.startsWith('../')).map((s) => `!${s}`),
               ],
               message:
-                'Brick wall: the domain sits below routes, the scheduler, auth, the sample workspace and (below the views brick) views. Those import the domain, never the reverse.',
+                'Brick wall: the domain sits below routes, the scheduler, auth, the sample workspace, the server entry, (below the documents brick) time/generation and time/index, and (below the views brick) views. Those import the domain, never the reverse.',
             },
           ],
         },
@@ -97,17 +115,19 @@ function brickWall(
 
 function brickWalls(): Linter.Config[] {
   const kernel = BRICKS.find(([name]) => name === 'kernel')?.[1] ?? []
-  const out: Linter.Config[] = [brickWall(['src/server/domain/**/*.ts'], kernel, true)]
+  const out: Linter.Config[] = [brickWall(['src/server/domain/**/*.ts'], kernel, true, true)]
   const viewsRank = BRICKS.findIndex(([name]) => name === 'views')
+  const documentsRank = BRICKS.findIndex(([name]) => name === 'documents')
   BRICKS.forEach(([, modules], rank) => {
     const allowed = BRICKS.slice(0, rank + 1).flatMap(([, m]) => m)
     const belowViews = rank < viewsRank
+    const belowDocuments = rank < documentsRank
     const plain = modules.filter((m) => !(m in BRICK_EXCEPTIONS))
     if (plain.length > 0) {
-      out.push(brickWall(plain.map((m) => `src/server/domain/${m}.ts`), allowed, belowViews))
+      out.push(brickWall(plain.map((m) => `src/server/domain/${m}.ts`), allowed, belowViews, belowDocuments))
     }
     for (const m of modules.filter((m) => m in BRICK_EXCEPTIONS)) {
-      out.push(brickWall([`src/server/domain/${m}.ts`], allowed, belowViews, BRICK_EXCEPTIONS[m]))
+      out.push(brickWall([`src/server/domain/${m}.ts`], allowed, belowViews, belowDocuments, BRICK_EXCEPTIONS[m]))
     }
   })
   return out
