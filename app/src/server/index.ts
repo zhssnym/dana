@@ -1012,14 +1012,37 @@ async function main(): Promise<void> {
   process.on('SIGINT', shutdown)
 }
 
+/* What a failed boot can say without logging a message (10.5). drizzle wraps
+   a failed statement, so the database's error is the cause. A migration's
+   self-check raises `step N: <words> <id>`; the words are written in the
+   migration, so they are kept and the id and anything after it are not.
+   Without this a failed deploy logged only `reason: Error`. */
+function bootFailure(err: unknown): { reason: string; note?: string } {
+  const db = err instanceof Error && err.cause instanceof Error ? err.cause : err
+  const code: unknown =
+    typeof db === 'object' && db !== null ? (db as { code?: unknown }).code : undefined
+  const reason =
+    typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code)
+      ? `sqlstate_${code}`
+      : err instanceof Error
+        ? err.name
+        : 'unknown'
+  const check = db instanceof Error ? /^step (\d+): (.*)$/s.exec(db.message) : null
+  if (check === null) return { reason }
+  const words: string[] = []
+  for (const word of (check[2] ?? '').split(' ')) {
+    if (!/^[a-z]+$/.test(word)) break
+    words.push(word)
+  }
+  return { reason, note: `Migration check failed, step ${check[1]}: ${words.join(' ')}` }
+}
+
 if (
   process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   main().catch((err: unknown) => {
-    bootLog.operation('error', 'boot_failed', {
-      reason: err instanceof Error ? err.name : 'unknown',
-    })
+    bootLog.operation('error', 'boot_failed', bootFailure(err))
     process.exit(1)
   })
 }
