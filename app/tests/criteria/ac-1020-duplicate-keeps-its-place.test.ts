@@ -49,7 +49,7 @@ async function duplicate(actor: Actor, id: string): Promise<string> {
 describe('AC-1020: a duplicate lands right after its original', () => {
   test('AC-1020 a sub-page copy keeps the parent and sits after the original', async () => {
     const actor = await owner()
-    const parent = await createFolder(actor, 'dup1020 parent')
+    const parent = await createFolder(actor, 'dup1020 parent', 'doc')
     const first = await subPage(actor, parent, 'dup1020 first')
     const second = await subPage(actor, parent, 'dup1020 second')
 

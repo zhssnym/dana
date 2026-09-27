@@ -31,7 +31,7 @@ afterAll(async () => {
 describe('AC-1522 Discuss adds the Discussion tab', () => {
   test('AC-1522: the first Discuss adds the tab, the second finds it, and the tab lists the thread', async () => {
     const [owner] = (await cast.of(app)) as [Actor, Actor]
-    const project = await createFolder(owner, 'ac1522 plans')
+    const project = await createFolder(owner, 'ac1522 plans', 'doc')
     const sub = await owner.browser.json('/folders', 'POST', { name: 'ac1522 sub', parent_folder_id: project })
     expectStatus(sub, 201, 'a sub-page')
     const subId = (sub.json() as { id: string }).id

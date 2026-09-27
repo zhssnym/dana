@@ -49,7 +49,7 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from '../domain/events.js'
 import { recordAccessTransition } from '../domain/folder-access.js'
-import { initialKeys } from '../domain/fractional-index.js'
+import { initialKeys, keyBetween } from '../domain/fractional-index.js'
 import { applyDocument, documentMetadata } from '../domain/page-document.js'
 import { positionedItems } from '../domain/page-order.js'
 import { trashFolderSubtree } from '../domain/folders.js'
@@ -661,8 +661,26 @@ export async function createSampleWorkspace(
 
   // The page tree first, parents before children, so every name resolves.
   const people = new Map<string, readonly SamplePersonKey[]>()
+  /* A project's own sub-pages sit in its Pages tab, right after Work, as
+     "Add a page inside" and migration 0061 place them. */
+  const pagesTabs = new Map<string, string>()
+  const pagesTabOf = async (rootId: string): Promise<string> => {
+    const known = pagesTabs.get(rootId)
+    if (known !== undefined) return known
+    const id = await writeSamplePage(ctx, rootId, {
+      name: 'Pages',
+      kind: 'doc',
+      tabPosition: keyBetween('a1', 'a2'),
+      parentId: null,
+    })
+    pagesTabs.set(rootId, id)
+    return id
+  }
   for (const folder of SAMPLE_WORKSPACE.folders) {
-    const parentId = folder.parent === undefined ? null : (ctx.folders.get(folder.parent) ?? null)
+    const parent = SAMPLE_WORKSPACE.folders.find((each) => each.name === folder.parent)
+    const parentRow = folder.parent === undefined ? null : (ctx.folders.get(folder.parent) ?? null)
+    const parentId =
+      parentRow !== null && parent !== undefined && parent.parent === undefined ? await pagesTabOf(parentRow) : parentRow
     const inherited = folder.parent === undefined ? [] : (people.get(folder.parent) ?? [])
     const members = [...new Set([...inherited, ...(folder.members ?? [])])]
     people.set(folder.name, members)
@@ -843,7 +861,12 @@ export async function removeSampleWorkspace(
 
     const folders = await rowsOf(
       tx,
-      sql`SELECT f.id, f.name, f.parent_folder_id, f.deleted_at IS NOT NULL AS trashed,
+      /* A sub-page under a tab (a project's Pages tab) hangs from its
+         project for this walk: tabs are not registered. */
+      sql`SELECT f.id, f.name,
+                 (SELECT CASE WHEN pp.tab_position IS NOT NULL THEN pp.project_id ELSE pp.id END
+                    FROM folders pp WHERE pp.id = f.parent_folder_id) AS parent_folder_id,
+                 f.deleted_at IS NOT NULL AS trashed,
                  (SELECT count(*)::int FROM folder_members m
                    WHERE m.folder_id = f.id AND m.user_id <> ${userId}::uuid
                      AND m.user_id NOT IN (${idList(SAMPLE_PERSON_IDS)})) AS others,

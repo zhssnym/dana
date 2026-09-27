@@ -127,6 +127,16 @@ async function insertTab(
   return id
 }
 
+/** Whether a page body holds any block or live task. */
+async function holdsWriting(tx: Executor, pageId: string): Promise<boolean> {
+  const rows = await rowsOf(
+    tx,
+    sql`SELECT (EXISTS (SELECT 1 FROM page_blocks WHERE folder_id = ${pageId}::uuid)
+             OR EXISTS (SELECT 1 FROM tasks WHERE folder_id = ${pageId}::uuid AND deleted_at IS NULL)) AS held`,
+  )
+  return rows[0]?.held === true
+}
+
 /** The live Discussion tab of a project, or null. */
 export async function liveDiscussionTab(tx: Executor, projectId: string): Promise<string | null> {
   const rows = await rowsOf(
@@ -167,6 +177,15 @@ export async function addTab(
         await insertTab(tx, actorId, root, 'doc', 'Results', results)
         await insertTab(tx, actorId, root, 'discussion', DEFAULT_TAB_NAMES.discussion, keyBetween(results, null))
       } else {
+        /* A Discussion page draws only threads and refuses writing, so
+           picking it over a sub-page link or a task already on the root
+           would hide them for good. */
+        if (kind === 'discussion' && (await holdsWriting(tx, root.id))) {
+          return {
+            kind: 'conflict',
+            reason: 'This project already holds pages or tasks; pick Doc, Work or the usual project.',
+          }
+        }
         await tx.execute(sql`UPDATE folders SET kind = ${kind} WHERE id = ${root.id}::uuid`)
       }
       return { kind: 'ok', projectId: root.id }
@@ -180,6 +199,40 @@ export async function addTab(
     await insertTab(tx, actorId, root, kind, DEFAULT_TAB_NAMES[kind], keyBetween(await lastTabPosition(tx, root.id), null))
     return { kind: 'ok', projectId: root.id }
   })
+}
+
+/**
+ * Where a new sub-page of a Work tab goes: the project's live `Pages` Doc
+ * tab, added right after that Work tab when there is none. Work holds
+ * tasks, not page links; migration 0061 moved every root's page links and
+ * children to a `Pages` tab, and "Add a page inside" keeps that shape.
+ * Null when `workTabId` is not a live Work tab.
+ */
+export async function pagesTabFor(tx: Executor, actorId: string, workTabId: string): Promise<string | null> {
+  const root = await lockedProjectOf(tx, workTabId)
+  if (root === null) return null
+  const work = await rowsOf(
+    tx,
+    sql`SELECT tab_position FROM folders
+         WHERE id = ${workTabId}::uuid AND kind = 'work' AND tab_position IS NOT NULL AND deleted_at IS NULL`,
+  )
+  if (work[0] === undefined) return null
+  const existing = await rowsOf(
+    tx,
+    sql`SELECT id FROM folders
+         WHERE project_id = ${root.id}::uuid AND tab_position IS NOT NULL AND kind = 'doc'
+           AND name = 'Pages' AND deleted_at IS NULL
+         ORDER BY tab_position, id LIMIT 1`,
+  )
+  if (existing[0] !== undefined) return String(existing[0].id)
+  const at = String(work[0].tab_position)
+  const next = await rowsOf(
+    tx,
+    sql`SELECT min(tab_position) AS next FROM folders
+         WHERE project_id = ${root.id}::uuid AND tab_position > ${at}`,
+  )
+  const after = next[0]?.next == null ? null : String(next[0].next)
+  return insertTab(tx, actorId, root, 'doc', 'Pages', keyBetween(at, after))
 }
 
 /** The project a page belongs to, or null for no such page. */

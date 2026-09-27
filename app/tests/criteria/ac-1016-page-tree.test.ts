@@ -90,7 +90,7 @@ function move(actor: Actor, id: string, body: Record<string, unknown>) {
 describe('AC-1016: the page tree gates its body ids and stores what arrives', () => {
   test('AC-1016 a stranger naming somebody else\'s page as parent or neighbour gets 404', async () => {
     const { owner, stranger } = await actors()
-    const parent = await createFolder(owner, 'tree ac1014 private parent')
+    const parent = await createFolder(owner, 'tree ac1014 private parent', 'doc')
     const child = await subPage(owner, parent, 'tree ac1014 private child')
     const mine = await createFolder(stranger, 'tree ac1014 stranger page')
 
@@ -115,7 +115,7 @@ describe('AC-1016: the page tree gates its body ids and stores what arrives', ()
 
   test('AC-1016 a sub-page stores its parent, copies the parent\'s members, and Can view may not add one', async () => {
     const { owner, viewer } = await actors()
-    const parent = await createFolder(owner, 'tree ac1014 shared parent')
+    const parent = await createFolder(owner, 'tree ac1014 shared parent', 'doc')
     await seedMembership(app.db, parent, viewer.id, { access: 'can_view' })
 
     const response = await owner.browser.json('/folders', 'POST', {
@@ -146,7 +146,7 @@ describe('AC-1016: the page tree gates its body ids and stores what arrives', ()
 
   test('AC-1016 a move refuses a cycle, a tree deeper than 20 and the default folder; after_id orders siblings', async () => {
     const { owner } = await actors()
-    const top = await createFolder(owner, 'tree ac1014 top')
+    const top = await createFolder(owner, 'tree ac1014 top', 'doc')
     const mid = await subPage(owner, top, 'tree ac1014 mid')
     const low = await subPage(owner, mid, 'tree ac1014 low')
 
@@ -158,7 +158,7 @@ describe('AC-1016: the page tree gates its body ids and stores what arrives', ()
     expectStatus(await move(owner, desk, { parent_folder_id: top }), 422, 'the default folder stays a root')
 
     // Depth: a chain of 20 levels takes no 21st, by creation or by move.
-    let deepest = await createFolder(owner, 'tree ac1014 d1')
+    let deepest = await createFolder(owner, 'tree ac1014 d1', 'doc')
     for (let level = 2; level <= 20; level += 1) {
       deepest = await subPage(owner, deepest, `tree ac1014 d${String(level)}`)
     }
@@ -190,7 +190,7 @@ describe('AC-1017: a parent the viewer is not a member of never reaches them', (
   test('AC-1017 a sub-page member without the parent sees a root, no ancestors, and no parent in search', async () => {
     const { owner, childonly } = await actors()
     const parentName = 'tree ac1015 secretparentname'
-    const parent = await createFolder(owner, parentName)
+    const parent = await createFolder(owner, parentName, 'doc')
     const child = await subPage(owner, parent, 'tree ac1015 visiblechild')
     await seedMembership(app.db, child, childonly.id, { access: 'can_edit' })
     await app.db.execute(sql`
@@ -233,7 +233,7 @@ describe('AC-1017: a parent the viewer is not a member of never reaches them', (
 describe('AC-1018: a page goes to Trash with the sub-pages its actor may trash', () => {
   test('AC-1018 trash takes the set, spares the rest, restores together and purges together', async () => {
     const { owner, editor, childonly } = await actors()
-    const parent = await createFolder(owner, 'tree ac1016 parent')
+    const parent = await createFolder(owner, 'tree ac1016 parent', 'doc')
     const child = await subPage(owner, parent, 'tree ac1016 child')
     const grandchild = await subPage(owner, child, 'tree ac1016 grandchild')
     // A sub-page the owner may not trash: made by an editor, with the owner

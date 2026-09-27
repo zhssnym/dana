@@ -183,15 +183,23 @@ function TopTrail(): React.JSX.Element {
   const taskId = pathname.startsWith(TASK_PREFIX) ? pathname.slice(TASK_PREFIX.length) : null
   const task = useTask(taskId)
 
+  /* A tab's own crumb repeats the tab row, so a tab draws its project's
+     trail; an open thread still names the tab it lives in. */
+  const pageId = pathname.startsWith(FOLDER_PREFIX) ? pathname.slice(FOLDER_PREFIX.length) : null
+  const allPages = useAllPages(pageId !== null)
+  const tab = allPages.data?.find((page) => page.id === pageId)
+  const trailId =
+    tab !== undefined && tab.tab_position !== null && discussionId === null ? tab.project_id : pageId
+
   let trail: React.JSX.Element | null = null
-  if (pathname.startsWith(FOLDER_PREFIX)) {
+  if (pageId !== null && trailId !== null) {
     const list = new URLSearchParams(search)
     list.delete('discussion')
     list.delete('outcome')
     const listTo = list.size === 0 ? pathname : `${pathname}?${list.toString()}`
     trail = (
       <BreadcrumbTrail
-        folderId={pathname.slice(FOLDER_PREFIX.length)}
+        folderId={trailId}
         {...(discussionId !== null ? { current: discussion.data?.title ?? '', folderTo: listTo } : {})}
       />
     )

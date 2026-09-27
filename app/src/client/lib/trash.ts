@@ -161,7 +161,14 @@ export function useTrash(): TrashItem[] {
           subject: folder.id,
           name: folder.name,
           at: Date.parse(folder.deleted_at),
-          from: plural(folder.task_count, 'task', 'tasks'),
+          /* A tab or sub-page says whose it is; a count of none says
+             nothing, least of all on a Discussion, whose threads are it. */
+          from:
+            folder.project_name === null
+              ? plural(folder.task_count, 'task', 'tasks')
+              : folder.task_count === 0
+                ? folder.project_name
+                : `${folder.project_name}, ${plural(folder.task_count, 'task', 'tasks')}`,
           purgeable: mayPurge(folder, 'folder'),
         }),
       ),

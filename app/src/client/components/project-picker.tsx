@@ -27,10 +27,13 @@ const ROW =
 export function ProjectPicker({
   editable,
   pending,
+  discussion,
   onPick,
 }: {
   readonly editable: boolean
   readonly pending: boolean
+  /** False while the root holds pages or tasks, which a Discussion page cannot show. */
+  readonly discussion: boolean
   readonly onPick: (kind: Pick) => void
 }): React.JSX.Element {
   if (!editable) {
@@ -49,7 +52,7 @@ export function ProjectPicker({
       </button>
       <div className="flex flex-col gap-[var(--space-row)]">
         <h2 className="px-3 text-sm text-muted-foreground">Or start with one page</h2>
-        {ONE_PAGE.map((option) => (
+        {ONE_PAGE.filter((option) => discussion || option.kind !== 'discussion').map((option) => (
           <button key={option.kind} type="button" disabled={pending} onClick={() => onPick(option.kind)} className={ROW}>
             <span className="font-section text-sm text-foreground">{option.name}</span>
             <span className="text-sm text-muted-foreground">{option.line}</span>

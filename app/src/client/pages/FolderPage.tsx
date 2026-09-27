@@ -345,7 +345,9 @@ function FolderPageBody({
   const folderOk = here.status === 'success' && !leaving
   const writes = folderOk && (kind === 'work' || kind === 'doc')
   const open = useFolderOpenTasks(id, writes)
-  const page = useFolderPage(id, writes)
+  /* An unpicked root is read too: the picker offers Discussion only on an
+     empty one, since a Discussion page cannot show writing. */
+  const page = useFolderPage(id, writes || (folderOk && kind === null))
   const allPages = useAllPages(folderOk)
   const tabs = useMemo(
     () => (herePage === undefined ? [] : projectTabs(allPages.data ?? [], herePage.project_id)),
@@ -1068,6 +1070,7 @@ function FolderPageBody({
           <ProjectPicker
             editable={tabsEditable}
             pending={createTab.isPending}
+            discussion={page.data !== undefined && page.data.blocks.length === 0 && page.data.items.length === 0}
             onPick={(pick) => {
               createTab.mutate({ folderId: id, kind: pick })
             }}

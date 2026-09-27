@@ -39,7 +39,11 @@ type Actor = Awaited<ReturnType<Cast['of']>>[number]
 async function sampleFolders(userId: string): Promise<Record<string, unknown>[]> {
   return rows(
     app.db,
-    sql`SELECT f.id, f.name, f.parent_folder_id FROM sample_objects s JOIN folders f ON f.id = s.id
+    // A sub-page in a project's Pages tab hangs from the project: tabs are not registered.
+    sql`SELECT f.id, f.name,
+               (SELECT CASE WHEN pp.tab_position IS NOT NULL THEN pp.project_id ELSE pp.id END
+                  FROM folders pp WHERE pp.id = f.parent_folder_id) AS parent_folder_id
+          FROM sample_objects s JOIN folders f ON f.id = s.id
         WHERE s.user_id = ${userId}::uuid AND s.kind = 'folder'
         ORDER BY f.name`,
   )

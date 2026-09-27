@@ -128,7 +128,7 @@ async function lastItem(actor: Actor, folderId: string): Promise<string | undefi
 test('AC-1019 a page block and its sub-page are created, trashed, restored and moved together', async () => {
   const [owner, member] = await cast.of(app)
   if (owner === undefined || member === undefined) throw new Error('two actors')
-  const parent = await createFolder(owner, 'ac1019 parent')
+  const parent = await createFolder(owner, 'ac1019 parent', 'doc')
   await seedMembership(app.db, parent, member.id, { access: 'can_edit' })
 
   // create_page: the folder row, the copied member, the block where it was typed.
