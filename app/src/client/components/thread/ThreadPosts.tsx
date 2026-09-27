@@ -1,16 +1,16 @@
 /*
-A thread's posts and its composer (W-C; r3 discuss), for a Discussion and for
-a Task's Discussion tab alike.
+A Discussion thread's posts and its composer (W-C; r3 discuss; m12).
 
-Slack's stream, calm: posts oldest first (`created_at`, then id), grouped by
-`grouping.ts` — a group's first post wears its author's face, name and time;
-the posts that follow within five minutes are just their text, their time
-showing in the face's gutter when the post is pointed at or tapped. A new day
-draws a divider. A reply carries one small line naming the post it answers
-(7.14 keeps one level), which scrolls there, unless it answers the post right
-above it (`grouping.ts`). A thread opens at its first post from someone else
-since the reader last read it (`openAt`), with one "New" hairline above it
-for the visit, otherwise at its end.
+Slack's stream, calm and compact: the posts that answer nothing run oldest
+first (`created_at`, then id), each with its replies under it as one indented,
+quieter run (7.14 keeps one level; `grouping.ts`). A group's first post wears
+its author's small face, name and time; the posts that follow within five
+minutes are just their text, their time showing in the gutter when the post
+is pointed at or tapped. The time beside a name is the clock for today, else
+the day and the clock ("Yesterday 14:05", "Mon 14:05", "24 Sep 14:05"), so no
+day dividers are drawn. A thread opens at its first post from someone else
+since the reader last read it (`openAt`), with one "New" line above it for the
+visit, otherwise at its end.
 
 Live (r7): a post sent here shows at once, muted until the server has it,
 and sends go out in order. While the reader is at the end, new posts keep
@@ -19,18 +19,19 @@ composer instead, and nothing moves on its own.
 
 What each post offers is `ThreadAuthority` (lib/thread.ts), which the caller
 has already multiplied by the thread's own state (a closed Discussion offers
-nothing): Like, Reply and "…" (Edit, Delete) sit in a small bar at the post's
-top right, shown on hover or focus. A like that someone pressed stays as a
-chip under the text. Edit opens the editor in place; Delete asks first. The
-composer is always at the bottom; Reply moves the cursor there.
+nothing): Like, Reply and "…" (Edit, Delete) sit in a small bar at the right
+of the post's own row, shown on hover or focus, never over the post above. A
+liked post keeps one small chip under its text naming who liked it ("You",
+"Lucía and You"), never a count; pressing it likes or unlikes. Edit opens the
+editor in place; Delete asks first. The composer is one box pinned at the
+bottom; Reply moves the cursor there and names the post above it.
 */
-import { Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 
 import { postFileIds, postPlainText } from '../../../shared/comments.js'
 import type { CommentFile, CommentLine, PostCommentBody, PostContent } from '../../../shared/comments.js'
 import { useDeleteComment, usePatchComment, useSetCommentLike } from '../../api/mutations.js'
-import { formatDayHeading } from '../../lib/dates.js'
+import { formatDay } from '../../lib/dates.js'
 import { ArrowDown, MoreHorizontal, Reply, ThumbsUp } from '../../lib/icons.js'
 import type { PersonResolver, ThreadAuthority } from '../../lib/thread.js'
 import { formatTime, useTimeFormat } from '../../lib/time-format.js'
@@ -42,8 +43,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { TRY_AGAIN } from '../ui/copy.js'
 import { cn } from '../ui/utils.js'
 import { localClock, localDay, placePosts } from './grouping.js'
+import type { PlacedPost } from './grouping.js'
 import { PostView } from './PostView.js'
-import type { PostEditorProps } from './PostEditor.js'
 
 const PostEditor = lazy(() => import('./PostEditor.js'))
 
@@ -59,33 +60,31 @@ function editedFileIds(next: PostContent, previous: PostContent | null | undefin
 
 /* Shown while the post is pointed at or holds focus (a tap focuses it on touch). */
 const ON_POST =
-  'opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover:opacity-100 group-focus-within:opacity-100 group-focus:opacity-100'
+  'opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover/post:opacity-100 group-focus-within/post:opacity-100 group-focus/post:opacity-100'
 const BAR_BUTTON =
-  'flex size-7 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground'
-/* A touch screen has no hover: the tapped post's bar is a row under its text
-   rather than a float over the line above it. */
+  'flex size-5.5 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground'
+/* Inside the post's own row, at its top right: a collapsed one-line row is
+   exactly the bar's height, so it never reaches the post above. A touch
+   screen has no hover: the tapped post's bar is a row under its text. */
 const BAR_PLACE =
-  'absolute -top-3 right-2 z-10 pointer-coarse:static pointer-coarse:mt-1 pointer-coarse:hidden pointer-coarse:w-fit pointer-coarse:opacity-100 pointer-coarse:group-focus-within:flex pointer-coarse:group-focus:flex'
+  'absolute top-0 right-1 z-10 pointer-coarse:static pointer-coarse:mt-1 pointer-coarse:hidden pointer-coarse:w-fit pointer-coarse:opacity-100 pointer-coarse:group-focus-within/post:flex pointer-coarse:group-focus/post:flex'
 
 function EditorFallback(): React.JSX.Element {
-  return <div className="h-10 rounded-lg border border-border bg-background" aria-busy="true" />
+  return <div className="h-20 rounded-lg border border-border bg-background" aria-busy="true" />
 }
 
-/** What a reply line quotes of the post it answers. */
+/** What the reply line quotes of the post it answers. */
 function gist(line: CommentLine): string {
   const text = (line.body ?? '').replace(/\s+/g, ' ').trim()
   if (text !== '') return text
   return line.files.length > 0 ? 'an attachment' : ''
 }
 
-/** One drawn event in a task's timeline, and when it happened (epoch ms). */
-export interface TimelineItem {
-  readonly key: string
-  readonly at: number
-  readonly node: ReactNode
+/** "You", "Lucía and You", "Sam, Lucía and You": everyone, by name. */
+function namesOf(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? ''
+  return `${names.slice(0, -1).join(', ')} and ${names.at(-1) ?? ''}`
 }
-
-const NO_EVENTS: readonly TimelineItem[] = []
 
 export function ThreadPosts({
   folderId,
@@ -102,9 +101,6 @@ export function ThreadPosts({
   openAt,
   post,
   onRefused,
-  events,
-  renderActions,
-  placeholder,
 }: {
   readonly folderId: string | null
   readonly comments: readonly CommentLine[] | undefined
@@ -115,24 +111,18 @@ export function ThreadPosts({
   readonly personOf: PersonResolver
   /** Already false everywhere when the thread takes no writes. */
   readonly may: ThreadAuthority
-  /** Drawn instead of the composer (a closed thread). */
+  /** Drawn instead of the composer (a closed thread; null draws nothing). */
   readonly closed?: React.ReactNode
   readonly autoFocus?: boolean
-  /** Put the cursor in the composer once the thread has landed at its end
-   * (a task's tab, chosen by pointer). */
+  /** Put the cursor in the composer once the thread has landed at its end. */
   readonly focusOnLand?: boolean
   /** Where the thread opens: after this instant (the reader's last read),
    * at the first post by someone else; null opens at the end. Absent, the
-   * thread does not move (a task's tab). */
+   * thread does not move. */
   readonly openAt?: string | null
   readonly post: (body: PostCommentBody) => Promise<unknown>
   /** A write the server refused (403/409): the thread changed under us. */
   readonly onRefused?: (error: unknown) => void
-  /** Timeline events, drawn by the caller, placed between posts by time. */
-  readonly events?: readonly TimelineItem[]
-  /** The composer's own button row (a task's "Mark done ▾" and "Post"). */
-  readonly renderActions?: PostEditorProps['renderActions']
-  readonly placeholder?: string
 }): React.JSX.Element {
   const patch = usePatchComment()
   const remove = useDeleteComment()
@@ -145,7 +135,7 @@ export function ThreadPosts({
   const [flash, setFlash] = useState<string | null>(null)
   const flashTimer = useRef<number | undefined>(undefined)
   useEffect(() => () => { window.clearTimeout(flashTimer.current) }, [])
-  /* Sent, not yet stored: drawn muted at the end until the server answers. */
+  /* Sent, not yet stored: drawn muted until the server answers. */
   const [pending, setPending] = useState<readonly CommentLine[]>([])
   const sending = useRef<Promise<unknown>>(Promise.resolve())
   /* Where "New" goes this visit, fixed when the thread lands. */
@@ -163,61 +153,18 @@ export function ThreadPosts({
   const shown = useMemo(() => (pending.length === 0 ? posts : [...posts, ...pending]), [posts, pending])
   const placed = useMemo(() => placePosts(shown), [shown])
   const byId = useMemo(() => new Map(posts.map((line) => [line.id, line])), [posts])
-  const timeline = events ?? NO_EVENTS
-  /* Each post with the events that happened before it; the rest go last. */
-  const { before, after } = useMemo(() => {
-    const sorted = [...timeline].sort((a, b) => a.at - b.at)
-    const map = new Map<string, TimelineItem[]>()
-    let next = 0
-    for (const { line } of placed) {
-      const at = Date.parse(line.created_at)
-      const run: TimelineItem[] = []
-      while (next < sorted.length && (sorted[next]?.at ?? 0) <= at) {
-        const item = sorted[next]
-        if (item !== undefined) run.push(item)
-        next += 1
-      }
-      if (run.length > 0) map.set(line.id, run)
-    }
-    return { before: map, after: sorted.slice(next) }
-  }, [timeline, placed])
-  /* Day dividers over posts and events together, so an event sits under its
-     own day's heading; a thread on one day needs no dates (r4). Keyed by the
-     post id or event key the divider goes above. */
-  const dividers = useMemo(() => {
-    const order: { key: string; day: string }[] = []
-    const eventDay = (item: TimelineItem): string => localDay(new Date(item.at).toISOString())
-    for (const { line } of placed) {
-      for (const item of before.get(line.id) ?? []) order.push({ key: item.key, day: eventDay(item) })
-      order.push({ key: line.id, day: localDay(line.created_at) })
-    }
-    for (const item of after) order.push({ key: item.key, day: eventDay(item) })
-    const map = new Map<string, string>()
-    if (new Set(order.map((entry) => entry.day)).size < 2) return map
-    let previous: string | null = null
-    for (const { key, day } of order) {
-      if (day !== previous) map.set(key, day)
-      previous = day
-    }
-    return map
-  }, [placed, before, after])
   const today = localDay(new Date().toISOString())
-  /* The post clicked, whose words the banner quotes; the reply joins its
-     thread's one level (7.14), so it is sent under that post's parent. */
+  /* The post clicked, whose words the line over the composer quotes; the
+     reply joins its thread's one level (7.14), so it is sent under that
+     post's parent. */
   const replyTarget = replyTo === null ? undefined : byId.get(replyTo)
 
-  const dayDivider = (day: string | undefined): React.ReactNode =>
-    day === undefined ? null : (
-      <div className="flex items-center gap-3 px-2 pt-3 pb-1" role="separator" aria-label={formatDayHeading(day, today)}>
-        <span className="h-px flex-1 bg-border" aria-hidden="true" />
-        <span className="text-xs font-medium text-muted-foreground" aria-hidden="true">
-          {formatDayHeading(day, today)}
-        </span>
-        <span className="h-px flex-1 bg-border" aria-hidden="true" />
-      </div>
-    )
-
   const timeOf = (instant: string): string => formatTime(localClock(instant), clock) ?? ''
+  /* Beside a name: the clock today, else the day too. */
+  const stampOf = (instant: string): string => {
+    const day = localDay(instant)
+    return day === today ? timeOf(instant) : `${formatDay(day, today)} ${timeOf(instant)}`
+  }
   /* The gutter's time: Slack drops the AM/PM there. */
   const shortTimeOf = (instant: string): string => timeOf(instant).replace(/\s?[AP]M$/, '')
 
@@ -231,7 +178,7 @@ export function ThreadPosts({
   }
 
   /* Arriving at `#post-<id>` (a notification about that post) brings it into
-     view once, the same way a reply's quote line does. */
+     view once. */
   const arrived = useRef(false)
   useEffect(() => {
     if (arrived.current) return
@@ -285,12 +232,15 @@ export function ThreadPosts({
     const last = shown.at(-1)
     const mine = last?.author_id === viewerId
     if (atEnd.current || mine) {
-      end.current?.scrollIntoView({ block: 'end' })
+      /* A reply lands under its parent, not at the end: show it where it is. */
+      const at = last === undefined || last.parent_id === null ? null : document.getElementById(`post-${last.id}`)
+      if (at) at.scrollIntoView({ block: 'nearest' })
+      else end.current?.scrollIntoView({ block: 'end' })
       return
     }
     const firstNew = shown.findIndex((line) => line.id === previous) + 1
-    const arrived = shown[firstNew]
-    if (arrived !== undefined) setUnseen((current) => current ?? arrived.id)
+    const arrivedLine = shown[firstNew]
+    if (arrivedLine !== undefined) setUnseen((current) => current ?? arrivedLine.id)
   }, [lastId, shown, viewerId])
 
   const send = (body: PostCommentBody): Promise<unknown> => {
@@ -307,6 +257,7 @@ export function ThreadPosts({
             content: body.content,
             likes: 0,
             liked: false,
+            liked_by: [],
             files: [],
             created_at: new Date().toISOString(),
             edited_at: null,
@@ -328,273 +279,270 @@ export function ThreadPosts({
   if (comments === undefined && loading) return <SkeletonList />
   const stale = failed
 
+  const newLine = (id: string): React.ReactNode =>
+    newFrom === id ? (
+      <div className="flex items-center gap-2 py-1 pl-2" role="separator" aria-label="New">
+        <span className="text-xs font-medium text-primary" aria-hidden="true">New</span>
+        <span className="h-px flex-1 bg-primary opacity-40" aria-hidden="true" />
+      </div>
+    ) : null
+
+  /** One row: a post of the spine, or a reply (smaller face, same rhythm). */
+  const row = ({ line, head }: PlacedPost, reply: boolean): React.ReactNode => {
+    const author = personOf(line.author_id)
+    const mine = line.author_id === viewerId
+    const sent = line.id.startsWith('pending-')
+    const editable = mine && may.mutateOwnComment
+    const deletable = (mine && may.mutateOwnComment) || may.moderate
+    const fullDate = new Date(line.created_at).toLocaleString()
+    const hasBar = !sent && (may.likeComment || may.createComment || editable || deletable)
+    const likers = (line.liked_by ?? (line.liked && viewerId !== null ? [viewerId] : []))
+    /* The reader last, as "… and You". */
+    const likerNames = [
+      ...likers.filter((id) => id !== viewerId).map((id) => personOf(id).name),
+      ...(line.liked ? ['You'] : []),
+    ]
+    const likedBy = namesOf(likerNames)
+    return (
+      <article
+        id={sent ? undefined : `post-${line.id}`}
+        aria-busy={sent || undefined}
+        tabIndex={-1}
+        aria-label={`${author.name}, ${fullDate}`}
+        className={cn(
+          'group/post relative flex min-w-0 gap-2 rounded-md px-2 py-0.5 outline-none transition-colors duration-[var(--duration-base)]',
+          /* The post being edited has the editor's own frame; a tint too is a double frame. */
+          editing !== line.id && 'hover:bg-accent focus:bg-accent',
+          head && 'mt-1.5',
+          sent && 'opacity-60',
+          flash === line.id && 'bg-selected hover:bg-selected focus:bg-selected',
+        )}
+      >
+        <div className={cn('flex shrink-0 justify-center', reply ? 'w-7' : 'w-8')}>
+          {head ? (
+            <Face
+              className={cn('mt-0.5', reply ? 'size-5 data-[size=sm]:size-5' : 'size-6 data-[size=sm]:size-6')}
+              person={{ id: line.author_id, initials: initialsOf(author.name), name: author.name, ...(author.image === undefined ? {} : { image: author.image }) }}
+            />
+          ) : (
+            <time
+              dateTime={line.created_at}
+              title={fullDate}
+              className={cn('text-xs leading-5 whitespace-nowrap text-muted-foreground tabular-nums', ON_POST)}
+            >
+              {shortTimeOf(line.created_at)}
+            </time>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          {head ? (
+            <div className="flex min-w-0 items-baseline gap-2">
+              <span className="min-w-0 truncate text-sm font-medium text-foreground">{author.name}</span>
+              <time dateTime={line.created_at} title={fullDate} className="shrink-0 text-xs text-muted-foreground">
+                {stampOf(line.created_at)}
+              </time>
+            </div>
+          ) : null}
+          <div className="min-w-0">
+            {editing === line.id && folderId !== null ? (
+              <div className="py-1">
+                <Suspense fallback={<EditorFallback />}>
+                  <PostEditor
+                    folderId={folderId}
+                    initial={{ content: line.content, body: line.body, files: line.files }}
+                    submitLabel="Save"
+                    autoFocus
+                    label="Edit post"
+                    onCancel={() => { setEditing(null) }}
+                    onSubmit={(content) =>
+                      patch
+                        .mutateAsync({ id: line.id, body: { content, file_ids: editedFileIds(content, line.content, line.files) } })
+                        .then(() => { setEditing(null) }, (error: unknown) => { onRefused?.(error); throw error })
+                    }
+                  />
+                </Suspense>
+              </div>
+            ) : (
+              <PostView content={line.content} body={line.body} files={line.files} edited={line.edited_at !== null} />
+            )}
+          </div>
+          {line.likes > 0 ? (
+            <button
+              type="button"
+              aria-pressed={line.liked}
+              aria-label={`${likedBy === '' ? 'Liked' : `Liked by ${likedBy}`}. ${line.liked ? 'Remove like' : 'Like'}`}
+              title={likedBy === '' ? undefined : `Liked by ${likedBy}`}
+              disabled={!may.likeComment}
+              className={cn(
+                'mt-0.5 mb-0.5 inline-flex h-5 max-w-full min-w-0 items-center gap-1 rounded-full px-1.5 text-xs outline-none transition-colors duration-[var(--duration-fast)]',
+                line.liked
+                  ? 'bg-selected text-foreground'
+                  : 'border border-border text-muted-foreground hover:text-foreground',
+              )}
+              onClick={() => { like.mutate({ id: line.id, liked: !line.liked }) }}
+            >
+              <ThumbsUp className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+              {likedBy === '' ? null : <span className="min-w-0 truncate">{likedBy}</span>}
+            </button>
+          ) : null}
+
+          {hasBar && editing !== line.id ? (
+            <div className={cn('flex items-center rounded-md border border-border bg-background', ON_POST, BAR_PLACE)}>
+              {may.likeComment ? (
+                <button
+                  type="button"
+                  aria-pressed={line.liked}
+                  aria-label={line.liked ? 'Remove like' : 'Like'}
+                  title={line.liked ? 'Remove like' : 'Like'}
+                  className={cn(BAR_BUTTON, line.liked && 'text-foreground')}
+                  onClick={() => { like.mutate({ id: line.id, liked: !line.liked }) }}
+                >
+                  <ThumbsUp className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              ) : null}
+              {may.createComment ? (
+                <button
+                  type="button"
+                  aria-label="Reply"
+                  title="Reply"
+                  className={BAR_BUTTON}
+                  onClick={() => {
+                    setReplyTo(line.id)
+                    setFocus((value) => value + 1)
+                  }}
+                >
+                  <Reply className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              ) : null}
+              {editable || deletable ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger render={<button type="button" aria-label="Post actions" title="More" className={BAR_BUTTON} />}>
+                    <MoreHorizontal className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {editable ? (
+                      <DropdownMenuItem onClick={() => { setEditing(line.id) }}>Edit</DropdownMenuItem>
+                    ) : null}
+                    {deletable ? (
+                      <DropdownMenuItem variant="destructive" onClick={() => { setDeleting(line.id) }}>
+                        Delete
+                      </DropdownMenuItem>
+                    ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </article>
+    )
+  }
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {/* The history scrolls in its own region when the caller gives the
-          thread a height (a Discussion fills the screen); its posts sit at
-          the bottom, just above the composer, as Slack's do. */}
+          thread a height (a Discussion fills the screen); it reads from the
+          top, like a letter, and the composer stays at the foot. */}
       <div data-thread-history className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
-      <div className="flex min-h-full flex-col justify-end pt-3">
-      {posts.length > 0 || timeline.length > 0 ? (
-        <ol className="-mx-2 min-w-0" aria-label={timeline.length > 0 ? 'Timeline' : 'Posts'}>
-          {placed.map(({ line, head: grouped, quote }) => {
-            const earlier = before.get(line.id)
-            const head = grouped || earlier !== undefined
-            const author = personOf(line.author_id)
-            const mine = line.author_id === viewerId
-            const sent = line.id.startsWith('pending-')
-            const parent = line.parent_id === null ? undefined : byId.get(line.parent_id)
-            const editable = mine && may.mutateOwnComment
-            const deletable = (mine && may.mutateOwnComment) || may.moderate
-            const fullDate = new Date(line.created_at).toLocaleString()
-            const hasBar = !sent && (may.likeComment || may.createComment || editable || deletable)
-            return (
-              <Fragment key={line.id}>
-              {earlier?.map((item) => (
-                <li key={item.key} className="min-w-0 list-none">
-                  {dayDivider(dividers.get(item.key))}
-                  {item.node}
+        <div className="pt-2 pb-3">
+          {placed.length > 0 ? (
+            <ol className="-mx-2 min-w-0" aria-label="Posts">
+              {placed.map((root) => (
+                <li key={root.line.id} className="min-w-0 list-none">
+                  {newLine(root.line.id)}
+                  {row(root, false)}
+                  {root.replies.length > 0 ? (
+                    <ol className="mt-0.5 mb-1 ml-6 min-w-0 border-l border-border pl-1" aria-label={`Replies to ${personOf(root.line.author_id).name}`}>
+                      {root.replies.map((reply) => (
+                        <li key={reply.line.id} className="min-w-0 list-none">
+                          {newLine(reply.line.id)}
+                          {row(reply, true)}
+                        </li>
+                      ))}
+                    </ol>
+                  ) : null}
                 </li>
               ))}
-              <li className="min-w-0 list-none">
-                {dayDivider(dividers.get(line.id))}
-                {newFrom === line.id ? (
-                  <div className="flex items-center gap-3 px-2 pt-2 pb-1" role="separator" aria-label="New">
-                    <span className="h-px flex-1 bg-border" aria-hidden="true" />
-                    <span className="text-xs font-medium text-muted-foreground" aria-hidden="true">New</span>
-                  </div>
-                ) : null}
-                <article
-                  id={sent ? undefined : `post-${line.id}`}
-                  aria-busy={sent || undefined}
-                  tabIndex={-1}
-                  aria-label={`${author.name}, ${fullDate}`}
-                  className={cn(
-                    'group relative flex min-w-0 gap-2.5 rounded-md px-2 outline-none transition-colors duration-[var(--duration-base)]',
-                    /* The post being edited has the editor's own frame; a tint too is a double frame. */
-                    editing !== line.id && 'hover:bg-accent focus:bg-accent',
-                    head ? 'mt-1 pt-1.5 pb-0.5' : 'py-0.5',
-                    sent && 'opacity-60',
-                    flash === line.id && 'bg-selected hover:bg-selected focus:bg-selected',
-                  )}
-                >
-                  <div className="flex w-8 shrink-0 justify-center">
-                    {head ? (
-                      <Face
-                        className="mt-0.5 size-7 data-[size=sm]:size-7"
-                        person={{ id: line.author_id, initials: initialsOf(author.name), name: author.name, ...(author.image === undefined ? {} : { image: author.image }) }}
-                      />
-                    ) : (
-                      <time
-                        dateTime={line.created_at}
-                        title={fullDate}
-                        className={cn('pt-0.5 text-xs leading-5 whitespace-nowrap text-muted-foreground tabular-nums', ON_POST)}
-                      >
-                        {shortTimeOf(line.created_at)}
-                      </time>
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    {head ? (
-                      <div className="flex min-w-0 items-baseline gap-2">
-                        <span className="min-w-0 truncate text-sm font-medium text-foreground">{author.name}</span>
-                        <time dateTime={line.created_at} title={fullDate} className="shrink-0 text-xs text-muted-foreground">
-                          {timeOf(line.created_at)}
-                        </time>
-                      </div>
-                    ) : null}
-                    {/* A reply whose post was deleted keeps its words and
-                        loses its parent (0047), so it reads as a post. */}
-                    {quote && parent !== undefined ? (
-                      <button
-                        type="button"
-                        className="flex max-w-full min-w-0 items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground"
-                        onClick={() => { goTo(parent.id) }}
-                      >
-                        <Reply className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                        <span className="shrink-0">{personOf(parent.author_id).name}:</span>
-                        <span className="min-w-0 truncate">{gist(parent)}</span>
-                      </button>
-                    ) : null}
-                    <div className="min-w-0">
-                      {editing === line.id && folderId !== null ? (
-                        <div className="py-1">
-                          <Suspense fallback={<EditorFallback />}>
-                            <PostEditor
-                              folderId={folderId}
-                              initial={{ content: line.content, body: line.body, files: line.files }}
-                              submitLabel="Save"
-                              autoFocus
-                              label="Edit post"
-                              onCancel={() => { setEditing(null) }}
-                              onSubmit={(content) =>
-                                patch
-                                  .mutateAsync({ id: line.id, body: { content, file_ids: editedFileIds(content, line.content, line.files) } })
-                                  .then(() => { setEditing(null) }, (error: unknown) => { onRefused?.(error); throw error })
-                              }
-                            />
-                          </Suspense>
-                        </div>
-                      ) : (
-                        <PostView content={line.content} body={line.body} files={line.files} edited={line.edited_at !== null} />
-                      )}
-                    </div>
-                    {line.likes > 0 ? (
-                      <button
-                        type="button"
-                        aria-pressed={line.liked}
-                        aria-label={line.liked ? `Remove like (${String(line.likes)})` : `Like (${String(line.likes)})`}
-                        disabled={!may.likeComment}
-                        className={cn(
-                          'mt-1 mb-0.5 inline-flex items-center gap-1 rounded-full border px-2 py-px text-xs tabular-nums outline-none transition-colors duration-[var(--duration-fast)]',
-                          line.liked
-                            ? 'border-transparent bg-selected text-foreground'
-                            : 'border-border text-muted-foreground hover:text-foreground',
-                        )}
-                        onClick={() => { like.mutate({ id: line.id, liked: !line.liked }) }}
-                      >
-                        <ThumbsUp className="size-3" strokeWidth={1.75} aria-hidden="true" />
-                        {line.likes}
-                      </button>
-                    ) : null}
-
-                  {hasBar && editing !== line.id ? (
-                    <div className={cn('flex items-center rounded-md border border-border bg-background p-0.5', ON_POST, BAR_PLACE)}>
-                      {may.likeComment ? (
-                        <button
-                          type="button"
-                          aria-pressed={line.liked}
-                          aria-label={line.liked ? 'Remove like' : 'Like'}
-                          className={cn(BAR_BUTTON, line.liked && 'text-foreground')}
-                          onClick={() => { like.mutate({ id: line.id, liked: !line.liked }) }}
-                        >
-                          <ThumbsUp className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                        </button>
-                      ) : null}
-                      {may.createComment ? (
-                        <button
-                          type="button"
-                          aria-label="Reply"
-                          title="Reply"
-                          className={BAR_BUTTON}
-                          onClick={() => {
-                            setReplyTo(line.id)
-                            setFocus((value) => value + 1)
-                          }}
-                        >
-                          <Reply className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                        </button>
-                      ) : null}
-                      {editable || deletable ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger render={<button type="button" aria-label="Post actions" className={BAR_BUTTON} />}>
-                            <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {editable ? (
-                              <DropdownMenuItem onClick={() => { setEditing(line.id) }}>Edit</DropdownMenuItem>
-                            ) : null}
-                            {deletable ? (
-                              <DropdownMenuItem variant="destructive" onClick={() => { setDeleting(line.id) }}>
-                                Delete
-                              </DropdownMenuItem>
-                            ) : null}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  </div>
-                </article>
-              </li>
-              </Fragment>
-            )
-          })}
-          {after.map((item) => (
-            <li key={item.key} className="min-w-0 list-none">
-              {dayDivider(dividers.get(item.key))}
-              {item.node}
-            </li>
-          ))}
-        </ol>
-      ) : null}
-      <div ref={end} aria-hidden="true" className="h-px scroll-mb-24" />
-      </div>
+            </ol>
+          ) : null}
+          <div ref={end} aria-hidden="true" className="h-px scroll-mb-24" />
+        </div>
       </div>
 
       {/* The composer stays at the bottom of the screen while the history scrolls. */}
-      <div className="sticky bottom-0 z-10 shrink-0 bg-background pt-3">
-      {unseen !== null ? (
-        <button
-          type="button"
-          className="absolute -top-5 left-1/2 z-10 flex -translate-x-1/2 w-fit items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground outline-none hover:text-foreground"
-          onClick={() => {
-            const id = unseen
-            setUnseen(null)
-            document.getElementById(`post-${id}`)?.scrollIntoView({ block: 'start' })
-          }}
-        >
-          New posts
-          <ArrowDown className="size-3" strokeWidth={1.75} aria-hidden="true" />
-        </button>
-      ) : null}
-
-      {stale ? (
-        <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
-          Couldn't refresh the timeline.
-          <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={onRetry}>
-            {TRY_AGAIN}
+      <div className="sticky bottom-0 z-10 shrink-0 bg-background pt-2 pb-3">
+        {unseen !== null ? (
+          <button
+            type="button"
+            className="absolute -top-5 left-1/2 z-10 flex w-fit -translate-x-1/2 items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground outline-none hover:text-foreground"
+            onClick={() => {
+              const id = unseen
+              setUnseen(null)
+              document.getElementById(`post-${id}`)?.scrollIntoView({ block: 'start' })
+            }}
+          >
+            New posts
+            <ArrowDown className="size-3" strokeWidth={1.75} aria-hidden="true" />
           </button>
-        </p>
-      ) : null}
+        ) : null}
 
-      {closed !== undefined ? (
-        closed
-      ) : may.createComment && folderId !== null ? (
-        <div className="space-y-1">
-          {replyTarget !== undefined ? (
-            <p className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-              <span className="min-w-0 truncate">
-                Replying to {personOf(replyTarget.author_id).name}: {gist(replyTarget)}
-              </span>
-              <button
-                type="button"
-                className="shrink-0 rounded-sm underline-offset-2 outline-none hover:text-foreground hover:underline"
-                onClick={() => { setReplyTo(null) }}
-              >
-                Cancel
-              </button>
-            </p>
-          ) : null}
-          <Suspense fallback={<EditorFallback />}>
-            <PostEditor
-              folderId={folderId}
-              placeholder={placeholder ?? (posts.length === 0 ? 'Write the first post…' : 'Write a reply…')}
-              {...(renderActions === undefined ? {} : { renderActions })}
-              autoFocus={autoFocus}
-              focusSignal={focus}
-              onSubmit={(content) => {
-                /* The reply line goes with the words that leave the composer;
-                   a refusal brings both back. */
-                const target = replyTarget
-                setReplyTo(null)
-                return send({
-                  content,
-                  ...(target === undefined ? {} : { parent_id: target.parent_id ?? target.id }),
-                  ...(postFileIds(content).length > 0 ? { file_ids: [...new Set(postFileIds(content))] } : {}),
-                }).catch((error: unknown) => {
-                  if (target !== undefined) setReplyTo(target.id)
-                  onRefused?.(error)
-                  throw error
-                })
-              }}
-            />
-          </Suspense>
-        </div>
-      ) : posts.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No posts yet.</p>
-      ) : null}
+        {stale ? (
+          <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
+            Couldn't refresh the thread.
+            <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={onRetry}>
+              {TRY_AGAIN}
+            </button>
+          </p>
+        ) : null}
+
+        {closed !== undefined ? (
+          closed
+        ) : may.createComment && folderId !== null ? (
+          <div className="space-y-1">
+            {replyTarget !== undefined ? (
+              <p className="flex min-w-0 items-center gap-2 px-1 text-xs text-muted-foreground">
+                <Reply className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+                <span className="min-w-0 truncate">
+                  Replying to {personOf(replyTarget.author_id).name}: {gist(replyTarget)}
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 rounded-sm underline-offset-2 outline-none hover:text-foreground hover:underline"
+                  onClick={() => { setReplyTo(null) }}
+                >
+                  Cancel
+                </button>
+              </p>
+            ) : null}
+            <Suspense fallback={<EditorFallback />}>
+              <PostEditor
+                folderId={folderId}
+                placeholder={posts.length === 0 ? 'Write the first post…' : 'Write a reply…'}
+                submitLabel="Send"
+                autoFocus={autoFocus}
+                focusSignal={focus}
+                onSubmit={(content) => {
+                  /* The reply line goes with the words that leave the composer;
+                     a refusal brings both back. */
+                  const target = replyTarget
+                  setReplyTo(null)
+                  return send({
+                    content,
+                    ...(target === undefined ? {} : { parent_id: target.parent_id ?? target.id }),
+                    ...(postFileIds(content).length > 0 ? { file_ids: [...new Set(postFileIds(content))] } : {}),
+                  }).catch((error: unknown) => {
+                    if (target !== undefined) setReplyTo(target.id)
+                    onRefused?.(error)
+                    throw error
+                  })
+                }}
+              />
+            </Suspense>
+          </div>
+        ) : posts.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No posts yet.</p>
+        ) : null}
       </div>
 
       {deleting !== null ? (
