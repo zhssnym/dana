@@ -3,11 +3,11 @@ AC-1516: migration 0060 moves every step into its task's body as a checklist
 item, with the same id, text and tick, in order, after the writing. A task's
 lazy notes are materialized first, and nothing else changes (spec 4.17).
 
-Built as ac-1510 builds 0059's test: a PGlite database is migrated through
+Built as ac-1510 builds 0059's test: a scratch database on the leg's engine
+(Postgres when TEST_DATABASE_URL is set, PGlite otherwise) is migrated through
 0059 from a copy of the journal cut there, seeded, and then a second cut
-through 0060 is applied on top, so later migrations never run here. The
-`key_after` check also runs on the leg's own database (Postgres when
-TEST_DATABASE_URL is set), where a collation-sensitive port would differ.
+through 0060 is applied on top, so later migrations never run here. 0060
+holds collation-sensitive SQL and plpgsql, so it has to run on both engines.
 */
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -16,13 +16,17 @@ import path from 'node:path'
 import { PGlite } from '@electric-sql/pglite'
 import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm'
 import { sql } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/pglite'
-import type { PgliteDatabase } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
+import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres'
+import { migrate as migrateNodePg } from 'drizzle-orm/node-postgres/migrator'
+import { drizzle as drizzlePglite } from 'drizzle-orm/pglite'
+import { migrate as migratePglite } from 'drizzle-orm/pglite/migrator'
+import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
+import type { Db } from '../../db/client.js'
 import { initialKeys, keyBetween } from '../../src/server/domain/fractional-index.js'
 import { createTestDb, rows } from '../support/helpers.js'
+import { legBaseUrl } from '../support/postgres-leg.js'
 
 const migrationsFolder = path.resolve(process.cwd(), 'db', 'migrations')
 
@@ -32,9 +36,42 @@ interface JournalEntry {
   tag: string
 }
 
-let pglite: PGlite
-let db: PgliteDatabase
+let db: Db
+let migrate: (folder: string) => Promise<void>
+let closeScratch: (() => Promise<void>) | undefined
 let scratch: string
+
+// A scratch database of its own: the migrations below must not run on the
+// worker's database, which is already migrated to the head.
+async function openScratch(): Promise<void> {
+  const base = legBaseUrl()
+  if (base === undefined) {
+    const pglite = await PGlite.create({ extensions: { pg_trgm } })
+    const local = drizzlePglite(pglite)
+    db = local as unknown as Db
+    migrate = (folder) => migratePglite(local, { migrationsFolder: folder })
+    closeScratch = () => pglite.close()
+    return
+  }
+  const name = `${new URL(base).pathname.replace(/^\//, '')}_m60_${process.pid}`
+  const admin = new pg.Client({ connectionString: base })
+  admin.on('error', () => undefined)
+  await admin.connect()
+  await admin.query(`DROP DATABASE IF EXISTS "${name}"`)
+  await admin.query(`CREATE DATABASE "${name}"`)
+  const url = new URL(base)
+  url.pathname = `/${name}`
+  const pool = new pg.Pool({ connectionString: url.toString(), max: 1 })
+  pool.on('error', () => undefined)
+  const remote = drizzleNodePg(pool)
+  db = remote as unknown as Db
+  migrate = (folder) => migrateNodePg(remote, { migrationsFolder: folder })
+  closeScratch = async () => {
+    await pool.end()
+    await admin.query(`DROP DATABASE IF EXISTS "${name}"`)
+    await admin.end()
+  }
+}
 
 const ids = {
   owner: '00000000-0000-4000-8000-000000000001',
@@ -117,9 +154,8 @@ beforeAll(async () => {
   cutThrough('0059_', through0059)
   cutThrough('0060_', through0060)
 
-  pglite = await PGlite.create({ extensions: { pg_trgm } })
-  db = drizzle(pglite)
-  await migrate(db, { migrationsFolder: through0059 })
+  await openScratch()
+  await migrate(through0059)
 
   await db.execute(sql`INSERT INTO users (id, display_name) VALUES (${ids.owner}::uuid, 'Owner')`)
   await db.execute(sql`
@@ -167,13 +203,15 @@ beforeAll(async () => {
       (${ids.s15}::uuid, ${ids.diverged}::uuid, 'Step', false, 1)`)
   untouchedBefore = await rows(db, sql`SELECT * FROM tasks WHERE id = ${ids.untouched}::uuid`)
 
-  await migrate(db, { migrationsFolder: through0060 })
+  await migrate(through0060)
 }, 60_000)
 
+// DROP DATABASE checkpoints, which takes longer than the default 10 s while
+// the rest of the Postgres leg runs beside it.
 afterAll(async () => {
-  await pglite.close()
+  await closeScratch?.()
   rmSync(scratch, { recursive: true, force: true })
-})
+}, 60_000)
 
 describe('AC-1516 migration 0060 moves steps into the task body as checklist items', () => {
   test('a task with only steps gets them in (position, id) order, ids and ticks kept', async () => {

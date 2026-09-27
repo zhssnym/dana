@@ -316,10 +316,12 @@ beforeAll(async () => {
   await db.migrate(through0061)
 }, 120_000)
 
+// DROP DATABASE checkpoints, which takes longer than the default 10 s while
+// the rest of the Postgres leg runs beside it.
 afterAll(async () => {
   await db?.close()
   rmSync(scratch, { recursive: true, force: true })
-})
+}, 60_000)
 
 async function tabs(project: string): Promise<Record<string, unknown>[]> {
   return db.exec(sql`

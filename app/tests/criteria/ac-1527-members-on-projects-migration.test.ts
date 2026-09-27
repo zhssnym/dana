@@ -261,10 +261,12 @@ beforeAll(async () => {
   await db.migrate(through0062)
 }, 120_000)
 
+// DROP DATABASE checkpoints, which takes longer than the default 10 s while
+// the rest of the Postgres leg runs beside it.
 afterAll(async () => {
   await db.close()
   rmSync(scratch, { recursive: true, force: true })
-})
+}, 60_000)
 
 const place = async (fid: string) =>
   (await db.exec(sql`SELECT project_id, parent_folder_id, owner_id, tab_position FROM folders WHERE id = ${fid}::uuid`))[0]
