@@ -202,7 +202,7 @@ export type MoveFolderResult =
   | { kind: 'not_a_sibling' }
   /** Step 7: a tab stays in its project's tab row, a project with tabs
    * stays a project, and a Discussion page holds no pages: 422. */
-  | { kind: 'not_movable'; field: string; reason: string }
+  | { kind: 'not_movable'; reason: string }
 
 /**
  * Moves `folderId` under `parentId` (null: make it a root). `afterId` lands
@@ -254,7 +254,7 @@ export async function moveFolder(
     return { kind: 'moved' }
   }
   if (isTab && !isRoot) {
-    return { kind: 'not_movable', field: 'parent_folder_id', reason: 'a tab stays in its project; move it along the tab row instead.' }
+    return { kind: 'not_movable', reason: 'A tab stays in its project; move it along the tab row instead.' }
   }
   if (isRoot) {
     const tabs = await rowsOf(
@@ -263,10 +263,10 @@ export async function moveFolder(
             AND tab_position IS NOT NULL LIMIT 1`,
     )
     if (tabs.length > 0) {
-      return { kind: 'not_movable', field: 'parent_folder_id', reason: 'a project with more than one tab stays a project.' }
+      return { kind: 'not_movable', reason: 'A project with more than one tab stays a project.' }
     }
     if (before[0]?.kind === 'discussion') {
-      return { kind: 'not_movable', field: 'parent_folder_id', reason: 'a Discussion page stays a tab.' }
+      return { kind: 'not_movable', reason: 'A Discussion page stays a tab.' }
     }
   }
 
@@ -279,7 +279,7 @@ export async function moveFolder(
   if (page.isDefault || parent.isDefault) return { kind: 'default_folder' }
   const target = await rowsOf(tx, sql`SELECT project_id, kind FROM folders WHERE id = ${parentId}::uuid`)
   if (target[0]?.kind === 'discussion') {
-    return { kind: 'not_movable', field: 'parent_folder_id', reason: 'a Discussion page holds threads, not pages.' }
+    return { kind: 'not_movable', reason: 'A Discussion page holds threads, not pages.' }
   }
   const targetProject = String(target[0]?.project_id)
   /* Step 8: a page's people are its project's, so a move into another
@@ -289,8 +289,7 @@ export async function moveFolder(
   if (targetProject !== projectId && !(await samePeople(tx, projectId, targetProject))) {
     return {
       kind: 'not_movable',
-      field: 'parent_folder_id',
-      reason: 'a page moves only into a project with the same owner and the same people.',
+      reason: "This page can't move there: that project isn't shared with the same people.",
     }
   }
 

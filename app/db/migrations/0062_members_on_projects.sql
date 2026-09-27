@@ -14,6 +14,10 @@
 --    link, which a non-member reads as no access. A project the split leaves
 --    with discussions and no Discussion tab gets one (0061's rule), so no
 --    thread drops out of the interface.
+--    A live page or tab of a project whose root is in Trash (a trash that
+--    skipped what the trasher had no right to trash) splits too: the purge
+--    would make it a project of its own anyway, and its Responsibilities
+--    must not move onto a root the purge deletes.
 -- 2. Presets. On a page that stays in its project with the same people, the
 --    project's preset wins. Each difference is written to
 --    `folder_access_history` on that page (`migration_initialized`, page
@@ -30,7 +34,10 @@
 --    stays readable in the project's history.
 -- 5. Owner. Every page's owner becomes its project's owner, so account
 --    deletion (8.10), which deletes owned folders, never takes pages out of a
---    project that survives.
+--    project that survives. Two triggers keep it so for every later write,
+--    the old instance's included: a page takes its project's owner on insert
+--    and on any project or owner change, and a root's new owner reaches its
+--    pages.
 -- 6. Tasks gain `project_id` (the folder's project, kept by a trigger and a
 --    foreign key) and the assignee must be a member of the project.
 -- 7. Membership rows on a page that is not a project root stay, unread:
@@ -41,7 +48,11 @@
 --    healthy. A task it inserts gets its project from the trigger. A
 --    membership row it writes on a page that is not a project root (its
 --    sub-page and tab copies) is dropped when the person is already on the
---    project and refused otherwise, so nothing it writes widens access. Its
+--    project and refused otherwise. An invite it writes on such a page is
+--    refused (`invites_on_project_root`), and the new server invalidates
+--    any invite on such a page when it is accepted rather than widen it to
+--    the project. A page it creates or moves takes its project's owner. So
+--    nothing it writes widens access or leaves a page to its creator. Its
 --    reads join memberships to the page itself, so for those minutes it
 --    answers 404 on tabs and sub-pages: closed, never open.
 --
@@ -109,7 +120,9 @@ BEGIN
     SELECT f.id, f.project_id, f.parent_folder_id FROM folders f
       JOIN s8_depth s ON s.id = f.id AND s.depth = d
      WHERE f.id <> f.project_id
-       AND (EXISTS (SELECT m.user_id FROM folder_members m WHERE m.folder_id = f.id
+       AND ((f.deleted_at IS NULL
+             AND EXISTS (SELECT 1 FROM folders r WHERE r.id = f.project_id AND r.deleted_at IS NOT NULL))
+            OR EXISTS (SELECT m.user_id FROM folder_members m WHERE m.folder_id = f.id
                     EXCEPT SELECT p.user_id FROM folder_members p WHERE p.folder_id = f.project_id)
             OR EXISTS (SELECT p.user_id FROM folder_members p WHERE p.folder_id = f.project_id
                        EXCEPT SELECT m.user_id FROM folder_members m WHERE m.folder_id = f.id));
@@ -121,7 +134,7 @@ BEGIN
       FROM s8_split s
      WHERE s.id = f.id AND f.project_id <> f.id;
   END LOOP;
-  RAISE NOTICE 'step 8: % pages whose people differed from their project''s became projects: %',
+  RAISE NOTICE 'step 8: % pages whose people differed from their project''s, or whose project was in Trash, became projects: %',
     (SELECT count(*) FROM s8_split),
     (SELECT string_agg(id::text, ', ' ORDER BY id) FROM s8_split);
 END
@@ -269,6 +282,59 @@ $fn$;
 --> statement-breakpoint
 CREATE TRIGGER folder_members_on_project_root BEFORE INSERT ON folder_members
   FOR EACH ROW EXECUTE FUNCTION folder_members_on_project_root();
+--> statement-breakpoint
+-- An invite names a project root: one on any other page would add the
+-- invitee to the whole project, which its inviter meant for one page.
+CREATE FUNCTION invites_on_project_root() RETURNS trigger
+LANGUAGE plpgsql AS $fn$
+BEGIN
+  IF NEW.folder_id IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM folders f WHERE f.id = NEW.folder_id AND f.project_id = f.id) THEN
+    RAISE EXCEPTION 'step 8: an invite names a project, not page %', NEW.folder_id
+      USING ERRCODE = 'check_violation', CONSTRAINT = 'invites_on_project_root';
+  END IF;
+  RETURN NEW;
+END
+$fn$;
+--> statement-breakpoint
+CREATE TRIGGER invites_on_project_root BEFORE INSERT ON invites
+  FOR EACH ROW EXECUTE FUNCTION invites_on_project_root();
+--> statement-breakpoint
+-- 5, kept: a page has its project's owner, whoever writes it (the old
+-- instance's create, duplicate, import and move included). A row-level
+-- trigger cannot rely on the order of a multi-row UPDATE, so a root's new
+-- owner is carried to its pages after the root row changes, and the page
+-- rows then read it.
+CREATE FUNCTION folders_owner_from_project() RETURNS trigger
+LANGUAGE plpgsql AS $fn$
+DECLARE
+  owner uuid;
+BEGIN
+  IF NEW.project_id IS NOT NULL AND NEW.id <> NEW.project_id THEN
+    SELECT p.owner_id INTO owner FROM folders p WHERE p.id = NEW.project_id;
+    IF owner IS NOT NULL THEN
+      NEW.owner_id := owner;
+    END IF;
+  END IF;
+  RETURN NEW;
+END
+$fn$;
+--> statement-breakpoint
+CREATE TRIGGER folders_owner_from_project BEFORE INSERT OR UPDATE OF project_id, owner_id ON folders
+  FOR EACH ROW EXECUTE FUNCTION folders_owner_from_project();
+--> statement-breakpoint
+CREATE FUNCTION folders_project_owner_to_pages() RETURNS trigger
+LANGUAGE plpgsql AS $fn$
+BEGIN
+  UPDATE folders SET owner_id = NEW.owner_id
+   WHERE project_id = NEW.id AND id <> NEW.id AND owner_id <> NEW.owner_id;
+  RETURN NULL;
+END
+$fn$;
+--> statement-breakpoint
+CREATE TRIGGER folders_project_owner_to_pages AFTER UPDATE OF owner_id ON folders
+  FOR EACH ROW WHEN (NEW.id = NEW.project_id AND OLD.owner_id IS DISTINCT FROM NEW.owner_id)
+  EXECUTE FUNCTION folders_project_owner_to_pages();
 --> statement-breakpoint
 -- Invariants.
 DO $$
@@ -431,6 +497,15 @@ BEGIN
    WHERE f.id <> f.project_id LIMIT 1;
   IF bad IS NOT NULL THEN
     RAISE EXCEPTION 'step 8: responsibility left on a page %', bad;
+  END IF;
+  -- None moved from a live page onto a root in Trash, which the purge
+  -- deletes while the page lives on.
+  SELECT m.id::text INTO bad FROM s8_resp_move m
+    JOIN folders o ON o.id = m.folder_id
+    JOIN folders p ON p.id = m.project_id
+   WHERE o.deleted_at IS NULL AND p.deleted_at IS NOT NULL LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 8: responsibility moved into Trash %', bad;
   END IF;
 
   -- Responsibility history: every row stays; a row moved only to its

@@ -106,7 +106,7 @@ export function FolderSharingPanel({
    * withholds the administrative controls rather than flashing them. */
   readonly viewer: FolderViewerFacts | null
   /** Who is looking: their own row is marked, and never offers Remove
-   * (leaving is the page menu's Leave page…). */
+   * (leaving is the page menu's Leave project…). */
   readonly viewerId: string | null
   readonly onClose: () => void
   /** Writes this page to a Dana file (M4: moved here from the page's "…"). */

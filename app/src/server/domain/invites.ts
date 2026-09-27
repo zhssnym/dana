@@ -724,10 +724,18 @@ export async function acceptInvite(
       if (invite === undefined) return { kind: 'not_pending' }
 
       const inviterId = String(invite.inviter_id)
-      // Step 8: the invite's project (one written on a page by the old
-      // instance during a deploy is the project's too).
-      const invitedTo = nullableString(invite.folder_id)
-      const folderId = invitedTo === null ? null : ((await projectOf(tx, invitedTo)) ?? invitedTo)
+      // Step 8: people belong to the project, and an invite names its root.
+      // One on any other page (the old instance's during a deploy, or a
+      // root since moved into another project) meant that page, not the
+      // whole project: it is invalidated rather than widened.
+      const folderId = nullableString(invite.folder_id)
+      if (folderId !== null && (await projectOf(tx, folderId)) !== folderId) {
+        await tx.execute(
+          sql`UPDATE invites SET status = 'invalidated', accepted_by = NULL
+               WHERE id = ${inviteId}`,
+        )
+        return { kind: 'not_pending' }
+      }
       const taskId = nullableString(invite.task_id)
       const granted = presetOf(invite.access)
       const initial = responsibilityDocument.safeParse(invite.responsibility)

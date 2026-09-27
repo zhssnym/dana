@@ -1562,7 +1562,10 @@ export function AppSidebar({
 
       {pageTree.leaving === null ? null : (
         <ConfirmDialog
-          message={leaveFolderConfirm(pageTree.leaving.name)}
+          message={leaveFolderConfirm(
+            /* Step 8: leaving any page leaves its project, so name that. */
+            allFolders.find((f) => f.id === pageTree.leaving?.project_id)?.name ?? pageTree.leaving.name,
+          )}
           onContinue={pageTree.confirmLeave}
           onCancel={pageTree.cancelLeave}
         />

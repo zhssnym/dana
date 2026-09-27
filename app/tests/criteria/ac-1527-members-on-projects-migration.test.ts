@@ -7,8 +7,11 @@ recorded; a page's own membership rows stay, unread, with their shelf;
 pending invites that would now open more pages are invalidated; every page
 Responsibility moves to the project, ended unless it is the person's one
 active there; a project the split leaves with discussions and no Discussion
-tab gets one; every page gets its project's owner; tasks carry their project
-and their assignee is a member of it.
+tab gets one; a live page or tab of a project in Trash becomes its own
+project and keeps its Responsibilities; every page gets its project's owner,
+and keeps getting it after; tasks carry their project and their assignee is a
+member of it; an invite names a project root, and one that names any other
+page is invalidated on accept rather than widened to the project.
 
 Built as ac-1519 builds 0061's test: a database is migrated through 0061
 from a copy of the journal cut there, seeded, and a second cut through 0062
@@ -30,6 +33,8 @@ import { migrate as migratePglite } from 'drizzle-orm/pglite/migrator'
 import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
+import type { Db } from '../../db/client.js'
+import { acceptInvite } from '../../src/server/domain/invites.js'
 import { legBaseUrl } from '../support/postgres-leg.js'
 
 const migrationsFolder = path.resolve(process.cwd(), 'db', 'migrations')
@@ -41,6 +46,7 @@ interface JournalEntry {
 }
 
 interface Scratch {
+  db: Db
   exec(query: SQL): Promise<Record<string, unknown>[]>
   migrate(folder: string): Promise<void>
   close(): Promise<void>
@@ -52,6 +58,7 @@ async function openScratch(): Promise<Scratch> {
     const pglite = await PGlite.create({ extensions: { pg_trgm } })
     const db = drizzlePglite(pglite)
     return {
+      db: db as unknown as Db,
       exec: async (query) => ((await db.execute(query)) as unknown as { rows: Record<string, unknown>[] }).rows,
       migrate: (folder) => migratePglite(db, { migrationsFolder: folder }),
       close: () => pglite.close(),
@@ -69,6 +76,7 @@ async function openScratch(): Promise<Scratch> {
   pool.on('error', () => undefined)
   const db = drizzleNodePg(pool)
   return {
+    db: db as unknown as Db,
     exec: async (query) => (await db.execute(query)).rows as Record<string, unknown>[],
     migrate: (folder) => migrateNodePg(db, { migrationsFolder: folder }),
     close: async () => {
@@ -110,6 +118,10 @@ const C = { root: id(0xc, 0), sub: id(0xc, 1), home: id(0xc, 2), invite: id(0xc,
 // (d) a grandchild that differs while its parent does not.
 const D = { root: id(0xd, 0), sub: id(0xd, 1), grand: id(0xd, 2), task: id(0xd, 3), disc: id(0xd, 4),
   talk: id(0xd, 5) }
+
+// (e) a project in Trash with a live sub-page and a live tab (a trash that
+// skipped what its trasher could not trash), each with a Responsibility.
+const E = { root: id(0xe, 0), sub: id(0xe, 1), tab: id(0xe, 2), respSub: id(0xe, 3), respTab: id(0xe, 4) }
 
 let db: Scratch
 let scratch: string
@@ -228,6 +240,20 @@ beforeAll(async () => {
   await member(D.disc, u.owner, 'full_control')
   await discussion(D.talk, D.sub)
 
+  await folder(E.root, 'Old trip')
+  await member(E.root, u.owner, 'full_control')
+  await member(E.root, u.editor, 'can_edit')
+  await folder(E.sub, 'Photos', { parent: E.root })
+  await member(E.sub, u.owner, 'full_control')
+  await member(E.sub, u.editor, 'can_edit')
+  await db.exec(sql`INSERT INTO folders (id, owner_id, name, project_id, kind, tab_position)
+    VALUES (${E.tab}::uuid, ${u.owner}::uuid, 'Notes', ${E.root}::uuid, 'doc', 'a1')`)
+  await member(E.tab, u.owner, 'full_control')
+  await member(E.tab, u.editor, 'can_edit')
+  await db.exec(sql`UPDATE folders SET deleted_at = now() - interval '29 days' WHERE id = ${E.root}::uuid`)
+  await responsibility(E.respSub, E.sub, u.editor, '2026-01-05T00:00:00Z')
+  await responsibility(E.respTab, E.tab, u.editor, '2026-01-06T00:00:00Z')
+
   visibleBefore = (await db.exec(sql`SELECT user_id, folder_id FROM folder_members ORDER BY user_id, folder_id`))
     .map((row) => `${String(row.user_id)} ${String(row.folder_id)}`)
 
@@ -324,6 +350,8 @@ describe('AC-1527 migration 0062: people belong to the project', () => {
       { id: A.respSubE, folder_id: A.root, ended: true },
       { id: A.respSubV, folder_id: A.root, ended: false },
       { id: A.respSub2V, folder_id: A.root, ended: true },
+      { id: E.respSub, folder_id: E.sub, ended: false },
+      { id: E.respTab, folder_id: E.tab, ended: false },
     ])
     expect(await db.exec(sql`SELECT folder_id FROM folder_responsibility_history WHERE id = ${A.histV}::uuid`))
       .toEqual([{ folder_id: A.root }])
@@ -332,6 +360,14 @@ describe('AC-1527 migration 0062: people belong to the project', () => {
       { responsibility_id: A.respSubE, folder_id: A.root, member_id: u.editor, actor_id: u.owner },
       { responsibility_id: A.respSub2V, folder_id: A.root, member_id: u.viewer, actor_id: u.owner },
     ])
+  })
+
+  test('a live page and tab of a project in Trash become projects and keep their Responsibilities', async () => {
+    expect(await place(E.sub)).toEqual({ project_id: E.sub, parent_folder_id: null, owner_id: u.owner, tab_position: 'a0' })
+    expect(await place(E.tab)).toEqual({ project_id: E.tab, parent_folder_id: null, owner_id: u.owner, tab_position: 'a1' })
+    expect((await people(E.sub)).map((row) => row.user_id)).toEqual([u.owner, u.editor])
+    expect(await db.exec(sql`SELECT count(*)::int AS n FROM folders WHERE project_id = ${E.root}::uuid`))
+      .toEqual([{ n: 1 }])
   })
 
   test('a project the split leaves with discussions and no Discussion tab gets one', async () => {
@@ -369,5 +405,39 @@ describe('AC-1527 migration 0062: people belong to the project', () => {
     const err = refused as { constraint?: string; cause?: { constraint?: string } } | null
     expect(err?.cause?.constraint ?? err?.constraint).toBe('folder_members_on_project_root')
     expect(await people(A.sub)).toEqual(before)
+  })
+
+  test('after it: a page takes its project owner, and follows the root when it changes hands', async () => {
+    const late = id(0x10, 2)
+    await db.exec(sql`INSERT INTO folders (id, owner_id, name, parent_folder_id, child_position, project_id, kind)
+      VALUES (${late}::uuid, ${u.editor}::uuid, 'Late page', ${A.root}::uuid, 'b0', ${A.root}::uuid, 'doc')`)
+    expect((await place(late))?.owner_id).toBe(u.owner)
+    await db.exec(sql`UPDATE folders SET owner_id = ${u.editor}::uuid WHERE id = ${A.sub}::uuid`)
+    expect((await place(A.sub))?.owner_id).toBe(u.owner)
+    // A transfer, written the way transferOwnership writes it.
+    await db.exec(sql`UPDATE folders SET owner_id = ${u.editor}::uuid WHERE project_id = ${A.root}::uuid`)
+    await db.exec(sql`UPDATE folders SET owner_id = ${u.owner}::uuid WHERE id = ${A.root}::uuid`)
+    expect(await db.exec(sql`SELECT DISTINCT owner_id FROM folders WHERE project_id = ${A.root}::uuid`))
+      .toEqual([{ owner_id: u.owner }])
+  })
+
+  test('after it: an invite names a project root, and one on another page is invalidated on accept', async () => {
+    const refused: unknown = await db.exec(sql`INSERT INTO invites (inviter_id, email, folder_id, access)
+      VALUES (${u.owner}::uuid, 'late@example.com', ${A.sub}::uuid, 'can_view')`).then(() => null, (e: unknown) => e)
+    const err = refused as { constraint?: string; cause?: { constraint?: string } } | null
+    expect(err?.cause?.constraint ?? err?.constraint).toBe('invites_on_project_root')
+    // A root with a pending invite moves into another project.
+    const moved = id(0x10, 3)
+    const pending = id(0x10, 4)
+    await db.exec(sql`INSERT INTO folders (id, owner_id, name) VALUES (${moved}::uuid, ${u.owner}::uuid, 'Moved')`)
+    await db.exec(sql`INSERT INTO invites (id, inviter_id, email, folder_id, access)
+      VALUES (${pending}::uuid, ${u.owner}::uuid, 'stranger@example.com', ${moved}::uuid, 'full_control')`)
+    await db.exec(sql`UPDATE folders SET parent_folder_id = ${A.root}::uuid, child_position = 'c0',
+      project_id = ${A.root}::uuid, tab_position = NULL, kind = 'doc' WHERE id = ${moved}::uuid`)
+    expect(await acceptInvite(db.db, u.stranger, pending)).toEqual({ kind: 'not_pending' })
+    expect(await db.exec(sql`SELECT status, accepted_by FROM invites WHERE id = ${pending}::uuid`))
+      .toEqual([{ status: 'invalidated', accepted_by: null }])
+    expect(await db.exec(sql`SELECT folder_id FROM folder_members WHERE user_id = ${u.stranger}::uuid`)).toEqual([])
+    expect(await db.exec(sql`SELECT count(*)::int AS n FROM connections`)).toEqual([{ n: 0 }])
   })
 })

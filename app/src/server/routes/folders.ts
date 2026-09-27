@@ -516,7 +516,8 @@ export function createFoldersRouter(
           sendError(res, 422, 'validation_failed', 'after_id: must name a page directly inside the new parent, or a tab of the same project.')
           return
         case 'not_movable':
-          sendError(res, 422, 'validation_failed', `${outcome.field}: ${outcome.reason}`)
+          /* A plain sentence: the move toast shows it as it is. */
+          sendError(res, 422, 'validation_failed', outcome.reason)
           return
       }
     },
