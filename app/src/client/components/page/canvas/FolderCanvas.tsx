@@ -13,8 +13,6 @@ import { documentTransaction } from '../../../../shared/page-document.js'
 import { getPlain, mutateApi, uploadFile as uploadDanaFile } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
 import { useFolderCompletedTasks, useFolderFacets, useMultiMemberFolderIds } from '../../../api/queries.js'
-import { paths } from '../../../routes.js'
-import { FOLDER_ACTION_PARAM } from '../../../shell/app-sidebar.js'
 import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider, ThreadFactsProvider } from './CanvasTask.js'
@@ -27,7 +25,7 @@ import { CanvasSurface } from './CanvasSurface.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { baselineOf, dehydrateCanvas, openOnCreate, pendingPages, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
+import { baselineOf, dehydrateCanvas, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
 import type { CanvasDocument, CanvasInput } from './adapters.js'
 import { CanvasWriter } from './saving.js'
 import { isSectionHeading } from './outline.js'
@@ -318,9 +316,6 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       ? empty
       : mergeWorkDocument(initialPage, workRootId, empty)
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
-  const navigateRef = useRef(navigate)
-  navigateRef.current = navigate
   // This is a recoverable draft, never a cached page or an automatic offline queue.
   // One key per document: Work and each tab keep their own.
   const draftKey = `dana-canvas-draft:${facetId ?? folderId}`
@@ -336,20 +331,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     (next, checkpoint, operations) => {
       onSaved(next)
       if (checkpoint) onCheckpoint(next)
-      /* A sub-page made, trashed or restored by this save: the sidebar's
-         tree and every page row read the folder list. A `/page` title is let
-         go only once that list has the page, so its row never blinks. */
-      // A Task made here changes the folder list's counts.
-      if (operations.some((op) => op.op === 'create_task')) void queryClient.invalidateQueries({ queryKey: queryKeys.folders(), exact: true })
-      const created = operations.flatMap((op) => op.op === 'create_page' ? [op.id] : [])
-      if (created.length > 0 || operations.some((op) => op.op === 'trash_page' || (op.op === 'put_block' && op.block_kind === 'page'))) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.folders(), exact: true }).finally(() => {
-          for (const id of created) pendingPages.delete(id)
-          // `/page` opens what it made, its title selected to be typed over.
-          const opened = created.find((id) => openOnCreate.has(id))
-          for (const id of created) openOnCreate.delete(id)
-          if (opened !== undefined) void navigateRef.current(`${paths.folder(opened)}?${FOLDER_ACTION_PARAM}=rename`)
-        })
+      // A sub-page trashed or restored, or a Task made, changes the folder list.
+      if (operations.some((op) => op.op === 'create_task' || op.op === 'trash_page' || (op.op === 'put_block' && op.block_kind === 'page'))) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.folders(), exact: true })
       }
     },
   ))

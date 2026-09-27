@@ -12,8 +12,8 @@ and it is exactly the four refusal lists the appliers carried before this
 file: a kind is refused where it was refused and nowhere else. It must never
 narrow, or blocks people already have stop saving.
 
-What each home's `/` menu offers is `SLASH_MENUS` below, and a command that
-makes a block names its kind, so a menu never offers what its home refuses.
+What each home's `/` menu offers is the client's (`SLASH_MENUS` in
+`slash-items.tsx`); markdown shortcuts and Turn into still make any kind here.
 */
 export const BLOCK_HOMES = ['work', 'doc', 'results', 'task', 'shelf'] as const
 export type BlockHome = (typeof BLOCK_HOMES)[number]
@@ -51,47 +51,4 @@ export const BLOCK_KINDS: Readonly<Record<DocumentBlockKind, readonly BlockHome[
 /** May a block of `kind` be stored on a page of `home`. */
 export function allowedIn(kind: DocumentBlockKind, home: BlockHome): boolean {
   return BLOCK_KINDS[kind].includes(home)
-}
-
-
-/*
-The `/` menu each page kind shows (the approved model's slash-command table):
-what that kind of page is for, and nothing else. Markdown shortcuts and Turn
-into still make every kind the home stores; these are only what is offered.
-
-- Work: the words around tasks, and Task. Pages are added from the sidebar.
-- Doc (Purpose, Results): writing, a checklist and media. Task and Page come
-  when a Doc page can hold them. A Result is made by turning a line into one.
-- Task: a leaf page. Its checklist is the Task's subtasks; Blocked by opens
-  the picker; Media is one command (no File).
-- Shelf: unchanged until Shelves are decided.
-- A discussion post has no `/` menu and is not a home here.
-*/
-export const SLASH_COMMANDS = {
-  text: 'paragraph',
-  heading: 'heading1',
-  checklist: 'checklist',
-  task: null,
-  blocked_by: null,
-  media: 'image',
-  bullet: 'bullet',
-  numbered: 'numbered',
-  quote: 'quote',
-  callout: 'callout',
-  divider: 'divider',
-  code: 'code',
-  file: 'file',
-  diagram: 'diagram',
-  link: null,
-} as const satisfies Record<string, DocumentBlockKind | null>
-export type SlashCommand = keyof typeof SLASH_COMMANDS
-
-const DOC_MENU = ['text', 'heading', 'checklist', 'media'] as const satisfies readonly SlashCommand[]
-
-export const SLASH_MENUS: Readonly<Record<BlockHome, readonly SlashCommand[]>> = {
-  work: ['text', 'heading', 'task'],
-  doc: DOC_MENU,
-  results: DOC_MENU,
-  task: ['text', 'heading', 'checklist', 'blocked_by', 'media'],
-  shelf: ['text', 'heading', 'bullet', 'numbered', 'quote', 'callout', 'divider', 'code', 'media', 'file', 'diagram', 'link'],
 }

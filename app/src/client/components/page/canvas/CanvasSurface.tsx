@@ -18,7 +18,6 @@ import {
   AlertDialogTitle,
 } from '../../ui/alert-dialog.js'
 import { installCanvasGuard, removingPages } from './guard.js'
-import { pendingPages } from './adapters.js'
 import { publishedFolders } from '../../../lib/folder-library.js'
 import { pushUndo, undoLabel } from '../../../shell/undo.js'
 import { bindTaskCommand, dropEmptyLine, moveBlocksBy, removeCanvasBlocks } from './commands.js'
@@ -135,7 +134,7 @@ export function CanvasSurface({
     const at = siblings.findIndex((block) => block.id === id)
     const previous = siblings[at - 1]?.id
     const next = siblings[at + 1]?.id
-    const name = publishedFolders().find((folder) => folder.id === folderId)?.name ?? pendingPages.get(folderId) ?? 'Untitled'
+    const name = publishedFolders().find((folder) => folder.id === folderId)?.name ?? 'Untitled'
     removingPages([folderId], () => { removeCanvasBlocks(editor, [own]) })
     if (editor.getBlock(id) !== undefined) return
     pushUndo(`${undoLabel('Moved', name)} to Trash`, () => {

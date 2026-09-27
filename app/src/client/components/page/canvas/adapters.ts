@@ -608,23 +608,9 @@ export function baselineOf(page: PageView, projected: CanvasDocument): CanvasDoc
 }
 
 /**
- * Sub-pages `/page` has placed but no save has created yet: folder id to the
- * title it will be created with. Module state, because the block carries only
- * its folder id and the slash menu, the row and the save all need the title.
- * An entry stays until the save that created it has landed and the folder
- * list has it (`FolderCanvas`), so a retry re-sends the same `create_page`.
- */
-export const pendingPages = new Map<string, string>()
-
-/** Sub-pages `/page` just made, to open once the save has created them: as in
- * Notion, the new page opens with its title selected (as the sidebar's "+"). */
-export const openOnCreate = new Set<string>()
-
-/**
- * Wave 2: a `page` block new to the document whose folder `/page` is still
- * holding is created with it (`create_page`, never `put_block`); any other new
- * one names a trashed sub-page and restores it in place. A `page` block that
- * leaves the document moves its sub-page to Trash in the same transaction.
+ * A `page` block new to the document names a trashed sub-page and restores it
+ * in place (`put_block`). A `page` block that leaves the document moves its
+ * sub-page to Trash in the same transaction.
  */
 export function canvasOperations(before: CanvasDocument, after: CanvasDocument) {
   const restored = restoreCanvas(before, after)
@@ -635,12 +621,7 @@ export function canvasOperations(before: CanvasDocument, after: CanvasDocument) 
       { op: 'delete_block' as const, id: block.id },
       ...(block.block_kind === 'page' && block.ref_folder_id !== null ? [{ op: 'trash_page' as const, folder_id: block.ref_folder_id }] : []),
     ]),
-    ...restored.blocks.filter((block) => JSON.stringify(old.get(block.id)) !== JSON.stringify(block)).map((block) => {
-      const title = block.block_kind === 'page' && block.ref_folder_id !== null && !old.has(block.id) ? pendingPages.get(block.ref_folder_id) : undefined
-      return title !== undefined && block.ref_folder_id !== null
-        ? { op: 'create_page' as const, id: block.ref_folder_id, block_id: block.id, title }
-        : { op: 'put_block' as const, ...block }
-    }),
+    ...restored.blocks.filter((block) => JSON.stringify(old.get(block.id)) !== JSON.stringify(block)).map((block) => ({ op: 'put_block' as const, ...block })),
     { op: 'set_outline' as const, items: restored.items },
   ]
 }

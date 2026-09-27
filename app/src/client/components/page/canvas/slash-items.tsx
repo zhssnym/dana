@@ -2,7 +2,7 @@
 The one slash menu, for every canvas: a Folder's Work, Purpose and Results, a
 Task body and a Shelf. Each canvas renders `<CanvasSlashMenu>` with the surface
 it is, and its `/` menu is the registry's list for that page kind
-(`SLASH_MENUS` in `shared/block-kinds.ts`): only what the page is for.
+(`SLASH_MENUS` below): only what the page is for.
 
 - `work` (Folder Main): Text, Heading 1-3 and Task. "Heading n" is a Section
   (it groups Tasks, and folds) where a Section of that level stands, and a
@@ -44,8 +44,7 @@ import { blockSelection, setBlockSelection } from './block-selection.js'
 import type { TreeBlock, TurnKey, TurnTarget } from './turn-into.js'
 import type { CanvasSurfaceKind } from './markdown.js'
 import type { CanvasEditor } from './schema.js'
-import { SLASH_MENUS } from '../../../../shared/block-kinds.js'
-import type { BlockHome, SlashCommand } from '../../../../shared/block-kinds.js'
+import type { BlockHome } from '../../../../shared/block-kinds.js'
 
 export type { CanvasSurfaceKind } from './markdown.js'
 
@@ -189,6 +188,23 @@ function turnItems(editor: AnyEditor): Item[] {
 }
 
 /* ------------------------------------------------------------ insert */
+
+type SlashCommand = 'text' | 'heading' | 'checklist' | 'task' | 'blocked_by' | 'media' | 'bullet' | 'numbered' | 'quote' | 'callout' | 'divider' | 'code' | 'file' | 'diagram' | 'link'
+
+const DOC_MENU: readonly SlashCommand[] = ['text', 'heading', 'checklist', 'media']
+
+/*
+The `/` menu each page home shows (the approved model's slash-command table):
+what that kind of page is for, and nothing else. Markdown shortcuts and Turn
+into still make every kind the home stores; these are only what is offered.
+*/
+const SLASH_MENUS: Readonly<Record<BlockHome, readonly SlashCommand[]>> = {
+  work: ['text', 'heading', 'task'],
+  doc: DOC_MENU,
+  results: DOC_MENU,
+  task: ['text', 'heading', 'checklist', 'blocked_by', 'media'],
+  shelf: ['text', 'heading', 'bullet', 'numbered', 'quote', 'callout', 'divider', 'code', 'media', 'file', 'diagram', 'link'],
+}
 
 /** The registry's home for a surface; a post has no `/` menu. */
 export function slashHomeOf(surface: CanvasSurfaceKind, results: boolean): BlockHome | null {
