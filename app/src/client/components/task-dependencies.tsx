@@ -1,9 +1,12 @@
 /*
-The card's Dependencies block (#225), over 7.25's three endpoints.
+The task page's "Blocked by" and "Blocks" lines (#225), over 7.25's three
+endpoints.
 
 **Absent by default.** A task with no dependency draws nothing at all: the
-panel's "Add property" menu offers "Dependency", which opens this block on its
-picker (`opening`). Once an edge exists it is an ordinary panel section.
+body's `/Blocked by` opens this block on its picker (`opening`). Once an edge
+exists it is drawn as property-like lines under the task's properties, never
+in its body: the body holds only what the person wrote, and the relation's
+making is in the task's History.
 
 **One relation, two doors.** "Blocked by…" posts to this task naming the pick;
 "Blocks…" posts to the pick naming this task, which is 7.25's own reversal.
@@ -15,7 +18,7 @@ Only tasks are offered, and only ones not already related.
 **A refusal is said where the person is looking.** The server's 422 (self,
 cycle) is re-worded here and suppressed as a toast (`INLINE_VALIDATION_META`).
 */
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { useFolderOpenTasks, useReferenceSearch, useTaskDependencies } from "../api/queries.js"
 import { useAddTaskDependency, useRemoveTaskDependency } from "../api/mutations.js"
@@ -24,6 +27,7 @@ import type { TaskDependencyEdge } from "../../shared/task-dependencies.js"
 import { CheckCircle2, X } from "../lib/icons.js"
 import { openTask } from "./task-open.js"
 import { cn } from "./ui/utils.js"
+import { PROPERTY_LABEL } from "./task-pickers.js"
 
 type Mode = "depends_on" | "blocks"
 
@@ -51,11 +55,7 @@ function refusalOf(error: unknown, mode: Mode): string {
 interface DependenciesProps {
   taskId: string
   folderId: string | undefined
-  /* The card's own block chrome, handed in so this file needs nothing from
-     `task-card.tsx` and the two never import each other. */
-  /** `title` names the relation the block leads with: "Blocked by", or "Blocks" when it only blocks. */
-  section: (badge: string | undefined, body: ReactNode, title: string) => ReactNode
-  /** "Add property → Dependency" was chosen: open on the picker. */
+  /** `/Blocked by` was chosen in the body: open on the picker. */
   opening?: boolean
   /** The block went back to having nothing to show. */
   onIdle?: () => void
@@ -72,7 +72,7 @@ export function TaskDependencies(props: DependenciesProps) {
   return <Dependencies {...props} />
 }
 
-function Dependencies({ taskId, folderId, section, opening = false, onIdle }: DependenciesProps) {
+function Dependencies({ taskId, folderId, opening = false, onIdle }: DependenciesProps) {
   const read = useTaskDependencies(taskId)
   const add = useAddTaskDependency()
   const remove = useRemoveTaskDependency()
@@ -133,23 +133,11 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
   /* Nothing yet: no heading, no block, no actions. */
   if (idle) return null
 
-  const activeBlockers = dependsOn.filter(
-    (edge) => edge.state === "active" || edge.state === "unresolved",
-  ).length
-
-  const title =
-    dependsOn.length > 0 || (blocks.length === 0 && mode !== "blocks")
-      ? BLOCKED_BY_HEADING
-      : BLOCKS_HEADING
-
-  return section(
-    activeBlockers > 0 ? `Blocked · ${activeBlockers}` : undefined,
-    <div className="flex flex-col gap-2 pt-1">
+  return (
+    <div className="flex flex-col">
       {dependsOn.length > 0 ? (
         <EdgeList
           heading={BLOCKED_BY_HEADING}
-          /* The list carries its own "Blocked by" label; the caller draws no section heading. */
-          showHeading
           edges={dependsOn}
           folderId={folderId}
           direction="depends_on"
@@ -159,43 +147,44 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
       {blocks.length > 0 ? (
         <EdgeList
           heading={BLOCKS_HEADING}
-          /* Its own label, as the "Blocked by" list has. */
-          showHeading
           edges={blocks}
           folderId={folderId}
           direction="blocks"
           onRemove={(edge) => remove.mutate({ taskId, dependencyId: edge.id })}
         />
       ) : null}
-      {picker}
-    </div>,
-    title,
+      {picker === null ? null : (
+        <div className={PROPERTY_LINE}>
+          <span className={LINE_LABEL}>{mode === "blocks" ? BLOCKS_HEADING : BLOCKED_BY_HEADING}</span>
+          {picker}
+        </div>
+      )}
+    </div>
   )
 }
 
+/* A property row's grid (`PROPERTY_ROW` in task-pickers.tsx) without its
+   fixed height or hover, so one line can list several tasks. */
+const PROPERTY_LINE = "grid w-full grid-cols-[6rem_minmax(0,1fr)] items-start gap-2 px-2 text-sm"
+const LINE_LABEL = cn(PROPERTY_LABEL, "leading-[var(--control-height)]")
+
 function EdgeList({
   heading,
-  showHeading = true,
   edges,
   folderId,
   direction,
   onRemove,
 }: {
   heading: string
-  showHeading?: boolean
   edges: TaskDependencyEdge[]
   folderId: string | undefined
   direction: Mode
   onRemove: (edge: TaskDependencyEdge) => void
 }) {
   return (
-    <div>
-      {showHeading ? (
-        <div className="pb-0.5 text-xs leading-4 font-medium text-muted-foreground">
-          {heading}
-        </div>
-      ) : null}
-      <ul className="flex flex-col" aria-label={heading}>
+    <div className={PROPERTY_LINE}>
+      <span className={LINE_LABEL}>{heading}</span>
+      <ul className="flex min-w-0 flex-col" aria-label={heading}>
         {edges.map((edge) => (
           <EdgeRow
             key={edge.id}
@@ -242,7 +231,7 @@ function EdgeRow({
   const word = stateWord(edge, direction)
   const title = edge.task?.title ?? "Private task"
   return (
-    <li className="group/dep -mx-1 flex min-h-[var(--row-height)] items-center gap-2 rounded-md px-1 text-sm hover:bg-accent">
+    <li className="group/dep flex min-h-[var(--control-height)] min-w-0 items-center gap-2 text-sm">
       {done ? (
         <CheckCircle2
           className="size-3.5 shrink-0 text-muted-foreground"
