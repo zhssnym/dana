@@ -75,6 +75,7 @@ import { dropFolderLabelsOnMove, taskLabelsOf } from './labels.js'
 import { taskDependencyCountsOf } from './task-dependency-counts.js'
 import { positionAfter, positionAtSectionEnd, seededItems } from './page-order.js'
 import {
+  ChecklistCapRefusal,
   TaskDocumentRefusal,
   appendChecklist,
   applyTaskDocumentLocked,
@@ -2042,5 +2043,152 @@ export async function writeTaskDocument(
       }
     }
     return result.view
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * 7.7's routes, kept as shims until the contract release
+ * ------------------------------------------------------------------ */
+
+/*
+An installed copy of the app keeps its old client until the person takes the
+update, and that client lifts checklist lines out of the body and sends them
+to 7.7's routes. Answering those 404 would lose the lines. So the three calls
+it makes act on the checklist items of the task's body, which 0060 gave the
+steps' ids: add appends an item, a PATCH ticks or renames one, a DELETE
+removes one. `position` is not read: the old client's reorder is not
+honoured (nothing is lost by that; the item stays where it is). Promotion is
+not kept. The gates are the document writer's: `task.edit`, or `step.toggle`
+for a tick alone. Folder, then Task row, the document writer's lock order.
+*/
+
+export type ChecklistShimResult =
+  | { kind: 'ok'; task: TaskDetail }
+  | { kind: 'not_found' }
+  | { kind: 'cap' }
+  | { kind: 'forbidden'; reason: string }
+
+async function lockedForShim(tx: Executor, viewerId: string, taskId: string): Promise<TaskAccess | null> {
+  const preview = await accessibleTask(tx, viewerId, taskId)
+  if (preview === null) return null
+  await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${preview.folderId}::uuid FOR UPDATE`)
+  const current = await lockedTask(tx, viewerId, taskId)
+  return current === null || current.folderId !== preview.folderId ? null : current
+}
+
+async function shimEvent(tx: Executor, viewerId: string, task: TaskAccess, detail: string): Promise<void> {
+  await recordEvent(tx, {
+    actorId: viewerId,
+    verb: 'edited',
+    subjectKind: 'task',
+    subjectId: task.id,
+    subjectName: task.title,
+    folderId: task.folderId,
+    detail,
+  })
+}
+
+/** `POST /tasks/:id/steps` from an old client: one item, last in the body. */
+export async function addChecklistItemShim(
+  db: Db,
+  viewerId: string,
+  taskId: string,
+  title: string,
+): Promise<ChecklistShimResult> {
+  return inTransaction(db, async (tx) => {
+    const current = await lockedForShim(tx, viewerId, taskId)
+    if (current === null) return { kind: 'not_found' }
+    const decision = mayActOnTask(current, 'task.edit')
+    if (!decision.allowed) return { kind: 'forbidden', reason: decision.reason }
+    try {
+      await appendChecklist(tx, taskId, [{ title }])
+    } catch (error: unknown) {
+      if (error instanceof ChecklistCapRefusal) return { kind: 'cap' }
+      throw error
+    }
+    await shimEvent(tx, viewerId, current, `added a step '${itemWord(title)}'`)
+    return { kind: 'ok', task: await viewOrFail(tx, viewerId, taskId) }
+  })
+}
+
+/** The checklist item with this id and the task it is in, when the viewer
+ * can see that task; the task is then locked. */
+async function lockedChecklistItem(
+  tx: Executor,
+  viewerId: string,
+  itemId: string,
+): Promise<{ task: TaskAccess; text: string; checked: boolean } | null> {
+  const found = await rowsOf(
+    tx,
+    sql`SELECT task_id FROM page_blocks WHERE id = ${itemId}::uuid AND kind = 'checklist' AND task_id IS NOT NULL`,
+  )
+  const taskId = found[0]?.task_id
+  if (taskId === undefined || taskId === null) return null
+  const task = await lockedForShim(tx, viewerId, String(taskId))
+  if (task === null) return null
+  const item = await rowsOf(
+    tx,
+    sql`SELECT text, checked FROM page_blocks
+         WHERE id = ${itemId}::uuid AND kind = 'checklist' AND task_id = ${task.id}::uuid FOR UPDATE`,
+  )
+  const row = item[0]
+  if (row === undefined) return null
+  return { task, text: typeof row.text === 'string' ? row.text : '', checked: row.checked === true }
+}
+
+/** `PATCH /steps/:id` from an old client: a tick, a rename, or both. */
+export async function patchChecklistItemShim(
+  db: Db,
+  viewerId: string,
+  itemId: string,
+  patch: { readonly title?: string; readonly done?: boolean },
+): Promise<ChecklistShimResult> {
+  return inTransaction(db, async (tx) => {
+    const item = await lockedChecklistItem(tx, viewerId, itemId)
+    if (item === null) return { kind: 'not_found' }
+    const decision = mayActOnTask(item.task, patch.title !== undefined ? 'task.edit' : 'step.toggle')
+    const edit = mayActOnTask(item.task, 'task.edit')
+    if (!decision.allowed && !edit.allowed) return { kind: 'forbidden', reason: decision.reason }
+    if (patch.title !== undefined && patch.title !== item.text) {
+      await tx.execute(
+        sql`UPDATE page_blocks SET text = ${patch.title}, rich_content = NULL, updated_at = now()
+             WHERE id = ${itemId}::uuid`,
+      )
+      await shimEvent(tx, viewerId, item.task, `renamed a step to '${itemWord(patch.title)}'`)
+    }
+    if (patch.done !== undefined && patch.done !== item.checked) {
+      await tx.execute(
+        sql`UPDATE page_blocks SET checked = ${patch.done}, updated_at = now() WHERE id = ${itemId}::uuid`,
+      )
+      await shimEvent(
+        tx,
+        viewerId,
+        item.task,
+        `${patch.done ? 'completed' : 'reopened'} the step '${itemWord(patch.title ?? item.text)}'`,
+      )
+    }
+    return { kind: 'ok', task: await viewOrFail(tx, viewerId, item.task.id) }
+  })
+}
+
+/** `DELETE /steps/:id` from an old client. A nested child moves up a level. */
+export async function deleteChecklistItemShim(
+  db: Db,
+  viewerId: string,
+  itemId: string,
+): Promise<ChecklistShimResult> {
+  return inTransaction(db, async (tx) => {
+    const item = await lockedChecklistItem(tx, viewerId, itemId)
+    if (item === null) return { kind: 'not_found' }
+    const decision = mayActOnTask(item.task, 'task.edit')
+    if (!decision.allowed) return { kind: 'forbidden', reason: decision.reason }
+    await tx.execute(
+      sql`UPDATE page_blocks c SET list_parent_block_id = d.list_parent_block_id
+            FROM page_blocks d
+           WHERE d.id = ${itemId}::uuid AND c.list_parent_block_id = d.id`,
+    )
+    await tx.execute(sql`DELETE FROM page_blocks WHERE id = ${itemId}::uuid`)
+    await shimEvent(tx, viewerId, item.task, `removed the step '${itemWord(item.text)}'`)
+    return { kind: 'ok', task: await viewOrFail(tx, viewerId, item.task.id) }
   })
 }

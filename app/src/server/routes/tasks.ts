@@ -25,8 +25,10 @@ import { z } from 'zod'
 import type { DbClient } from '../../../db/client.js'
 import {
   carriesStatus,
+  patchStepBody,
   patchTaskBody,
   postTaskOrderBody,
+  postTaskStepsBody,
   postTasksBody,
   putTaskReminderBody,
 } from '../../shared/tasks.js'
@@ -44,10 +46,13 @@ import { createSecurityLogger } from '../security/log.js'
 import type { SecurityLogger } from '../security/log.js'
 import type { ObjectStore } from '../files/store.js'
 import {
+  addChecklistItemShim,
   createTask,
+  deleteChecklistItemShim,
   deleteTask,
   deleteTaskReminder,
   dropFromMyDay,
+  patchChecklistItemShim,
   patchTask,
   pullIntoMyDay,
   putTaskReminder,
@@ -56,7 +61,7 @@ import {
   transitionTask,
   writeTaskDocument,
 } from '../domain/tasks.js'
-import type { ReminderRefusal, TransitionEvent } from '../domain/tasks.js'
+import type { ChecklistShimResult, ReminderRefusal, TransitionEvent } from '../domain/tasks.js'
 import {
   createTaskDependency,
   deleteTaskDependency,
@@ -684,6 +689,74 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         return
       }
       res.status(204).end()
+    },
+  )
+
+  /* ---------------------------------------------------------------- *
+   * 7.7 steps: shims over the body's checklist items for old clients,
+   * until the contract release (domain/tasks.ts says why)
+   * ---------------------------------------------------------------- */
+
+  function answerShim(res: Response, result: ChecklistShimResult, status: number): void {
+    switch (result.kind) {
+      case 'not_found':
+        notFound(res)
+        return
+      case 'forbidden':
+        forbidden(res, result.reason)
+        return
+      case 'cap':
+        fieldError(res, 'steps', 'a task holds at most 500 blocks')
+        return
+      case 'ok':
+        if (status === 204) res.status(204).end()
+        else res.status(status).json(result.task)
+    }
+  }
+
+  router.post(
+    '/tasks/:id/steps',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const taskId = parsedId(res, req.params.id)
+      if (taskId === null) return
+      const parsed = parseBody(postTaskStepsBody, req, res, securityLog)
+      if (parsed === null) return
+      answerShim(res, await addChecklistItemShim(db, viewer(req), taskId, parsed.title), 201)
+    },
+  )
+
+  router.patch(
+    '/steps/:id',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const itemId = parsedId(res, req.params.id)
+      if (itemId === null) return
+      const parsed = parseBody(patchStepBody, req, res, securityLog)
+      if (parsed === null) return
+      answerShim(res, await patchChecklistItemShim(db, viewer(req), itemId, parsed), 200)
+    },
+  )
+
+  router.delete(
+    '/steps/:id',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const itemId = parsedId(res, req.params.id)
+      if (itemId === null) return
+      answerShim(res, await deleteChecklistItemShim(db, viewer(req), itemId), 204)
     },
   )
 

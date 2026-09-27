@@ -334,12 +334,21 @@ export async function copyTaskDocument(
   }
 }
 
+/** The body `appendChecklist` would build holds more than a page's 500 blocks. */
+export class ChecklistCapRefusal extends Error {
+  constructor() {
+    super('A task holds at most 500 blocks, its notes and checklist items together.')
+    this.name = 'ChecklistCapRefusal'
+  }
+}
+
 /**
  * Appends checklist items (the task's subtasks) after the last block of a
  * Task's document, then rewrites `notes`. The notes are materialized first:
  * a task with notes and no blocks would otherwise lose them, because the
  * document is only built from `notes` while it has no blocks. **The caller
- * holds the Task row** (or has just inserted it).
+ * holds the Task row** (or has just inserted it). Throws `ChecklistCapRefusal`,
+ * before writing any item, when the body would pass 500 blocks.
  */
 export async function appendChecklist(
   tx: Executor,
@@ -352,6 +361,7 @@ export async function appendChecklist(
   const keyed = existing.filter((row) => row.page_position !== null && row.page_position !== undefined)
   if (keyed.length !== existing.length) await relayout(tx, taskId)
   const current = keyed.length === existing.length ? existing : await blockRows(tx, taskId)
+  if (current.length + items.length > 500) throw new ChecklistCapRefusal()
   let last = current.length === 0 ? null : str(current[current.length - 1]?.page_position)
   let position = current.reduce((max, row) => Math.max(max, Number(row.position)), -1)
   for (const item of items) {
@@ -469,8 +479,11 @@ export async function checklistTicks(
           op.rich_content.runs.every((run) => Object.keys(run).length === 1) &&
             op.rich_content.runs.map((run) => run.text).join('') === op.text))
     if (!sameRich) return null
+    // Compared against what the write stores: `applyFlatBody` keeps a
+    // missing tick as false, so a null is an untick of a ticked item.
     const was = row.checked === true
-    if (op.checked !== null && op.checked !== was) ticks.push({ text: op.text ?? '', checked: op.checked })
+    const next = op.checked ?? false
+    if (next !== was) ticks.push({ text: op.text ?? '', checked: next })
   }
   return outlines === 1 ? ticks : null
 }

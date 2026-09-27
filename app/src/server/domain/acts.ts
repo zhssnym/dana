@@ -72,7 +72,7 @@ import {
   createWorkflowFolderLabels,
 } from './labels.js'
 import { upsertReminder } from './tasks.js'
-import { appendChecklist, copyTaskDocument } from './task-document.js'
+import { appendChecklist, ChecklistCapRefusal, copyTaskDocument } from './task-document.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
 import { initialKeys, keyBetween } from './fractional-index.js'
 import { copyDependenciesWithin } from './task-dependencies.js'
@@ -1094,7 +1094,18 @@ export async function importWorkflow(
         const sourceTaskId=folder.document?.task_ids[taskIndex]
         if(sourceTaskId!==undefined)taskMap.set(sourceTaskId,taskId)
         // A workflow's steps are the task's checklist, after its notes.
-        await appendChecklist(tx, taskId, task.steps ?? [])
+        try {
+          await appendChecklist(tx, taskId, task.steps ?? [])
+        } catch (error: unknown) {
+          if (!(error instanceof ChecklistCapRefusal)) throw error
+          throw new DocumentRefusal(
+            'not_convertible',
+            error.message,
+            folder.page === undefined
+              ? `folders.${String(folderIndex)}.tasks.${String(taskIndex)}.steps`
+              : `folders.${String(folderIndex)}.page`,
+          )
+        }
         if (task.reminder !== undefined) {
           await upsertReminder(
             tx,

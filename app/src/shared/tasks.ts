@@ -636,6 +636,23 @@ export const postTaskOrderBody = z.object({
 export type PostTaskOrderBody = z.infer<typeof postTaskOrderBody>
 
 /* ------------------------------------------------------------------ *
+ * 7.7 request bodies, kept for old clients until the contract release
+ * ------------------------------------------------------------------ */
+
+// POST /tasks/:id/steps and PATCH /steps/:id, as an installed copy of the old
+// client still sends them. They act on the task body's checklist items. The
+// old client also sends `position`; it is not declared, so it is stripped:
+// the shim appends and never reorders (server/domain/tasks.ts says why).
+export const postTaskStepsBody = z.object({ title: stepTitle })
+export type PostTaskStepsBody = z.infer<typeof postTaskStepsBody>
+
+export const patchStepBody = z.object({
+  title: stepTitle.optional(),
+  done: z.boolean({ error: 'must be a boolean' }).optional(),
+})
+export type PatchStepBody = z.infer<typeof patchStepBody>
+
+/* ------------------------------------------------------------------ *
  * 7.9 request bodies
  * ------------------------------------------------------------------ */
 

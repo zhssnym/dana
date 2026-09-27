@@ -113,6 +113,15 @@ describe('AC-1518 Assigned work ticks its own task\'s checklist and changes noth
       200,
       'and unticks it',
     )
+    // A missing tick is stored as false, so it is an untick with a history row.
+    doc = await documentOf(worker, task.id)
+    expectStatus(await write(worker, task.id, doc.revision, [put(tent, { checked: true }), outline(doc.blocks)]), 200, 'ticks again')
+    doc = await documentOf(worker, task.id)
+    expectStatus(
+      await write(worker, task.id, doc.revision, [put(tent, { checked: null }), outline(doc.blocks)]),
+      200,
+      'unticks with a null tick',
+    )
     doc = await documentOf(worker, task.id)
     const settled = await stored(task.id)
     expect(settled).toEqual([
@@ -125,6 +134,8 @@ describe('AC-1518 Assigned work ticks its own task\'s checklist and changes noth
       SELECT detail FROM events
        WHERE subject_kind = 'task' AND subject_id = ${task.id}::uuid AND actor_id = ${worker.id}::uuid
        ORDER BY created_at, id`)).toEqual([
+      { detail: "completed the step 'Tent'" },
+      { detail: "reopened the step 'Tent'" },
       { detail: "completed the step 'Tent'" },
       { detail: "reopened the step 'Tent'" },
     ])
@@ -140,5 +151,70 @@ describe('AC-1518 Assigned work ticks its own task\'s checklist and changes noth
       expectStatus(await write(worker, task.id, doc.revision, operations), 403, `${what} is task.edit, which Assigned work lacks`)
       expect(await stored(task.id), `${what} stored nothing`).toEqual(settled)
     }
+  })
+})
+
+describe('AC-1518 an old client\'s 7.7 calls land on the checklist, under the same gates', () => {
+  test('add, tick, rename and delete are stored on the body; Assigned work only ticks', async () => {
+    const [owner, worker] = await cast.of(app)
+    if (owner === undefined || worker === undefined) throw new Error('cast must produce two actors')
+    const folderId = await createFolder(owner, 'ac1518 old client')
+    await connect(app.db, owner.id, worker.id)
+    await addMemberOk(owner, folderId, worker.id, 'assigned_work')
+    const task = await createTaskOk(
+      owner,
+      { title: 'ac1518 legacy', folder_id: folderId, assignee_id: worker.id, steps: ['Tent'] },
+      'the owner creates a task with one step (spec 7.6)',
+    )
+    const [tent] = await stored(task.id)
+    if (tent === undefined) throw new Error('the step is the body\'s checklist')
+
+    expectStatus(await owner.browser.json(`/tasks/${task.id}/steps`, 'POST', { title: 'Stove', position: 2 }), 201, 'the old add appends an item')
+    const [, stove] = await stored(task.id)
+    if (stove === undefined) throw new Error('the added item is stored')
+    expect(await stored(task.id)).toEqual([
+      { id: tent.id, kind: 'checklist', text: 'Tent', checked: false },
+      { id: stove.id, kind: 'checklist', text: 'Stove', checked: false },
+    ])
+
+    expectStatus(await worker.browser.json(`/steps/${String(tent.id)}`, 'PATCH', { done: true }), 200, 'Assigned work ticks through the old call')
+    expectStatus(await worker.browser.json(`/steps/${String(tent.id)}`, 'PATCH', { title: 'Tarp' }), 403, 'but may not rename')
+    expectStatus(await worker.browser.json(`/tasks/${task.id}/steps`, 'POST', { title: 'Map' }), 403, 'or add')
+    expectStatus(await worker.browser.json(`/steps/${String(stove.id)}`, 'DELETE'), 403, 'or delete')
+    expectStatus(await owner.browser.json(`/steps/${String(stove.id)}`, 'PATCH', { title: 'Two stoves' }), 200, 'the owner renames')
+    expect(await stored(task.id)).toEqual([
+      { id: tent.id, kind: 'checklist', text: 'Tent', checked: true },
+      { id: stove.id, kind: 'checklist', text: 'Two stoves', checked: false },
+    ])
+    expectStatus(await owner.browser.json(`/steps/${String(stove.id)}`, 'DELETE'), 204, 'the owner deletes')
+    expect(await stored(task.id)).toEqual([{ id: tent.id, kind: 'checklist', text: 'Tent', checked: true }])
+  })
+})
+
+describe('AC-1518 a body over 500 blocks (0060 can make one) still takes a tick', () => {
+  test('the tick is stored; only growth past the cap is refused', async () => {
+    const [owner, worker] = await cast.of(app)
+    if (owner === undefined || worker === undefined) throw new Error('cast must produce two actors')
+    const folderId = await createFolder(owner, 'ac1518 long body')
+    await connect(app.db, owner.id, worker.id)
+    await addMemberOk(owner, folderId, worker.id, 'assigned_work')
+    const task = await createTaskOk(
+      owner,
+      { title: 'ac1518 long', folder_id: folderId, assignee_id: worker.id, steps: ['Tent'] },
+      'the owner creates a task with one step (spec 7.6)',
+    )
+    await app.db.execute(sql`
+      INSERT INTO page_blocks (task_id, kind, position, page_position, text)
+      SELECT ${task.id}::uuid, 'paragraph', n, 'Z' || lpad(n::text, 3, '0'), 'line'
+        FROM generate_series(1, 500) AS n`)
+    const doc = await documentOf(worker, task.id)
+    expect(doc.blocks).toHaveLength(501)
+    const tent = doc.blocks.find((b) => b.kind === 'checklist')
+    if (tent === undefined) throw new Error('the step is in the body')
+    expectStatus(await write(worker, task.id, doc.revision, [put(tent, { checked: true }), outline(doc.blocks)]), 200, 'a tick on a long body')
+    expect((await stored(task.id)).find((b) => b.id === tent.id)).toEqual({ id: tent.id, kind: 'checklist', text: 'Tent', checked: true })
+    const extra: StoredBlock = { ...tent, id: randomUUID(), text: 'More', checked: false }
+    const after = await documentOf(owner, task.id)
+    expectStatus(await write(owner, task.id, after.revision, [put(extra), outline([...after.blocks, extra])]), 422, 'growing it is refused')
   })
 })

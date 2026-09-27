@@ -29,8 +29,16 @@
 --    notes are the newer copy and are left exactly as they are.
 -- 6. Invariants. Any mismatch raises `step 6: <check> <id>`, which rolls back
 --    every pending migration with this one.
+-- 7. The deploy overlap. The old instance keeps serving while the new one
+--    boots, and it still writes `steps`. The lock below holds its writes
+--    (and its lazy notes materialization) until this commits, and the
+--    trigger `steps_to_checklist` mirrors every later insert, update and
+--    delete on `steps` onto the checklist block with the same id. The
+--    contract migration drops it with the table.
 --
 -- Forward only. Nothing is dropped.
+LOCK TABLE tasks, steps, page_blocks IN SHARE ROW EXCLUSIVE MODE;
+--> statement-breakpoint
 CREATE SCHEMA migration_util;
 --> statement-breakpoint
 CREATE FUNCTION migration_util.key_after(k text) RETURNS text
@@ -368,3 +376,100 @@ BEGIN
   END IF;
 END
 $$;
+--> statement-breakpoint
+-- 7. The bridge for the old server's `steps` writes during the overlap.
+--    Ids are kept, so a step and its item join on id. An insert lands last
+--    in the body, after materializing lazy notes exactly as 2 does; an
+--    insert into a task this same transaction created (the old server's
+--    copies, which copy the body too) is skipped when the copied body
+--    already holds an item of that text. A rename drops the item's rich
+--    text, which would otherwise disagree; a delete lifts any nested child.
+CREATE FUNCTION migration_util.steps_to_checklist() RETURNS trigger
+LANGUAGE plpgsql AS $fn$
+DECLARE
+  n record;
+  last_key text;
+  last_pos integer;
+  b record;
+  rest text;
+  piece text;
+  win text;
+  cut integer;
+  pos integer;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    UPDATE page_blocks c SET list_parent_block_id = d.list_parent_block_id
+      FROM page_blocks d
+     WHERE d.id = OLD.id AND d.kind = 'checklist' AND c.list_parent_block_id = d.id;
+    DELETE FROM page_blocks WHERE id = OLD.id AND kind = 'checklist';
+    RETURN OLD;
+  END IF;
+  IF TG_OP = 'UPDATE' THEN
+    UPDATE page_blocks
+       SET text = NEW.title,
+           checked = NEW.done,
+           rich_content = CASE WHEN NEW.title IS DISTINCT FROM OLD.title THEN NULL ELSE rich_content END,
+           updated_at = now()
+     WHERE id = NEW.id AND kind = 'checklist';
+    RETURN NEW;
+  END IF;
+  IF EXISTS (SELECT 1 FROM page_blocks WHERE id = NEW.id) THEN
+    RETURN NEW;
+  END IF;
+  IF (SELECT t.xmin::text FROM tasks t WHERE t.id = NEW.task_id) = (txid_current() % 4294967296)::text
+     AND EXISTS (SELECT 1 FROM page_blocks c
+                  WHERE c.task_id = NEW.task_id AND c.kind = 'checklist'
+                    AND c.text IS NOT DISTINCT FROM NEW.title
+                    AND NOT EXISTS (SELECT 1 FROM steps s WHERE s.id = c.id)) THEN
+    RETURN NEW;
+  END IF;
+  SELECT t.notes INTO n FROM tasks t WHERE t.id = NEW.task_id;
+  IF n.notes IS NOT NULL AND n.notes <> ''
+     AND NOT EXISTS (SELECT 1 FROM page_blocks WHERE task_id = NEW.task_id) THEN
+    rest := n.notes;
+    pos := 0;
+    LOOP
+      IF char_length(rest) <= 4000 THEN
+        piece := rest;
+        rest := NULL;
+      ELSE
+        win := substr(rest, 1, 4001);
+        cut := position(E'\n' IN reverse(win));
+        IF cut > 0 THEN
+          piece := substr(rest, 1, 4001 - cut);
+          rest := substr(rest, 4003 - cut);
+        ELSE
+          piece := substr(rest, 1, 4000);
+          rest := substr(rest, 4001);
+        END IF;
+      END IF;
+      INSERT INTO page_blocks (task_id, kind, position, page_position, text)
+      VALUES (NEW.task_id, 'paragraph', pos,
+              'a' || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', pos + 1, 1),
+              piece);
+      pos := pos + 1;
+      EXIT WHEN rest IS NULL;
+    END LOOP;
+  END IF;
+  SELECT max(page_position COLLATE "C") INTO last_key
+    FROM page_blocks WHERE task_id = NEW.task_id;
+  FOR b IN
+    SELECT id FROM page_blocks
+     WHERE task_id = NEW.task_id AND page_position IS NULL
+     ORDER BY position, updated_at, id
+  LOOP
+    last_key := migration_util.key_after(last_key);
+    UPDATE page_blocks SET page_position = last_key WHERE id = b.id;
+  END LOOP;
+  SELECT COALESCE(max(position), -1) INTO last_pos
+    FROM page_blocks WHERE task_id = NEW.task_id;
+  INSERT INTO page_blocks (id, task_id, kind, position, page_position, text, checked)
+  VALUES (NEW.id, NEW.task_id, 'checklist', last_pos + 1,
+          migration_util.key_after(last_key), NEW.title, NEW.done);
+  RETURN NEW;
+END
+$fn$;
+--> statement-breakpoint
+CREATE TRIGGER steps_to_checklist
+  AFTER INSERT OR UPDATE OR DELETE ON steps
+  FOR EACH ROW EXECUTE FUNCTION migration_util.steps_to_checklist();

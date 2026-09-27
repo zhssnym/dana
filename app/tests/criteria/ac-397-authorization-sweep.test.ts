@@ -117,6 +117,7 @@ import {
   makeSavedView,
   makeSharedFolder,
   makeShelf,
+  makeStep,
   makeTask,
   memoryFileStore,
   startUpstreamStub,
@@ -290,6 +291,7 @@ type ResourceId =
   | 'blockingTaskId'
   | 'dependencyId'
   | 'trashedTaskId'
+  | 'stepId'
   | 'shelfId'
   | 'viewId'
   | 'commentId'
@@ -345,6 +347,7 @@ async function fixturesOf(): Promise<Fixtures> {
 
   const folderId = await makeSharedFolder(app, owner, member, 'ac397 shared')
   const taskId = await makeTask(owner, folderId, 'ac397 the task')
+  const stepId = await makeStep(owner, taskId, 'ac397 the step')
   const blockingTaskId = await makeTask(owner, folderId, 'ac397 the blocker')
   const dependencyId = await makeDependency(owner, taskId, blockingTaskId)
   const fileId = await makeFile(owner, folderId, 'ac397.png')
@@ -473,6 +476,7 @@ async function fixturesOf(): Promise<Fixtures> {
     blockingTaskId,
     dependencyId,
     trashedTaskId,
+    stepId,
     shelfId,
     viewId,
     commentId,
@@ -1163,6 +1167,39 @@ const TABLE = new Map<string, Row>([
         body: { after_id: null, before_id: null },
       }),
       stranger: { expected: 404, rule: '5.4 row 2: a hand order is an edit' },
+    },
+  ],
+  [
+    'POST /api/v1/tasks/:id/steps',
+    {
+      attempt: (fx) => ({
+        path: `/tasks/${fx.taskId}/steps`,
+        body: { title: 'ac397 from a stranger' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '7.7 (a shim over the body checklist until the contract release): the task\'s folder decides who may touch it',
+      },
+    },
+  ],
+  [
+    'PATCH /api/v1/steps/:id',
+    {
+      attempt: (fx) => ({
+        path: `/steps/${fx.stepId}`,
+        body: { title: 'ac397 edited by a stranger' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '7.7 (shim): a checklist item is addressed by its own id and reached through its task\'s folder',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/steps/:id',
+    {
+      attempt: (fx) => ({ path: `/steps/${fx.stepId}` }),
+      stranger: { expected: 404, rule: '7.7, as the PATCH above' },
     },
   ],
   [
@@ -2428,6 +2465,11 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       what: 'the dependency, on the dependent task it hangs from',
       path: `/tasks/${fx.taskId}/dependencies`,
       holds: fx.dependencyId,
+    }),
+    stepId: (fx) => ({
+      what: 'the step, on its task',
+      path: `/tasks/${fx.taskId}`,
+      holds: fx.stepId,
     }),
     shelfId: (fx) => ({ what: 'the shelf', path: `/shelves/${fx.shelfId}` }),
     viewId: (fx) => ({ what: 'the saved view', path: `/views/${fx.viewId}` }),

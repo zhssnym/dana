@@ -258,6 +258,36 @@ describe('AC-1516 migration 0060 moves steps into the task body as checklist ite
     expect(await rows(db, sql`SELECT count(*)::int AS n FROM steps`)).toEqual([{ n: 15 }])
   })
 
+  test("the old server's steps writes during the overlap reach the body", async () => {
+    const late = '50000000-0000-4000-8000-000000000001'
+    const lateTask = '20000000-0000-4000-8000-0000000000b1'
+    const copy = '20000000-0000-4000-8000-0000000000b2'
+    await db.execute(sql`INSERT INTO steps (id, task_id, title, position) VALUES (${late}::uuid, ${ids.onlySteps}::uuid, 'Fourth', 9)`)
+    await db.execute(sql`UPDATE steps SET title = 'First, renamed', done = false WHERE id = ${ids.s2}::uuid`)
+    await db.execute(sql`DELETE FROM steps WHERE id = ${ids.s3}::uuid`)
+    expect(await blocksOf(ids.onlySteps)).toEqual([
+      { id: ids.s2, kind: 'checklist', text: 'First, renamed', checked: false, page_position: 'a0', position: 0 },
+      { id: ids.s1, kind: 'checklist', text: 'Third', checked: false, page_position: 'a2', position: 2 },
+      { id: late, kind: 'checklist', text: 'Fourth', checked: false, page_position: 'a3', position: 3 },
+    ])
+    // A step on a task whose notes were never materialized keeps the notes.
+    await db.execute(sql`
+      INSERT INTO tasks (id, folder_id, title, created_by, notes)
+      VALUES (${lateTask}::uuid, ${ids.folder}::uuid, 'Late', ${ids.owner}::uuid, ${'Line one\nLine two'})`)
+    await db.execute(sql`INSERT INTO steps (task_id, title, position) VALUES (${lateTask}::uuid, 'Do it', 1)`)
+    expect((await blocksOf(lateTask)).map((b) => [b.kind, b.text, b.page_position])).toEqual([
+      ['paragraph', 'Line one\nLine two', 'a0'],
+      ['checklist', 'Do it', 'a1'],
+    ])
+    // The old server's copy writes the body and the steps in one transaction.
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`INSERT INTO tasks (id, folder_id, title, created_by) VALUES (${copy}::uuid, ${ids.folder}::uuid, 'Copy', ${ids.owner}::uuid)`)
+      await tx.execute(sql`INSERT INTO page_blocks (task_id, kind, position, page_position, text, checked) VALUES (${copy}::uuid, 'checklist', 0, 'a0', 'Third', false)`)
+      await tx.execute(sql`INSERT INTO steps (task_id, title, position) VALUES (${copy}::uuid, 'Third', 5)`)
+    })
+    expect((await blocksOf(copy)).map((b) => b.text)).toEqual(['Third'])
+  })
+
   test('migration_util.key_after is keyBetween(k, null) on the leg database', async () => {
     const client = await createTestDb()
     try {
