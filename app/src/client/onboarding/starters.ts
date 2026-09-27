@@ -169,7 +169,7 @@ export const STARTERS: readonly [Starter, Starter, Starter] = [
               section('Make the shape once, then reuse it'),
               paragraph(
                 'This page is a shape: a goal, a source, practice, and review. When it ' +
-                  'has worked for you once, choose Export as template in the page menu, ' +
+                  'has worked for you once, choose Export project in the project menu, ' +
                   'and import that file for the next thing you learn. The shape comes ' +
                   'across; the old dates, people and finished work stay behind.',
               ),

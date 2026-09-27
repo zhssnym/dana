@@ -55,7 +55,7 @@ export interface SlashContext {
   readonly onCreateTask?: () => void
   /** Doc pages: a sub-page made here (step 7). */
   readonly onCreatePage?: () => void
-  /** Task only: opens the Blocked by picker under the writing. */
+  /** Task only: opens the Blocked by picker by the properties; inserts nothing. */
   readonly onCreateBlocker?: () => void
   /** False where no file can be stored (a Task outside a Folder). */
   readonly media?: boolean
