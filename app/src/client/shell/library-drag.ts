@@ -68,22 +68,6 @@ export function grip(base: {
 }
 
 /**
- * `grip` for a sub-page's row. The row sits inside its parent's item, which is
- * a grip of its own, so the press stops here: one press carries one page.
- */
-export function nestedGrip(base: {
-  onPointerDown: (event: ReactPointerEvent) => void
-}): { onPointerDown: (event: ReactPointerEvent) => void } {
-  const inner = grip(base)
-  return {
-    onPointerDown: (event: ReactPointerEvent): void => {
-      event.stopPropagation()
-      inner.onPointerDown(event)
-    },
-  }
-}
-
-/**
  * The page row under a point, and which part of it: its top quarter, its
  * middle, or its bottom quarter (`page-tree.ts`'s `zoneAt`).
  *

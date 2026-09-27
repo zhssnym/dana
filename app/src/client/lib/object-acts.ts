@@ -49,14 +49,13 @@ import type { ReactNode } from 'react'
 import {
   Ban,
   Copy,
-  FolderInput,
+  Download,
   Fullscreen,
   History,
   Link2,
   LogOut,
   OpenInNewTab,
   Pencil,
-  Plus,
   RotateCcw,
   SunMedium,
   Trash2,
@@ -74,7 +73,9 @@ arrange and throw away, so it takes the same acts.
 System views are deliberately absent. A person did not make Today and cannot
 duplicate or delete it; what it offers is pinning, which 9.7's Settings owns.
 */
-export type ObjectKind = 'task' | 'folder' | 'shelf'
+/* A **project** is a Library root; a **folder** here is a page inside one.
+   They share the acts but not the list: only a project exports. */
+export type ObjectKind = 'task' | 'project' | 'folder' | 'shelf'
 
 export type ActKey =
   /* "Reaching the object" rather than "open in a tab": a folder offers one way
@@ -103,7 +104,11 @@ export type ActKey =
   | 'make-folder'
   | 'copy-link'
   | 'duplicate'
-  /* Import a Dana file under this page (round 3). */
+  /* Download the project as a Dana file (7.16), the one the Library's
+     Import project reads. */
+  | 'export'
+  /* Import a Dana file under this page (round 3). No list offers it now:
+     the Library's Import project is the one way a file comes in. */
   | 'import'
   | 'abandon'
   | 'restore'
@@ -156,32 +161,38 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     { key: 'delete', label: 'Delete task', icon: Trash2, group: 5, destructive: true },
   ],
   /*
-  **One folder menu, drawn identically in its three homes**: the folder page's
-  header "…", the Library row's "…", and a right-click on that row (which opens
-  the row's "…"). Every surface passes the same handlers (M4: the page passes
-  Rename and Add a page inside, the row History, Import and the workspace-tab
-  act), so the order below is the menu; nothing arrives through `extra`. The
-  page itself does not offer a second copy of the destination it is showing.
+  **One list, three homes**: the page's header "…", the Library row's "…",
+  and a right-click on that row (which opens the row's "…"). The order below
+  is the menu wherever it opens; nothing arrives through `extra`.
 
-  **Export as template and Transfer ownership are Share's** (M4): both are
-  about who else gets the page, so they sit in the sharing panel and never
-  here. A surface that still passes `workflow` or `transfer` draws nothing,
-  since an act with no spec in this list is not drawn.
+  **The lean menus (u2).** Each surface passes only what is not already on
+  it: the page's header passes no Rename (its title renames in place) and
+  the Library row no History (the page's "…" has it). Add a page inside and
+  Import as sub-page… left every menu: the `/` menu's Page makes a sub-page,
+  and the Library's Import project brings a file in. Transfer ownership is
+  Share's.
   */
-  folder: [
+  project: [
     { key: 'open-tab', label: 'Open in new tab', icon: OpenInNewTab, group: 1 },
     { key: 'history', label: 'History', icon: History, group: 1 },
     { key: 'rename', label: 'Rename', icon: Pencil, group: 2 },
-    { key: 'add-page', label: 'Add a page inside', icon: Plus, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
-    /* Import brings a file in under this page (round 3). */
-    { key: 'import', label: 'Import as sub-page…', icon: FolderInput, group: 3 },
+    { key: 'export', label: 'Export project', icon: Download, group: 3 },
     /* Leave and Delete are never offered together: a surface supplies the one
        its viewer's role permits (9.6's matrix), which is the contract's own
        safety property doing the permission work. */
     /* Leave asks first (access goes, no undo), so it keeps its ellipsis;
        Delete goes to Trash with undo and asks nothing. */
+    { key: 'leave', label: 'Leave project…', icon: LogOut, group: 4 },
+    { key: 'delete', label: 'Delete project', icon: Trash2, group: 5, destructive: true },
+  ],
+  folder: [
+    { key: 'open-tab', label: 'Open in new tab', icon: OpenInNewTab, group: 1 },
+    { key: 'history', label: 'History', icon: History, group: 1 },
+    { key: 'rename', label: 'Rename', icon: Pencil, group: 2 },
+    { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
+    { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
     /* Step 8: people belong to the project, so leaving any page of it
        leaves the project. */
     { key: 'leave', label: 'Leave project…', icon: LogOut, group: 4 },
