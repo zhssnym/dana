@@ -696,6 +696,20 @@ BEGIN
   IF bad IS NOT NULL THEN
     RAISE EXCEPTION 'step 8: responsibility moved into Trash %', bad;
   END IF;
+  -- No live page stays in a project whose root is in Trash: the purge
+  -- deletes the root, and folders_project_id_fkey cascades to the page.
+  SELECT f.id::text INTO bad FROM folders f JOIN folders p ON p.id = f.project_id
+   WHERE f.deleted_at IS NULL AND p.deleted_at IS NOT NULL LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 8: live page in a trashed project %', bad;
+  END IF;
+  -- Nothing reads history on a page after step 8, so none is left there.
+  SELECT h.id::text INTO bad FROM folder_responsibility_history h
+    JOIN folders f ON f.id = h.folder_id
+   WHERE f.id <> f.project_id LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 8: responsibility history left on a page %', bad;
+  END IF;
 
   -- Responsibility history: every row stays; a row moved only to its
   -- document's project (with no document, its page's project); the only new
