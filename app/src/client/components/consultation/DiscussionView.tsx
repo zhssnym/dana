@@ -1,11 +1,10 @@
 /*
 One thread, as its own page (W-C; #212, #320; r4, r9). The top bar's
 breadcrumb names it and its page crumb returns to the list, and the page's
-own head and tabs step aside. Its head is the page head's: the status (an
-outline bubble while open, the accent check once resolved) and the 28px
+own head and tabs step aside. Its head reads like a letter's: the 28px
 title on the left; "Turn into a task", "Resolve" and the "…" menu (Rename,
-Move to Trash) on the right. It says nothing the posts already
-show.
+Move to Trash) on the right; a rule under it. It says nothing the posts
+already show.
 
 "Turn into a task" is an open thread's main act (M4 §4.4): talk that has
 found its task ends there. One press creates the task, titled as the thread,
@@ -73,7 +72,7 @@ import { writeFailureMessage } from '../../api/queryClient.js'
 import { showToast } from '../../state/toasts.js'
 import { formatDate } from '../../lib/dates.js'
 import { folderGates, mayDraw } from '../../lib/folder-authority.js'
-import { MoreHorizontal } from '../../lib/icons.js'
+import { Check, MoreHorizontal } from '../../lib/icons.js'
 import type { PersonResolver, ThreadAuthority } from '../../lib/thread.js'
 import { pushUndo, undoLabel } from '../../shell/undo.js'
 import { DISCUSSION_TITLE_MAX, discussionSchema, OUTCOME_STATEMENT_MAX } from '../../../shared/consultation.js'
@@ -275,7 +274,7 @@ function ThreadBody(props: {
   /* Closed: a short block under the title says how it ended (and the
      decision, if one was given), with Reopen beside it. */
   const closedNote = frozen ? (
-    <div className="mt-3 flex min-w-0 shrink-0 items-start gap-3 rounded-md border border-border px-3 py-2 ml-9">
+    <div className="mt-4 flex min-w-0 shrink-0 items-start gap-3 rounded-md border border-border px-3 py-2">
       <div className="min-w-0 flex-1 text-sm">
         <p className="text-muted-foreground">
           {trashed
@@ -301,25 +300,24 @@ function ThreadBody(props: {
       className="flex min-w-0 flex-col"
       style={height === null ? undefined : { height }}
     >
-      {/* The page head's geometry: the status where a page's mark sits, the
-          28px title beside it, the acts on the right. */}
-      <header className="flex min-w-0 shrink-0 items-center gap-1 pt-4 max-md:flex-wrap max-md:pt-2">
-        <span role="img" aria-label={trashed ? 'In Trash' : resolved ? 'Resolved' : 'Open'} className="flex size-8 shrink-0 items-center justify-center">
-          {resolved ? <ResolvedMark /> : <OpenMark />}
-        </span>
+      {/* A letter's head: the 28px title on the left, the acts on the right. */}
+      <header className="flex min-w-0 shrink-0 items-start gap-2 pt-4 max-md:flex-wrap max-md:pt-2">
         {renaming ? (
           <Rename discussion={d} onDone={() => { setRenaming(false) }} />
         ) : (
-          <h1 data-page-title="" className="line-clamp-2 min-w-0 flex-1 break-words text-[length:var(--text-title-size)] leading-8 font-title text-foreground">{d.title}</h1>
+          <h1 data-page-title="" className="line-clamp-2 min-w-0 flex-1 break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-foreground">{d.title}</h1>
         )}
         {/* On a phone the acts take their own line under the title, so the
             title is never squeezed to a few letters. */}
-        <div className="ml-auto flex shrink-0 items-center gap-1 max-md:ml-0 max-md:w-full max-md:pl-8">
+        <div className="mt-1 ml-auto flex shrink-0 items-center gap-2 max-md:ml-0 max-md:w-full">
           {convertible && !closing ? (
             <Button type="button" disabled={turning} onClick={() => void turnIntoTask()}>Turn into a task</Button>
           ) : null}
           {resolvable && !closing ? (
-            <Button type="button" variant="ghost" disabled={turning} onClick={() => { setClosing(true) }}>Resolve</Button>
+            <Button type="button" variant="outline" disabled={turning} onClick={() => { setClosing(true) }}>
+              <Check className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+              Resolve
+            </Button>
           ) : null}
           {hasMenu ? (
             <DropdownMenu>
@@ -350,12 +348,12 @@ function ThreadBody(props: {
       </header>
       {d.task !== null ? (
         /* The task it is about: one plain row, its mark, name and state. */
-        <p className="mt-2 shrink-0 pl-7 text-sm">
+        <p className="mt-3.5 shrink-0 text-sm">
           <Link
             to={paths.task(d.task.id)}
-            className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-md px-2 py-1 outline-none hover:bg-accent"
+            className="-mx-2.5 flex max-w-full min-w-0 items-center gap-2.5 rounded-md px-2.5 py-2 outline-none hover:bg-accent"
           >
-            <StateMark state={taskState(d.task)} className="size-3.5 shrink-0" />
+            <StateMark state={taskState(d.task)} className="size-4 shrink-0" />
             <span className="min-w-0 truncate font-medium text-foreground">{d.task.title}</span>
             <span className="shrink-0 text-muted-foreground">{STATE_WORD[taskState(d.task)]}</span>
           </Link>
@@ -363,8 +361,10 @@ function ThreadBody(props: {
       ) : null}
       {closedNote}
       {d.context !== null && d.context !== '' ? (
-        <p className="mt-2 shrink-0 pl-9 text-sm break-words whitespace-pre-wrap text-muted-foreground">{d.context}</p>
+        <p className="mt-2 shrink-0 text-sm break-words whitespace-pre-wrap text-muted-foreground">{d.context}</p>
       ) : null}
+      {/* The rule under the head, as a letter's. */}
+      <div aria-hidden="true" className="mt-6 mb-2 h-px shrink-0 bg-border" />
 
       <ThreadPosts
         folderId={folderId}
@@ -422,25 +422,6 @@ function leavesThread(event: KeyboardEvent): boolean {
   if (editor.dataset.postEditor !== 'new') return false
   const text = editor.textContent?.trim() ?? ''
   return text === '' && editor.querySelector('img, video, audio, [data-content-type="file"]') === null
-}
-
-/** An open thread: an outline speech bubble. */
-function OpenMark(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" className="size-6 text-muted-foreground" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
-    </svg>
-  )
-}
-
-/** A resolved thread: a filled accent circle with a check. */
-function ResolvedMark(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" className="size-6" aria-hidden="true">
-      <circle cx="12" cy="12" r="10" className="fill-primary" />
-      <path d="m8 12 3 3 5-6" fill="none" className="stroke-primary-foreground" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
 }
 
 /** The thread fills the window below where it starts, so its history
