@@ -332,24 +332,24 @@ function Tiles({ files }: { readonly files: readonly CommentFile[] }): React.JSX
   )
 }
 
-/** A picture with its name and size under it, as a file tile says them. */
+/** A picture in a 280px card, its name and size under it in one muted line. */
 function ImageTile({ file }: { readonly file: CommentFile }): React.JSX.Element {
   return (
     <a
       href={fileSrc(file.id)}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex max-w-full min-w-40 flex-col overflow-hidden rounded-md border border-border align-top whitespace-normal outline-none hover:bg-muted"
+      className="mt-1.5 inline-flex w-70 max-w-full flex-col overflow-hidden rounded-md border border-border align-top whitespace-normal outline-none hover:border-quiet-foreground"
     >
       <img
         src={fileSrc(file.id)}
         alt={file.name}
         loading="lazy"
-        className="h-auto max-h-64 w-auto max-w-full object-contain"
+        className="h-auto max-h-64 w-full bg-muted object-contain"
         {...(file.width !== null && file.height !== null ? { width: file.width, height: file.height } : {})}
       />
-      <span className="flex w-0 min-w-full gap-2 border-t border-border px-2 py-1 text-xs">
-        <span className="min-w-0 truncate text-foreground">{file.name}</span>
+      <span className="flex gap-2 border-t border-border px-2.5 py-1.5 text-xs text-muted-foreground">
+        <span className="min-w-0 truncate">{file.name}</span>
         <span className="ml-auto shrink-0 text-muted-foreground">{readableSize(file.bytes)}</span>
       </span>
     </a>

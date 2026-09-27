@@ -1,7 +1,7 @@
 /*
 A Discussion thread's posts and its composer (W-C; r3 discuss; m12).
 
-Slack's stream, calm and compact: the posts that answer nothing run oldest
+A letter (option C): text first, small faces, room between posts. The posts that answer nothing run oldest
 first (`created_at`, then id), each with its replies under it as one indented,
 quieter run (7.14 keeps one level; `grouping.ts`). A group's first post wears
 its author's small face, name and time; the posts that follow within five
@@ -23,8 +23,8 @@ nothing): Like, Reply and "…" (Edit, Delete) sit in a small bar at the right
 of the post's own row, shown on hover or focus, never over the post above. A
 liked post keeps one small chip under its text naming who liked it ("You",
 "Lucía and You"), never a count; pressing it likes or unlikes. Edit opens the
-editor in place; Delete asks first. The composer is one box pinned at the
-bottom; Reply moves the cursor there and names the post above it.
+editor in place; Delete asks first. The composer is one box right under the last
+post, pinned at the bottom once the thread is longer than the window; Reply moves the cursor there and names the post above it.
 */
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -67,7 +67,7 @@ const BAR_BUTTON =
    exactly the bar's height, so it never reaches the post above. A touch
    screen has no hover: the tapped post's bar is a row under its text. */
 const BAR_PLACE =
-  'absolute top-0 right-1 z-10 pointer-coarse:static pointer-coarse:mt-1 pointer-coarse:hidden pointer-coarse:w-fit pointer-coarse:opacity-100 pointer-coarse:group-focus-within/post:flex pointer-coarse:group-focus/post:flex'
+  'absolute right-2 z-10 pointer-coarse:static pointer-coarse:mt-1 pointer-coarse:hidden pointer-coarse:w-fit pointer-coarse:opacity-100 pointer-coarse:group-focus-within/post:flex pointer-coarse:group-focus/post:flex'
 
 function EditorFallback(): React.JSX.Element {
   return <div className="h-20 rounded-lg border border-border bg-background" aria-busy="true" />
@@ -78,6 +78,18 @@ function gist(line: CommentLine): string {
   const text = (line.body ?? '').replace(/\s+/g, ' ').trim()
   if (text !== '') return text
   return line.files.length > 0 ? 'an attachment' : ''
+}
+
+/** The composer's words: "Reply to Sam and Lucía…", the one or two others
+ * who wrote here, latest first, by first name; else "Write a reply…". */
+function replyPrompt(posts: readonly CommentLine[], viewerId: string | null, personOf: PersonResolver): string {
+  if (posts.length === 0) return 'Write the first post…'
+  const others: string[] = []
+  for (const line of [...posts].reverse()) {
+    if (line.author_id !== viewerId && !others.includes(line.author_id)) others.push(line.author_id)
+  }
+  if (others.length === 0 || others.length > 2) return 'Write a reply…'
+  return `Reply to ${others.map((id) => personOf(id).name.split(' ')[0] ?? '').join(' and ')}…`
 }
 
 /** "You", "Lucía and You", "Sam, Lucía and You": everyone, by name. */
@@ -281,9 +293,9 @@ export function ThreadPosts({
 
   const newLine = (id: string): React.ReactNode =>
     newFrom === id ? (
-      <div className="flex items-center gap-2 py-1 pl-2" role="separator" aria-label="New">
+      <div className="my-1.5 flex items-center gap-3 px-2" role="separator" aria-label="New">
         <span className="text-xs font-medium text-primary" aria-hidden="true">New</span>
-        <span className="h-px flex-1 bg-primary opacity-40" aria-hidden="true" />
+        <span className="h-px flex-1 bg-primary opacity-35" aria-hidden="true" />
       </div>
     ) : null
 
@@ -310,18 +322,19 @@ export function ThreadPosts({
         tabIndex={-1}
         aria-label={`${author.name}, ${fullDate}`}
         className={cn(
-          'group/post relative flex min-w-0 gap-2 rounded-md px-2 py-0.5 outline-none transition-colors duration-[var(--duration-base)]',
-          /* The post being edited has the editor's own frame; a tint too is a double frame. */
-          editing !== line.id && 'hover:bg-accent focus:bg-accent',
-          head && 'mt-1.5',
+          /* A letter's rhythm: 14px around each post, 10px around a reply;
+             a grouped post sits under the one before it. */
+          'group/post relative flex min-w-0 gap-3 rounded-md px-2 outline-none transition-colors duration-[var(--duration-base)]',
+          reply ? 'pt-2.5 pb-1' : 'py-3.5',
+          !head && 'pt-0',
           sent && 'opacity-60',
           flash === line.id && 'bg-selected hover:bg-selected focus:bg-selected',
         )}
       >
-        <div className={cn('flex shrink-0 justify-center', reply ? 'w-7' : 'w-8')}>
+        <div className="flex w-6 shrink-0 justify-end">
           {head ? (
             <Face
-              className={cn('mt-0.5', reply ? 'size-5 data-[size=sm]:size-5' : 'size-6 data-[size=sm]:size-6')}
+              className="-mt-0.5 size-6 data-[size=sm]:size-6"
               person={{ id: line.author_id, initials: initialsOf(author.name), name: author.name, ...(author.image === undefined ? {} : { image: author.image }) }}
             />
           ) : (
@@ -339,12 +352,12 @@ export function ThreadPosts({
           {head ? (
             <div className="flex min-w-0 items-baseline gap-2">
               <span className="min-w-0 truncate text-sm font-medium text-foreground">{author.name}</span>
-              <time dateTime={line.created_at} title={fullDate} className="shrink-0 text-xs text-muted-foreground">
+              <time dateTime={line.created_at} title={fullDate} className="shrink-0 text-xs text-quiet-foreground">
                 {stampOf(line.created_at)}
               </time>
             </div>
           ) : null}
-          <div className="min-w-0">
+          <div className={cn('min-w-0 max-w-prose', head && 'mt-0.5')}>
             {editing === line.id && folderId !== null ? (
               <div className="py-1">
                 <Suspense fallback={<EditorFallback />}>
@@ -375,9 +388,9 @@ export function ThreadPosts({
               title={likedBy === '' ? undefined : `Liked by ${likedBy}`}
               disabled={!may.likeComment}
               className={cn(
-                'mt-0.5 mb-0.5 inline-flex h-5 max-w-full min-w-0 items-center gap-1 rounded-full px-1.5 text-xs outline-none transition-colors duration-[var(--duration-fast)]',
+                'mt-2 inline-flex h-6 max-w-full min-w-0 items-center gap-1.5 rounded-full px-2 text-xs font-medium outline-none transition-colors duration-[var(--duration-fast)]',
                 line.liked
-                  ? 'bg-selected text-foreground'
+                  ? 'bg-selected text-primary'
                   : 'border border-border text-muted-foreground hover:text-foreground',
               )}
               onClick={() => { like.mutate({ id: line.id, liked: !line.liked }) }}
@@ -388,7 +401,7 @@ export function ThreadPosts({
           ) : null}
 
           {hasBar && editing !== line.id ? (
-            <div className={cn('flex items-center rounded-md border border-border bg-background', ON_POST, BAR_PLACE)}>
+            <div className={cn('flex items-center rounded-md border border-border bg-background', ON_POST, BAR_PLACE, !head ? '-top-0.5' : reply ? 'top-2' : 'top-3')}>
               {may.likeComment ? (
                 <button
                   type="button"
@@ -443,9 +456,10 @@ export function ThreadPosts({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {/* The history scrolls in its own region when the caller gives the
           thread a height (a Discussion fills the screen); it reads from the
-          top, like a letter, and the composer stays at the foot. */}
-      <div data-thread-history className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
-        <div className="pt-2 pb-3">
+          top, like a letter, and the composer follows it, at the foot once the
+          history fills the height. */}
+      <div data-thread-history className="-mx-2 min-h-0 flex-initial overflow-y-auto px-2">
+        <div>
           {placed.length > 0 ? (
             <ol className="-mx-2 min-w-0" aria-label="Posts">
               {placed.map((root) => (
@@ -453,7 +467,7 @@ export function ThreadPosts({
                   {newLine(root.line.id)}
                   {row(root, false)}
                   {root.replies.length > 0 ? (
-                    <ol className="mt-0.5 mb-1 ml-6 min-w-0 border-l border-border pl-1" aria-label={`Replies to ${personOf(root.line.author_id).name}`}>
+                    <ol className="mt-0.5 ml-11 min-w-0 border-l border-border pl-2" aria-label={`Replies to ${personOf(root.line.author_id).name}`}>
                       {root.replies.map((reply) => (
                         <li key={reply.line.id} className="min-w-0 list-none">
                           {newLine(reply.line.id)}
@@ -470,8 +484,8 @@ export function ThreadPosts({
         </div>
       </div>
 
-      {/* The composer stays at the bottom of the screen while the history scrolls. */}
-      <div className="sticky bottom-0 z-10 shrink-0 bg-background pt-2 pb-3">
+      {/* Under the last post; at the bottom of the screen while the history scrolls. */}
+      <div className="sticky bottom-0 z-10 shrink-0 bg-background pt-5 pb-3">
         {unseen !== null ? (
           <button
             type="button"
@@ -518,7 +532,7 @@ export function ThreadPosts({
             <Suspense fallback={<EditorFallback />}>
               <PostEditor
                 folderId={folderId}
-                placeholder={posts.length === 0 ? 'Write the first post…' : 'Write a reply…'}
+                placeholder={replyPrompt(posts, viewerId, personOf)}
                 submitLabel="Send"
                 autoFocus={autoFocus}
                 focusSignal={focus}
