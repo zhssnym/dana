@@ -14,10 +14,10 @@ Nothing sits above Focus.
   "…" appears on hover in space the row already reserves, and a right-click
   opens that same menu. The Library's one "+" makes a top-level page in one
   click. Right-click on the sidebar's ground opens New page and Import….
-- **Pages in pages**: a root draws its sub-pages indented inside its own item
-  (`page-tree.ts`), a page with children folds from its mark, and a row's
-  hover "+" adds a page inside it. Dragging a page onto the middle of a row
-  puts it inside; between sub-pages, a line shows where it lands.
+- **Projects only**: a Library row is a project and opens it. It has no
+  fold and draws no sub-pages (u2); a project's pages live in its tabs.
+  Dragging a row reorders it or files it in a collection, never inside
+  another row.
 - **The foot** is one row of square icon buttons: Search (Ctrl K / ⌘K,
   named in its tooltip), the bell, Settings, Trash, and collapse at the far
   right. People is a section of Settings; /app/people still answers.
@@ -30,8 +30,8 @@ import type { ReactElement } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   ChevronRight,
-  FolderInput,
   Folders,
+  Import,
   Plus,
   Search,
   Settings,
@@ -91,16 +91,14 @@ import {
    about anything outside the list it is sorting. */
 import { moved, swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
 import type { SortableItemState } from '../lib/use-sortable-list.js'
-import { DIRECTORY, grip, nestedGrip, pageRowAt, useLibraryZones } from './library-drag.js'
+import { DIRECTORY, grip, pageRowAt, useLibraryZones } from './library-drag.js'
 import type { LibraryZones, Point } from './library-drag.js'
 import {
   buildTree,
-  childrenOf,
   isDescendant,
   isNoop,
   placeInOrder,
   resolveDrop,
-  visibleRows,
 } from './page-tree.js'
 import type { PageTree, TreeDrop } from './page-tree.js'
 import {
@@ -472,6 +470,9 @@ function usePageTreeValue({
     /* The Desk page is pinned first, so nothing lands beside it, and it is
        never a parent (the server's 422), so nothing lands inside it either. */
     if (drop?.anchor !== undefined && (!allowRoot || onto?.is_default === true)) drop = null
+    /* The Library draws no sub-pages (u2), so a row is never a drop target
+       for "inside": a project would vanish into another one. */
+    if (drop !== null && drop.parent !== null) drop = null
     if (drop !== null && isNoop(tree, carried.id, drop)) drop = null
     const next = drop?.mark ?? null
     setMark((current) => (samePlace(current, next) ? current : next))
@@ -569,80 +570,6 @@ function usePageTreeValue({
   }
 }
 
-/**
- * A page's sub-pages, drawn flat at their depths inside the page's own item.
- *
- * One list per root page, sorted by the one engine. Nothing slides: a carried
- * sub-page goes where the tree says, onto a row (inside it) or between two
- * (a line at the depth it would take), and the rows under it dim, because
- * they go with it.
- */
-function PageDescendants({
-  root,
-  nested,
-  activeId,
-  groups,
-}: {
-  readonly root: Folder
-  readonly nested: boolean
-  readonly activeId: string | null
-  readonly groups: FolderGroupActions
-}): React.JSX.Element | null {
-  const pages = usePageTree()
-  const rows = useMemo(
-    () => visibleRows(pages.tree, childrenOf(pages.tree, root.id), pages.folded, 1),
-    [pages.tree, pages.folded, root.id],
-  )
-  const list = useSortableList({
-    count: rows.length,
-    onLift: swallowNextClick,
-    describe: (index) => rows[index]?.folder.name ?? 'Page',
-    onOver: (from, point) => {
-      const row = rows[from]
-      if (row === undefined) return null
-      return pages.probe(row.folder, point, true) === null ? `${TREE_KEY}:none` : TREE_KEY
-    },
-    onDropAt: (from, point) => {
-      const row = rows[from]
-      if (row === undefined) return true
-      const drop = pages.probe(row.folder, point, true)
-      pages.clearMark()
-      if (drop !== null) pages.commit(row.folder, drop)
-      return true
-    },
-    /* Every pointer release is answered above; nothing reorders by slot. */
-    onReorder: () => {},
-  })
-  const { clearMark } = pages
-  useEffect(() => {
-    if (!list.isDragging) clearMark()
-  }, [list.isDragging, clearMark])
-
-  if (rows.length === 0 || pages.folded.has(root.id)) return null
-  const carried = list.activeIndex === null ? null : (rows[list.activeIndex]?.folder.id ?? null)
-  return (
-    <SidebarMenu>
-      {rows.map((row, index) => (
-        <SidebarFolderRow
-          key={row.folder.id}
-          folder={row.folder}
-          activeId={activeId}
-          groups={groups}
-          nested={nested}
-          depth={row.depth}
-          dimmed={carried !== null && isDescendant(pages.tree, carried, row.folder.id)}
-          drag={{
-            itemRef: list.setItemRef(index),
-            rowProps: nestedGrip(list.handleProps(index)),
-            state: list.itemState(index),
-            proposal: null,
-          }}
-        />
-      ))}
-    </SidebarMenu>
-  )
-}
-
 function inboxOf(folders: readonly Folder[]): Folder | null {
   return folders.find((folder) => folder.is_default) ?? null
 }
@@ -698,19 +625,12 @@ export function useAddPageInside(): (parentId: string, onMade?: () => void) => v
 function SidebarFolderRow({
   folder,
   activeId,
-  groups,
   nested = false,
-  depth = 0,
-  dimmed = false,
   drag,
 }: {
   readonly folder: Folder
   readonly activeId: string | null
-  readonly groups: FolderGroupActions
   readonly nested?: boolean
-  /** 0 for a root, which draws its sub-pages inside its own item. */
-  readonly depth?: number
-  readonly dimmed?: boolean
   readonly drag?: {
     readonly itemRef: (element: HTMLElement | null) => void
     readonly rowProps: React.ComponentProps<'li'>
@@ -721,24 +641,16 @@ function SidebarFolderRow({
   const display = folderRowDisplay(folder)
   const navigate = useNavigate()
   const duplicate = useDuplicateFolder()
-  const importPage = usePageImport()
   const gates = folderGates({
     access: folder.my_access,
     isOwner: folder.is_owner,
     isDefault: folder.is_default,
   })
   const pages = usePageTree()
-  const hasChildren = childrenOf(pages.tree, folder.id).length > 0
   return (
     <FolderRow
       itemRef={drag?.itemRef}
-      rowProps={
-        /* A shelf's insert line counts its own rows, not the sub-pages
-           drawn inside them. */
-        (depth === 0
-          ? { ...drag?.rowProps, 'data-drop-row': '' }
-          : drag?.rowProps) as React.ComponentProps<'li'>
-      }
+      rowProps={{ ...drag?.rowProps, 'data-drop-row': '' } as React.ComponentProps<'li'>}
       dragState={drag?.state}
       proposal={drag?.proposal ?? null}
       name={display.name}
@@ -749,83 +661,48 @@ function SidebarFolderRow({
       active={activeId === folder.id}
       nested={nested}
       pageId={folder.id}
-      depth={depth}
-      dimmed={dimmed}
-      fold={
-        hasChildren
-          ? {
-              open: !pages.folded.has(folder.id),
-              onToggle: () => {
-                pages.toggle(folder.id)
-              },
-            }
-          : undefined
-      }
-      onAddInside={
-        /* The Desk takes no sub-pages (the server answers 422). */
-        gates.identity && !folder.is_default
-          ? () => {
-              pages.addInside(folder)
-            }
-          : undefined
-      }
       dropMark={pages.mark?.rowId === folder.id ? pages.mark.kind : null}
       renaming={pages.renaming === folder.id}
       onRename={(name) => {
         pages.rename(folder, name)
       }}
-      /* The row's menu is the page's own "…" (`lib/object-acts.ts`), with
-         this row's plumbing: History opens on the page, the rest run here. */
-      acts={{
-        history: () => {
-          void navigate(folderActionPath(folder.id, 'history'))
-        },
-        /* In the menu as well as on the hover "+", which is out of the Tab
-           order: this is the keyboard's way to it (Shift+F10). */
-        'add-page':
-          gates.identity && !folder.is_default
-            ? () => {
-                pages.addInside(folder)
-              }
-            : undefined,
-        rename: gates.identity
-          ? () => {
-              pages.startRename(folder.id)
+      /* A Library row is a project and only opens it (u2): no fold, no
+         sub-pages under it, no hover "+". Its menu is the project's list
+         (`lib/object-acts.ts`) less History, which is on the page's "…".
+         The Desk has no menu: nothing in it was worth a press. */
+      menuKind={folder.project_id === folder.id ? 'project' : 'folder'}
+      acts={
+        folder.is_default
+          ? {}
+          : {
+              rename: gates.identity
+                ? () => {
+                    pages.startRename(folder.id)
+                  }
+                : undefined,
+              'copy-link': () => {
+                copyLink(folderLink(folder.id))
+              },
+              duplicate: () => {
+                duplicate.mutate(folder.id, {
+                  onSuccess: (made) => {
+                    void navigate(paths.folder(made.id))
+                  },
+                })
+              },
+              leave: gates.leave
+                ? () => {
+                    pages.leave(folder)
+                  }
+                : undefined,
+              delete: gates.trash
+                ? () => {
+                    pages.trash(folder)
+                  }
+                : undefined,
             }
-          : undefined,
-        'copy-link': () => {
-          copyLink(folderLink(folder.id))
-        },
-        duplicate: () => {
-          duplicate.mutate(folder.id, {
-            onSuccess: (made) => {
-              void navigate(paths.folder(made.id))
-            },
-          })
-        },
-        /* Into this page, which needs edit rights here; never the Desk. */
-        import:
-          gates.identity && !folder.is_default
-            ? () => {
-                importPage(folder.id)
-              }
-            : undefined,
-        leave: gates.leave
-          ? () => {
-              pages.leave(folder)
-            }
-          : undefined,
-        delete: gates.trash
-          ? () => {
-              pages.trash(folder)
-            }
-          : undefined,
-      }}
-    >
-      {depth === 0 && hasChildren ? (
-        <PageDescendants root={folder} nested={nested} activeId={activeId} groups={groups} />
-      ) : null}
-    </FolderRow>
+      }
+    />
   )
 }
 
@@ -1058,7 +935,6 @@ function FolderGroupBlock({
                   key={folder.id}
                   folder={folder}
                   activeId={activeId}
-                  groups={groups}
                   nested
                   drag={{
                     itemRef: inner.setItemRef(index),
@@ -1234,7 +1110,6 @@ function LibraryColumn({
               key={entry.key}
               folder={entry.folder}
               activeId={activeId}
-              groups={groups}
               drag={{
                 itemRef: outer.setItemRef(index),
                 rowProps: grip(outer.handleProps(index)),
@@ -1298,7 +1173,7 @@ function ProjectItems({
         New project
       </DropdownMenuItem>
       <DropdownMenuItem onClick={onImport}>
-        <FolderInput strokeWidth={1.75} aria-hidden="true" />
+        <Import strokeWidth={1.75} aria-hidden="true" />
         Import project…
       </DropdownMenuItem>
     </>
@@ -1508,7 +1383,6 @@ export function AppSidebar({
                 <SidebarFolderRow
                   folder={inbox}
                   activeId={activeFolderId}
-                  groups={groupActions}
                 />
               </SidebarMenu>
             </SidebarGroupContent>

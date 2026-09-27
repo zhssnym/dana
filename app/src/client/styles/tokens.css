@@ -544,3 +544,41 @@ button:not(:disabled),
   --color-graphite-400: #8f8e8a;
 }
 
+
+/* ---- m14-picker: a pastel per page kind, for the new-project picker.
+   Barely-there tints: each kind has a fill, a hairline and a muted ink
+   (its icon, chip text and hover border); names stay in the page's ink. "usual" is the four-tab project. */
+:root {
+  --kind-doc: #f5f8fe;
+  --kind-doc-line: #dee5f1;
+  --kind-doc-ink: #516894;
+  --kind-work: #f3faf5;
+  --kind-work-line: #dbe9de;
+  --kind-work-ink: #51775e;
+  --kind-discussion: #fef7f2;
+  --kind-discussion-line: #efe3d7;
+  --kind-discussion-ink: #916746;
+  --kind-usual: #f9f7fd;
+  --kind-usual-line: #e6e1ee;
+  --kind-usual-ink: #6e5d95;
+  --lift: -2px;
+}
+[data-theme="dark"] {
+  --kind-doc: #1b2028;
+  --kind-doc-line: #2e3541;
+  --kind-doc-ink: #a0afca;
+  --kind-work: #1a221d;
+  --kind-work-line: #2d3a32;
+  --kind-work-ink: #95b9a2;
+  --kind-discussion: #251e1a;
+  --kind-discussion-line: #3e342c;
+  --kind-discussion-ink: #c8a790;
+  --kind-usual: #201c28;
+  --kind-usual-line: #363142;
+  --kind-usual-ink: #b2a8cd;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --lift: 0px;
+  }
+}

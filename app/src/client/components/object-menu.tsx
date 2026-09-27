@@ -51,18 +51,16 @@ import {
 } from './ui/dropdown-menu.js'
 
 function taskDestination(pathname: string, search: string): string | null {
-  const prefix = '/app/tasks/'
-  if (pathname.startsWith(prefix)) {
-    const [id] = pathname.slice(prefix.length).split('/')
-    return id === undefined || id === '' ? null : paths.task(id)
-  }
+  /* On the task's own page the tab already is that page: no second copy
+     of what is on screen (u2). A peek (`?task=`) still offers it. */
+  if (pathname.startsWith('/app/tasks/')) return null
   const id = new URLSearchParams(search).get('task')
   return id === null || id === '' ? null : paths.task(id)
 }
 
 /** The Page/Collection route already rendered beside a Library menu trigger. */
 function libraryDestination(kind: ObjectKind, trigger: HTMLElement): string | null {
-  if (kind === 'folder') {
+  if (kind === 'folder' || kind === 'project') {
     const row = trigger.closest<HTMLElement>('[data-page-row]')
     return row?.querySelector<HTMLAnchorElement>('a[href^="/app/folders/"]')?.getAttribute('href') ?? null
   }

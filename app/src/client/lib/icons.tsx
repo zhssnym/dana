@@ -478,6 +478,7 @@ export const Folders = icon(Lu.Folders, null) // animated: no folders
 export const GripVertical = icon(Lu.GripVertical, null)
 export const History = icon(Lu.History, Anim.HistoryIcon)
 export const Image = icon(Lu.Image, Anim.ImageIcon)
+export const Import = icon(Lu.Import, null) // animated: no import
 /* Desk's mark (DES-152). The glyph is Lucide's tray, which is the drawing
    the name describes, a shallow tray things land in, rather than the
    envelope-adjacent one its Lucide name suggests. */
