@@ -270,6 +270,16 @@ afterAll(async () => {
 
 const place = async (fid: string) =>
   (await db.exec(sql`SELECT project_id, parent_folder_id, owner_id, tab_position FROM folders WHERE id = ${fid}::uuid`))[0]
+// The scratch connection is the old instance's unless marked the way
+// db/client.ts marks this server's (one connection on both engines).
+const asNewServer = async <T,>(run: () => Promise<T>): Promise<T> => {
+  await db.exec(sql`SELECT set_config('dana.step8', 'on', false)`)
+  try {
+    return await run()
+  } finally {
+    await db.exec(sql`SELECT set_config('dana.step8', '', false)`)
+  }
+}
 const people = async (fid: string) =>
   (await db.exec(sql`SELECT user_id, access FROM folder_members WHERE folder_id = ${fid}::uuid ORDER BY user_id`))
 
@@ -456,18 +466,63 @@ describe('AC-1527 migration 0062: people belong to the project', () => {
   })
 
   test('after it: a page the old instance promotes takes its project people, not its stale rows', async () => {
-    // Its assigned task would fail the promotion on the assignee foreign key.
-    await db.exec(sql`UPDATE tasks SET assignee_id = NULL WHERE folder_id = ${A.sub}::uuid`)
+    // Someone this server added to the project after 0062 has no row on the
+    // page, and is assigned a task there.
+    const late = id(0x10, 5)
+    await asNewServer(() => db.exec(sql`INSERT INTO folder_members (folder_id, user_id, access)
+      VALUES (${A.root}::uuid, ${u.stranger}::uuid, 'can_edit')`))
+    await db.exec(sql`INSERT INTO tasks (id, folder_id, title, created_by, assignee_id)
+      VALUES (${late}::uuid, ${A.sub}::uuid, 'Late', ${u.owner}::uuid, ${u.stranger}::uuid)`)
     await db.exec(sql`UPDATE folders SET parent_folder_id = NULL, child_position = NULL,
       project_id = id, tab_position = 'a0' WHERE id = ${A.sub}::uuid`)
     expect(await people(A.sub)).toEqual(await people(A.root))
     expect(await db.exec(sql`SELECT shelf_name FROM folder_members
       WHERE folder_id = ${A.sub}::uuid AND user_id = ${u.viewer}::uuid`)).toEqual([{ shelf_name: null }])
+    // Its tasks keep their assignees.
+    expect(await db.exec(sql`SELECT id, project_id, assignee_id FROM tasks
+      WHERE id IN (${A.task}::uuid, ${late}::uuid) ORDER BY id`)).toEqual([
+      { id: A.task, project_id: A.sub, assignee_id: u.editor },
+      { id: late, project_id: A.sub, assignee_id: u.stranger },
+    ].sort((x, y) => x.id.localeCompare(y.id)))
+    await asNewServer(() => db.exec(sql`DELETE FROM folder_members
+      WHERE folder_id IN (${A.root}::uuid, ${A.sub}::uuid) AND user_id = ${u.stranger}::uuid`))
+  })
+
+  test('after it: a page the old instance moves to the top level becomes a project and keeps its assignees', async () => {
+    const assigned = id(0x10, 6)
+    await db.exec(sql`INSERT INTO tasks (id, folder_id, title, created_by, assignee_id)
+      VALUES (${assigned}::uuid, ${D.sub}::uuid, 'Dig', ${u.owner}::uuid, ${u.editor}::uuid)`)
+    // Main's moveFolder to the top level writes only this.
+    await db.exec(sql`UPDATE folders SET parent_folder_id = NULL, child_position = NULL WHERE id = ${D.sub}::uuid`)
+    expect(await place(D.sub)).toEqual({ project_id: D.sub, parent_folder_id: null, owner_id: u.owner, tab_position: 'a0' })
+    expect(await people(D.sub)).toEqual(await people(D.root))
+    expect(await db.exec(sql`SELECT project_id, assignee_id FROM tasks WHERE id = ${assigned}::uuid`))
+      .toEqual([{ project_id: D.sub, assignee_id: u.editor }])
+  })
+
+  test('after it: the old instance cannot change the people or invite on a project with other pages', async () => {
+    const constraintOf = (e: unknown) => {
+      const err = e as { constraint?: string; cause?: { constraint?: string } } | null
+      return err?.cause?.constraint ?? err?.constraint
+    }
+    const before = await people(A.root)
+    const attempts = [
+      sql`INSERT INTO folder_members (folder_id, user_id, access) VALUES (${A.root}::uuid, ${u.stranger}::uuid, 'can_view')`,
+      sql`DELETE FROM folder_members WHERE folder_id = ${A.root}::uuid AND user_id = ${u.viewer}::uuid`,
+      sql`UPDATE folder_members SET access = 'full_control' WHERE folder_id = ${A.root}::uuid AND user_id = ${u.viewer}::uuid`,
+    ]
+    for (const attempt of attempts) {
+      expect(constraintOf(await db.exec(attempt).then(() => null, (e: unknown) => e))).toBe('folder_members_old_server')
+    }
+    expect(await people(A.root)).toEqual(before)
+    expect(constraintOf(await db.exec(sql`INSERT INTO invites (inviter_id, email, folder_id, access)
+      VALUES (${u.owner}::uuid, 'old@example.com', ${A.root}::uuid, 'can_view')`).then(() => null, (e: unknown) => e)))
+      .toBe('invites_old_server')
   })
 
   test('after it: a person removed from a project loses the rows 0062 left on its pages', async () => {
     expect(await people(A.tab)).toContainEqual({ user_id: u.viewer, access: 'can_view' })
-    await removeMembership(db.db, A.root, u.viewer, { transferOwnership: false, actorId: u.owner })
+    await asNewServer(() => removeMembership(db.db, A.root, u.viewer, { transferOwnership: false, actorId: u.owner }))
     expect(await db.exec(sql`SELECT f.id FROM folder_members m JOIN folders f ON f.id = m.folder_id
       WHERE m.user_id = ${u.viewer}::uuid AND f.project_id = ${A.root}::uuid`)).toEqual([])
     expect(await people(A.tab)).toEqual([

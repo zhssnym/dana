@@ -53,12 +53,19 @@
 --    project and refused otherwise. An invite it writes on such a page is
 --    refused (`invites_on_project_root`), and the new server invalidates
 --    any invite on such a page when it is accepted rather than widen it to
---    the project. A page it creates or moves takes its project's owner. A
---    move into a project with other people is refused
---    (`folders_move_keeps_people`), and a page it promotes to the Library
---    drops its unread rows and takes its old project's people
---    (`folders_root_takes_project_people`). So nothing it writes widens
---    access or leaves a page to its creator. Its reads join memberships to
+--    the project. On a project root with other pages, its add, removal,
+--    preset change and invite are refused (`folder_members_old_server`,
+--    `invites_old_server`): it means that one page, and here it would reach
+--    them all. It tells itself apart by the `dana.step8` setting, which only
+--    this server's connections carry (db/client.ts). A page it creates or
+--    moves takes its project's owner. A move into a project with other
+--    people is refused (`folders_move_keeps_people`). A page it moves to
+--    the top level (`parent_folder_id = NULL` alone) becomes a project
+--    (`folders_lift_to_project`), which, like any other promotion, drops
+--    its unread rows and takes its old project's people, before its tasks
+--    move, so their assignees stay (`folders_root_takes_project_people`).
+--    So nothing it writes widens or narrows access or leaves a page to its
+--    creator. Its reads join memberships to
 --    the page itself: on tabs and sub-pages it answers from the rows 0062
 --    left there. Someone the new server adds to a project gets 404 there
 --    (closed); someone it removes loses those rows too (runRClean), and a
@@ -270,14 +277,30 @@ CREATE TRIGGER tasks_project_from_folder BEFORE INSERT OR UPDATE OF folder_id ON
 --> statement-breakpoint
 -- 8. The guard, which also covers the overlap: a membership row lives on a
 -- project root. One the person already has through the project is dropped
--- (the old instance's copies); any other is refused.
+-- (the old instance's copies); any other is refused. On a root whose project
+-- has other pages, only this server changes the people: the old instance's
+-- add, remove or preset change names that one page, and here it would reach
+-- every page of the project (`folder_members_old_server`). This server's
+-- connections carry `dana.step8 = on` (db/client.ts); the old instance's do
+-- not. The promotion below marks its own writes `dana.promoting = lift`.
 CREATE FUNCTION folder_members_on_project_root() RETURNS trigger
 LANGUAGE plpgsql AS $fn$
 DECLARE
   project uuid;
 BEGIN
+  IF current_setting('dana.promoting', true) IS NOT DISTINCT FROM 'lift' THEN
+    RETURN NEW;
+  END IF;
   SELECT f.project_id INTO project FROM folders f WHERE f.id = NEW.folder_id;
-  IF project IS NULL OR project = NEW.folder_id THEN
+  IF project IS NULL THEN
+    RETURN NEW;
+  END IF;
+  IF project = NEW.folder_id THEN
+    IF current_setting('dana.step8', true) IS DISTINCT FROM 'on'
+       AND EXISTS (SELECT 1 FROM folders c WHERE c.project_id = NEW.folder_id AND c.id <> NEW.folder_id) THEN
+      RAISE EXCEPTION 'step 8: the old server cannot change the people of project %', NEW.folder_id
+        USING ERRCODE = 'check_violation', CONSTRAINT = 'folder_members_old_server';
+    END IF;
     RETURN NEW;
   END IF;
   IF EXISTS (SELECT 1 FROM folder_members m WHERE m.folder_id = project AND m.user_id = NEW.user_id) THEN
@@ -291,8 +314,32 @@ $fn$;
 CREATE TRIGGER folder_members_on_project_root BEFORE INSERT ON folder_members
   FOR EACH ROW EXECUTE FUNCTION folder_members_on_project_root();
 --> statement-breakpoint
+-- The same for the old instance's removals and preset changes. A row going
+-- with its root (a cascade from a deleted folder) finds no root and passes.
+CREATE FUNCTION folder_members_old_server() RETURNS trigger
+LANGUAGE plpgsql AS $fn$
+BEGIN
+  IF current_setting('dana.step8', true) IS DISTINCT FROM 'on'
+     AND current_setting('dana.promoting', true) IS DISTINCT FROM 'lift'
+     AND EXISTS (SELECT 1 FROM folders r JOIN folders c ON c.project_id = r.id AND c.id <> r.id
+                  WHERE r.id = OLD.folder_id AND r.project_id = r.id) THEN
+    RAISE EXCEPTION 'step 8: the old server cannot change the people of project %', OLD.folder_id
+      USING ERRCODE = 'check_violation', CONSTRAINT = 'folder_members_old_server';
+  END IF;
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END
+$fn$;
+--> statement-breakpoint
+CREATE TRIGGER folder_members_old_server BEFORE DELETE OR UPDATE OF access, can_edit_own_responsibilities
+  ON folder_members FOR EACH ROW EXECUTE FUNCTION folder_members_old_server();
+--> statement-breakpoint
 -- An invite names a project root: one on any other page would add the
--- invitee to the whole project, which its inviter meant for one page.
+-- invitee to the whole project, which its inviter meant for one page. The
+-- old instance's invite on a root with other pages is refused for the same
+-- reason; step 3 invalidated the ones pending before this migration.
 CREATE FUNCTION invites_on_project_root() RETURNS trigger
 LANGUAGE plpgsql AS $fn$
 BEGIN
@@ -300,6 +347,11 @@ BEGIN
      AND NOT EXISTS (SELECT 1 FROM folders f WHERE f.id = NEW.folder_id AND f.project_id = f.id) THEN
     RAISE EXCEPTION 'step 8: an invite names a project, not page %', NEW.folder_id
       USING ERRCODE = 'check_violation', CONSTRAINT = 'invites_on_project_root';
+  END IF;
+  IF NEW.folder_id IS NOT NULL AND current_setting('dana.step8', true) IS DISTINCT FROM 'on'
+     AND EXISTS (SELECT 1 FROM folders c WHERE c.project_id = NEW.folder_id AND c.id <> NEW.folder_id) THEN
+    RAISE EXCEPTION 'step 8: the old server cannot invite to project %', NEW.folder_id
+      USING ERRCODE = 'check_violation', CONSTRAINT = 'invites_old_server';
   END IF;
   RETURN NEW;
 END
@@ -378,25 +430,56 @@ CREATE TRIGGER folders_move_keeps_people BEFORE UPDATE OF project_id ON folders
 -- saw it, its old project's, at their presets; the rows 0062 left unread on
 -- it (old presets, people since removed) go first. promoteToProjects does
 -- the same with history, and sets `dana.promoting` so this stays out of its
--- way; this covers every other writer (the old instance's bare
--- `project_id = id`).
+-- way; this covers every other writer (the old instance's move to the top
+-- level, lifted below, and a bare `project_id = id`). It runs BEFORE the row
+-- changes: once the row changes, its tasks' project follows it (ON UPDATE
+-- CASCADE), and deleting a page row after that would unassign them (ON
+-- DELETE SET NULL). Column lists are left off because the lift sets
+-- project_id itself, which an UPDATE OF trigger would not see.
 CREATE FUNCTION folders_root_takes_project_people() RETURNS trigger
 LANGUAGE plpgsql AS $fn$
+DECLARE
+  prior text;
 BEGIN
-  IF current_setting('dana.promoting', true) IS NOT DISTINCT FROM 'on' THEN
-    RETURN NULL;
+  IF current_setting('dana.promoting', true) IS NOT DISTINCT FROM 'on'
+     OR OLD.project_id = OLD.id OR NEW.project_id IS DISTINCT FROM NEW.id THEN
+    RETURN NEW;
   END IF;
+  prior := current_setting('dana.promoting', true);
+  PERFORM set_config('dana.promoting', 'lift', true);
   DELETE FROM folder_members WHERE folder_id = NEW.id;
   INSERT INTO folder_members (folder_id, user_id, access, can_edit_own_responsibilities, created_at)
   SELECT NEW.id, m.user_id, m.access, m.can_edit_own_responsibilities, m.created_at
     FROM folder_members m WHERE m.folder_id = OLD.project_id;
-  RETURN NULL;
+  PERFORM set_config('dana.promoting', COALESCE(prior, ''), true);
+  RETURN NEW;
 END
 $fn$;
 --> statement-breakpoint
-CREATE TRIGGER folders_root_takes_project_people AFTER UPDATE OF project_id ON folders
-  FOR EACH ROW WHEN (OLD.project_id <> OLD.id AND NEW.project_id = NEW.id)
-  EXECUTE FUNCTION folders_root_takes_project_people();
+CREATE TRIGGER folders_root_takes_project_people BEFORE UPDATE ON folders
+  FOR EACH ROW EXECUTE FUNCTION folders_root_takes_project_people();
+--> statement-breakpoint
+-- 8, the old instance's move to the top level writes only
+-- `parent_folder_id = NULL`, which would leave a row that is neither a
+-- project, a tab nor a sub-page. It becomes a project of its own, and the
+-- trigger above, which fires after this one (by name), gives it its people.
+-- A child a deleted parent leaves (ON DELETE SET NULL) is lifted the same
+-- way. Dropped with the contract migration, like the other overlap guards.
+CREATE FUNCTION folders_lift_to_project() RETURNS trigger
+LANGUAGE plpgsql AS $fn$
+BEGIN
+  IF NEW.parent_folder_id IS NULL AND OLD.parent_folder_id IS NOT NULL
+     AND NEW.tab_position IS NULL AND NEW.id <> NEW.project_id THEN
+    NEW.project_id := NEW.id;
+    NEW.tab_position := 'a0';
+    NEW.kind := COALESCE(NEW.kind, 'doc');
+  END IF;
+  RETURN NEW;
+END
+$fn$;
+--> statement-breakpoint
+CREATE TRIGGER folders_lift_to_project BEFORE UPDATE OF parent_folder_id ON folders
+  FOR EACH ROW EXECUTE FUNCTION folders_lift_to_project();
 --> statement-breakpoint
 -- Invariants.
 DO $$
