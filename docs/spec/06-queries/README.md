@@ -23,10 +23,9 @@ Definitions used by every query:
   guard is implicit in each query rather than restated per query.
 
 The Focus lists (Today, Upcoming, Assignments and the lists a viewer adds) read one
-endpoint, GET /views/focus, which filters Q1 or Q5's pending rows before the cap and groups
-them. Assignments is its person grouping over the open tasks the viewer can already read,
-the viewer first and the unassigned last; it adds no predicate of its own, which is why it
-appears in section 9 and not here.
+endpoint, GET /views/focus, which filters Q1 or Q5's pending rows before the cap. Assignments
+is those open rows grouped by assignee on the client, the viewer first and the unassigned
+last; it adds no predicate of its own, which is why it appears in section 9 and not here.
 
 Query headings carry their v1 page name in parentheses because other sections and code
 comments cite Q1 to Q3C by those titles.

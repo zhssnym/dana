@@ -155,20 +155,17 @@ const Q4_ORDER = sql`(${SCHEDULE_DATE} IS NULL) ASC, ${SCHEDULE_DATE} ASC,
  * The two open halves, which All stacks
  * ------------------------------------------------------------------ */
 
-/** Q3's rows: the scope, plus a Schedule. `rungOn` is focus.ts's: the
- * viewer's today, so each card carries its rung. */
+/** Q3's rows: the scope, plus a Schedule. */
 export async function plannedRows(
   executor: Executor,
   viewerId: string,
   extraScope: SQL = sql``,
-  rungOn?: string,
 ): Promise<TaskCard[]> {
   const rows = await readCards(executor, {
     viewerId,
     where: sql`${OPEN_SCOPE} AND ${SCHEDULED}${extraScope}`,
     order: Q3_ORDER,
     limit: CAP_PROBE,
-    ...(rungOn === undefined ? {} : { rungOn }),
   })
   return rows.map((row) => row.card)
 }
@@ -179,14 +176,12 @@ export async function tasksRows(
   viewerId: string,
   extraScope: SQL = sql``,
   order: SQL = Q2_ORDER,
-  rungOn?: string,
 ): Promise<TaskCard[]> {
   const rows = await readCards(executor, {
     viewerId,
     where: sql`${OPEN_SCOPE} AND ${ANYTIME}${extraScope}`,
     order,
     limit: CAP_PROBE,
-    ...(rungOn === undefined ? {} : { rungOn }),
   })
   return rows.map((row) => row.card)
 }

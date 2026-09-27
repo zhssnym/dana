@@ -1,25 +1,26 @@
 /*
-The server's rung and GET /views/focus against the rules the screens run today.
+The server's rung and GET /views/focus against the rules the screens ran
+before they moved onto it.
 
-`rung` (`rungOf` in src/server/views/cards.ts) replaces four client copies of
-one rule: `late`, `stageOf`, `rungForTask` and Upcoming's filter. And
-/views/focus replaces the filtering each Focus screen does over /views/all,
-/views/planned and /views/my-day. Nothing on screen may move when a screen
-switches, so this guard holds both to the client rules they replace:
+The rung (`rungOf` in src/server/views/cards.ts) is the server's statement of
+where a task stands against today; it stays on the server, reading the
+filters and Today's headings, and the client keeps its own copies
+(`rungForTask`, `stageOf`) for Upcoming's headings and the board.
+/views/focus replaced the filtering the Focus screens did over /views/all,
+/views/planned and /views/my-day, and nothing on screen may move for it, so
+this guard holds both to the client rules:
 
-- every card's `rung` equals `rungForTask` (client/views/ladder.ts), with the
-  rungs after today folded into `future`;
-- each list is the rows, in the order, that its screen derives today from the
-  endpoint it reads (`FOCUS_FILTERS` and `upcomingRows` in
-  client/shell/focus-lists.ts, `groupRows(..., 'person')` in
-  client/views/grouping.ts, and TodayPage.tsx's four headings);
+- every open row's rung equals `rungForTask` (client/views/ladder.ts), with
+  the rungs after today folded into `future`;
+- each list is the rows, in the order, that its screen derived from the
+  endpoint it read (the old `FOCUS_FILTERS` and `upcomingRows` in
+  client/shell/focus-lists.ts, and TodayPage.tsx's four headings);
 - `important` narrows to exactly the stored starred rows.
 
 The client rules are restated below rather than imported: tests/ compiles
 under tsconfig.node.json, which has no DOM and no JSX, and those modules
-reach both. Each restatement names the function it copies; step 7 moves the
-screens onto the rung and deletes the client copies, after which this file is
-the only statement of what they did.
+reach both; some of them no longer exist. Each restatement names the function
+it copies.
 
 **The boundaries.** Dates run from the day before Honolulu's today to three
 days after it, every start/due pair of them that 4.5's CHECK allows, and each
@@ -33,6 +34,7 @@ parity case (an overdue task that has started reads `started`).
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
+import { rungOf } from '../../src/server/views/cards.js'
 import type { TaskCard } from '../../src/shared/tasks.js'
 import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
@@ -120,27 +122,6 @@ function upcomingRows(list: readonly TaskCard[], today: string, viewerId: string
   })
 }
 
-/** grouping.ts `groupRows(rows, 'person', today, viewerId)`: first
- * appearance, then the viewer's group, others by name, Unassigned last. */
-function personGroups(list: readonly TaskCard[], viewerId: string) {
-  const groups = new Map<string, { name: string; rows: TaskCard[] }>()
-  for (const task of list) {
-    const key = task.assignee?.id ?? 'unassigned'
-    const held = groups.get(key)
-    if (held === undefined) {
-      groups.set(key, { name: task.assignee?.display_name ?? 'Deleted user', rows: [task] })
-    } else held.rows.push(task)
-  }
-  const all = [...groups].map(([key, held]) => ({ key, name: held.name, rows: held.rows }))
-  return [
-    ...all.filter((group) => group.key === viewerId),
-    ...all
-      .filter((group) => group.key !== viewerId && group.key !== 'unassigned')
-      .sort((a, b) => a.name.localeCompare(b.name)),
-    ...all.filter((group) => group.key === 'unassigned'),
-  ]
-}
-
 /** TodayPage.tsx's four headings over /views/my-day, as the screen sorts them. */
 function todayPageGroups(carried: TaskCard[], todayRows: TaskCard[], today: string) {
   const late = (task: TaskCard): boolean => task.due_date !== null && task.due_date < today
@@ -199,7 +180,7 @@ async function fixtures(): Promise<NonNullable<typeof seeded>> {
 const ZONES = (): string[] => [ZONE_AHEAD, ZONE_BEHIND, middayZone()]
 
 describe('the server rung and GET /views/focus match the screens', () => {
-  test('every card carries the rung the client computes, across the day boundary in three zones', async () => {
+  test('every open row has the rung the client computes, across the day boundary in three zones', async () => {
     const { maya, open, closed } = await fixtures()
     for (const tz of ZONES()) {
       const today = todayIn(tz)
@@ -207,9 +188,15 @@ describe('the server rung and GET /views/focus match the screens', () => {
       const cards = flat(body)
       expect(new Set(ids(cards)), `every open fixture, and only open ones (${tz})`).toEqual(new Set(open))
       for (const id of closed) expect(ids(cards)).not.toContain(id)
+      const stored = await rows(
+        app.db,
+        sql`SELECT t.id::text AS id, ${rungOf(today)} AS rung FROM tasks t
+            WHERE t.id = ANY(${`{${open.join(',')}}`}::uuid[])`,
+      )
+      const rungs = new Map(stored.map((row) => [String(row.id), String(row.rung)]))
       const mismatched = cards
-        .filter((card) => card.rung !== clientRung(card, today))
-        .map((card) => `${card.title}: server ${String(card.rung)}, client ${clientRung(card, today)}`)
+        .filter((card) => rungs.get(card.id) !== clientRung(card, today))
+        .map((card) => `${card.title}: server ${String(rungs.get(card.id))}, client ${clientRung(card, today)}`)
       expect(mismatched, `rung parity in ${tz} on ${today}`).toEqual([])
       expectStillSameDay(tz, today, 'rung parity')
     }
@@ -241,13 +228,6 @@ describe('the server rung and GET /views/focus match the screens', () => {
         upcomingRows((await planned(maya, tz)).rows as unknown as TaskCard[], today, maya.id),
       )
       expect(ids(flat(await focus(maya, { tz, when: 'upcoming' }))), `upcoming in ${tz}`).toEqual(ids(upcoming))
-
-      const people = personGroups(stream, maya.id)
-      const byPerson = await focus(maya, { tz, group: 'person' })
-      expect(
-        byPerson.groups.map((group) => ({ key: group.key, ids: ids(group.rows) })),
-        `assigned in ${tz}`,
-      ).toEqual(people.map((group) => ({ key: group.key, ids: ids(group.rows) })))
 
       const day = await myDay(maya, tz)
       const byToday = await focus(maya, { tz, when: 'on_today', group: 'today' })

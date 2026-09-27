@@ -33,7 +33,7 @@ import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import type { LabelRef, TaskLabels } from '../../shared/labels.js'
-import type { TaskCard, TaskRung } from '../../shared/tasks.js'
+import type { TaskCard } from '../../shared/tasks.js'
 import { LIST_ROW_CAP } from '../../shared/views.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
@@ -169,14 +169,18 @@ export const SCHEDULE_DATE = sql`coalesce(t.due_date, t.start_date)`
  */
 export const ACTIVATION_DATE = sql`coalesce(t.start_date, t.due_date)`
 
+/** Where a row stands against the viewer's today. */
+export type TaskRung = 'overdue' | 'started' | 'today' | 'future' | 'undated'
+
 /**
  * Where a row stands against the viewer's today: overdue, started, today,
- * future or undated (`taskRung` in shared/tasks.ts).
+ * future or undated.
  *
- * The one statement of the rule the client wrote four times (`late`,
- * `stageOf`, `rungForTask`, and Upcoming's filter). Arm for arm it is
- * `rungForTask` in client/views/ladder.ts with every rung after today folded
- * into `future`:
+ * The server's statement of the rule, for GET /views/focus's filters and
+ * Today's headings. It stays server-side and is not on the card: the client
+ * still has its own copies (`rungForTask` in client/views/ladder.ts for
+ * Upcoming's headings, `stageOf`, grouping.ts, BoardView). Arm for arm it is
+ * `rungForTask` with every rung after today folded into `future`:
  *
  * - a deadline before today is overdue, started or not;
  * - an open task whose start has arrived is started;
@@ -342,9 +346,6 @@ function cardFromRow(
     blocks_count: counts.blocks_count,
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
-    ...(row.rung === null || row.rung === undefined
-      ? {}
-      : { rung: String(row.rung) as TaskRung }),
   }
 }
 
@@ -369,8 +370,6 @@ export interface CardQuery {
   limit?: number
   /** Columns beyond the card, read back through CardRow.raw. */
   extra?: SQL
-  /** The viewer's today; present, every card carries its `rung`. */
-  rungOn?: string
 }
 
 /**
@@ -395,9 +394,7 @@ export async function readCards(
   executor: Executor,
   query: CardQuery,
 ): Promise<CardRow[]> {
-  const extra = sql`${query.extra === undefined ? sql`` : sql`, ${query.extra}`}${
-    query.rungOn === undefined ? sql`` : sql`, ${rungOf(query.rungOn)} AS rung`
-  }`
+  const extra = query.extra === undefined ? sql`` : sql`, ${query.extra}`
   const limit = query.limit === undefined ? sql`` : sql` LIMIT ${query.limit}`
   const found = await rowsOf(
     executor,

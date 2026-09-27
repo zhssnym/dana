@@ -95,6 +95,7 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
   router.get(
     '/views/my-day',
     requireSession,
+    retiredRoute(securityLog, 'get_views_my_day'),
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -121,7 +122,7 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
     }
 
   router.get('/views/tasks', requireSession, retiredRoute(securityLog, 'get_views_tasks'), page(tasksView))
-  router.get('/views/planned', requireSession, page(plannedView))
+  router.get('/views/planned', requireSession, retiredRoute(securityLog, 'get_views_planned'), page(plannedView))
   router.get('/views/important', requireSession, retiredRoute(securityLog, 'get_views_important'), page(importantView))
   router.get('/views/all', requireSession, page(allView))
 

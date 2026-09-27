@@ -379,11 +379,11 @@ reader in server/views/focus.ts.
   two words; `z.coerce.boolean` would read "false" as true.
 - `group` shapes the answer: `none` is one list, `today` is Today's four
   headings (only over `on_today`, the one list that knows why a row is
-  there), `person` is one group per assignee.
+  there).
 */
 export const focusWhen = z.enum(['any', 'on_today', 'upcoming', 'overdue', 'undated'])
 export type FocusWhen = z.infer<typeof focusWhen>
-export const focusGroup = z.enum(['none', 'today', 'person'])
+export const focusGroup = z.enum(['none', 'today'])
 export type FocusGroup = z.infer<typeof focusGroup>
 
 export const focusQuery = viewQuery
@@ -611,9 +611,8 @@ export type GetFolderTasksOpenResponse = z.infer<
 
 /*
 GET /views/focus. Groups in reading order, each with a key the client names:
-`all` for group=none; `carried`, `today`, `started`, `added` for group=today;
-an assignee id or `unassigned` for group=person. An empty group is left out.
-Every card carries its `rung`.
+`all` for group=none; `carried`, `today`, `started`, `added` for group=today.
+An empty group is left out.
 */
 export const focusGroupRows = z.object({
   key: z.string().min(1),

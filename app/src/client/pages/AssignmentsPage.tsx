@@ -1,7 +1,7 @@
 /*
 Assigned, at /app/assignments: every open task the viewer can read, grouped by
-person with "You" first and "Unassigned" last: GET /views/focus with
-group=person, which groups on the server and leaves the naming here. The "New task" row assigns to
+person with "You" first and "Unassigned" last: GET /views/focus's open rows,
+grouped here by grouping.ts in the viewer's locale. The "New task" row assigns to
 the viewer, which 7.6 does by default. "From" on a row names the creator,
 since Dana records no assigner. No View menu (M4): no board, grouping, sort
 or "Show completed". The sidebar shows this page only to a viewer on a page
@@ -21,7 +21,7 @@ import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js
 import { useRowKeys } from '../components/row-keys.js'
 
 const SPINE = PLACES.assignments
-const ASK = { when: 'any', group: 'person' } as const
+const ASK = { when: 'any', group: 'none' } as const
 
 export function AssignmentsPage(): React.JSX.Element {
   const view = useFocusView(ASK)
@@ -39,11 +39,7 @@ export function AssignmentsPage(): React.JSX.Element {
   /* The creator is worth naming only once somebody else can be one. */
   const context = { ...basis, multiMemberFolderIds, showCreator: multiMemberFolderIds.size > 0 }
 
-  /* The server's groups in its order; each is named as grouping.ts names a
-     person ("You", their name, "Unassigned"). */
-  const groups = (data?.groups ?? []).flatMap((group) =>
-    groupRows(group.rows, 'person', place.today, place.viewerId),
-  )
+  const groups = groupRows(rows, 'person', place.today, place.viewerId)
 
   return (
     <div ref={keys} className="space-y-6">
