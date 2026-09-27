@@ -48,6 +48,7 @@ const ids = {
   nullKey: '20000000-0000-4000-8000-000000000007',
   oneLongLine: '20000000-0000-4000-8000-000000000008',
   emojiLine: '20000000-0000-4000-8000-000000000009',
+  diverged: '20000000-0000-4000-8000-00000000000a',
   s1: '30000000-0000-4000-8000-000000000001',
   s2: '30000000-0000-4000-8000-000000000002',
   s3: '30000000-0000-4000-8000-000000000003',
@@ -62,11 +63,13 @@ const ids = {
   s12: '30000000-0000-4000-8000-00000000000c',
   s13: '30000000-0000-4000-8000-00000000000d',
   s14: '30000000-0000-4000-8000-00000000000e',
+  s15: '30000000-0000-4000-8000-00000000000f',
   intro: '40000000-0000-4000-8000-000000000001',
   legacy: '40000000-0000-4000-8000-000000000002',
   last: '40000000-0000-4000-8000-000000000003',
   keyed: '40000000-0000-4000-8000-000000000004',
   unkeyed: '40000000-0000-4000-8000-000000000005',
+  old: '40000000-0000-4000-8000-000000000006',
 }
 
 // Over 4000 characters with a line break inside the window, so it splits.
@@ -134,14 +137,16 @@ beforeAll(async () => {
       (${ids.untouched}::uuid, ${ids.folder}::uuid, 'Untouched', ${ids.owner}::uuid, 'keep me', NULL),
       (${ids.nullKey}::uuid, ${ids.folder}::uuid, 'Null key', ${ids.owner}::uuid, ${'Keyed\nUnkeyed'}, NULL),
       (${ids.oneLongLine}::uuid, ${ids.folder}::uuid, 'One long line', ${ids.owner}::uuid, ${oneLongLine}, NULL),
-      (${ids.emojiLine}::uuid, ${ids.folder}::uuid, 'Emoji line', ${ids.owner}::uuid, ${emojiLine}, NULL)`)
+      (${ids.emojiLine}::uuid, ${ids.folder}::uuid, 'Emoji line', ${ids.owner}::uuid, ${emojiLine}, NULL),
+      (${ids.diverged}::uuid, ${ids.folder}::uuid, 'Diverged', ${ids.owner}::uuid, 'New text only in notes', NULL)`)
   await db.execute(sql`
     INSERT INTO page_blocks (id, task_id, kind, position, page_position, text, checked) VALUES
       (${ids.intro}::uuid, ${ids.withBody}::uuid, 'paragraph', 0, 'a0', 'Intro', NULL),
       (${ids.legacy}::uuid, ${ids.withBody}::uuid, 'checklist', 1, 'a1', 'Legacy', true),
       (${ids.last}::uuid, ${ids.nearCarry}::uuid, 'paragraph', 0, 'ay', 'Last', NULL),
       (${ids.keyed}::uuid, ${ids.nullKey}::uuid, 'paragraph', 0, 'a0', 'Keyed', NULL),
-      (${ids.unkeyed}::uuid, ${ids.nullKey}::uuid, 'paragraph', 1, NULL, 'Unkeyed', NULL)`)
+      (${ids.unkeyed}::uuid, ${ids.nullKey}::uuid, 'paragraph', 1, NULL, 'Unkeyed', NULL),
+      (${ids.old}::uuid, ${ids.diverged}::uuid, 'paragraph', 0, 'a0', 'Old', NULL)`)
   // Positions out of id order, and a tie broken by id (s2 before s3).
   await db.execute(sql`
     INSERT INTO steps (id, task_id, title, done, position) VALUES
@@ -158,7 +163,8 @@ beforeAll(async () => {
       (${ids.s11}::uuid, ${ids.nearCarry}::uuid, 'Four', true, 4),
       (${ids.s12}::uuid, ${ids.nullKey}::uuid, 'After', false, 1),
       (${ids.s13}::uuid, ${ids.oneLongLine}::uuid, 'Read it', false, 1),
-      (${ids.s14}::uuid, ${ids.emojiLine}::uuid, 'Smile', true, 1)`)
+      (${ids.s14}::uuid, ${ids.emojiLine}::uuid, 'Smile', true, 1),
+      (${ids.s15}::uuid, ${ids.diverged}::uuid, 'Step', false, 1)`)
   untouchedBefore = await rows(db, sql`SELECT * FROM tasks WHERE id = ${ids.untouched}::uuid`)
 
   await migrate(db, { migrationsFolder: through0060 })
@@ -213,6 +219,14 @@ describe('AC-1516 migration 0060 moves steps into the task body as checklist ite
     expect(await notesOf(ids.withBody)).toBe('Intro')
   })
 
+  test('notes the old server wrote alone (not the body) are kept, not replaced', async () => {
+    expect(await blocksOf(ids.diverged)).toEqual([
+      { id: ids.old, kind: 'paragraph', text: 'Old', checked: null, page_position: 'a0', position: 0 },
+      { id: ids.s15, kind: 'checklist', text: 'Step', checked: false, page_position: 'a1', position: 1 },
+    ])
+    expect(await notesOf(ids.diverged)).toBe('New text only in notes')
+  })
+
   test('a trashed task keeps its steps too', async () => {
     expect(await blocksOf(ids.trashed)).toEqual([
       { id: ids.s7, kind: 'checklist', text: 'Gone', checked: true, page_position: 'a0', position: 0 },
@@ -241,7 +255,7 @@ describe('AC-1516 migration 0060 moves steps into the task body as checklist ite
   test('a task without steps is untouched, and the steps table is kept', async () => {
     expect(await rows(db, sql`SELECT * FROM tasks WHERE id = ${ids.untouched}::uuid`)).toEqual(untouchedBefore)
     expect(await blocksOf(ids.untouched)).toEqual([])
-    expect(await rows(db, sql`SELECT count(*)::int AS n FROM steps`)).toEqual([{ n: 14 }])
+    expect(await rows(db, sql`SELECT count(*)::int AS n FROM steps`)).toEqual([{ n: 15 }])
   })
 
   test('migration_util.key_after is keyBetween(k, null) on the leg database', async () => {

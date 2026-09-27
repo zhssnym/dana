@@ -22,7 +22,11 @@
 -- 5. `tasks.notes` is the plain-text projection of the body, which now skips
 --    checklist blocks (the workflow round trip carries them as `steps`).
 --    Rewritten for every task that holds a checklist block, except one whose
---    notes step 2 just materialized: those keep their notes as they were.
+--    notes step 2 just materialized: those keep their notes as they were;
+--    and except one whose notes were not the old projection of its body
+--    (checklists included, as `notesProjection` read before this): the
+--    deploy overlap let the old server write `notes` alone, so there the
+--    notes are the newer copy and are left exactly as they are.
 -- 6. Invariants. Any mismatch raises `step 6: <check> <id>`, which rolls back
 --    every pending migration with this one.
 --
@@ -116,6 +120,18 @@ CREATE TEMP TABLE s6_notes ON COMMIT DROP AS
           AND t.notes IS NOT NULL AND t.notes <> ''
           AND NOT EXISTS (SELECT 1 FROM page_blocks b WHERE b.task_id = t.id)) AS materialize
     FROM tasks t;
+--> statement-breakpoint
+-- Each task's notes projection as the old `notesProjection` made it: every
+-- block's text, checklists included, before anything here is appended.
+CREATE TEMP TABLE s6_old_projection ON COMMIT DROP AS
+  SELECT b.task_id,
+         NULLIF(left(string_agg(b.text, E'\n'
+                                ORDER BY b.page_position ASC NULLS LAST, b.position, b.updated_at, b.id)
+                       FILTER (WHERE b.text IS NOT NULL),
+                     10000), '') AS projection
+    FROM page_blocks b
+   WHERE b.task_id IS NOT NULL
+   GROUP BY b.task_id;
 --> statement-breakpoint
 -- What 0031's loop put after each piece: a newline where it cut at a line
 -- break, nothing where it cut mid-line (one line over 4000 characters) or
@@ -218,6 +234,8 @@ UPDATE tasks t
          GROUP BY b.task_id) p
  WHERE p.task_id = t.id
    AND NOT EXISTS (SELECT 1 FROM s6_notes n WHERE n.task_id = t.id AND n.materialize)
+   AND (t.notes IS NULL OR t.notes = ''
+        OR t.notes IS NOT DISTINCT FROM (SELECT o.projection FROM s6_old_projection o WHERE o.task_id = t.id))
    AND t.notes IS DISTINCT FROM p.notes;
 --> statement-breakpoint
 -- 6. Invariants.
@@ -316,6 +334,19 @@ BEGIN
    LIMIT 1;
   IF bad IS NOT NULL THEN
     RAISE EXCEPTION 'step 6: materialized notes differ on task %', bad;
+  END IF;
+
+  -- No notes text disappears: a task's notes change only where they were
+  -- empty or were the old projection of a body that still holds every block.
+  SELECT n.task_id::text INTO bad FROM s6_notes n
+    JOIN tasks t ON t.id = n.task_id
+    LEFT JOIN s6_old_projection o ON o.task_id = n.task_id
+   WHERE n.notes IS NOT NULL AND n.notes <> ''
+     AND t.notes IS DISTINCT FROM n.notes
+     AND n.notes IS DISTINCT FROM o.projection
+   LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'step 6: notes text lost on task %', bad;
   END IF;
 
   -- A task with no checklist keeps its notes.

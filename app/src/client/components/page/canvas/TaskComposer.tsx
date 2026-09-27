@@ -420,6 +420,8 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
       }).then((next) => {
         queryClient.setQueryData(['tasks', taskId, 'document'], next)
         void queryClient.invalidateQueries({ queryKey: ['tasks', taskId] })
+        // The tick records "completed the subtask …" in the task's history.
+        void queryClient.invalidateQueries({ queryKey: queryKeys.events(`task:${taskId}`) })
         onCheckpoint(next)
       }, (failure: unknown) => {
         box.checked = !checked
