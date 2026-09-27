@@ -2,8 +2,7 @@
 AC-1508: the Focus group is the viewer's stored lists (Today, Upcoming and
 Assigned by default, plus any list added from the "+"), less Assigned unless the
 viewer is on a shared page. Upcoming's rows (tomorrow on, never Today's
-groups) are the server's since GET /views/focus: tests/guards/
-guard-rung-parity.test.ts holds them.
+groups) are the server's since GET /views/focus (server/views/focus.ts).
 */
 import { describe, expect, test } from 'vitest'
 

@@ -7,8 +7,8 @@ rows are Q1's (`openGroups` in my-day.ts), and every other list is Q5's stream
 (Q3's dated rows over Q2's grouped ones, `plannedRows` and `tasksRows` in
 lists.ts). What this file adds is the filter, pushed into the SQL so the
 1000-row cap counts what the list shows rather than what it later hides.
-The filters and Today's headings read the rung (`rungOf` in cards.ts), which
-stays on the server: the cards go out as every other list sends them.
+The filters read the rung (`rungOf` in cards.ts) in SQL; Today's headings
+read the same two arms (late, started) off the card, which carries both dates.
 
 Every list shows open work only: the screens drop abandoned rows
 (`withoutDropped`), so the query leaves them out.
@@ -33,7 +33,6 @@ import type { Executor } from '../database.js'
 import { today } from '../time/index.js'
 
 import { SCHEDULED, rungOf } from './cards.js'
-import type { TaskRung } from './cards.js'
 import { Q2_ORDER, plannedRows, tasksRows } from './lists.js'
 import { openGroups } from './my-day.js'
 
@@ -62,28 +61,31 @@ function whenScope(when: FocusWhen, viewerId: string, todayLocal: string): SQL {
 
 /**
  * TodayPage's four headings over Q1's two groups, as the screen sorts them.
- * Overdue work is carried over, started or not; started work that is not late
- * is started; the rest of Q1's today group is due today (or undated, or a
- * later start with no deadline), or added by hand when its deadline is later.
+ * Overdue work (a deadline before today) is carried over, started or not;
+ * started work (every Q1 row is pending) whose start has arrived is started;
+ * the rest of Q1's today group is due today (or undated, or a later start
+ * with no deadline), or added by hand when its deadline is later. Late and
+ * started are `rungOf`'s first two arms, read off the card.
  */
 function todayGroups(
   carried: readonly TaskCard[],
   todayRows: readonly TaskCard[],
-  rungs: ReadonlyMap<string, TaskRung>,
   todayLocal: string,
 ): FocusGroupRows[] {
+  const late = (task: TaskCard) => task.due_date !== null && task.due_date < todayLocal
+  const begun = (task: TaskCard) =>
+    !late(task) && task.start_date !== null && task.start_date <= todayLocal
   const carriedShown: TaskCard[] = []
   const dueToday: TaskCard[] = []
   const started: TaskCard[] = []
   const added: TaskCard[] = []
   for (const task of carried) {
-    if (rungs.get(task.id) === 'started') started.push(task)
+    if (begun(task)) started.push(task)
     else carriedShown.push(task)
   }
   for (const task of todayRows) {
-    const rung = rungs.get(task.id)
-    if (rung === 'started') started.push(task)
-    else if (rung === 'overdue') carriedShown.push(task)
+    if (begun(task)) started.push(task)
+    else if (late(task)) carriedShown.push(task)
     else if (task.due_date === null || task.due_date <= todayLocal) dueToday.push(task)
     else added.push(task)
   }
@@ -108,14 +110,12 @@ export async function focusView(
   const scope = sql` AND t.status = 'pending'${whenScope(query.when, viewerId, todayLocal)}${important}`
 
   let sections: TaskCard[][]
-  let rungs: ReadonlyMap<string, TaskRung> = new Map()
   if (query.when === 'on_today') {
-    const open = await openGroups(executor, viewerId, todayLocal, {
-      scope: important,
-      rung: query.group === 'today',
-    })
-    sections = [open.carried, open.today]
-    rungs = open.rungs
+    /* Q1 as My Day reads it; `important` narrows its cards here. */
+    const open = await openGroups(executor, viewerId, todayLocal)
+    const keep = (rows: TaskCard[]) =>
+      query.important ? rows.filter((task) => task.important) : rows
+    sections = [keep(open.carried), keep(open.today)]
   } else {
     sections = [
       await plannedRows(executor, viewerId, scope),
@@ -128,7 +128,7 @@ export async function focusView(
   let groups: FocusGroupRows[]
   switch (query.group) {
     case 'today':
-      groups = todayGroups(kept[0] ?? [], kept[1] ?? [], rungs, todayLocal)
+      groups = todayGroups(kept[0] ?? [], kept[1] ?? [], todayLocal)
       break
     case 'none':
       groups = [{ key: 'all', rows: kept.flat() }]

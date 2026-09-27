@@ -169,15 +169,11 @@ export const SCHEDULE_DATE = sql`coalesce(t.due_date, t.start_date)`
  */
 export const ACTIVATION_DATE = sql`coalesce(t.start_date, t.due_date)`
 
-/** Where a row stands against the viewer's today. */
-export type TaskRung = 'overdue' | 'started' | 'today' | 'future' | 'undated'
-
 /**
  * Where a row stands against the viewer's today: overdue, started, today,
  * future or undated.
  *
- * The server's statement of the rule, for GET /views/focus's filters and
- * Today's headings. It stays server-side and is not on the card: the client
+ * The server's statement of the rule, for GET /views/focus's filters. It stays server-side and is not on the card: the client
  * still has its own copies (`rungForTask` in client/views/ladder.ts for
  * Upcoming's headings, `stageOf`, grouping.ts, BoardView). Arm for arm it is
  * `rungForTask` with every rung after today folded into `future`:

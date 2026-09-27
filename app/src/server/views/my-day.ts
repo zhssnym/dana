@@ -33,8 +33,7 @@ import { takeCapped } from '../../shared/views.js'
 import type { Executor } from '../database.js'
 import { localDayWindow, myDayGroup, qualifyDate, today } from '../time/index.js'
 
-import { ACTIVATION_DATE, CAP_PROBE, readCards, rungOf } from './cards.js'
-import type { TaskRung } from './cards.js'
+import { ACTIVATION_DATE, CAP_PROBE, readCards } from './cards.js'
 
 /**
  * Q1's automatic clause: "assignee_id = V AND the task's activation date is
@@ -83,15 +82,11 @@ export async function openGroups(
   executor: Executor,
   viewerId: string,
   todayLocal: string,
-  /* focus.ts's two additions: a narrowing conjunct (its `important`) and
-     each row's rung, read back into `rungs` by task id. My Day passes
-     neither, and its `rungs` stays empty. */
-  focus: { scope?: SQL; rung?: boolean } = {},
-): Promise<{ carried: TaskCard[]; today: TaskCard[]; rungs: Map<string, TaskRung> }> {
+): Promise<{ carried: TaskCard[]; today: TaskCard[] }> {
   const automatic = automaticClause(viewerId, todayLocal)
   const rows = await readCards(executor, {
     viewerId,
-    where: sql`t.status = 'pending' AND (${automatic} OR e.task_id IS NOT NULL)${focus.scope ?? sql``}`,
+    where: sql`t.status = 'pending' AND (${automatic} OR e.task_id IS NOT NULL)`,
     // "Sort inside each group: due_date ascending nulls last, due_time
     // ascending nulls first, id." One order for both groups, because the
     // groups are a partition of this sequence rather than two queries.
@@ -109,16 +104,12 @@ export async function openGroups(
        clause that admitted the row. */
     extra: sql`${automatic} AS automatic,
                to_char(${ACTIVATION_DATE}, 'YYYY-MM-DD') AS activation_date,
-               to_char(e.added_on, 'YYYY-MM-DD') AS added_on${
-                 focus.rung === true ? sql`, ${rungOf(todayLocal)} AS rung` : sql``
-               }`,
+               to_char(e.added_on, 'YYYY-MM-DD') AS added_on`,
   })
 
   const carried: TaskCard[] = []
   const todayGroup: TaskCard[] = []
-  const rungs = new Map<string, TaskRung>()
   for (const row of rows) {
-    if (typeof row.raw.rung === 'string') rungs.set(row.card.id, row.raw.rung as TaskRung)
     // 8.2: the least of the activation date, when the automatic clause holds
     // for this row, and the entry's added_on, when an entry exists. At least
     // one is present for every row the predicate admits, which is why the
@@ -136,7 +127,7 @@ export async function openGroups(
     if (myDayGroup(qualify, todayLocal) === 'carried') carried.push(row.card)
     else todayGroup.push(row.card)
   }
-  return { carried, today: todayGroup, rungs }
+  return { carried, today: todayGroup }
 }
 
 /**
