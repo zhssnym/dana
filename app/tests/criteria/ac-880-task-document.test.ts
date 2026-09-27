@@ -232,7 +232,8 @@ describe('AC-881 to AC-885: the Task document routes', () => {
     expect((await blocksOf(taskId)).map((b) => b.text)).toEqual(['new text\nline two'])
     expect(await notesOf(taskId)).toBe('new text\nline two')
 
-    // The composer writes a checklist: notes becomes its projection.
+    // The composer writes a checklist: notes becomes its projection, which
+    // since 0060 leaves checklist items (the subtasks) out.
     const stale = await writeDocument(owner, taskId, view.revision, [outline([])])
     expect(stale.status, 'a stale base revision is refused').toBe(409)
     const current = await readDocument(owner, taskId)
@@ -243,11 +244,11 @@ describe('AC-881 to AC-885: the Task document routes', () => {
       outline([keep, check]),
     ])
     expect(wrote.status, JSON.stringify(wrote.json())).toBe(200)
-    expect(await notesOf(taskId)).toBe('new text\nline two\nbuy milk')
+    expect(await notesOf(taskId)).toBe('new text\nline two')
 
     // The deployed client extends the notes: only the addition is appended.
     const extended = await owner.browser.json(`/tasks/${taskId}`, 'PATCH', {
-      notes: 'new text\nline two\nbuy milk\nand eggs',
+      notes: 'new text\nline two\nand eggs',
     })
     expect(extended.status).toBe(200)
     let stored = await blocksOf(taskId)
@@ -257,7 +258,7 @@ describe('AC-881 to AC-885: the Task document routes', () => {
       ['paragraph', 'and eggs'],
     ])
     expect(stored[1]?.checked, 'the checklist keeps its tick').toBe(true)
-    expect(await notesOf(taskId)).toBe('new text\nline two\nbuy milk\nand eggs')
+    expect(await notesOf(taskId)).toBe('new text\nline two\nand eggs')
 
     // The deployed client rewrites the notes: nothing is dropped, the text is appended.
     const rewritten = await owner.browser.json(`/tasks/${taskId}`, 'PATCH', { notes: 'totally different' })
@@ -269,7 +270,7 @@ describe('AC-881 to AC-885: the Task document routes', () => {
       'and eggs',
       'totally different',
     ])
-    expect(await notesOf(taskId)).toBe('new text\nline two\nbuy milk\nand eggs\ntotally different')
+    expect(await notesOf(taskId)).toBe('new text\nline two\nand eggs\ntotally different')
   })
 
   test('AC-883: a legacy notes write never erases the tail of a plain document longer than the notes column', async () => {
@@ -408,9 +409,10 @@ describe('AC-881 to AC-885: the Task document routes', () => {
     expect(duplicated.status).toBe(201)
     const copyId = String((duplicated.json() as { id: string }).id)
     const copied = await blocksOf(copyId)
+    // A copy's checklist (its subtasks) comes unticked (8.5, AC-1517).
     expect(copied.map((b) => [b.kind, b.text, b.checked])).toEqual([
       ['paragraph', 'carried', null],
-      ['checklist', 'ticked', true],
+      ['checklist', 'ticked', false],
     ])
     expect(copied.some((b) => b.id === check), 'the copy has blocks of its own').toBe(false)
     expect((await blocksOf(taskId)).length, 'the source keeps its document').toBe(2)
@@ -421,7 +423,7 @@ describe('AC-881 to AC-885: the Task document routes', () => {
       version: number
       folders: { id: string; tasks: { id: string; document: { kind: string; text: string | null }[] }[] }[]
     }
-    expect(data.version).toBe(9)
+    expect(data.version).toBe(10)
     const task = data.folders.find((f) => f.id === folderId)?.tasks.find((t) => t.id === taskId)
     expect(task?.document.map((b) => [b.kind, b.text])).toEqual([
       ['paragraph', 'carried'],

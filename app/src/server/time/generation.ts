@@ -30,7 +30,7 @@ What the successor carries is 8.5's list and is copied from the row itself
 rather than from a serialization of it, so a column added later cannot be
 silently dropped by this file: folder, title, notes, assignee, importance,
 due_time, the rule, the series, and created_by, which stays the original
-creator rather than becoming the actor. Status is pending. The steps come
+creator rather than becoming the actor. Status is pending. The checklist comes
 across unticked, and so does the reminder, whose instant is recomputed for the
 successor's own due date rather than copied. My Day entries are never copied,
 which 8.5 states and 8.2 explains: a pull is one decision about one occurrence.
@@ -139,19 +139,10 @@ export async function generateSuccessor(
   }
   const successorId = String(successor.id)
 
-  // 8.5: the steps come across with done = false, which is the column
-  // default, and in the same order, which position carries (4.6 orders by
-  // position then id and allows gaps, so copying the numbers preserves it).
-  await tx.execute(
-    sql`INSERT INTO steps (task_id, title, position)
-        SELECT ${successorId}::uuid, title, position
-          FROM steps WHERE task_id = ${request.taskId}::uuid`,
-  )
-
   /*
   8.5's reminder arm: "if reminder exists on t, insert reminder on s with
-  same mode and value, fire_at recomputed per 8.6". It sits between the step
-  copy above and the rule handover below, and it reads the assignee's zone rather than the
+  same mode and value, fire_at recomputed per 8.6". It sits before the document
+  copy and the rule handover below, and it reads the assignee's zone rather than the
   request's, which is 8.6's rule and not this function's. The successor row
   already carries the assignee and the due_time it was copied with, so the
   computation is over the successor and needs nothing passed to it: the whole
@@ -162,7 +153,8 @@ export async function generateSuccessor(
 
   // #221: the successor carries the notes above, so it carries the document
   // they are the projection of. Same folder, so media blocks share files.
-  await copyTaskDocument(tx, request.taskId, successorId)
+  // 8.5: its checklist (the subtasks) comes across unticked.
+  await copyTaskDocument(tx, request.taskId, successorId, undefined, { uncheck: true })
 
 
   // 8.5: the rule lives only on the current occurrence, and the current

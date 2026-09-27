@@ -2,8 +2,8 @@
 A native Result's Dana Link, `/app/results/:id` (#213).
 
 Not a page of its own: a Result is a block of its Folder's Results tab, so
-this reads where it lives and replaces itself with the Folder's address,
-`?facet=<results>&result=<id>`, which the Result block scrolls to
+this reads where it lives and replaces itself with that page's address
+(since step 7 the Results tab is a page), `?result=<id>`, which the Result block scrolls to
 (`CanvasResult`). `replace`, so back never bounces off this hop. A Result the
 viewer cannot open is the same not-found a missing one is.
 */
@@ -27,7 +27,7 @@ export function ResultLinkPage(): React.JSX.Element {
       {read.data === undefined ? null : (
         <Navigate
           replace
-          to={`${paths.folder(read.data.folder_id)}?${new URLSearchParams({ facet: read.data.facet_id, result: read.data.id }).toString()}`}
+          to={`${paths.folder(read.data.folder_id)}?${new URLSearchParams({ result: read.data.id }).toString()}`}
         />
       )}
     </PageBody>

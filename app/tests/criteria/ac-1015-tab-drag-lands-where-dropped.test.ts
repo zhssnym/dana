@@ -1,27 +1,24 @@
 /*
-AC-1015: given a Folder nobody has reordered, when a member drags their own
-private tab between the built-ins, then the tab row draws it where it was
-dropped (it does not snap back to the end), `after_facet_id: null` puts it at
-the front of the row, every other member's drawn row is unchanged, and a later
-shared-order write reorders the shared tabs exactly as asked without moving
-the private one.
+AC-1015: a dragged tab lands where it was dropped. `PATCH /folders/:id/location`
+with `parent_folder_id: null` on a tab moves it along its project's tab row:
+after `after_id` (a tab of the same project), first for null, last when
+absent; every member reads the same row. A tab never goes under a page, and a
+project with more than one tab never becomes a sub-page; a sub-page moved to
+the top level becomes a project and carries its sub-pages with it.
 
-**Why this criterion exists.** An untouched Folder is drawn in
-`NATIVE_TAB_ORDER` rather than stored order (`tabOrder`). The private route
-used to re-key only the private row, so the Folder stayed "untouched" and the
-drop was redrawn after the built-ins; and its null anchor meant "after Main",
-which stopped being the front once Main could stand anywhere.
-
-Spec: 7.27, 9.5 (tab row).
+Spec: 7.4 (location), 4.3 (projects and tabs), 9.6 (tab row). Step 7 moved
+this criterion from 7.27's facet order routes to the tab rows.
 */
+import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
-import { NATIVE_TAB_ORDER } from '../../src/shared/facets.js'
-import type { Facet } from '../../src/shared/facets.js'
+import type { Folder } from '../../src/shared/folders.js'
+import { projectTabs } from '../../src/shared/folders.js'
 import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
-import { addMemberOk, Cast, connect, createFolder, expectStatus } from '../support/folders-harness.js'
+import { addMemberOk, Cast, connect, expectStatus } from '../support/folders-harness.js'
 import type { Actor } from '../support/folders-harness.js'
+import { rows } from '../support/helpers.js'
 
 let app: AuthTestApp
 const cast = new Cast(['owner', 'member'], 'ac1015')
@@ -36,124 +33,102 @@ afterAll(async () => {
   await app.close()
 })
 
-async function facets(actor: Actor, folderId: string): Promise<Facet[]> {
-  const listed = await actor.browser.json(`/folders/${folderId}/facets`, 'GET')
-  expectStatus(listed, 200, 'a member lists the facets (7.27)')
-  return (listed.json() as { facets: Facet[] }).facets
+async function row(actor: Actor, projectId: string): Promise<string[]> {
+  const listed = await actor.browser.json('/folders?tabs=1', 'GET')
+  expectStatus(listed, 200, 'a member lists the folders (7.4)')
+  return projectTabs(listed.json() as Folder[], projectId).map((tab) => tab.name)
 }
 
-/**
- * The client's draw rule (`tabOrder` in `components/folder-facets.tsx`, which
- * this node-side project cannot import): built-ins still at their creation
- * keys (hidden ones included; an absent one does not count) are drawn in
- * `NATIVE_TAB_ORDER`, custom tabs after them in stored order; otherwise the
- * stored order is the order. Hidden tabs are then left out of the row.
- */
-function tabOrder(all: readonly Facet[]): Facet[] {
-  const rows = all.filter((facet) => !facet.hidden)
-  const at = (kind: string) => all.find((facet) => facet.kind === kind)?.position
-  const creation: Record<string, string> = { main: 'a0', purpose: 'a1', consultation: 'a2', results: 'a3' }
-  const untouched =
-    at('main') === 'a0' &&
-    Object.entries(creation).every(([kind, key]) => at(kind) === undefined || at(kind) === key)
-  if (!untouched) return [...rows]
-  const rank = (facet: Facet): number => {
-    const native = (NATIVE_TAB_ORDER as readonly string[]).indexOf(facet.kind)
-    return native < 0 ? NATIVE_TAB_ORDER.length : native
-  }
-  return rows.map((facet, index) => ({ facet, index }))
-    .sort((a, b) => rank(a.facet) - rank(b.facet) || a.index - b.index)
-    .map((entry) => entry.facet)
+async function tabIds(actor: Actor, projectId: string): Promise<Map<string, string>> {
+  const listed = await actor.browser.json('/folders?tabs=1', 'GET')
+  return new Map(projectTabs(listed.json() as Folder[], projectId).map((tab) => [tab.name, tab.id]))
 }
 
-/** The row as drawn: the client's own rule, names for legible failures. */
-async function drawn(actor: Actor, folderId: string): Promise<string[]> {
-  return tabOrder(await facets(actor, folderId)).map((facet) => facet.display_name ?? facet.kind)
-}
-
-async function create(actor: Actor, folderId: string, kind: 'shared_blank' | 'private_blank', name: string): Promise<string> {
-  const made = await actor.browser.json(`/folders/${folderId}/facets`, 'POST', { kind, display_name: name })
-  expectStatus(made, 201, `${actor.sub} creates ${name}`)
-  return (made.json() as Facet).id
+async function usualProject(owner: Actor, name: string): Promise<string> {
+  const made = await owner.browser.json('/folders', 'POST', { name, kind: null })
+  expectStatus(made, 201, 'an unpicked project (7.4)')
+  const id = (made.json() as { id: string }).id
+  expectStatus(await owner.browser.json(`/folders/${id}/tabs`, 'POST', { kind: 'usual' }), 201, 'the usual project')
+  return id
 }
 
 describe('AC-1015 a dragged tab lands where it was dropped', () => {
-  test('AC-1015: private drag in an untouched Folder, null anchor, and the shared order', async () => {
+  test('AC-1015: a tab moves along its row, the same row for every member', async () => {
     const [owner, member] = (await cast.of(app)) as [Actor, Actor]
-    const folderId = await createFolder(owner, 'ac1015 tabs')
+    const made = await owner.browser.json('/folders', 'POST', { name: 'ac1015 tabs', kind: null })
+    expectStatus(made, 201, 'an unpicked project (7.4)')
+    const project = (made.json() as { id: string }).id
     await connect(app.db, owner.id, member.id)
-    await addMemberOk(owner, folderId, member.id, 'can_edit')
+    await addMemberOk(owner, project, member.id, 'can_edit')
+    expectStatus(await owner.browser.json(`/folders/${project}/tabs`, 'POST', { kind: 'usual' }), 201, 'the usual project')
+    expectStatus(await owner.browser.json(`/folders/${project}/tabs`, 'POST', { kind: 'doc' }), 201, 'a Doc tab')
+    expect(await row(owner, project)).toEqual(['Purpose', 'ac1015 tabs', 'Results', 'Discussion', 'Doc'])
+    const ids = await tabIds(owner, project)
 
-    await create(owner, folderId, 'shared_blank', 'Shared')
-    const mine = await create(owner, folderId, 'private_blank', 'Mine')
-    await create(member, folderId, 'private_blank', 'Theirs')
+    const move = (id: string, body: Record<string, unknown>) =>
+      owner.browser.json(`/folders/${id}/location`, 'PATCH', { parent_folder_id: null, ...body })
+    expectStatus(await move(ids.get('Doc')!, { after_id: ids.get('Purpose') }), 200, 'the Doc tab dropped after Purpose')
+    expect(await row(owner, project)).toEqual(['Purpose', 'Doc', 'ac1015 tabs', 'Results', 'Discussion'])
+    expectStatus(await move(ids.get('Discussion')!, { after_id: null }), 200, 'Discussion dropped first')
+    expect(await row(owner, project)).toEqual(['Discussion', 'Purpose', 'Doc', 'ac1015 tabs', 'Results'])
+    expectStatus(await move(ids.get('Discussion')!, {}), 200, 'Discussion dropped last')
+    expect(await row(member, project), 'every member reads the one row').toEqual([
+      'Purpose', 'Doc', 'ac1015 tabs', 'Results', 'Discussion',
+    ])
 
-    const byKind = new Map((await facets(owner, folderId)).map((facet) => [facet.kind, facet.id]))
-    const purpose = byKind.get('purpose')!
-    const memberBefore = await drawn(member, folderId)
-    expect((await drawn(owner, folderId)).indexOf('Mine'), 'untouched: custom tabs are drawn after the built-ins').toBeGreaterThan(3)
-
-    /* The drag: Mine dropped just after Purpose. */
+    const other = await usualProject(owner, 'ac1015 elsewhere')
+    const elsewhere = await tabIds(owner, other)
+    expectStatus(await move(ids.get('Doc')!, { after_id: elsewhere.get('Purpose') }), 422, 'after_id must be a tab of the same project')
     expectStatus(
-      await owner.browser.json(`/folders/${folderId}/facets/my-order`, 'PUT', {
-        placements: [{ facet_id: mine, after_facet_id: purpose }],
-      }),
-      200,
-      'the owner places their own private tab (7.27)',
+      await owner.browser.json(`/folders/${ids.get('Doc')!}/location`, 'PATCH', { parent_folder_id: other }),
+      422,
+      'a tab never goes under a page',
     )
-    const ownerRow = await drawn(owner, folderId)
-    expect(ownerRow.indexOf('Mine'), `the row draws Mine right after Purpose: ${ownerRow.join(', ')}`).toBe(1)
-    expect(await drawn(member, folderId), "a private drag leaves another member's row as it was (invariant 11)").toEqual(memberBefore)
-
-    /* Null is the front of the row, not "after Main". */
     expectStatus(
-      await owner.browser.json(`/folders/${folderId}/facets/my-order`, 'PUT', {
-        placements: [{ facet_id: mine, after_facet_id: null }],
-      }),
-      200,
-      'the owner moves their private tab to the front',
+      await owner.browser.json(`/folders/${project}/location`, 'PATCH', { parent_folder_id: other }),
+      422,
+      'a project with more than one tab never becomes a sub-page',
     )
-    expect((await drawn(owner, folderId))[0], 'after_facet_id null puts the tab first').toBe('Mine')
-    expect(await drawn(member, folderId)).toEqual(memberBefore)
-
-    /* The shared route: the whole shared order, exactly as asked. */
-    const shared = (await facets(owner, folderId)).filter((facet) => !facet.private)
-    const asked = [...shared].reverse().map((facet) => facet.id)
-    expectStatus(
-      await owner.browser.json(`/folders/${folderId}/facets/order`, 'PUT', { order: asked }),
-      200,
-      'the owner writes the shared order (7.27)',
-    )
-    const after = tabOrder(await facets(owner, folderId))
-    expect(after.filter((facet) => !facet.private).map((facet) => facet.id), 'the shared tabs are drawn in the written order').toEqual(asked)
-    expect(after[0]!.id, 'a shared-order write does not move the private tab').toBe(mine)
-    const memberShared = tabOrder(await facets(member, folderId)).filter((facet) => !facet.private).map((facet) => facet.id)
-    expect(memberShared, 'every member draws the written shared order').toEqual(asked)
+    expect(await row(owner, project)).toEqual(['Purpose', 'Doc', 'ac1015 tabs', 'Results', 'Discussion'])
   }, 60_000)
 
-  test('AC-1015: with a built-in hidden the row still draws the default order, and a private drag keeps it', async () => {
-    const [owner, member] = (await cast.of(app)) as [Actor, Actor]
-    const folderId = await createFolder(owner, 'ac1015 hidden')
-    await connect(app.db, owner.id, member.id)
-    await addMemberOk(owner, folderId, member.id, 'can_edit')
-    const byKind = new Map((await facets(owner, folderId)).map((facet) => [facet.kind, facet.id]))
+  test('AC-1015: a sub-page moved to the top level becomes a project with its sub-pages', async () => {
+    const [owner] = (await cast.of(app)) as [Actor, Actor]
+    const project = await usualProject(owner, 'ac1015 tree')
+    const sub = await owner.browser.json('/folders', 'POST', { name: 'ac1015 sub', parent_folder_id: project })
+    expectStatus(sub, 201, 'a sub-page')
+    const subId = (sub.json() as { id: string }).id
+    const grand = await owner.browser.json('/folders', 'POST', { name: 'ac1015 grand', parent_folder_id: subId })
+    expectStatus(grand, 201, 'a sub-sub-page')
+    const grandId = (grand.json() as { id: string }).id
+
     expectStatus(
-      await owner.browser.json(`/folders/${folderId}/facets/${byKind.get('consultation')!}`, 'PATCH', { hidden: true }),
+      await owner.browser.json(`/folders/${subId}/location`, 'PATCH', { parent_folder_id: null }),
       200,
-      'the owner hides Discussion',
+      'the sub-page moves to the top level',
     )
-    const mine = await create(owner, folderId, 'private_blank', 'Mine')
-    const memberBefore = await drawn(member, folderId)
-    expect(memberBefore, 'hiding Discussion is not a reorder: Purpose · Work · Results').toEqual(['purpose', 'main', 'results'])
+    expect(
+      await rows(app.db, sql`SELECT id, parent_folder_id, project_id, tab_position FROM folders
+        WHERE id IN (${subId}::uuid, ${grandId}::uuid) ORDER BY tab_position NULLS LAST`),
+    ).toEqual([
+      { id: subId, parent_folder_id: null, project_id: subId, tab_position: 'a0' },
+      { id: grandId, parent_folder_id: subId, project_id: subId, tab_position: null },
+    ])
+
+    // Back under a page of the first project: both follow.
     expectStatus(
-      await owner.browser.json(`/folders/${folderId}/facets/my-order`, 'PUT', {
-        placements: [{ facet_id: mine, after_facet_id: byKind.get('purpose')! }],
-      }),
+      await owner.browser.json(`/folders/${subId}/location`, 'PATCH', { parent_folder_id: project }),
       200,
-      'the owner places their private tab',
+      'the one-tab project goes back under a page',
     )
-    const ownerRow = await drawn(owner, folderId)
-    expect(ownerRow[ownerRow.indexOf('Mine') - 1], `Mine follows Purpose: ${ownerRow.join(', ')}`).toBe('purpose')
-    expect(await drawn(member, folderId), 'the built-ins keep the order they were drawn in').toEqual(memberBefore)
+    expect(
+      await rows(app.db, sql`SELECT id, project_id, tab_position FROM folders
+        WHERE id IN (${subId}::uuid, ${grandId}::uuid) ORDER BY id`),
+    ).toEqual(
+      [
+        { id: subId, project_id: project, tab_position: null },
+        { id: grandId, project_id: project, tab_position: null },
+      ].sort((a, b) => (a.id < b.id ? -1 : 1)),
+    )
   }, 60_000)
 })

@@ -636,26 +636,19 @@ export const postTaskOrderBody = z.object({
 export type PostTaskOrderBody = z.infer<typeof postTaskOrderBody>
 
 /* ------------------------------------------------------------------ *
- * 7.7 request bodies
+ * 7.7 request bodies, kept for old clients until the contract release
  * ------------------------------------------------------------------ */
 
-// POST /tasks/:id/steps. { title, position optional }, 7.7. The default
-// position, max plus 1, is a count of the task's rows, so it is resolved
-// where the rows are; the 50 cap is a live row count for the same reason
-// (4.6 makes it an API guard rather than a constraint).
-export const postTaskStepsBody = z.object({
-  title: stepTitle,
-  position: stepPosition.optional(),
-})
+// POST /tasks/:id/steps and PATCH /steps/:id, as an installed copy of the old
+// client still sends them. They act on the task body's checklist items. The
+// old client also sends `position`; it is not declared, so it is stripped:
+// the shim appends and never reorders (server/domain/tasks.ts says why).
+export const postTaskStepsBody = z.object({ title: stepTitle })
 export type PostTaskStepsBody = z.infer<typeof postTaskStepsBody>
 
-// PATCH /steps/:id. { title, done, position } any subset, 7.7, read the way
-// every section 7 PATCH is: absent unchanged, every
-// present value valid, and the empty body a no-op rather than a refusal.
 export const patchStepBody = z.object({
   title: stepTitle.optional(),
   done: z.boolean({ error: 'must be a boolean' }).optional(),
-  position: stepPosition.optional(),
 })
 export type PatchStepBody = z.infer<typeof patchStepBody>
 
@@ -816,11 +809,13 @@ export const taskReminder = z
   })
 export type TaskReminder = z.infer<typeof taskReminder>
 
-// A step as TaskDetail carries it (7.0). The order is 4.6's, (position, id),
-// and an order is the query's to produce, never the shape's to declare.
+// A step as TaskDetail carries it (7.0): since 0060, a read-only projection
+// of the checklist items in the task's body, in document order, `position`
+// being the index. The title is the item's text, which a checklist item may
+// hold empty and up to 4000 characters, so it is not `stepTitle`.
 export const taskStep = z.object({
   id: z.uuid(),
-  title: stepTitle,
+  title: z.string().max(4000),
   done: z.boolean(),
   position: stepPosition,
 })
@@ -834,7 +829,7 @@ due_time are 4.11's floating values, read tolerantly; the assignee is
 folderMemberUser, the person shape 7.4's members element already carries, one
 object rather than two that can disagree; is_recurring reports the rule the
 row holds, which is why it is a boolean here and the rule itself is
-TaskDetail's; steps_done and steps_total are counts of 4.6 rows; pulled is
+TaskDetail's; steps_done and steps_total count the checklist items of the task's body; pulled is
 the viewer's own My Day entry (7.0 says so outright), so one row answers it
 differently for two members and it is read from the entry rather than from
 the status: an abandoned task keeps the entry, so it keeps pulled true while
@@ -1006,36 +1001,17 @@ The surface as a map, one name bound to one shape, the folders.ts idiom. 7.6
 writes "201 TaskDetail" on the create, "TaskDetail" on the read, and "200
 TaskDetail" on the PATCH; 7.9's PUT answers 200 with the affected TaskDetail.
 
-7.7 gives its endpoints statuses and names no body; 7.8 answers 200 on both of
-its calls and names none either. Read against the rest of section 7, that
-silence has one answer: a mutation answers what a fresh GET would, as 7.1,
-7.2 and 7.4 state outright.
-
-Neither a step, a My Day entry nor a reminder is a resource in this contract:
-7.0 gives none a shape of its own and section 7 offers no GET for any. The
-only GET whose answer these mutations change is GET /tasks/:id, and they
-change more of it than the row they touch: a step mutation moves steps_done
-and steps_total, a pull moves pulled. So the TaskDetail is the only object in
-the contract that reports what the call did.
-
-Two consequences, both places a reader might expect something else:
-
-- POST /tasks/:id/steps answers 201 with the parent task rather than with the
-  step it created, unlike 7.4's POST members, which answers the member element.
-  A members element is a shape 7.4 enumerates and the 9.x sharing panel renders
-  on its own, while a step is only ever seen inside its task, and the created
-  step rides along in the steps array with the id and position the server
-  assigned it.
-- DELETE /steps/:id answers 204 and no body at all. 7.7 fixes that status, and
-  a 204 carrying a body is a protocol violation.
+7.8 answers 200 on both of its calls and names no body. Read against the
+rest of section 7, that silence has one answer: a mutation answers what a
+fresh GET would, as 7.1, 7.2 and 7.4 state outright. Neither a My Day entry
+nor a reminder is a resource in this contract, so the TaskDetail is the only
+object that reports what the call did.
 
 The DELETE endpoints gain no name: they answer 204 and carry nothing.
 */
 export const postTasksResponse = taskDetail
 export const getTaskResponse = taskDetail
 export const patchTaskResponse = taskDetail
-export const postTaskStepsResponse = taskDetail
-export const patchStepResponse = taskDetail
 export const postTaskMyDayResponse = taskDetail
 export const deleteTaskMyDayResponse = taskDetail
 export const putTaskReminderResponse = taskDetail

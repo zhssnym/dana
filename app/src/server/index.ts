@@ -36,7 +36,6 @@ import {
 import { createEventsRouter } from './routes/events.js'
 import { createExportRouter } from './routes/export.js'
 import { createConsultationRouter } from './routes/consultation.js'
-import { createFacetsRouter } from './routes/facets.js'
 import { createFilesRouter } from './routes/files.js'
 import { createFoldersRouter } from './routes/folders.js'
 import { HEALTH_PATH, healthRouter, recordDatabaseKind } from './routes/health.js'
@@ -728,33 +727,8 @@ export function createApp(options: AppOptions = {}): express.Express {
     }),
   )
 
-  /*
-  7.27's Folder facets (issue #210, extended by #211). **Twelve** routes:
-  nine under `/folders/:id/facets`, the Purpose navigation read
-  `GET /facets/:id/location`, and `POST /facets/:id/restore` plus
-  `DELETE /trash/facets/:id`, which are 7.13's shape for the Trash pair.
-
-  **Position is deliberate and is not load-bearing**, which is worth
-  separating, exactly as the Label router's block above says of itself.
-  Express matches whole paths, and nothing here is a whole path any earlier
-  router claims: `/folders/:id` is one segment past the prefix and
-  `/folders/:id/facets` is two; `/folders/:id/page` is a different literal
-  from `/folders/:id/facets`; `/trash/facets/:id` differs from
-  `/trash/tasks/:id` and `/trash/folders/:id` in its literal segment; and
-  `/facets/:id/restore` meets nothing at all. So this would work anywhere
-  ahead of the catch-all, and it is here because reading it after the
-  workshop router -- which owns the Folder page these facets sit beside -- is
-  how a person finds it.
-
-  **The order *inside* the router is load-bearing**, and that file says so:
-  `/folders/:id/facets/order` and `/folders/:id/facets/my-order` are
-  registered ahead of `/folders/:id/facets/:facetId`, which would otherwise
-  claim both.
-  */
-  app.use(
-    '/api/v1',
-    createFacetsRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
-  )
+  /* 7.27's Folder facet routes are gone since step 7 (migration 0061): a
+     facet is a tab, and a tab is a page served by the folder routes. */
 
   // Consultation input rounds (issue #321): `/discussions/:id/input-rounds`
   // and `/input-rounds/:id...`. The literal `input-rounds` segment meets
@@ -1038,14 +1012,37 @@ async function main(): Promise<void> {
   process.on('SIGINT', shutdown)
 }
 
+/* What a failed boot can say without logging a message (10.5). drizzle wraps
+   a failed statement, so the database's error is the cause. A migration's
+   self-check raises `step N: <words> <id>`; the words are written in the
+   migration, so they are kept and the id and anything after it are not.
+   Without this a failed deploy logged only `reason: Error`. */
+function bootFailure(err: unknown): { reason: string; note?: string } {
+  const db = err instanceof Error && err.cause instanceof Error ? err.cause : err
+  const code: unknown =
+    typeof db === 'object' && db !== null ? (db as { code?: unknown }).code : undefined
+  const reason =
+    typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code)
+      ? `sqlstate_${code}`
+      : err instanceof Error
+        ? err.name
+        : 'unknown'
+  const check = db instanceof Error ? /^step (\d+): (.*)$/s.exec(db.message) : null
+  if (check === null) return { reason }
+  const words: string[] = []
+  for (const word of (check[2] ?? '').split(' ')) {
+    if (!/^[a-z]+$/.test(word)) break
+    words.push(word)
+  }
+  return { reason, note: `Migration check failed, step ${check[1]}: ${words.join(' ')}` }
+}
+
 if (
   process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   main().catch((err: unknown) => {
-    bootLog.operation('error', 'boot_failed', {
-      reason: err instanceof Error ? err.name : 'unknown',
-    })
+    bootLog.operation('error', 'boot_failed', bootFailure(err))
     process.exit(1)
   })
 }

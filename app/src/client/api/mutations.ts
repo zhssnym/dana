@@ -22,6 +22,7 @@ for them; each call site that needs one asks for it, and the two that do are the
 ones section 7 names.
 */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { z } from 'zod'
 import type { InfiniteData, UseMutationResult } from '@tanstack/react-query'
 import type { GetDoneResponse, GetFolderTasksOpenResponse } from '../../shared/views.js'
 import { todayInBrowserZone } from './tz.js'
@@ -33,6 +34,7 @@ import {
   patchFolderLocationResponse,
   patchFolderMyMembershipResponse,
   patchFolderResponse,
+  postFolderTabsBody,
   transferOwnershipResponse,
 } from '../../shared/folders.js'
 import type {
@@ -41,6 +43,7 @@ import type {
   PatchFolderBody,
   PatchFolderLocationBody,
   PatchFolderMyMembershipBody,
+  PostFolderTabsBody,
   PostFoldersBody,
   TransferOwnershipResponse,
 } from '../../shared/folders.js'
@@ -65,15 +68,12 @@ import type {
   PostInvitesResponse,
 } from '../../shared/invites.js'
 import {
-  patchStepResponse,
   patchTaskResponse,
-  postTaskStepsResponse,
   postTasksResponse,
   putTaskReminderResponse,
   taskTransitionResponse,
 } from '../../shared/tasks.js'
 import type {
-  PatchStepBody,
   PatchTaskBody,
   PostTaskOrderBody,
   PostTasksBody,
@@ -90,23 +90,6 @@ import {
 } from '../../shared/events.js'
 import { duplicateFolderResponse } from '../../shared/folders.js'
 import type { DuplicateFolderResponse } from '../../shared/folders.js'
-import {
-  facet,
-  getFacetsResponse,
-  patchFacetBody,
-  postFacetBody,
-  putFacetOrderBody,
-  putMyFacetOrderBody,
-  shareFacetBody,
-} from '../../shared/facets.js'
-import type {
-  Facet,
-  GetFacetsResponse,
-  PatchFacetBody,
-  PostFacetBody,
-  PutFacetOrderBody,
-  PutMyFacetOrderBody,
-} from '../../shared/facets.js'
 import { shelf } from '../../shared/shelves.js'
 import type { PatchShelfBody, Shelf } from '../../shared/shelves.js'
 
@@ -252,35 +235,6 @@ export function useOrderTask(): UseMutationResult<TaskDetail, Error, OrderTaskVa
   return useMutation({
     mutationFn: ({ id, body }: OrderTaskVariables) =>
       mutateApi(patchTaskResponse, { method: 'POST', path: `/tasks/${id}/order`, body }),
-  })
-}
-
-/** 7.7's append, which answers the affected TaskDetail rather than the step. */
-export interface AddStepVariables {
-  readonly taskId: string
-  readonly title: string
-}
-
-export function useAddStep(): UseMutationResult<TaskDetail, Error, AddStepVariables> {
-  return useMutation({
-    mutationFn: ({ taskId, title }: AddStepVariables) =>
-      mutateApi(postTaskStepsResponse, {
-        method: 'POST',
-        path: `/tasks/${taskId}/steps`,
-        body: { title },
-      }),
-  })
-}
-
-export interface PatchStepVariables {
-  readonly stepId: string
-  readonly body: PatchStepBody
-}
-
-export function useUpdateStep(): UseMutationResult<TaskDetail, Error, PatchStepVariables> {
-  return useMutation({
-    mutationFn: ({ stepId, body }: PatchStepVariables) =>
-      mutateApi(patchStepResponse, { method: 'PATCH', path: `/steps/${stepId}`, body }),
   })
 }
 
@@ -777,99 +731,23 @@ export function useRestoreFolder(): UseMutationResult<Folder, Error, string> {
   })
 }
 
-export function useCreateFacet(): UseMutationResult<
-  Facet,
+/**
+ * POST /folders/:id/tabs (step 7): `:id` is any page of the project. On an
+ * unpicked project the kind picks it (`usual` makes the four); after that it
+ * adds one tab after the last. Answers the project's live tabs in order.
+ */
+export function useCreateTab(): UseMutationResult<
+  Folder[],
   Error,
-  { readonly folderId: string; readonly body: PostFacetBody }
+  { readonly folderId: string; readonly kind: PostFolderTabsBody['kind'] }
 > {
   return useMutation({
-    mutationFn: ({ folderId, body }) =>
-      mutateApi(facet, {
+    mutationFn: ({ folderId, kind }) =>
+      mutateApi(z.array(folder), {
         method: 'POST',
-        path: `/folders/${folderId}/facets`,
-        body: postFacetBody.parse(body),
+        path: `/folders/${folderId}/tabs`,
+        body: postFolderTabsBody.parse({ kind }),
       }),
-  })
-}
-
-export function usePatchFacet(): UseMutationResult<
-  Facet,
-  Error,
-  { readonly folderId: string; readonly facetId: string; readonly body: PatchFacetBody }
-> {
-  return useMutation({
-    mutationFn: ({ folderId, facetId, body }) =>
-      mutateApi(facet, {
-        method: 'PATCH',
-        path: `/folders/${folderId}/facets/${facetId}`,
-        body: patchFacetBody.parse(body),
-      }),
-  })
-}
-
-export function usePutFacetOrder(): UseMutationResult<
-  GetFacetsResponse,
-  Error,
-  { readonly folderId: string; readonly body: PutFacetOrderBody }
-> {
-  return useMutation({
-    mutationFn: ({ folderId, body }) =>
-      mutateApi(getFacetsResponse, {
-        method: 'PUT',
-        path: `/folders/${folderId}/facets/order`,
-        body: putFacetOrderBody.parse(body),
-      }),
-  })
-}
-
-export function usePutMyFacetOrder(): UseMutationResult<
-  GetFacetsResponse,
-  Error,
-  { readonly folderId: string; readonly body: PutMyFacetOrderBody }
-> {
-  return useMutation({
-    mutationFn: ({ folderId, body }) =>
-      mutateApi(getFacetsResponse, {
-        method: 'PUT',
-        path: `/folders/${folderId}/facets/my-order`,
-        body: putMyFacetOrderBody.parse(body),
-      }),
-  })
-}
-
-export function useShareFacet(): UseMutationResult<
-  Facet,
-  Error,
-  { readonly folderId: string; readonly facetId: string }
-> {
-  return useMutation({
-    mutationFn: ({ folderId, facetId }) =>
-      mutateApi(facet, {
-        method: 'POST',
-        path: `/folders/${folderId}/facets/${facetId}/share`,
-        body: shareFacetBody.parse({ confirm: true }),
-      }),
-  })
-}
-
-export function useDeleteFacet(): UseMutationResult<
-  void,
-  Error,
-  { readonly folderId: string; readonly facetId: string }
-> {
-  return useMutation({
-    mutationFn: ({ folderId, facetId }) =>
-      mutateApi(null, {
-        method: 'DELETE',
-        path: `/folders/${folderId}/facets/${facetId}`,
-      }),
-  })
-}
-
-export function useRestoreFacet(): UseMutationResult<Facet, Error, string> {
-  return useMutation({
-    mutationFn: (id: string) =>
-      mutateApi(facet, { method: 'POST', path: `/facets/${id}/restore` }),
   })
 }
 
@@ -1080,13 +958,6 @@ export function useDestroyTrashedFolder(): UseMutationResult<void, Error, string
   return useMutation({
     mutationFn: (id: string) =>
       mutateApi(null, { method: 'DELETE', path: `/trash/folders/${id}` }),
-  })
-}
-
-export function useDestroyTrashedFacet(): UseMutationResult<void, Error, string> {
-  return useMutation({
-    mutationFn: (id: string) =>
-      mutateApi(null, { method: 'DELETE', path: `/trash/facets/${id}` }),
   })
 }
 

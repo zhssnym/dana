@@ -76,6 +76,13 @@ function writeToStderr(event: ConnectionLostEvent): void {
   )
 }
 
+// Every connection this server opens carries `dana.step8 = on`. Migration
+// 0062's overlap guards refuse membership and invite writes on a project with
+// other pages from a connection without it: that is the previous release,
+// still serving during a deploy, whose writes name one page and would now
+// reach the whole project. A client opened any other way is refused the
+// same. Removed with the contract migration that drops those guards.
+//
 // PGlite runs single-connection (spec 11.15): callers must never open a
 // second concurrent client against the same dataDir.
 export async function createDbClient(
@@ -86,7 +93,8 @@ export async function createDbClient(
     (process.env.TEST_DATABASE_URL === '' ? undefined : process.env.TEST_DATABASE_URL)
 
   if (url !== undefined) {
-    const pool = new pg.Pool({ connectionString: url })
+    // dana.step8: see the note above createDbClient.
+    const pool = new pg.Pool({ connectionString: url, options: '-c dana.step8=on' })
     /*
     Two windows in which a dead socket kills the process rather than a query,
     both measured on 2026-09-04 for issue #174 with a proxy between this pool
@@ -157,6 +165,7 @@ export async function createDbClient(
     options.dataDir === undefined
       ? await PGlite.create({ extensions: { pg_trgm } })
       : await PGlite.create(options.dataDir, { extensions: { pg_trgm } })
+  await pglite.exec("SET dana.step8 = 'on'")
   const db = drizzlePglite(pglite)
   return {
     kind: 'pglite',

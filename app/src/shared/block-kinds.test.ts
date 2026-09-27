@@ -4,11 +4,12 @@ import { DOCUMENT_BLOCK_KINDS } from './page-document.js'
 import { WORKFLOW_PAGE_BLOCK_KINDS, WORKFLOW_PURPOSE_BLOCK_KINDS } from './workflows.js'
 
 /*
-The registry must refuse exactly what the four appliers refused before it
-existed, and nothing more: a kind that stops being storable on a home is a
-block somebody already has that can never be saved again. These are the old
-`if` chains, written out once (page-document.ts, facets.ts, task-document.ts,
-shelf-document.ts at becd705c).
+The registry must never refuse more than the four appliers refused before it
+existed: a kind that stops being storable on a home is a block somebody
+already has that can never be saved again. These are the old `if` chains,
+written out once (page-document.ts, facets.ts, task-document.ts,
+shelf-document.ts at becd705c). Step 7 widened `doc`: a Doc page holds what
+the facet homes and Work's page links held.
 */
 const REFUSED_BEFORE: Record<(typeof BLOCK_HOMES)[number], readonly string[]> = {
   work: ['result'],
@@ -19,10 +20,16 @@ const REFUSED_BEFORE: Record<(typeof BLOCK_HOMES)[number], readonly string[]> = 
 }
 
 describe('block-kind registry', () => {
-  it('stores on each home exactly what that home stored before', () => {
+  it('refuses on each home no more than that home refused before', () => {
     for (const home of BLOCK_HOMES) {
       const refused = DOCUMENT_BLOCK_KINDS.filter((kind) => !allowedIn(kind, home))
-      expect([...refused].sort(), home).toEqual([...REFUSED_BEFORE[home]].sort())
+      for (const kind of refused) expect(REFUSED_BEFORE[home], `${home} ${kind}`).toContain(kind)
+    }
+  })
+
+  it('stores on a Doc page everything a Work page stores, and every Results block', () => {
+    for (const kind of DOCUMENT_BLOCK_KINDS) {
+      if (allowedIn(kind, 'work') || allowedIn(kind, 'results')) expect(allowedIn(kind, 'doc'), kind).toBe(true)
     }
   })
 

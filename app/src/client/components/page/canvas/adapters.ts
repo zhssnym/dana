@@ -210,6 +210,10 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
       node = { id: block.id, type: 'diagram', props: { source: block.text ?? '' }, children: [] }
     } else if (block.kind === 'page') {
       node = { id: block.id, type: 'danaPage', props: { folderId: block.ref_folder_id ?? '' }, children: [] }
+    } else if (block.kind === 'folder_ref' && block.ref_folder_id !== null && (block.text ?? '') === '') {
+      // A reference with no text of its own is a page row (0062's split
+      // pages): the page's name to a member, "Page you can't open" otherwise.
+      node = { id: block.id, type: 'danaPageRef', props: { folderId: block.ref_folder_id }, children: [] }
     } else if (block.kind === 'folder_ref') {
       node = {
         id: block.id,
@@ -408,7 +412,7 @@ export function dehydrateCanvas(
         // A Shelf's native Folder row (#221) is a `folder_ref` by type; a
         // paragraph is one only by the page's own map (#255).
         const reference =
-          block.type === 'danaFolder'
+          block.type === 'danaFolder' || block.type === 'danaPageRef'
             ? block.props.folderId || null
             : block.type === 'paragraph'
               ? folderRefs.get(block.id) ?? null
@@ -459,7 +463,7 @@ export function dehydrateCanvas(
               ? null
               : block.type === 'codeBlock'
                 ? codeText
-                : block.type === 'danaFolder'
+                : block.type === 'danaFolder' || block.type === 'danaPageRef'
                   ? null
                   : runs.map((run) => run.text).join('')
         const rich =

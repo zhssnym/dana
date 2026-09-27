@@ -100,8 +100,12 @@ export const WORKFLOW_DEPENDS_ON_CAP = 100
  * edges one import writes in its transaction. */
 export const WORKFLOW_DEPENDENCY_CAP = 5000
 
+/* A step is a checklist item of the task's body (0060), so the file admits
+   what the body admits: 4000 characters an item, 500 blocks a body. The old
+   300 and 50 were the steps table's, and `folderToWorkflowFile` writes every
+   item, so a tighter reader here made a saved folder unimportable. */
 const importStep = z.object({
-  title: z.string().min(1).max(300),
+  title: z.string().min(1).max(4000),
 })
 
 const TIME_OF_DAY = /^([01][0-9]|2[0-3]):[0-5][0-9]$/
@@ -156,7 +160,7 @@ const importTask = z.object({
   important: z.boolean().optional(),
   recurrence_rule: recurrenceRule.optional(),
   reminder: importReminder.optional(),
-  steps: z.array(importStep).max(50).optional(),
+  steps: z.array(importStep).max(500).optional(),
   /** The keys of this file's own `folders[].labels`, never ids. Capped at
    * 10.3's per-Task Folder Label limit, so an imported Task is refused by
    * exactly the number a typed one is. */

@@ -4,8 +4,8 @@ task page, no peek).
 
 Four fixed properties, always shown, in this order: Status, Assignee, Date
 (its start, reminder and repeat live inside the Date picker) and Discussion.
-Then the task's own document, with its subtasks and "Blocked by" drawn
-under the writing (made by the editor's `/Subtask` and `/Blocked by`), and
+Then the task's own document, whose checklist items are its subtasks, with
+"Blocked by" drawn under the writing (the editor's `/Blocked by`), and
 the task's quiet history. Every edit commits as it is made, so there is no
 Save.
 
@@ -13,8 +13,7 @@ Files go in the task's document, which takes file and image blocks.
 */
 
 import { Face } from "./person-face.js"
-import { InlineInput } from "./ui/inline-field.js"
-import { GripVertical, ListPlus, MoreHorizontal, Plus, X, type LucideIcon } from "../lib/icons.js"
+import { Plus, type LucideIcon } from "../lib/icons.js"
 import { TaskDependencies, isRelatableTask } from "./task-dependencies.js"
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react"
 import { Link, useNavigate } from "react-router"
@@ -38,7 +37,7 @@ import {
 } from "./task-pickers.js"
 import { TaskHistory } from "./thread/TaskHistory.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
-import { useFolders, useMe, useTask } from "../api/queries.js"
+import { useAllPages, useMe, useTask } from "../api/queries.js"
 import { useDiscussTask } from "../api/consultation.js"
 import { mayDraw } from "../lib/folder-authority.js"
 import { paths } from "../routes.js"
@@ -50,23 +49,17 @@ import {
   UNASSIGNED,
 } from "./task-card-copy.js"
 import { TaskAssigneeInvite } from "./task-assignee-invite.js"
-import { INVITE_BY_EMAIL, STEP_CAP_NOTICE } from "./task-copy.js"
-/* 10.3's cap for the field. Restated rather than imported because
-   `shared/tasks.ts` spends it inline in a zod `max`. */
-const STEP_CAP = 50
+import { INVITE_BY_EMAIL } from "./task-copy.js"
 import {
   isoDay,
   parseDueLabel,
   reminderChipValue,
   repeatSummary,
-  type ConceptStep,
   type ConceptTask,
 } from "../tasks/task-model.js"
 import { useTimeFormat } from "../lib/time-format.js"
 import { formatDate, formatDay, formatDayInline } from "../lib/dates.js"
-import { useSortableList } from "../lib/use-sortable-list.js"
 import { cn } from "./ui/utils.js"
-import { Checkbox } from "./ui/checkbox.js"
 import { StateMark, STATE_WORD, type TaskState } from "./thread/timeline/state.js"
 
 const TaskComposer = lazy(() => import("./page/canvas/TaskComposer.js"))
@@ -117,260 +110,6 @@ export function Reveal({ open, children }: { open: boolean; children: ReactNode 
   return (
     <div className="animate-in fade-in-0 slide-in-from-top-1 duration-150 ease-out">
       {children}
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ steps */
-
-/* A step's name: a label until you click it, then a field. */
-function StepTitle({
-  step,
-  onRename,
-}: {
-  step: ConceptStep
-  onRename: (title: string) => void
-}) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(step.title)
-
-  const metrics = cn(
-    "min-w-0 flex-1 text-left text-sm",
-    step.done ? "text-muted-foreground line-through" : "text-foreground",
-  )
-
-  if (editing) {
-    return (
-      <InlineInput
-        autoFocus
-        value={draft}
-        aria-label="Subtask name"
-        onFocus={(event) => event.currentTarget.select()}
-        onClick={(event) => event.stopPropagation()}
-        onPointerDown={(event) => event.stopPropagation()}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={() => {
-          onRename(draft.trim() || step.title)
-          setEditing(false)
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === "Escape") {
-            event.preventDefault()
-            event.stopPropagation()
-          }
-          if (event.key === "Enter") {
-            onRename(draft.trim() || step.title)
-            setEditing(false)
-          }
-          if (event.key === "Escape") {
-            setDraft(step.title)
-            setEditing(false)
-          }
-        }}
-        className={cn(metrics, "-mx-1 rounded-sm bg-background px-1 outline-none")}
-      />
-    )
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={(event) => {
-        event.stopPropagation()
-        setDraft(step.title)
-        setEditing(true)
-      }}
-      onPointerDown={(event) => event.stopPropagation()}
-      className={cn(metrics, "-mx-1 cursor-text truncate rounded-sm px-1")}
-    >
-      {step.title}
-    </button>
-  )
-}
-
-/*
-Steps: tick, rename in place, drag to reorder, and one "…" per step for the
-two things a step can become (a task of its own) or stop being (removed).
-*/
-function StepList({
-  task,
-  toggleStep,
-  moveStep,
-  moveStepsTo,
-  removeSteps,
-  addStep,
-  renameStep,
-  startAdding = false,
-  onIdle,
-}: {
-  task: ConceptTask
-  /* `/Subtask` on an empty line: the list opens already asking for the first. */
-  startAdding?: boolean
-  /* The field closed; the caller hides an empty list again. */
-  onIdle?: () => void
-  toggleStep: (id: string, index: number) => void
-  moveStep: (id: string, from: number, to: number) => void
-  moveStepsTo?: (
-    id: string,
-    indices: number[],
-    destination: { kind: "new-task" } | { kind: "folder"; name: string; color: string },
-  ) => void
-  removeSteps: (id: string, indices: number[]) => void
-  addStep: (id: string, title: string) => void
-  renameStep: (id: string, index: number, title: string) => void
-}) {
-  const [adding, setAddingState] = useState(startAdding)
-  /* A list already drawn opens its field when asked again (the writing's
-     "/subtask" on an empty line). */
-  useEffect(() => {
-    if (startAdding) setAddingState(true)
-  }, [startAdding])
-  const setAdding = (next: boolean) => {
-    setAddingState(next)
-    if (!next) onIdle?.()
-  }
-  const [newStep, setNewStep] = useState("")
-  const stepDrag = useSortableList({
-    count: task.steps?.length ?? 0,
-    onReorder: (from, to) => moveStep(task.id, from, to),
-    describe: (index) => task.steps?.[index]?.title ?? "Subtask",
-  })
-  const steps = task.steps ?? []
-
-  return (
-    <div className="flex flex-col">
-      {steps.map((step, i) => {
-        const stepState = stepDrag.itemState(i)
-        const promotable = moveStepsTo !== undefined && task.folder !== undefined && step.id !== undefined
-        return (
-          <div
-            /* Keyed by position, never by title: a title key remounts the
-               field on every keystroke. */
-            key={i}
-            ref={stepDrag.setItemRef(i)}
-            style={{
-              transform: stepState.offset === 0 ? undefined : `translate3d(0, ${stepState.offset}px, 0)`,
-              transition:
-                stepState.isActive && !stepState.isSettling
-                  ? undefined
-                  : "transform 150ms ease-out",
-              zIndex: stepState.isActive ? 20 : undefined,
-            }}
-            className={cn(
-              "group/step relative -ml-0.5 flex h-8 items-center gap-2 rounded-sm pr-1",
-              stepState.isActive ? "cursor-grabbing bg-background" : "hover:bg-accent",
-            )}
-          >
-            {/* The grip overlaps the tick's left edge on hover rather than
-                taking a column of its own, so the list keeps one left edge. */}
-            <button
-              type="button"
-              aria-label={`Reorder ${step.title}`}
-              {...stepDrag.handleProps(i)}
-              className={cn(
-                "absolute -left-4 flex h-8 w-4 cursor-grab items-center justify-center text-muted-foreground opacity-0 transition-opacity duration-100 group-hover/step:opacity-100 focus-visible:opacity-100 active:cursor-grabbing",
-                stepState.isActive && "opacity-100",
-              )}
-            >
-              <GripVertical className="size-3.5" strokeWidth={2} aria-hidden="true" />
-            </button>
-            <span className="flex size-5 shrink-0 items-center justify-center">
-              <Checkbox
-                checked={Boolean(step.done)}
-                aria-label={`Mark subtask ${step.done ? "not done" : "done"}`}
-                onClick={(event) => event.stopPropagation()}
-                onCheckedChange={() => toggleStep(task.id, i)}
-              />
-            </span>
-            <StepTitle step={step} onRename={(title) => renameStep(task.id, i, title)} />
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <button
-                    type="button"
-                    aria-label={`More actions for ${step.title}`}
-                    onClick={(event) => event.stopPropagation()}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    className={cn(
-                      "flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity duration-100 group-hover/step:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 hover:text-foreground max-md:opacity-100",
-                    )}
-                  >
-                    <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                  </button>
-                }
-              />
-              <DropdownMenuContent align="end" className="min-w-[12rem]">
-                {promotable ? (
-                  <>
-                    <DropdownMenuItem
-                      label="Make this a task"
-                      onClick={() => {
-                        const folder = task.folder
-                        if (folder === undefined) return
-                        moveStepsTo(task.id, [i], { kind: "folder", name: folder.name, color: folder.color })
-                      }}
-                    >
-                      <ListPlus className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                      Make this a task
-                    </DropdownMenuItem>
-                  </>
-                ) : null}
-                <DropdownMenuItem label="Remove" onClick={() => removeSteps(task.id, [i])}>
-                  <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                  Remove
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )
-      })}
-
-      {steps.length >= STEP_CAP ? (
-        <p className="px-1 py-1 text-xs text-muted-foreground">{STEP_CAP_NOTICE}</p>
-      ) : adding ? (
-        /* Nothing is written until the field holds text: Enter saves and
-           opens the next, blur saves what is there, Escape leaves. */
-        <div className="-ml-0.5 flex h-8 items-center gap-2 rounded-sm pr-1">
-          <span className="flex size-5 shrink-0 items-center justify-center">
-            <Checkbox checked={false} tabIndex={-1} aria-hidden="true" className="pointer-events-none" />
-          </span>
-          <InlineInput
-            autoFocus
-            value={newStep}
-            aria-label="New subtask"
-            placeholder="Type a subtask"
-            onClick={(event) => event.stopPropagation()}
-            onPointerDown={(event) => event.stopPropagation()}
-            onChange={(event) => setNewStep(event.target.value)}
-            onBlur={() => {
-              const title = newStep.trim()
-              if (title) addStep(task.id, title)
-              setNewStep("")
-              setAdding(false)
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === "Escape") {
-                event.preventDefault()
-                event.stopPropagation()
-              }
-              if (event.key === "Enter") {
-                const title = newStep.trim()
-                if (!title) {
-                  setAdding(false)
-                  return
-                }
-                addStep(task.id, title)
-                setNewStep("")
-              }
-              if (event.key === "Escape") {
-                setNewStep("")
-                setAdding(false)
-              }
-            }}
-            className="min-w-0 flex-1 rounded-sm bg-background px-1 text-sm text-foreground outline-none"
-          />
-        </div>
-      ) : null}
     </div>
   )
 }
@@ -497,18 +236,33 @@ export function useStateMoves(
    assignee's own reach is added here (folder-actions.ts's
    whenAssignedToActor). */
 function useTaskMay(taskId: string, folderId: string | null) {
-  const folders = useFolders()
+  /* Every page, tabs and pages under them included: a task on a Work or Doc
+     tab is not in the Library list. The Desk mark is the project root's. */
+  const pages = useAllPages()
   const me = useMe()
   const detail = useTask(taskId).data
-  const row = folders.data?.find((folder) => folder.id === folderId)
+  const row = pages.data?.find((folder) => folder.id === folderId)
+  const root = row === undefined ? undefined : pages.data?.find((folder) => folder.id === row.project_id)
   const viewerId = me.data?.user.id ?? null
   const mine = viewerId !== null && detail?.assignee?.id === viewerId
-  const facts = row === undefined ? null : { access: row.my_access, isOwner: row.is_owner, isDefault: row.is_default }
+  const facts =
+    row === undefined
+      ? null
+      : { access: row.my_access, isOwner: row.is_owner, isDefault: (root ?? row).is_default }
   return {
     complete:
       facts !== null &&
       (mayDraw(facts, "task.status.complete") || (mine && (facts.access === "can_contribute" || facts.access === "assigned_work"))),
     abandon: facts !== null && (mayDraw(facts, "task.status.abandon") || (mine && facts.access === "can_contribute")),
+    /* The body: writing it is `task.edit`; ticking its checklist is
+       `step.toggle`, which Assigned work has on its own task. Unknown facts
+       (still loading) leave it writable; the server stays the authority. */
+    body:
+      facts === null || mayDraw(facts, "task.edit") || (mine && facts.access === "can_contribute")
+        ? ("edit" as const)
+        : mine && facts.access === "assigned_work"
+          ? ("tick" as const)
+          : ("read" as const),
     /* Not on the Desk: it has no Discussion tab and nobody else to talk to. */
     discuss: facts !== null && !facts.isDefault && mayDraw(facts, "discussion.create"),
     threadId: detail?.discussion_id ?? null,
@@ -630,7 +384,13 @@ function DiscussionRow({
         className={PROPERTY_ROW}
         disabled={discuss.isPending}
         onClick={() => {
-          discuss.mutate(taskId, { onSuccess: (thread) => { void navigate(threadAt(thread.id)) } })
+          /* Step 7: the thread opens on the project's Discussion tab, which
+             Discuss adds when the project has none. */
+          discuss.mutate(taskId, {
+            onSuccess: ({ discussion, tabId }) => {
+              void navigate(tabId === null ? threadAt(discussion.id) : `${paths.folder(tabId)}?discussion=${discussion.id}`)
+            },
+          })
         }}
       >
         {label}
@@ -651,25 +411,11 @@ function DiscussionRow({
 export function TaskCard({
   task,
   patch,
-  toggleStep,
-  moveStep,
-  moveStepsTo,
-  removeSteps,
 }: {
   task: ConceptTask
   patch: (id: string, fields: Partial<ConceptTask>) => void
-  toggleStep: (id: string, index: number) => void
-  moveStep: (id: string, from: number, to: number) => void
-  /* A step promotes to a task in its own folder; absent where the task has
-     no id or folder yet, and then the item is not drawn. */
-  moveStepsTo?: (
-    id: string,
-    indices: number[],
-    destination: { kind: "new-task" } | { kind: "folder"; name: string; color: string },
-  ) => void
-  removeSteps: (id: string, indices: number[]) => void
-  /* The wiring hands every card handler over; the ones this panel no longer
-     draws (bulk step acts, a new folder) are accepted and unused. */
+  /* The wiring hands every card handler over; any this panel does not draw
+     are accepted and unused. */
   [unused: string]: unknown
 }) {
   const timeFormat = useTimeFormat()
@@ -679,11 +425,8 @@ export function TaskCard({
      the field goes wherever the menu goes: Escape, a click outside, a pick. */
   const [assigneeOpen, setAssigneeOpen] = useState(false)
   const [inviting, setInviting] = useState(false)
-  /* `/Subtask` on an empty line, and `/Blocked by`: the block under the
-     writing opens already asking. */
-  const [addingStep, setAddingStep] = useState(false)
+  /* `/Blocked by`: the block under the writing opens already asking. */
   const [depOpening, setDepOpening] = useState(false)
-  const steps = task.steps ?? []
   const move = useStateMoves(task, patch)
   const may = useTaskMay(task.id, folderId)
 
@@ -746,9 +489,9 @@ export function TaskCard({
         <DiscussionRow taskId={task.id} folderId={folderId} threadId={may.threadId} mayStart={may.discuss} />
       </div>
 
-      {/* #221: the task's own document, in the folder canvas's writer, with
-          its subtasks and "Blocked by" under the writing. The plain-text
-          notes stand in while the writer loads. */}
+      {/* #221: the task's own document, in the folder canvas's writer; its
+          checklist items are its subtasks, and "Blocked by" sits under the
+          writing. The plain-text notes stand in while the writer loads. */}
       <div
         aria-label="Notes"
         role="region"
@@ -761,38 +504,10 @@ export function TaskCard({
             taskId={task.id}
             folderId={folderId}
             notes={task.notes ?? null}
-            addSubtasks={(added) => {
-              if (added.length === 0) {
-                setAddingStep(true)
-                return true
-              }
-              if (steps.length + added.length > STEP_CAP) return false
-              patch(task.id, { steps: [...steps, ...added] })
-              return true
-            }}
+            access={may.body}
             {...(isRelatableTask(task.id) ? { onBlockedBy: () => setDepOpening(true) } : {})}
           />
         </Suspense>
-
-        {steps.length > 0 || addingStep ? (
-          <div role="group" aria-label="Subtasks">
-            <StepList
-              task={task}
-              startAdding={addingStep}
-              onIdle={() => setAddingStep(false)}
-              toggleStep={toggleStep}
-              moveStep={moveStep}
-              {...(moveStepsTo === undefined ? {} : { moveStepsTo })}
-              removeSteps={removeSteps}
-              renameStep={(id, index, title) =>
-                patch(id, {
-                  steps: steps.map((step, i) => (i === index ? { ...step, title } : step)),
-                })
-              }
-              addStep={(id, title) => patch(id, { steps: [...steps, { title, done: false }] })}
-            />
-          </div>
-        ) : null}
 
         <TaskDependencies
           taskId={task.id}

@@ -7,16 +7,17 @@ and `PATCH /folders/:id/location { parent_folder_id, after_id }` carry page
 ids the ac-397 sweep cannot see, so each answers 404 for a page the actor is
 not a member of, 403 below Can edit on it, and 422 for a cycle, a tree deeper
 than 20, or the default folder leaving the top level; and the values arrive
-(the stored row, the copied members, the sibling order).
+(the stored row, the sibling order). Since step 8 (migration 0062) a
+sub-page's people are its project's: it stores no membership rows of its own,
+and every member of the project reads it.
 
-AC-1017: a page's parent never leaks. A member of a sub-page who is not a
-member of its parent sees the sub-page as a root: no parent id in GET
-/folders, no ancestors in GET /folders/:id and no parent name anywhere in its
-JSON, and no parent in a search breadcrumb.
+AC-1017 is retired with step 8: a person sees every page of a project or
+none, so no member of a sub-page lacks its parent.
 
-AC-1018: trashing a page takes the sub-pages its actor may trash with it,
-leaves the others live, lists only the initiator in that actor's Trash,
-brings the set back on restore, and takes it along on a permanent delete.
+AC-1018: trashing a page takes its sub-pages with it (presets are the
+project's, so an actor who may trash the page may trash them), lists only the
+initiator in Trash, brings the set back on restore, and takes it along on a
+permanent delete.
 
 Spec: wave 2 plan (pages in pages), 7.4, 7.13, 10.2.
 */
@@ -90,7 +91,7 @@ function move(actor: Actor, id: string, body: Record<string, unknown>) {
 describe('AC-1016: the page tree gates its body ids and stores what arrives', () => {
   test('AC-1016 a stranger naming somebody else\'s page as parent or neighbour gets 404', async () => {
     const { owner, stranger } = await actors()
-    const parent = await createFolder(owner, 'tree ac1014 private parent')
+    const parent = await createFolder(owner, 'tree ac1014 private parent', 'doc')
     const child = await subPage(owner, parent, 'tree ac1014 private child')
     const mine = await createFolder(stranger, 'tree ac1014 stranger page')
 
@@ -113,9 +114,9 @@ describe('AC-1016: the page tree gates its body ids and stores what arrives', ()
     expect((await folderRow(mine))?.parent_folder_id).toBeNull()
   })
 
-  test('AC-1016 a sub-page stores its parent, copies the parent\'s members, and Can view may not add one', async () => {
-    const { owner, viewer } = await actors()
-    const parent = await createFolder(owner, 'tree ac1014 shared parent')
+  test('AC-1016 a sub-page stores its parent, has its project people, and Can view may not add one', async () => {
+    const { owner, viewer, stranger } = await actors()
+    const parent = await createFolder(owner, 'tree ac1014 shared parent', 'doc')
     await seedMembership(app.db, parent, viewer.id, { access: 'can_view' })
 
     const response = await owner.browser.json('/folders', 'POST', {
@@ -126,16 +127,15 @@ describe('AC-1016: the page tree gates its body ids and stores what arrives', ()
     const body = response.json() as { id: string; parent_folder_id: string | null; member_count: number }
     expect(body.parent_folder_id).toBe(parent)
     expect((await folderRow(body.id))?.parent_folder_id).toBe(parent)
-    const members = await rows(
-      app.db,
-      sql`SELECT user_id, access FROM folder_members WHERE folder_id = ${body.id}::uuid ORDER BY access`,
-    )
-    expect(members.map((m) => [String(m.user_id), String(m.access)]).sort()).toEqual(
-      [
-        [owner.id, 'full_control'],
-        [viewer.id, 'can_view'],
-      ].sort(),
-    )
+    expect(
+      await rows(app.db, sql`SELECT user_id FROM folder_members WHERE folder_id = ${body.id}::uuid`),
+      'a sub-page stores no people of its own (step 8)',
+    ).toEqual([])
+    expect(await rows(app.db, sql`SELECT project_id, owner_id FROM folders WHERE id = ${body.id}::uuid`)).toEqual([
+      { project_id: parent, owner_id: owner.id },
+    ])
+    expectStatus(await viewer.browser.json(`/folders/${body.id}`, 'GET'), 200, "the project's viewer reads it")
+    expectStatus(await stranger.browser.json(`/folders/${body.id}`, 'GET'), 404, 'a stranger does not')
 
     expectStatus(
       await viewer.browser.json('/folders', 'POST', { name: 'nope', parent_folder_id: parent }),
@@ -146,7 +146,7 @@ describe('AC-1016: the page tree gates its body ids and stores what arrives', ()
 
   test('AC-1016 a move refuses a cycle, a tree deeper than 20 and the default folder; after_id orders siblings', async () => {
     const { owner } = await actors()
-    const top = await createFolder(owner, 'tree ac1014 top')
+    const top = await createFolder(owner, 'tree ac1014 top', 'doc')
     const mid = await subPage(owner, top, 'tree ac1014 mid')
     const low = await subPage(owner, mid, 'tree ac1014 low')
 
@@ -158,7 +158,7 @@ describe('AC-1016: the page tree gates its body ids and stores what arrives', ()
     expectStatus(await move(owner, desk, { parent_folder_id: top }), 422, 'the default folder stays a root')
 
     // Depth: a chain of 20 levels takes no 21st, by creation or by move.
-    let deepest = await createFolder(owner, 'tree ac1014 d1')
+    let deepest = await createFolder(owner, 'tree ac1014 d1', 'doc')
     for (let level = 2; level <= 20; level += 1) {
       deepest = await subPage(owner, deepest, `tree ac1014 d${String(level)}`)
     }
@@ -186,81 +186,26 @@ describe('AC-1016: the page tree gates its body ids and stores what arrives', ()
   })
 })
 
-describe('AC-1017: a parent the viewer is not a member of never reaches them', () => {
-  test('AC-1017 a sub-page member without the parent sees a root, no ancestors, and no parent in search', async () => {
-    const { owner, childonly } = await actors()
-    const parentName = 'tree ac1015 secretparentname'
-    const parent = await createFolder(owner, parentName)
-    const child = await subPage(owner, parent, 'tree ac1015 visiblechild')
-    await seedMembership(app.db, child, childonly.id, { access: 'can_edit' })
-    await app.db.execute(sql`
-      INSERT INTO page_blocks (folder_id, kind, position, text)
-      VALUES (${child}::uuid, 'paragraph', 0, 'tree ac1015 needle text')`)
-
-    const list = await childonly.browser.json('/folders', 'GET')
-    expectStatus(list, 200, 'GET /folders')
-    const entry = (list.json() as Array<Record<string, unknown>>).find((f) => f.id === child)
-    expect(entry).toMatchObject({ parent_folder_id: null, child_position: null })
-    expect(list.body).not.toContain(parent)
-    expect(list.body).not.toContain(parentName)
-
-    const view = await childonly.browser.json(`/folders/${child}`, 'GET')
-    expectStatus(view, 200, 'GET /folders/:id')
-    expect((view.json() as { ancestors: unknown[] }).ancestors).toEqual([])
-    expect(view.body).not.toContain(parent)
-    expect(view.body).not.toContain(parentName)
-
-    const search = await childonly.browser.json(`/search?tz=UTC&q=${encodeURIComponent('tree ac1015')}`, 'GET')
-    expectStatus(search, 200, 'GET /search')
-    expect(search.body).not.toContain(parent)
-    expect(search.body).not.toContain(parentName)
-    const found = search.json() as {
-      folders: Array<{ id: string; breadcrumbs?: unknown[] }>
-      pages: Array<{ folder_id: string | null; breadcrumbs?: Array<{ id: string }> }>
-    }
-    expect(found.folders.find((f) => f.id === child)?.breadcrumbs).toEqual([])
-    expect(found.pages.find((p) => p.folder_id === child)?.breadcrumbs?.map((c) => c.id)).toEqual([child])
-
-    // The parent's own member does see the trail, so the cut is the viewer's.
-    const ownerView = await owner.browser.json(`/folders/${child}`, 'GET')
-    expect((ownerView.json() as { ancestors: Array<{ id: string }> }).ancestors.map((a) => a.id)).toEqual([parent])
-    const ownerSearch = await owner.browser.json(`/search?tz=UTC&q=${encodeURIComponent('tree ac1015 needle')}`, 'GET')
-    const ownerPages = (ownerSearch.json() as { pages: Array<{ folder_id: string | null; breadcrumbs?: Array<{ id: string }> }> }).pages
-    expect(ownerPages.find((p) => p.folder_id === child)?.breadcrumbs?.map((c) => c.id)).toEqual([parent, child])
-  })
-})
-
-describe('AC-1018: a page goes to Trash with the sub-pages its actor may trash', () => {
-  test('AC-1018 trash takes the set, spares the rest, restores together and purges together', async () => {
-    const { owner, editor, childonly } = await actors()
-    const parent = await createFolder(owner, 'tree ac1016 parent')
+describe('AC-1018: a page goes to Trash with its sub-pages', () => {
+  test('AC-1018 trash takes the set, restores together and purges together', async () => {
+    const { owner, editor } = await actors()
+    const parent = await createFolder(owner, 'tree ac1016 parent', 'doc')
     const child = await subPage(owner, parent, 'tree ac1016 child')
     const grandchild = await subPage(owner, child, 'tree ac1016 grandchild')
-    // A sub-page the owner may not trash: made by an editor, with the owner
-    // then holding only Can edit there.
     await seedMembership(app.db, parent, editor.id, { access: 'can_edit' })
-    const spared = await subPage(editor, parent, 'tree ac1016 spared')
-    await app.db.execute(sql`
-      UPDATE folder_members SET access = 'can_edit'
-       WHERE folder_id = ${spared}::uuid AND user_id = ${owner.id}::uuid`)
-    // Somebody who is a member of the child alone.
-    await seedMembership(app.db, child, childonly.id, { access: 'full_control' })
 
     expectStatus(await owner.browser.json(`/folders/${parent}`, 'DELETE'), 200, 'trash the parent')
     expect(await folderRow(child)).toMatchObject({ trashed_with_folder_id: parent })
     expect(await folderRow(grandchild)).toMatchObject({ trashed_with_folder_id: parent })
     expect((await folderRow(child))?.deleted_at).not.toBeNull()
-    expect((await folderRow(spared))?.deleted_at).toBeNull()
-
-    const sparedSeen = ((await owner.browser.json('/folders', 'GET')).json() as Array<Record<string, unknown>>).find((f) => f.id === spared)
-    expect(sparedSeen?.parent_folder_id, 'a live sub-page of a trashed page reads as a root').toBeNull()
 
     const trashIds = ((await owner.browser.json('/trash', 'GET')).json() as { folders: Array<{ id: string }> }).folders.map((f) => f.id)
     expect(trashIds).toContain(parent)
     expect(trashIds).not.toContain(child)
     expect(trashIds).not.toContain(grandchild)
-    const theirs = ((await childonly.browser.json('/trash', 'GET')).json() as { folders: Array<{ id: string }> }).folders.map((f) => f.id)
-    expect(theirs, 'a member of the child alone still finds it in Trash').toContain(child)
+    const theirs = ((await editor.browser.json('/trash', 'GET')).json() as { folders: Array<{ id: string }> }).folders.map((f) => f.id)
+    expect(theirs, "the project's other member sees the one entry too").toContain(parent)
+    expect(theirs).not.toContain(child)
 
     expectStatus(await owner.browser.json(`/folders/${parent}/restore`, 'POST'), 200, 'restore the parent')
     for (const id of [parent, child, grandchild]) {
@@ -273,9 +218,5 @@ describe('AC-1018: a page goes to Trash with the sub-pages its actor may trash',
     expect(await folderRow(parent)).toBeUndefined()
     expect(await folderRow(child), 'the trashed-with set is destroyed with it').toBeUndefined()
     expect(await folderRow(grandchild)).toBeUndefined()
-    expect(await folderRow(spared), 'the spared page survives as a root').toMatchObject({
-      parent_folder_id: null,
-      deleted_at: null,
-    })
   })
 })

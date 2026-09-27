@@ -47,3 +47,18 @@ export const createCanvasPageSpec = createReactBlockSpec(
     toExternalHTML: ({ block }) => <p><a href={`${window.location.origin}/app/folders/${block.props.folderId}`}>Page</a></p>,
   },
 )
+
+/**
+ * A reference to a page in another project (`folder_ref` with no text), the
+ * row step 8's migration leaves where a page that became its own project
+ * used to sit. Drawn exactly as a sub-page, so a member opens it and anyone
+ * else reads "Page you can't open"; unlike `danaPage`, removing it removes
+ * only the reference and never trashes the page.
+ */
+export const createCanvasPageRefSpec = createReactBlockSpec(
+  { type: 'danaPageRef', propSchema: { folderId: { default: '' } }, content: 'none' },
+  {
+    render: ({ block }) => <CanvasPage folderId={block.props.folderId} />,
+    toExternalHTML: ({ block }) => <p><a href={`${window.location.origin}/app/folders/${block.props.folderId}`}>Page</a></p>,
+  },
+)

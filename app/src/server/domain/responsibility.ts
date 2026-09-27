@@ -875,7 +875,7 @@ export async function memberDetailsOf(
           FROM tasks t
           JOIN jsonb_array_elements_text(${ids}::jsonb) AS wanted(member_id)
             ON wanted.member_id::uuid = t.assignee_id
-         WHERE t.folder_id = ${folderId}::uuid
+         WHERE t.project_id = ${folderId}::uuid
            AND t.deleted_at IS NULL
            AND t.status = 'pending'
          GROUP BY t.assignee_id`,

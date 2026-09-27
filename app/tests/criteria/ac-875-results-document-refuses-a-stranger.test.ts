@@ -1,6 +1,6 @@
 /*
-AC-875: given a Folder's native Results facet, when its members write and read
-its document and name it by Dana Link, then a stranger is answered 404 on the
+AC-875: given a project's Results tab (a Doc page since step 7), when its
+members write and read its document and name it by Dana Link, then a stranger is answered 404 on the
 document read, the document write and the link, a Can-view member may read but
 not write, and no refused write leaves a row.
 
@@ -25,7 +25,6 @@ import {
   Cast,
   connect,
   countRows,
-  createFolder,
   expectStatus,
 } from '../support/folders-harness.js'
 import type { Actor } from '../support/folders-harness.js'
@@ -75,11 +74,11 @@ function write(base: string, id: string, text: string): DocumentTransaction {
   }
 }
 
-const blocksIn = (facetId: string) =>
+const blocksIn = (pageId: string) =>
   countRows(
     app.db,
     sql`SELECT count(*)::int AS n FROM page_blocks
-         WHERE facet_id = ${facetId}::uuid`,
+         WHERE folder_id = ${pageId}::uuid`,
   )
 
 describe('AC-875 the Results document and link refuse a stranger', () => {
@@ -89,18 +88,17 @@ describe('AC-875 the Results document and link refuse a stranger', () => {
       Actor,
       Actor,
     ]
-    const folderId = await createFolder(owner, 'ac875 outcomes')
+    const made = await owner.browser.json('/folders', 'POST', { name: 'ac875 outcomes', kind: null })
+    expectStatus(made, 201, 'an unpicked project (7.4)')
+    const folderId = (made.json() as { id: string }).id
     await connect(app.db, owner.id, viewer.id)
     await addMemberOk(owner, folderId, viewer.id, 'can_view')
-
-    const listed = await owner.browser.json(`/folders/${folderId}/facets`, 'GET')
-    expectStatus(listed, 200, 'the owner lists the facets (7.27)')
-    const results = (
-      listed.json() as { facets: { id: string; kind: string }[] }
-    ).facets.find((facet) => facet.kind === 'results')
-    expect(results, 'every Folder has one native Results facet (4.30)').toBeDefined()
+    const tabs = await owner.browser.json(`/folders/${folderId}/tabs`, 'POST', { kind: 'usual' })
+    expectStatus(tabs, 201, 'the usual project')
+    const results = (tabs.json() as { id: string; name: string }[]).find((tab) => tab.name === 'Results')
+    expect(results, 'the usual project has a Results tab').toBeDefined()
     const facetId = results!.id
-    const page = `/folders/${folderId}/facets/${facetId}/page`
+    const page = `/folders/${facetId}/page`
 
     const initial = await owner.browser.json(page, 'GET')
     expectStatus(initial, 200, 'the owner reads the Results document (#213)')
@@ -115,10 +113,10 @@ describe('AC-875 the Results document and link refuse a stranger', () => {
     const stored = await countRows(
       app.db,
       sql`SELECT count(*)::int AS n FROM page_blocks
-           WHERE id = ${blockId}::uuid AND facet_id = ${facetId}::uuid
-             AND folder_id IS NULL AND text = 'Shipped v1'`,
+           WHERE id = ${blockId}::uuid AND folder_id = ${facetId}::uuid
+             AND facet_id IS NULL AND text = 'Shipped v1'`,
     )
-    expect(stored, 'the write lands as a facet-homed block').toBe(1)
+    expect(stored, 'the write lands as a block of the Results page').toBe(1)
 
     const after = await owner.browser.json(page, 'GET')
     const revision = (after.json() as PageView).revision!

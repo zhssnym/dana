@@ -32,8 +32,9 @@ import {
   transferOwnershipTo,
 } from '../domain/acts.js'
 import { isEligibleSuccessor } from '../domain/folders.js'
-import { accessOf, mayPerform } from '../domain/folder-access.js'
+import { accessOf, mayPerform, projectOf } from '../domain/folder-access.js'
 import { PAGE_TREE_EDIT_ACTION } from '../domain/page-tree.js'
+import { legacyFacets } from '../domain/project-tabs.js'
 import type { FolderAction } from '../domain/folder-access.js'
 import { WorkflowLabelNameConflict } from '../domain/labels.js'
 import { today } from '../time/today.js'
@@ -189,6 +190,76 @@ export function createWorkshopRouter(
       res
         .status(200)
         .json(await pageView(db, viewer(req), { folderId, shelfId: null }))
+    },
+  )
+
+  /* The retired 7.27 facet reads, served from the tab rows for one release so
+     an installed PWA on the bundle from before step 7 still draws a project's
+     tabs and opens an old /app/facets/:id link. Reads only: its facet writes
+     answer 404. The contract migration deletes them with their ac-397 rows. */
+  router.get(
+    '/folders/:id/facets',
+    requireSession,
+    retiredRoute(securityLog, 'get_folder_facets'),
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const folderId = parsedId(res, req.params.id)
+      if (folderId === null) return
+      if ((await accessOf(db, viewer(req), folderId)) === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      res.status(200).json({ facets: await legacyFacets(db, folderId) })
+    },
+  )
+
+  router.get(
+    '/folders/:id/facets/:facetId/page',
+    requireSession,
+    retiredRoute(securityLog, 'get_folder_facet_page'),
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const folderId = parsedId(res, req.params.id)
+      if (folderId === null) return
+      const tabId = parsedId(res, req.params.facetId)
+      if (tabId === null) return
+      // The facet is a tab now: the viewer's gate is on the tab itself, and
+      // the tab must be one of `:id`'s project.
+      if (
+        (await accessOf(db, viewer(req), folderId)) === null ||
+        (await accessOf(db, viewer(req), tabId)) === null ||
+        (await projectOf(db, tabId)) !== folderId
+      ) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      res
+        .status(200)
+        .json(await pageView(db, viewer(req), { folderId: tabId, shelfId: null }))
+    },
+  )
+
+  router.get(
+    '/facets/:id/location',
+    requireSession,
+    retiredRoute(securityLog, 'get_facet_location'),
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const tabId = parsedId(res, req.params.id)
+      if (tabId === null) return
+      if ((await accessOf(db, viewer(req), tabId)) === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const projectId = await projectOf(db, tabId)
+      if (projectId === null || (await accessOf(db, viewer(req), projectId)) === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      res.status(200).json({ folder_id: projectId })
     },
   )
 
@@ -894,6 +965,12 @@ export function createWorkshopRouter(
         )
         return
       }
+      // Step 8: ownership is the project's, whichever page was named.
+      const projectId = await projectOf(db, folderId)
+      if (projectId === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
       /*
       **Successor eligibility, which is new and is R6 section 2's whole
       point.** An owner may hand custody only to an active human member who
@@ -907,7 +984,7 @@ export function createWorkshopRouter(
       not qualify, which is a fact about the body, and it is the same 422 the
       non-member case already answered.
       */
-      if (!(await isEligibleSuccessor(db, folderId, parsed.to))) {
+      if (!(await isEligibleSuccessor(db, projectId, parsed.to))) {
         sendError(
           res,
           422,
@@ -919,7 +996,7 @@ export function createWorkshopRouter(
       const outcome = await transferOwnershipTo(
         db,
         viewer(req),
-        folderId,
+        projectId,
         parsed.to,
       )
       if (outcome.kind === 'target_not_member') {

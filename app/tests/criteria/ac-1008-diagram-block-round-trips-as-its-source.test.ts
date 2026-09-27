@@ -75,32 +75,42 @@ describe('AC-1008 a diagram round-trips as its source', () => {
 
   test('a diagram on the Purpose page survives a workflow export and import', async () => {
     const [owner] = (await cast.of(app)) as [Actor]
-    const folderId = await createFolder(owner, 'ac1008 purpose map')
+    // Step 7: Purpose is the project's first Doc tab, before Work.
+    const made = await owner.browser.json('/folders', 'POST', { name: 'ac1008 purpose map', kind: null })
+    expectStatus(made, 201, 'an unpicked project')
+    const folderId = (made.json() as { id: string }).id
+    expectStatus(
+      await owner.browser.json(`/folders/${folderId}/tabs`, 'POST', { kind: 'usual' }),
+      201,
+      'the usual project: Purpose, Work, Results and Discussion',
+    )
     const purposeOf = async (id: string): Promise<string> => {
-      const listed = await owner.browser.json(`/folders/${id}/facets`, 'GET')
-      expectStatus(listed, 200, 'the owner lists the facets (7.27)')
-      const facet = (listed.json() as { facets: { id: string; kind: string }[] }).facets.find(
-        (f) => f.kind === 'purpose',
-      )
-      expect(facet, 'every Folder has a native Purpose facet').toBeDefined()
-      return facet!.id
+      const listed = await owner.browser.json('/folders?tabs=1', 'GET')
+      expectStatus(listed, 200, 'the owner lists the folders (7.4)')
+      const all = listed.json() as { id: string; project_id: string; kind: string | null; tab_position: string | null }[]
+      const root = all.find((f) => f.id === id)
+      const tab = all
+        .filter((f) => f.project_id === id && f.kind === 'doc' && f.tab_position !== null && f.tab_position < String(root?.tab_position))
+        .sort((x, y) => (String(x.tab_position) < String(y.tab_position) ? -1 : 1))[0]
+      expect(tab, 'the project has a Purpose tab').toBeDefined()
+      return tab!.id
     }
-    const readPurpose = async (id: string, facetId: string): Promise<PageView> => {
-      const read = await owner.browser.json(`/folders/${id}/facets/${facetId}/page`, 'GET')
+    const readPurpose = async (tabId: string): Promise<PageView> => {
+      const read = await owner.browser.json(`/folders/${tabId}/page`, 'GET')
       expectStatus(read, 200, 'the owner reads the Purpose page')
       return read.json() as PageView
     }
-    const facetId = await purposeOf(folderId)
+    const tabId = await purposeOf(folderId)
     const diagram = randomUUID()
-    const base = await readPurpose(folderId, facetId)
-    const saved = await owner.browser.json(`/folders/${folderId}/facets/${facetId}/page/actions`, 'POST', {
+    const base = await readPurpose(tabId)
+    const saved = await owner.browser.json(`/folders/${tabId}/page/actions`, 'POST', {
       action: 'document_transaction',
       mutation_id: randomUUID(),
       base_revision: base.revision as string,
       operations: [put(diagram, 'diagram', SOURCE), { op: 'set_outline', items: [at(diagram)] }],
     })
     expectStatus(saved, 200, 'a diagram saves on the Purpose page')
-    const purposePage = await readPurpose(folderId, facetId)
+    const purposePage = await readPurpose(tabId)
     const page = await readPage(owner, folderId)
     const exported = folderToWorkflowFile('ac1008 purpose map', [], page.blocks, page, [], {
       display_name: null,
@@ -111,7 +121,7 @@ describe('AC-1008 a diagram round-trips as its source', () => {
       { kind: 'diagram', text: SOURCE },
     ])
     const importedId = await importWorkflowOk(owner, asFile(exported))
-    const imported = await readPurpose(importedId, await purposeOf(importedId))
+    const imported = await readPurpose(await purposeOf(importedId))
     expect(imported.blocks.map((b) => [b.kind, b.text])).toEqual([['diagram', SOURCE]])
   })
 })

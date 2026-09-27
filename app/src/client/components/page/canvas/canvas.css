@@ -495,3 +495,40 @@
 .dana-writing-canvas .bn-block-content[data-content-type='danaTask']:has([data-canvas-task-id]:focus-visible)::before {
   background: var(--dana-block-selection);
 }
+/* On a Task page a checklist item's box is ui/checkbox.tsx's drawing, not
+   the browser's: the --checkbox-size square, the quiet edge, accent fill and
+   a tick when checked, so a subtask looks like the task-row box beside it.
+   Only there: a Doc holds Tasks and checklist items side by side, and a Task
+   (tracked, opens its own page) must not look like a line that only ticks. */
+.dana-writing-canvas.dana-task-composer .bn-block-content[data-content-type='checkListItem'] input[type='checkbox'] {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: var(--checkbox-size);
+  height: var(--checkbox-size);
+  margin: 0;
+  margin-inline-end: calc(var(--spacing) * 2);
+  border: 1px solid var(--quiet-foreground);
+  border-radius: var(--radius-xs);
+  background-color: var(--background);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+.dana-writing-canvas.dana-task-composer .bn-block-content[data-content-type='checkListItem'] input[type='checkbox']::before {
+  content: '';
+  width: calc(var(--checkbox-size) * 0.75);
+  height: calc(var(--checkbox-size) * 0.75);
+  background-color: var(--primary-foreground);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M4 10.5 L8.2 14.5 L16 5.8' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  opacity: 0;
+}
+.dana-writing-canvas.dana-task-composer .bn-block-content[data-content-type='checkListItem'] input[type='checkbox']:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+.dana-writing-canvas.dana-task-composer .bn-block-content[data-content-type='checkListItem'] input[type='checkbox']:checked::before { opacity: 1; }
+.dana-writing-canvas.dana-task-composer .bn-block-content[data-content-type='checkListItem'] input[type='checkbox']:focus-visible { outline: var(--focus-ring-width) solid var(--ring); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .dana-writing-canvas.dana-task-composer .bn-block-content[data-content-type='checkListItem'] input[type='checkbox'] { transition: none; }
+}

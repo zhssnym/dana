@@ -4,6 +4,8 @@ import type { CanvasDocument } from './adapters.js'
 
 export type DocumentRequest = Extract<PageActionBody, { action: 'document_transaction' }>
 export type SaveState = 'saved' | 'changed' | 'saving' | 'failed'
+/** A Task or a sub-page made in the same transaction as the writing that places it. */
+export type Creation = Extract<DocumentRequest['operations'][number], { op: 'create_task' | 'create_page' }>
 
 /** One in-flight gesture; retry retains its exact identity and payload. No offline replay. */
 export class CanvasWriter {
@@ -43,13 +45,13 @@ export class CanvasWriter {
     if (this.state !== 'failed' && this.state !== 'saving') this.state = this.settled(document) ? 'saved' : 'changed'
     this.notify()
   }
-  async flush(createTask?: { id: string; title: string }): Promise<void> {
+  async flush(creation?: Creation): Promise<void> {
     if (this.inFlight) return this.inFlight
     if (this.state === 'failed') return
-    if (this.state === 'saved' && !createTask) return
+    if (this.state === 'saved' && !creation) return
     if (!this.pending) {
       const operations: DocumentRequest['operations'] = canvasOperations(this.acknowledged, this.latest)
-      if (createTask) operations.unshift({ op: 'create_task', ...createTask })
+      if (creation) operations.unshift(creation)
       this.pending = { request: { action: 'document_transaction', mutation_id: crypto.randomUUID(), base_revision: this.revision, operations }, document: this.latest }
     }
     const pending = this.pending
@@ -68,7 +70,7 @@ export class CanvasWriter {
         // next one destroys exactly what the first one preserved.
         this.acknowledged = baselineOf(page, pending.document)
         this.pending = null
-        const checkpoint = pending.request.operations.some((op) => op.op === 'create_task')
+        const checkpoint = pending.request.operations.some((op) => op.op === 'create_task' || op.op === 'create_page')
         // A matching receipt can return newer state. Preserve the local draft and
         // stop instead of basing another write on a state the editor never saw.
         if (page.mutation && page.mutation.committed_revision !== page.revision) {

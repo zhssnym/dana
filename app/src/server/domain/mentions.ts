@@ -119,10 +119,8 @@ export async function syncMentions(tx: Executor, input: MentionSource): Promise<
     if (ids.length === 0) return []
     const rows = await rowsOf(
       tx,
-      sql`SELECT b.id, b.rich_content, b.shelf_id, b.task_id, b.facet_id,
-                 f.owner_id AS private_owner
+      sql`SELECT b.id, b.rich_content, b.shelf_id, b.task_id
             FROM page_blocks b
-            LEFT JOIN folder_facets f ON f.id = b.facet_id
            WHERE b.id IN (${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)})
              AND b.rich_content IS NOT NULL`,
     )
@@ -130,7 +128,9 @@ export async function syncMentions(tx: Executor, input: MentionSource): Promise<
       const users = mentionedUserIds(row.rich_content)
       if (users.length === 0) continue
       // Validated below even where nobody is told, so a bad id never lands.
-      const silent = row.shelf_id !== null || row.private_owner !== null
+      // A Shelf tells nobody. (A private tab, since step 7, is a project whose
+      // only member is its owner, so nobody else could be told anyway.)
+      const silent = row.shelf_id !== null
       sources.push({ blockId: String(row.id), commentId: null, users: silent ? [] : users })
       if (silent) sources.push({ blockId: null, commentId: null, users })
       if (subject === null && !silent) {
@@ -165,7 +165,8 @@ export async function syncMentions(tx: Executor, input: MentionSource): Promise<
       await rowsOf(
         tx,
         sql`SELECT user_id FROM folder_members
-             WHERE folder_id = ${input.pageFolderId}::uuid AND user_id IN (${list})`,
+             WHERE folder_id = (SELECT project_id FROM folders WHERE id = ${input.pageFolderId}::uuid)
+               AND user_id IN (${list})`,
       )
     ).map((row) => String(row.user_id)),
   )

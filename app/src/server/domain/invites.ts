@@ -18,7 +18,7 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import { accessOf, mayPerform, presetOf } from './folder-access.js'
-import { recordAccessTransition } from './folder-access.js'
+import { projectOf, recordAccessTransition } from './folder-access.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import type { FolderAccess } from './folder-access.js'
@@ -235,6 +235,7 @@ export type CreateInviteResult =
   | { kind: 'own_email' }
   | { kind: 'folder_not_found' }
   | { kind: 'default_folder' }
+  /** Step 7: a tab has its project's people; the project is shared. */
   | { kind: 'already_member' }
   | { kind: 'task_not_in_folder' }
   | { kind: 'already_connected' }
@@ -325,7 +326,7 @@ export async function createInvite(
   input: CreateInviteInput,
 ): Promise<CreateInviteResult> {
   const email = input.email
-  const folderId = input.folder_id ?? null
+  const requestedFolderId = input.folder_id ?? null
   const taskId = input.task_id ?? null
   const granted = input.access ?? null
   const initialResponsibility = input.responsibility ?? null
@@ -351,8 +352,8 @@ export async function createInvite(
     // Held rather than dropped: the conversion arm below sends a share grant
     // that names the folder, and this is the read that already has it.
     let folderAccess: FolderAccess | null = null
-    if (folderId !== null) {
-      folderAccess = await accessOf(tx, inviterId, folderId)
+    if (requestedFolderId !== null) {
+      folderAccess = await accessOf(tx, inviterId, requestedFolderId)
       // 10.2: a folder the inviter is not a member of reads as nonexistent,
       // never as a status that confirms it exists.
       if (folderAccess === null) return { kind: 'folder_not_found' }
@@ -370,6 +371,10 @@ export async function createInvite(
         return { kind: 'forbidden', reason: admitted.reason }
       }
     }
+    /* Step 8: people belong to the project, so an invite named on any page
+       of it is the project's. */
+    const folderId =
+      requestedFolderId === null ? null : ((await projectOf(tx, requestedFolderId)) ?? requestedFolderId)
 
     const target = await activeUserByEmail(tx, email)
 
@@ -389,7 +394,7 @@ export async function createInvite(
       const inFolder = await rowsOf(
         tx,
         sql`SELECT 1 AS present FROM tasks
-            WHERE id = ${taskId} AND folder_id = ${folderId}
+            WHERE id = ${taskId} AND project_id = ${folderId}
               AND deleted_at IS NULL`,
       )
       if (inFolder.length === 0) return { kind: 'task_not_in_folder' }
@@ -612,7 +617,7 @@ export async function inviteFactsFor(
         JOIN users me ON me.id = ${viewerId}
         LEFT JOIN folders f ON f.id = i.folder_id
         LEFT JOIN folder_members m
-          ON m.folder_id = i.folder_id AND m.user_id = ${viewerId}
+          ON m.folder_id = f.project_id AND m.user_id = ${viewerId}
         WHERE i.id = ${inviteId}`,
   )
   const row = found[0]
@@ -719,7 +724,18 @@ export async function acceptInvite(
       if (invite === undefined) return { kind: 'not_pending' }
 
       const inviterId = String(invite.inviter_id)
+      // Step 8: people belong to the project, and an invite names its root.
+      // One on any other page (the old instance's during a deploy, or a
+      // root since moved into another project) meant that page, not the
+      // whole project: it is invalidated rather than widened.
       const folderId = nullableString(invite.folder_id)
+      if (folderId !== null && (await projectOf(tx, folderId)) !== folderId) {
+        await tx.execute(
+          sql`UPDATE invites SET status = 'invalidated', accepted_by = NULL
+               WHERE id = ${inviteId}`,
+        )
+        return { kind: 'not_pending' }
+      }
       const taskId = nullableString(invite.task_id)
       const granted = presetOf(invite.access)
       const initial = responsibilityDocument.safeParse(invite.responsibility)
@@ -801,7 +817,7 @@ export async function acceptInvite(
             actorId: inviterId,
             transition: 'invite_accepted',
           })
-          /*
+              /*
           Issue #230, and the sentence that shapes this block is R9 section
           5's read across from Access: **the initial content becomes active
           only when the membership does, and the actor is the inviter who
@@ -847,7 +863,7 @@ export async function acceptInvite(
           tx,
           sql`UPDATE tasks SET assignee_id = ${acceptorId}::uuid,
                                updated_at = now()
-               WHERE id = ${taskId} AND folder_id = ${folderId}::uuid
+               WHERE id = ${taskId} AND project_id = ${folderId}::uuid
                  AND assignee_id IS NULL AND deleted_at IS NULL
                RETURNING id`,
         )

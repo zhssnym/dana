@@ -29,8 +29,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu.js"
-import { moveStepsOut } from "../tasks/task-acts.js"
-import type { StepDestination } from "../tasks/task-acts.js"
 import { COMPLETE_TASK, MARK_AS_NOT_DONE } from "./ui/copy.js"
 import { useTaskWriter } from "../tasks/task-writer.js"
 import {
@@ -993,49 +991,11 @@ export function useCardWiring(props: TaskRowProps) {
     if (fields.done !== undefined) props.onToggleComplete?.(fields.done)
   }
 
-  function patchSteps(next: ConceptStep[]) {
-    setEdits((current) => ({ ...current, steps: next }))
-    report({ steps: next })
-  }
+  /* The card's subtasks are the checklist of its body, written by its
+     composer; nothing here writes them. */
+  const cardHandlers = {}
 
-  const cardHandlers = {
-    toggleStep: (_id: string, index: number) =>
-      patchSteps(
-        steps.map((step, i) => (i === index ? { ...step, done: !step.done } : step)),
-      ),
-    moveStep: (_id: string, from: number, to: number) => {
-      const next = [...steps]
-      const [moved] = next.splice(from, 1)
-      if (moved) next.splice(to, 0, moved)
-      patchSteps(next)
-    },
-    /* `tasks/task-acts.ts`'s `moveStepsOut`. Absent without an id or a folder,
-       the lab and the capture, where the control is then not drawn. */
-    ...(props.id && task.folder?.id
-      ? {
-          moveStepsTo: (_id: string, indices: number[], destination: StepDestination) =>
-            moveStepsOut(props.id!, task.folder!.id!, steps, indices, destination),
-        }
-      : {}),
-    duplicateSteps: (_id: string, indices: number[]) =>
-      patchSteps([
-        ...steps,
-        ...indices
-          .map((index) => steps[index])
-          .filter((step): step is ConceptStep => Boolean(step))
-          .map((step) => ({ ...step, done: false })),
-      ]),
-    removeSteps: (_id: string, indices: number[]) =>
-      patchSteps(steps.filter((_, index) => !indices.includes(index))),
-    setStepsDone: (_id: string, indices: number[], done: boolean) =>
-      patchSteps(
-        steps.map((step, index) => (indices.includes(index) ? { ...step, done } : step)),
-      ),
-    onNewFolder: () => {},
-    onStepsToNewFolder: () => {},
-  }
-
-  return { task, patch, patchSteps, steps, counts, cardHandlers }
+  return { task, patch, steps, counts, cardHandlers }
 }
 
 /*

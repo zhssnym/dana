@@ -62,6 +62,8 @@ import {
   presetFromRow,
 } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
+import { PAGE_TREE_EDIT_ACTION } from './page-tree.js'
+import { ensureDiscussionTab, liveDiscussionTab, projectOf } from './project-tabs.js'
 import { UNSTARTED_TASK_THREAD } from './tasks.js'
 
 export type ConsultationOutcome<T> =
@@ -424,9 +426,11 @@ export async function listDiscussions(
     sql`WITH page AS (
           SELECT ${DISCUSSION_COLUMNS}, r.read_at AS viewer_read_at
             FROM ${DISCUSSION_FROM}
+            JOIN folders df ON df.id = d.folder_id
+            ${joinVisibleFolder(facts.actorId, { folder: 'df', member: 'dm' })}
             LEFT JOIN discussion_reads r
               ON r.discussion_id = d.id AND r.user_id = ${facts.actorId}::uuid
-           WHERE d.folder_id = ${facts.folderId}::uuid
+           WHERE df.project_id = (SELECT pf.project_id FROM folders pf WHERE pf.id = ${facts.folderId}::uuid)
              AND d.trashed_at IS NULL
              AND NOT ${UNSTARTED_TASK_THREAD}${state}${search}${after}
            ORDER BY d.last_activity_at DESC, d.id DESC
@@ -757,7 +761,7 @@ export async function discussTask(
   db: Db,
   viewerId: string,
   taskId: string,
-): Promise<ConsultationOutcome<{ created: boolean; discussion: Discussion }>> {
+): Promise<ConsultationOutcome<{ created: boolean; discussion: Discussion; discussionTabId: string | null }>> {
   return inTransaction(db, async (tx) => {
     const task = await rowsOf(
       tx,
@@ -772,12 +776,29 @@ export async function discussTask(
     if (facts === null) return notFound
     const readable = mayPerform(facts, 'discussion.read')
     if (!readable.allowed) return forbidden(readable.reason)
+    /* Step 7: the thread is listed on the project's Discussion tab, so a
+       project without one gets it here, in this transaction, when the actor
+       may start a discussion and may edit the project root's tab row; a
+       member of a sub-page only, who cannot see the root, changes nothing
+       there. The tab's id is answered only to someone who can see it. */
+    const mayCreate = mayPerform(facts, 'discussion.create')
+    const project = await projectOf(tx, folderId)
+    const rootFacts = project === null ? null : await folderActorFacts(tx, viewerId, project)
+    /* The Desk keeps no tab row: its task threads open on the Desk itself. */
+    const mayAddTab =
+      mayCreate.allowed && rootFacts !== null && !rootFacts.isDefault &&
+      mayPerform(rootFacts, PAGE_TREE_EDIT_ACTION).allowed
+    const tabId = mayAddTab
+      ? await ensureDiscussionTab(tx, viewerId, folderId)
+      : project === null ? null : await liveDiscussionTab(tx, project)
+    const discussionTabId =
+      tabId !== null && (await folderActorFacts(tx, viewerId, tabId)) !== null ? tabId : null
     const existing = await liveDiscussionOfTask(tx, taskId)
     if (existing !== null) {
       const found = await discussionById(tx, existing)
-      return found === null ? notFound : ok({ created: false, discussion: found })
+      return found === null ? notFound : ok({ created: false, discussion: found, discussionTabId })
     }
-    const decision = mayPerform(facts, 'discussion.create')
+    const decision = mayCreate
     if (!decision.allowed) return forbidden(decision.reason)
     const title =
       Array.from(String(row.title).trim()).slice(0, DISCUSSION_TITLE_MAX).join('').trim() ||
@@ -798,7 +819,7 @@ export async function discussTask(
       detail: 'started a discussion',
     })
     const made = await discussionById(tx, String(inserted[0]?.id))
-    return made === null ? notFound : ok({ created: true, discussion: made })
+    return made === null ? notFound : ok({ created: true, discussion: made, discussionTabId })
   })
 }
 

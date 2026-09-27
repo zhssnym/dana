@@ -10,7 +10,7 @@ import { todayInBrowserZone } from '../../../api/tz.js'
 import { isoDay } from '../../../tasks/task-model.js'
 import { createCanvasTaskSpec } from './CanvasTask.js'
 import { createCanvasFolderSpec } from './CanvasFolder.js'
-import { createCanvasPageSpec } from './CanvasPage.js'
+import { createCanvasPageRefSpec, createCanvasPageSpec } from './CanvasPage.js'
 import { createCanvasParagraph } from './CanvasParagraph.js'
 import { createCanvasDiagramSpec } from './CanvasDiagram.js'
 import { createTaskAtCursor, removeCanvasBlocks, removeEmptyBeforeHeading } from './commands.js'
@@ -277,6 +277,8 @@ export const canvasSchema = BlockNoteSchema.create({
     diagram: createCanvasDiagramSpec(),
     // A sub-page of this Folder (Wave 2); only Folder Work's `/page` inserts one.
     danaPage: createCanvasPageSpec(),
+    // A page of another project (`folder_ref` with no text); never inserted.
+    danaPageRef: createCanvasPageRefSpec(),
   },
   // A Dana Link (#223) is a chip; `adapters.ts` stores it as an href run.
   inlineContentSpecs: { ...defaultInlineContentSpecs, danaLink: danaLinkInlineSpec, mention: mentionInlineSpec },

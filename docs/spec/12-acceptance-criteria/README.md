@@ -15,7 +15,7 @@ requirement whether or not a test runs it: only a small core is executable, and
 
 ## The next number
 
-**The next number to take from the tail is 1516.**
+**The next number to take from the tail is 1531.**
 
 ## The files
 
@@ -24,7 +24,7 @@ requirement whether or not a test runs it: only a small core is executable, and
 | [`12.1-schema-and-migrations.md`](12.1-schema-and-migrations.md) | Schema constraints and data migrations |
 | [`12.2-sign-in-and-sessions.md`](12.2-sign-in-and-sessions.md) | Sign-in, OAuth and sessions |
 | [`12.3-the-account.md`](12.3-the-account.md) | The account: profile, settings, export, deletion |
-| [`12.4-folders-and-membership.md`](12.4-folders-and-membership.md) | Folders, membership, Access, Responsibilities, facets |
+| [`12.4-folders-and-membership.md`](12.4-folders-and-membership.md) | Folders, membership, Access, Responsibilities, projects and tabs |
 | [`12.5-sharing-roster-and-people.md`](12.5-sharing-roster-and-people.md) | Sharing, invites, the roster and people |
 | [`12.6-tasks-steps-and-the-task-surface.md`](12.6-tasks-steps-and-the-task-surface.md) | Tasks, steps, dependencies and the task surface |
 | [`12.7-today.md`](12.7-today.md) | Today |

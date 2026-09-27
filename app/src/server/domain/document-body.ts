@@ -31,7 +31,7 @@ export type FlatHome = Exclude<BlockHome, 'work'>
 
 /** Which rows a flat body is: the column that names its home, and the id. */
 export interface FlatScope {
-  column: 'facet_id' | 'task_id' | 'shelf_id'
+  column: 'task_id' | 'shelf_id'
   id: string
 }
 
@@ -149,7 +149,11 @@ export async function applyFlatBody(
     }))
   }
 
-  if (blocks.size > 500) throw refuse('invalid', 'A page holds at most 500 blocks.', 'operations')
+  // Only growth past the cap is refused: a body already over it (0060 can
+  // append a task's steps past 500) stays tickable and can shrink.
+  if (blocks.size > 500 && blocks.size > original.size) {
+    throw refuse('invalid', 'A page holds at most 500 blocks.', 'operations')
+  }
 
   const seen = new Set<string>()
   for (const item of items) {

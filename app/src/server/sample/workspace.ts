@@ -48,7 +48,6 @@ import type { SampleCounts, SampleStatus } from '../../shared/sample.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from '../domain/events.js'
-import { createNativeFacets } from '../domain/facets.js'
 import { recordAccessTransition } from '../domain/folder-access.js'
 import { initialKeys, keyBetween } from '../domain/fractional-index.js'
 import { applyDocument, documentMetadata } from '../domain/page-document.js'
@@ -61,6 +60,7 @@ import {
   removeHomeBlock,
 } from '../domain/page-tree.js'
 import { upsertReminder } from '../domain/tasks.js'
+import { appendChecklist } from '../domain/task-document.js'
 import { destroyFolders, destroyTasks } from '../domain/trash.js'
 import { today } from '../time/today.js'
 import { SAMPLE_PEOPLE, SAMPLE_WORKSPACE } from './content.js'
@@ -278,12 +278,8 @@ async function writeTask(ctx: SampleContext, folderId: string, task: SampleTask)
   await register(tx, userId, 'task', taskId)
   ctx.tasks.set(task.title, taskId)
 
-  for (const [index, step] of (task.steps ?? []).entries()) {
-    await tx.execute(
-      sql`INSERT INTO steps (task_id, title, done, position)
-          VALUES (${taskId}::uuid, ${step.title}, ${step.done ?? false}, ${index})`,
-    )
-  }
+  // A sample task's steps are its checklist, after its notes (0060).
+  await appendChecklist(tx, taskId, task.steps ?? [])
   if (task.today === true && status === 'pending') {
     await tx.execute(
       sql`INSERT INTO my_day_entries (task_id, user_id, added_on)
@@ -391,21 +387,21 @@ async function writeThread(
   }
 }
 
-/** A facet's document (Purpose, Results or a custom tab): flat blocks, in
- * order, stored the way the facet applier stores them. */
-async function writeFacetDocument(
+/** A Doc page's document (Purpose, Results or a custom tab): flat blocks, in
+ * order. */
+async function writeDocDocument(
   ctx: SampleContext,
-  facetId: string,
+  pageId: string,
   blocks: readonly SampleBlock[],
 ): Promise<void> {
   const keys = initialKeys(blocks.length)
   for (const [index, block] of blocks.entries()) {
-    // The facet applier's kind rule, since this insert does not go through it.
-    if (!allowedIn(block.kind, 'doc')) throw new Error(`The sample puts a ${block.kind} block on a facet.`)
+    // The Doc kind rule, since this insert does not go through the applier.
+    if (!allowedIn(block.kind, 'doc')) throw new Error(`The sample puts a ${block.kind} block on a Doc page.`)
     const { text, rich } = richText(ctx, block.text)
     await ctx.tx.execute(
-      sql`INSERT INTO page_blocks (facet_id, kind, position, page_position, text, rich_content, checked)
-          VALUES (${facetId}::uuid, ${block.kind}, ${index}, ${keys[index] ?? null},
+      sql`INSERT INTO page_blocks (folder_id, kind, position, page_position, text, rich_content, checked)
+          VALUES (${pageId}::uuid, ${block.kind}, ${index}, ${keys[index] ?? null},
                   ${block.kind === 'divider' ? null : text},
                   ${rich === null ? null : JSON.stringify(rich)}::jsonb,
                   ${block.kind === 'checklist' ? (block.checked ?? false) : null})`,
@@ -523,42 +519,53 @@ async function writeFolderRow(
 ): Promise<string> {
   const { tx, clock, userId } = ctx
   const childPosition = parentId === null ? null : await lastChildPosition(tx, parentId)
+  /* Step 7: a top-level sample page is a Work project whose tab sits at
+     `a1`, leaving `a0` for its Purpose tab; a sub-page joins the parent's
+     project, a Doc when it has no tasks, as migration 0061 decides from
+     what a sub-page held before its tabs became child pages. */
+  const newId = randomUUID()
+  const kind = parentId === null ? 'work' : (folder.tasks ?? []).length === 0 ? 'doc' : 'work'
+  const project = parentId === null
+    ? sql`${newId}::uuid`
+    : sql`(SELECT p.project_id FROM folders p WHERE p.id = ${parentId}::uuid)`
   const inserted = await rowsOf(
     tx,
-    sql`INSERT INTO folders (owner_id, name, icon, color, description, cover_preset,
-                             parent_folder_id, child_position, created_at)
-        VALUES (${userId}::uuid, ${folder.name}, ${folder.icon ?? null},
+    sql`INSERT INTO folders (id, owner_id, name, icon, color, description, cover_preset,
+                             parent_folder_id, child_position, created_at,
+                             project_id, kind, tab_position)
+        VALUES (${newId}::uuid, ${userId}::uuid, ${folder.name}, ${folder.icon ?? null},
                 ${folder.color ?? null}, ${folder.description ?? null},
                 ${folder.cover ?? null},
-                ${parentId}::uuid, ${childPosition}, ${clock()})
+                ${parentId}::uuid, ${childPosition}, ${clock()},
+                ${project}, ${kind}, ${parentId === null ? 'a1' : null})
         RETURNING id`,
   )
   const folderId = String(inserted[0]?.id)
   await register(tx, userId, 'folder', folderId)
   /* The sample workspace is the new account's own: owner plus Full control,
      with the baseline transition beside it (issue #228). The sample people
-     are ordinary members who can edit. */
-  await tx.execute(
-    sql`INSERT INTO folder_members (folder_id, user_id, access)
-        VALUES (${folderId}::uuid, ${userId}::uuid, 'full_control')`,
-  )
-  await recordAccessTransition(tx, {
-    folderId,
-    memberId: userId,
-    previousAccess: null,
-    newAccess: 'full_control',
-    actorId: userId,
-    transition: 'created_owner',
-  })
-  for (const key of people) {
+     are ordinary members who can edit. Step 8: people belong to the
+     project, so only a project root gets rows. */
+  if (parentId === null) {
     await tx.execute(
       sql`INSERT INTO folder_members (folder_id, user_id, access)
-          VALUES (${folderId}::uuid, ${personId(ctx, key)}::uuid, 'can_edit')`,
+          VALUES (${folderId}::uuid, ${userId}::uuid, 'full_control')`,
     )
+    await recordAccessTransition(tx, {
+      folderId,
+      memberId: userId,
+      previousAccess: null,
+      newAccess: 'full_control',
+      actorId: userId,
+      transition: 'created_owner',
+    })
+    for (const key of people) {
+      await tx.execute(
+        sql`INSERT INTO folder_members (folder_id, user_id, access)
+            VALUES (${folderId}::uuid, ${personId(ctx, key)}::uuid, 'can_edit')`,
+      )
+    }
   }
-  /* The four native facets, in this same transaction (issue #210, 4.30:
-     "natives are created with the Folder and never lazily"). */
-  await createNativeFacets(tx, folderId, userId)
   await recordEvent(tx, {
     actorId: userId,
     verb: 'created',
@@ -572,35 +579,51 @@ async function writeFolderRow(
   return folderId
 }
 
-async function nativeFacet(tx: Executor, folderId: string, kind: string): Promise<string> {
-  const rows = await rowsOf(
-    tx,
-    sql`SELECT id FROM folder_facets WHERE folder_id = ${folderId}::uuid AND kind = ${kind}`,
+/**
+ * One more page of a sample project: a tab of the root (`tabPosition`) or a
+ * child Doc page of a sub-page (`parentId`, with its home block, as
+ * migration 0061 gives one on a Doc or Work sub-page). It has
+ * its project's people, as every page does (step 8).
+ */
+async function writeSamplePage(
+  ctx: SampleContext,
+  source: string,
+  page: { name: string; kind: 'doc' | 'discussion'; tabPosition: string | null; parentId: string | null },
+): Promise<string> {
+  const { tx, clock, userId } = ctx
+  const id = randomUUID()
+  const childPosition = page.parentId === null ? null : await lastChildPosition(tx, page.parentId)
+  await tx.execute(
+    sql`INSERT INTO folders (id, owner_id, name, created_at, parent_folder_id, child_position,
+                             project_id, kind, tab_position)
+        SELECT ${id}::uuid, ${userId}::uuid, ${page.name}, ${clock()},
+               ${page.parentId}::uuid, ${childPosition}, s.project_id, ${page.kind}, ${page.tabPosition}
+          FROM folders s WHERE s.id = ${source}::uuid`,
   )
-  return String(rows[0]?.id)
+  if (page.parentId !== null) {
+    await register(tx, userId, 'folder', id)
+    await appendHomeBlock(tx, page.parentId, id)
+  }
+  return id
 }
 
-async function writeFacets(ctx: SampleContext, folder: SampleFolder, folderId: string): Promise<void> {
-  const { tx, userId } = ctx
+/** Purpose, Results and a custom tab: Doc tabs of a project (Purpose before
+ * Work, the others after), or child Doc pages of a sub-page. */
+async function writeDocPages(ctx: SampleContext, folder: SampleFolder, folderId: string): Promise<void> {
+  const isRoot = folder.parent === undefined
+  const place = (tabPosition: string) =>
+    isRoot ? { tabPosition, parentId: null } : { tabPosition: null, parentId: folderId }
   if (folder.purpose !== undefined) {
-    await writeFacetDocument(ctx, await nativeFacet(tx, folderId, 'purpose'), folder.purpose)
+    const id = await writeSamplePage(ctx, folderId, { name: 'Purpose', kind: 'doc', ...place('a0') })
+    await writeDocDocument(ctx, id, folder.purpose)
   }
   if (folder.results !== undefined) {
-    await writeFacetDocument(ctx, await nativeFacet(tx, folderId, 'results'), folder.results)
+    const id = await writeSamplePage(ctx, folderId, { name: 'Results', kind: 'doc', ...place('a2') })
+    await writeDocDocument(ctx, id, folder.results)
   }
   if (folder.tab !== undefined) {
-    const last = await rowsOf(
-      tx,
-      sql`SELECT max(position) AS last FROM folder_facets WHERE folder_id = ${folderId}::uuid`,
-    )
-    const made = await rowsOf(
-      tx,
-      sql`INSERT INTO folder_facets (folder_id, kind, display_name, position, created_by)
-          VALUES (${folderId}::uuid, 'shared_blank', ${folder.tab.name},
-                  ${keyBetween(String(last[0]?.last), null)}, ${userId}::uuid)
-          RETURNING id`,
-    )
-    await writeFacetDocument(ctx, String(made[0]?.id), folder.tab.blocks)
+    const id = await writeSamplePage(ctx, folderId, { name: folder.tab.name, kind: 'doc', ...place('a3') })
+    await writeDocDocument(ctx, id, folder.tab.blocks)
   }
 }
 
@@ -629,8 +652,26 @@ export async function createSampleWorkspace(
 
   // The page tree first, parents before children, so every name resolves.
   const people = new Map<string, readonly SamplePersonKey[]>()
+  /* A project's own sub-pages sit in its Pages tab, right after Work, as
+     "Add a page inside" and migration 0061 place them. */
+  const pagesTabs = new Map<string, string>()
+  const pagesTabOf = async (rootId: string): Promise<string> => {
+    const known = pagesTabs.get(rootId)
+    if (known !== undefined) return known
+    const id = await writeSamplePage(ctx, rootId, {
+      name: 'Pages',
+      kind: 'doc',
+      tabPosition: keyBetween('a1', 'a2'),
+      parentId: null,
+    })
+    pagesTabs.set(rootId, id)
+    return id
+  }
   for (const folder of SAMPLE_WORKSPACE.folders) {
-    const parentId = folder.parent === undefined ? null : (ctx.folders.get(folder.parent) ?? null)
+    const parent = SAMPLE_WORKSPACE.folders.find((each) => each.name === folder.parent)
+    const parentRow = folder.parent === undefined ? null : (ctx.folders.get(folder.parent) ?? null)
+    const parentId =
+      parentRow !== null && parent !== undefined && parent.parent === undefined ? await pagesTabOf(parentRow) : parentRow
     const inherited = folder.parent === undefined ? [] : (people.get(folder.parent) ?? [])
     const members = [...new Set([...inherited, ...(folder.members ?? [])])]
     people.set(folder.name, members)
@@ -670,7 +711,7 @@ export async function createSampleWorkspace(
   for (const folder of SAMPLE_WORKSPACE.folders) {
     const folderId = ctx.folders.get(folder.name) ?? ''
     await writeMainDocument(ctx, folder, folderId)
-    await writeFacets(ctx, folder, folderId)
+    await writeDocPages(ctx, folder, folderId)
     for (const task of folder.tasks ?? []) {
       const posts = task.thread ?? []
       const opener = [...posts].sort((a, b) => hoursAgo(b) - hoursAgo(a))[0]
@@ -683,6 +724,19 @@ export async function createSampleWorkspace(
       )
     }
     for (const thread of folder.threads ?? []) await writeThread(ctx, folderId, thread)
+  }
+  // Step 7: a project with threads anywhere has its Discussion tab, last.
+  for (const folder of SAMPLE_WORKSPACE.folders) {
+    if (folder.parent !== undefined) continue
+    const rootId = ctx.folders.get(folder.name) ?? ''
+    const talks = await rowsOf(
+      tx,
+      sql`SELECT 1 FROM discussions d JOIN folders f ON f.id = d.folder_id
+           WHERE f.project_id = ${rootId}::uuid LIMIT 1`,
+    )
+    if (talks.length > 0) {
+      await writeSamplePage(ctx, rootId, { name: 'Discussion', kind: 'discussion', tabPosition: 'a4', parentId: null })
+    }
   }
 
   await tx.execute(
@@ -771,29 +825,41 @@ export async function removeSampleWorkspace(
     // write, a block written or edited since (the sample's own carry the
     // register's moment, one transaction's now()), a comment or a thread of
     // theirs posted since.
-    const ownWriting = (folder: SQL, since: SQL): SQL => sql`(
+    // A project's writing is in any of its pages: the root and its tabs (a
+    // Discussion tab's threads, a Doc tab's blocks). A sub-page is its own
+    // registered row and is judged on its own.
+    const ownWriting = (folder: SQL, since: SQL): SQL => {
+      const pages = sql`(SELECT pf.id FROM folders pf
+                          WHERE pf.id = ${folder}
+                             OR (pf.project_id = ${folder} AND pf.id <> pf.project_id
+                                 AND pf.tab_position IS NOT NULL))`
+      return sql`(
       EXISTS (SELECT 1 FROM tasks t
-               WHERE t.folder_id = ${folder}
+               WHERE t.folder_id IN ${pages}
                  AND t.id NOT IN (SELECT o.id FROM sample_objects o
                                    WHERE o.user_id = ${userId}::uuid AND o.kind = 'task'))
       OR EXISTS (SELECT 1 FROM page_blocks b
                   WHERE b.updated_at > ${since}
-                    AND (b.folder_id = ${folder}
-                         OR b.facet_id IN (SELECT ff.id FROM folder_facets ff
-                                            WHERE ff.folder_id = ${folder})
-                         OR b.task_id IN (SELECT t.id FROM tasks t WHERE t.folder_id = ${folder})))
+                    AND (b.folder_id IN ${pages}
+                         OR b.task_id IN (SELECT t.id FROM tasks t WHERE t.folder_id IN ${pages})))
       OR EXISTS (SELECT 1 FROM comments c
-                  WHERE c.folder_id = ${folder} AND c.author_id = ${userId}::uuid
+                  WHERE c.folder_id IN ${pages} AND c.author_id = ${userId}::uuid
                     AND c.created_at > ${since})
       OR EXISTS (SELECT 1 FROM discussions d
-                  WHERE d.folder_id = ${folder} AND d.created_by = ${userId}::uuid
+                  WHERE d.folder_id IN ${pages} AND d.created_by = ${userId}::uuid
                     AND d.created_at > ${since}))`
+    }
 
     const folders = await rowsOf(
       tx,
-      sql`SELECT f.id, f.name, f.parent_folder_id, f.deleted_at IS NOT NULL AS trashed,
+      /* A sub-page under a tab (a project's Pages tab) hangs from its
+         project for this walk: tabs are not registered. */
+      sql`SELECT f.id, f.name,
+                 (SELECT CASE WHEN pp.tab_position IS NOT NULL THEN pp.project_id ELSE pp.id END
+                    FROM folders pp WHERE pp.id = f.parent_folder_id) AS parent_folder_id,
+                 f.deleted_at IS NOT NULL AS trashed,
                  (SELECT count(*)::int FROM folder_members m
-                   WHERE m.folder_id = f.id AND m.user_id <> ${userId}::uuid
+                   WHERE m.folder_id = f.project_id AND m.user_id <> ${userId}::uuid
                      AND m.user_id NOT IN (${idList(SAMPLE_PERSON_IDS)})) AS others,
                  ${ownWriting(sql`f.id`, sql`s.created_at`)} AS own_work
           FROM sample_objects s
@@ -850,6 +916,24 @@ export async function removeSampleWorkspace(
       for (const id of trashRoots) {
         await removeHomeBlock(tx, id)
         await trashFolderSubtree(tx, userId, id)
+      }
+    }
+
+    // A doomed project's tabs go with it. They are not registered (only the
+    // root and sub-pages are), and a page left out of the doomed list is
+    // released into a project of its own rather than deleted.
+    if (doomedFolders.length > 0) {
+      const tabs = await rowsOf(
+        tx,
+        sql`SELECT id FROM folders
+             WHERE project_id IN (${idList(doomedFolders)}) AND id <> project_id
+               AND tab_position IS NOT NULL AND owner_id = ${userId}::uuid
+               AND NOT EXISTS (SELECT 1 FROM folder_members m
+                                WHERE m.folder_id = folders.project_id AND m.user_id <> ${userId}::uuid
+                                  AND m.user_id NOT IN (${idList(SAMPLE_PERSON_IDS)}))`,
+      )
+      for (const row of tabs) {
+        if (!doomedFolders.includes(String(row.id))) doomedFolders.push(String(row.id))
       }
     }
 

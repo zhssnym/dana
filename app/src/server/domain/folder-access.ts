@@ -97,6 +97,28 @@ export async function accessOf(
   return folderActorFacts(executor, viewerId, folderId)
 }
 
+/**
+ * Step 8: people belong to the project. A membership row lives on the
+ * project root only, and a person is a member of every page of a project
+ * they are a member of. The project of `folderId`, or null when there is no
+ * such page; every membership read and write (members, invites, Access,
+ * Responsibility, ownership) acts on this id, whichever page the path named.
+ * Callers gate on the page first, so a stranger's answer stays 404.
+ */
+export async function projectOf(executor: Executor, folderId: string): Promise<string | null> {
+  const rows = await rowsOf(
+    executor,
+    sql`SELECT project_id FROM folders WHERE id = ${folderId}::uuid`,
+  )
+  const project = rows[0]?.project_id
+  return project === undefined || project === null ? null : String(project)
+}
+
+/** `folderId`'s project as SQL, for a statement that reads membership rows
+ * of whatever page it is given. */
+export function projectIdOf(folderId: string): SQL {
+  return sql`(SELECT pr_f.project_id FROM folders pr_f WHERE pr_f.id = ${folderId}::uuid)`
+}
 
 /* ------------------------------------------------------------------ *
  * Reading the facts
@@ -132,8 +154,8 @@ export async function folderActorFacts(
  * ------------------------------------------------------------------ */
 
 /*
-Who sees a row is one sentence: the viewer is a member of the row's Folder,
-and that Folder is not in Trash unless the caller is one of 7.13's acts on
+Who sees a row is one sentence: the viewer is a member of the row's project
+(step 8: its Folder's project root), and that Folder is not in Trash unless the caller is one of 7.13's acts on
 Trash. Lists, search and single-row reads say it through the three helpers
 below rather than writing the join again, so a query cannot drop half of it.
 
@@ -174,7 +196,7 @@ export function visibleFolder(
 ): SQL {
   const trashed = trashClause(sql`vis_f`, options.trashed ?? 'live')
   return sql`EXISTS (SELECT 1 FROM folders vis_f
-      JOIN folder_members vis_m ON vis_m.folder_id = vis_f.id
+      JOIN folder_members vis_m ON vis_m.folder_id = vis_f.project_id
      WHERE vis_f.id = ${folderId} AND vis_m.user_id = ${viewerId}${trashed})`
 }
 
@@ -200,7 +222,7 @@ export function joinVisibleFolder(
   const m = alias(options.member ?? 'm')
   const trashed = trashClause(f, options.trashed ?? 'live')
   const membership = sql`JOIN folder_members ${m}
-      ON ${m}.folder_id = ${f}.id AND ${m}.user_id = ${viewerId}`
+      ON ${m}.folder_id = ${f}.project_id AND ${m}.user_id = ${viewerId}`
   return options.folderId === undefined
     ? sql`${membership}${trashed}`
     : sql`JOIN folders ${f} ON ${f}.id = ${options.folderId}${trashed}
@@ -214,7 +236,6 @@ const SCOPED = {
   folder: { table: 'folders', as: 'fo', trash: true },
   task: { table: 'tasks', as: 't', trash: true },
   comment: { table: 'comments', as: 'c', trash: false },
-  facet: { table: 'folder_facets', as: 'ff', trash: true },
 } as const
 
 export type ScopedKind = keyof typeof SCOPED
