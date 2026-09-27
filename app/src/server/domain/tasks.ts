@@ -61,7 +61,6 @@ import type { ObjectStore } from '../files/store.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
-import { UNSTARTED_TASK_THREAD } from './consultation.js'
 import { carryTaskFilesOnMove } from './files.js'
 import { mayPerform, presetOf } from './folder-access.js'
 import type {
@@ -99,6 +98,24 @@ function toIso(value: unknown): string {
 function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
 }
+
+/**
+ * A thread "Discuss" made on a task that nobody has written in yet (M5): no
+ * post, no input round, no context, no decision, and made after its task (a
+ * thread turned into a task is older than the task, so it never matches). The list and the
+ * task page's link skip it, and the next "Discuss" reuses it, so looking
+ * without talking leaves nothing behind. Reads `d`.
+ *
+ * Here rather than in consultation.ts because the task page reads it too, and
+ * tasks sit below threads: threads import it from tasks, never the reverse.
+ */
+export const UNSTARTED_TASK_THREAD = sql`(
+  d.task_id IS NOT NULL AND d.context IS NULL AND d.current_outcome_id IS NULL
+  AND NOT EXISTS (SELECT 1 FROM comments uc WHERE uc.discussion_id = d.id)
+  AND NOT EXISTS (SELECT 1 FROM discussion_input_rounds ur
+                   WHERE ur.discussion_id = d.id)
+  AND EXISTS (SELECT 1 FROM tasks ut
+               WHERE ut.id = d.task_id AND ut.created_at <= d.created_at))`
 
 /*
 Floating dates and times are read through to_char rather than through the
