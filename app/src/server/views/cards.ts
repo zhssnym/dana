@@ -290,9 +290,9 @@ export function cardSource(viewerId: string): SQL {
       ON e.task_id = t.id AND e.user_id = ${viewerId}
     LEFT JOIN LATERAL (
       SELECT count(*)::int AS steps_total,
-             coalesce(sum(CASE WHEN st.done THEN 1 ELSE 0 END), 0)::int
+             coalesce(sum(CASE WHEN st.checked THEN 1 ELSE 0 END), 0)::int
                AS steps_done
-        FROM steps st WHERE st.task_id = t.id
+        FROM page_blocks st WHERE st.task_id = t.id AND st.kind = 'checklist'
     ) c ON true`
 }
 

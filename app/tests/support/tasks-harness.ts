@@ -2,12 +2,12 @@
 Harness for the tasks-core criteria (AC-025 to AC-044), built on the auth
 harness and the folder layer: the same booted application, stub identity
 provider, cookie-jar browsers, lazily signed-in casts, and scoped invariant
-sweep, plus what the 7.6, 7.7, and 7.8 surfaces need.
+sweep, plus what the 7.6 and 7.8 surfaces need.
 
 Four decisions worth the words:
 
 **Setup goes through the API wherever the API exists.** Tasks are created
-with POST /tasks, steps with POST /tasks/:id/steps, and pulls with POST
+with POST /tasks (steps as its `steps` field), and pulls with POST
 /tasks/:id/my-day: a broken create fails every file here on one attributable
 sentence. Folders and memberships arrive through their own endpoints.
 
@@ -499,32 +499,21 @@ export async function transitionOk(
 }
 
 /* ------------------------------------------------------------------ *
- * The 7.7 step surface and the 7.8 My Day surface
+ * The 7.8 My Day surface
  * ------------------------------------------------------------------ */
 
-export function addStep(
-  actor: Actor,
-  taskId: string,
-  body: unknown,
-): Promise<RawResponse> {
-  return actor.browser.json(`/tasks/${taskId}/steps`, 'POST', body)
-}
-
 /*
-The 7.7 and 7.8 response bodies are judged here, once each.
+The 7.8 response bodies are judged here, once each.
 
-A step and a My Day entry are not resources this contract shapes: 7.0 gives
-neither an object and section 7 offers no GET for either, while each mutation
-moves more of the task than the row it touches, steps moving steps_done and
-steps_total and a pull moving pulled. So the affected TaskDetail is the only
-object that reports what the call did, and every one of these answers it.
-POST /tasks/:id/steps answers 201 with that task rather than with the step it
-created, and the created step rides in the steps array.
+A My Day entry is not a resource this contract shapes: 7.0 gives it no
+object and section 7 offers no GET for it, while a pull moves pulled on the
+task. So the affected TaskDetail is the only object that reports what the
+call did, and every one of these answers it.
 
 Each success is judged twice over, the fresh-GET convention: the body is a whole TaskDetail, and it equals
 what a fresh GET /tasks/:id then answers. Refusals stay on the unjudged
 transports above, because a refusal answers the 7.0 envelope rather than a
-task; DELETE /steps/:id keeps 7.7's 204 and carries no body at all.
+task.
 */
 export async function expectAffectedTask(
   actor: Actor,
@@ -537,50 +526,13 @@ export async function expectAffectedTask(
   const body = expectTaskDetailShape(response.json(), `the ${why} body`)
   expect(
     body.id,
-    'the affected TaskDetail is the parent task, not some other row (spec 7.7, 7.8)',
+    'the affected TaskDetail is the parent task, not some other row (spec 7.8)',
   ).toBe(taskId)
   expect(
     body,
-    'a mutation answers what a fresh GET would (spec 7.7, 7.8)',
+    'a mutation answers what a fresh GET would (spec 7.8)',
   ).toEqual(await readTask(actor, taskId))
   return body
-}
-
-/** POST /tasks/:id/steps asserted: 201, and the parent task rather than the
- * created step, which rides in its steps array. */
-export async function addStepOk(
-  actor: Actor,
-  taskId: string,
-  title: string,
-): Promise<TaskDetailBody> {
-  const body = await expectAffectedTask(
-    actor,
-    taskId,
-    await addStep(actor, taskId, { title }),
-    201,
-    `POST /tasks/${taskId}/steps, which must add the step and answer the affected TaskDetail (spec 7.7)`,
-  )
-  expect(
-    (body.steps as { title: string }[]).map((step) => step.title),
-    'the created step rides in the steps array it just changed (spec 7.7)',
-  ).toContain(title)
-  return body
-}
-
-/** PATCH /steps/:id asserted: 200 and the affected TaskDetail. */
-export async function patchStepOk(
-  actor: Actor,
-  taskId: string,
-  stepId: string,
-  body: unknown,
-): Promise<TaskDetailBody> {
-  return expectAffectedTask(
-    actor,
-    taskId,
-    await patchStep(actor, stepId, body),
-    200,
-    `PATCH /steps/${stepId}, which must answer the affected TaskDetail (spec 7.7)`,
-  )
 }
 
 /** POST /tasks/:id/my-day asserted: 200 and the affected TaskDetail. */
@@ -612,18 +564,6 @@ export async function dropFromMyDayOk(
     200,
     `${why}, which must answer the affected TaskDetail (spec 7.8)`,
   )
-}
-
-export function patchStep(
-  actor: Actor,
-  stepId: string,
-  body: unknown,
-): Promise<RawResponse> {
-  return actor.browser.json(`/steps/${stepId}`, 'PATCH', body)
-}
-
-export function deleteStep(actor: Actor, stepId: string): Promise<RawResponse> {
-  return actor.browser.api(`/steps/${stepId}`, { method: 'DELETE' })
 }
 
 /*
@@ -848,8 +788,9 @@ export async function stepRows(
   return rows(
     db,
     sql`
-      SELECT id, task_id, title, done, position, ${instantColumn('created_at')}
-        FROM steps WHERE task_id = ${taskId} ORDER BY position, id
+      SELECT id, task_id, text AS title, checked AS done, page_position
+        FROM page_blocks WHERE task_id = ${taskId} AND kind = 'checklist'
+       ORDER BY page_position, id
     `,
   )
 }

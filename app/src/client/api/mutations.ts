@@ -65,15 +65,12 @@ import type {
   PostInvitesResponse,
 } from '../../shared/invites.js'
 import {
-  patchStepResponse,
   patchTaskResponse,
-  postTaskStepsResponse,
   postTasksResponse,
   putTaskReminderResponse,
   taskTransitionResponse,
 } from '../../shared/tasks.js'
 import type {
-  PatchStepBody,
   PatchTaskBody,
   PostTaskOrderBody,
   PostTasksBody,
@@ -252,35 +249,6 @@ export function useOrderTask(): UseMutationResult<TaskDetail, Error, OrderTaskVa
   return useMutation({
     mutationFn: ({ id, body }: OrderTaskVariables) =>
       mutateApi(patchTaskResponse, { method: 'POST', path: `/tasks/${id}/order`, body }),
-  })
-}
-
-/** 7.7's append, which answers the affected TaskDetail rather than the step. */
-export interface AddStepVariables {
-  readonly taskId: string
-  readonly title: string
-}
-
-export function useAddStep(): UseMutationResult<TaskDetail, Error, AddStepVariables> {
-  return useMutation({
-    mutationFn: ({ taskId, title }: AddStepVariables) =>
-      mutateApi(postTaskStepsResponse, {
-        method: 'POST',
-        path: `/tasks/${taskId}/steps`,
-        body: { title },
-      }),
-  })
-}
-
-export interface PatchStepVariables {
-  readonly stepId: string
-  readonly body: PatchStepBody
-}
-
-export function useUpdateStep(): UseMutationResult<TaskDetail, Error, PatchStepVariables> {
-  return useMutation({
-    mutationFn: ({ stepId, body }: PatchStepVariables) =>
-      mutateApi(patchStepResponse, { method: 'PATCH', path: `/steps/${stepId}`, body }),
   })
 }
 

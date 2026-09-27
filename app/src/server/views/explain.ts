@@ -202,8 +202,8 @@ async function seed(db: Db): Promise<{ viewer: string; folder: string }> {
   for (const folderId of folders) await fill(folderId, viewer)
   for (const folderId of hidden) await fill(folderId, stranger)
 
-  // A My Day population for Q1's entry arm, and steps so the card's counts
-  // have rows to count.
+  // A My Day population for Q1's entry arm, and checklist items so the
+  // card's counts have rows to count.
   await db.execute(sql`
     INSERT INTO my_day_entries (task_id, user_id, added_on)
     SELECT t.id, ${viewer}::uuid, CURRENT_DATE
@@ -213,8 +213,8 @@ async function seed(db: Db): Promise<{ viewer: string; folder: string }> {
      LIMIT 300
   `)
   await db.execute(sql`
-    INSERT INTO steps (task_id, title, position)
-    SELECT t.id, 'step', 1
+    INSERT INTO page_blocks (task_id, kind, position, page_position, text, checked)
+    SELECT t.id, 'checklist', 0, 'a0', 'step', false
       FROM tasks t
       JOIN folder_members m ON m.folder_id = t.folder_id
      WHERE m.user_id = ${viewer}::uuid

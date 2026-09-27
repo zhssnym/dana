@@ -9,7 +9,7 @@ it is, and its `/` menu is the registry's list for that page kind
   presentation heading anywhere else.
 - `document` (Purpose, Results) and `plain` (a facet with no headings): Text,
   flat headings, Checklist and Media.
-- `task`: Text, headings, Checklist (the line joins the Task's subtasks),
+- `task`: Text, headings, Checklist (an item is one of the Task's subtasks),
   Blocked by and Media.
 - `shelf`: unchanged until Shelves are decided.
 - `post`: no `/` menu.
@@ -52,8 +52,6 @@ export interface SlashContext {
   readonly surface: CanvasSurfaceKind
   /** Folder Work only: the canvas's own Task creation. */
   readonly onCreateTask?: () => void
-  /** Task only: the line becomes a subtask (#221: a Task's to-do is a Step). */
-  readonly onCreateSubtask?: () => void
   /** Task only: opens the Blocked by picker under the writing. */
   readonly onCreateBlocker?: () => void
   /** False where no file can be stored (a Task outside a Folder). */
@@ -215,7 +213,7 @@ export function slashHomeOf(surface: CanvasSurfaceKind, results: boolean): Block
 
 /** The `/` menu for this surface: the registry's list for its home (`SLASH_MENUS`), in order. */
 export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item[] {
-  const { surface, onCreateTask, onCreateSubtask, onCreateBlocker, media = true, results = false } = context
+  const { surface, onCreateTask, onCreateBlocker, media = true, results = false } = context
   const home = slashHomeOf(surface, results)
   if (home === null) return []
   const defaults = getDefaultReactSlashMenuItems(editor)
@@ -260,13 +258,13 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
       }
     },
     /*
-    Inside a Task the checklist is the Task's subtasks, one list above the
-    writing (#221); on a Doc it is a checklist block. `[]` + space still makes
-    no to-do on a Doc (`legacyCheckList`): the menu is the one way to start one.
+    A checklist block. Inside a Task its items are the Task's subtasks (0060),
+    and `[]` + space makes one there too. `[]` + space still makes no to-do on
+    a Doc (`legacyCheckList`): the menu is the one way to start one.
     */
     checklist: () => {
       if (surface === 'task') {
-        if (onCreateSubtask !== undefined) add('Basic blocks', 'Checklist', ['checklist', 'check', 'subtask', 'step', 'todo', 'to-do', 'checkbox', '[]'], () => { onCreateSubtask() }, glyph(ListChecks), { hint: '[]' })
+        if (has(editor, 'checkListItem')) add('Basic blocks', 'Checklist', ['checklist', 'check', 'subtask', 'step', 'todo', 'to-do', 'checkbox', '[]'], insert('checkListItem'), glyph(ListChecks), { hint: '[]' })
       } else if (has(editor, 'checkListItem')) {
         add('Basic blocks', 'Checklist', ['checklist', 'check', 'todo', 'to-do', 'checkbox'], insert('checkListItem'), glyph(ListChecks))
       }

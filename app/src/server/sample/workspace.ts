@@ -61,6 +61,7 @@ import {
   removeHomeBlock,
 } from '../domain/page-tree.js'
 import { upsertReminder } from '../domain/tasks.js'
+import { appendChecklist } from '../domain/task-document.js'
 import { destroyFolders, destroyTasks } from '../domain/trash.js'
 import { today } from '../time/today.js'
 import { SAMPLE_PEOPLE, SAMPLE_WORKSPACE } from './content.js'
@@ -278,12 +279,8 @@ async function writeTask(ctx: SampleContext, folderId: string, task: SampleTask)
   await register(tx, userId, 'task', taskId)
   ctx.tasks.set(task.title, taskId)
 
-  for (const [index, step] of (task.steps ?? []).entries()) {
-    await tx.execute(
-      sql`INSERT INTO steps (task_id, title, done, position)
-          VALUES (${taskId}::uuid, ${step.title}, ${step.done ?? false}, ${index})`,
-    )
-  }
+  // A sample task's steps are its checklist, after its notes (0060).
+  await appendChecklist(tx, taskId, task.steps ?? [])
   if (task.today === true && status === 'pending') {
     await tx.execute(
       sql`INSERT INTO my_day_entries (task_id, user_id, added_on)

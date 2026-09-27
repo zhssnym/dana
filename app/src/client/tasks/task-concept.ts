@@ -223,7 +223,7 @@ export function toConceptPerson(person: {
  * **This function's refusals are the point of it.** A card reports every edit
  * through one path (`tasks/task-writer.tsx`), and the fields it reports do not
  * all belong to one endpoint: completion is 7.6's transition, My Day is 7.8's
- * pull, a reminder is 7.9's PUT, and the steps are 7.7's own routes.
+ * pull, a reminder is 7.9's PUT, and the steps are the body's checklist.
  * Mapping those into a PATCH body would send a body the server refuses, or
  * worse, one it accepts having quietly dropped the field. So they are absent
  * here, and `writtenElsewhere` below is the list in one place so the mapper

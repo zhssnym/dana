@@ -26,7 +26,6 @@ export function tooLong(limit: number): string {
 }
 
 /** 9.3's cap notice. */
-export const STEP_CAP_NOTICE = 'Limit 50 subtasks'
 
 /** 9.3: the assignee dropdown's last entry, which opens the sharing flow. */
 export const INVITE_BY_EMAIL = 'Invite by email'

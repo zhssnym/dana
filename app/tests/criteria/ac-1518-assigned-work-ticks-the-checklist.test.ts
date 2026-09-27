@@ -1,0 +1,135 @@
+/*
+AC-1518: an assignee with Assigned work may tick or untick a checklist item of
+their task's body; the same person adding, renaming or removing one is
+refused 403 and nothing is stored (spec 5.4, `step.toggle` against
+`task.edit`).
+
+Security: the task document writer admits a checked-only transaction under
+`step.toggle` (`isChecklistTickOnly`). Everything else still needs
+`task.edit`, which Assigned work does not have. Asserted on the stored rows.
+*/
+import { randomUUID } from 'node:crypto'
+
+import { sql } from 'drizzle-orm'
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+
+import { startAuthTestApp } from '../support/auth-harness.js'
+import type { AuthTestApp } from '../support/auth-harness.js'
+import { Cast, addMemberOk, connect, createFolder, expectStatus } from '../support/folders-harness.js'
+import type { Actor } from '../support/folders-harness.js'
+import { createTaskOk } from '../support/tasks-harness.js'
+import { rows } from '../support/helpers.js'
+
+let app: AuthTestApp
+const cast = new Cast(['owner', 'worker'], 'ac1518')
+
+beforeAll(async () => {
+  app = await startAuthTestApp()
+}, 60_000)
+
+afterAll(async () => {
+  if ((app as AuthTestApp | undefined) === undefined) return
+  await cast.cleanup(app.db)
+  await app.close()
+})
+
+interface StoredBlock {
+  id: string
+  kind: string
+  text: string | null
+  rich_content: unknown
+  file_id: string | null
+  width_pct: number | null
+  checked: boolean | null
+  list_parent_block_id: string | null
+}
+
+async function documentOf(actor: Actor, taskId: string): Promise<{ revision: string; blocks: StoredBlock[] }> {
+  const read = await actor.browser.api(`/tasks/${taskId}/document`)
+  expectStatus(read, 200, 'the assignee reads the task document (spec 7.16)')
+  return read.json() as { revision: string; blocks: StoredBlock[] }
+}
+
+function put(block: StoredBlock, changes: Partial<StoredBlock> = {}): Record<string, unknown> {
+  const next = { ...block, ...changes }
+  return {
+    op: 'put_block', id: next.id, block_kind: next.kind, text: next.text, rich_content: next.rich_content,
+    file_id: next.file_id, ref_folder_id: null, width_pct: next.width_pct, checked: next.checked, toggleable: null,
+  }
+}
+
+function outline(blocks: readonly StoredBlock[]): Record<string, unknown> {
+  return {
+    op: 'set_outline',
+    items: blocks.map((b) => ({ kind: 'block', id: b.id, section_block_id: null, list_parent_block_id: b.list_parent_block_id })),
+  }
+}
+
+function write(actor: Actor, taskId: string, revision: string, operations: unknown[]) {
+  return actor.browser.json(`/tasks/${taskId}/document`, 'PUT', {
+    action: 'document_transaction', mutation_id: randomUUID(), base_revision: revision, operations,
+  })
+}
+
+async function stored(taskId: string): Promise<Record<string, unknown>[]> {
+  return rows(app.db, sql`
+    SELECT id, kind, text, checked FROM page_blocks WHERE task_id = ${taskId}::uuid
+     ORDER BY page_position, id`)
+}
+
+describe('AC-1518 Assigned work ticks its own task\'s checklist and changes nothing else', () => {
+  test('a tick and an untick are stored; an add, a rename and a removal are 403 and store nothing', async () => {
+    const [owner, worker] = await cast.of(app)
+    if (owner === undefined || worker === undefined) throw new Error('cast must produce two actors')
+    const folderId = await createFolder(owner, 'ac1518 trip')
+    await connect(app.db, owner.id, worker.id)
+    await addMemberOk(owner, folderId, worker.id, 'assigned_work')
+    const task = await createTaskOk(
+      owner,
+      { title: 'ac1518 pack', folder_id: folderId, assignee_id: worker.id, steps: ['Tent', 'Stove'] },
+      'the owner creates a task assigned to the worker, with two steps (spec 7.6)',
+    )
+
+    let doc = await documentOf(worker, task.id)
+    const [tent, stove] = doc.blocks
+    if (tent === undefined || stove === undefined) throw new Error('the steps are the body\'s checklist')
+    expect(doc.blocks.map((b) => [b.kind, b.text, b.checked])).toEqual([
+      ['checklist', 'Tent', false],
+      ['checklist', 'Stove', false],
+    ])
+
+    expectStatus(
+      await write(worker, task.id, doc.revision, [put(tent, { checked: true }), outline(doc.blocks)]),
+      200,
+      'Assigned work ticks an item of its own task (step.toggle)',
+    )
+    expect(await stored(task.id)).toEqual([
+      { id: tent.id, kind: 'checklist', text: 'Tent', checked: true },
+      { id: stove.id, kind: 'checklist', text: 'Stove', checked: false },
+    ])
+    doc = await documentOf(worker, task.id)
+    expectStatus(
+      await write(worker, task.id, doc.revision, [put({ ...tent, checked: true }, { checked: false }), outline(doc.blocks)]),
+      200,
+      'and unticks it',
+    )
+    doc = await documentOf(worker, task.id)
+    const settled = await stored(task.id)
+    expect(settled).toEqual([
+      { id: tent.id, kind: 'checklist', text: 'Tent', checked: false },
+      { id: stove.id, kind: 'checklist', text: 'Stove', checked: false },
+    ])
+
+    const added: StoredBlock = { ...stove, id: randomUUID(), text: 'Map', checked: false }
+    const refusals: [string, unknown[]][] = [
+      ['adding an item', [put(added), outline([...doc.blocks, added])]],
+      ['renaming an item', [put(stove, { text: 'Two stoves', rich_content: null }), outline(doc.blocks)]],
+      ['removing an item', [{ op: 'delete_block', id: stove.id }, outline([tent])]],
+      ['a rename riding with a tick', [put(tent, { checked: true }), put(stove, { text: 'Gas' }), outline(doc.blocks)]],
+    ]
+    for (const [what, operations] of refusals) {
+      expectStatus(await write(worker, task.id, doc.revision, operations), 403, `${what} is task.edit, which Assigned work lacks`)
+      expect(await stored(task.id), `${what} stored nothing`).toEqual(settled)
+    }
+  })
+})

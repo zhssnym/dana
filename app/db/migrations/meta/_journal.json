@@ -337,6 +337,13 @@
       "when": 1793400000000,
       "tag": "0059_task_threads_to_discussions",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1793500000000,
+      "tag": "0060_steps_to_checklists",
+      "breakpoints": true
     }
   ]
 }

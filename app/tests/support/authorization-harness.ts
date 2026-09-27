@@ -197,28 +197,6 @@ export async function makeDependency(
   return idOf(made, 'the created dependency')
 }
 
-/** 7.7's step. The 201 answers the affected task, so the step's own id comes
- * off that task's steps rather than off the envelope. */
-export async function makeStep(
-  owner: Actor,
-  taskId: string,
-  title: string,
-): Promise<string> {
-  const made = await owner.browser.json(`/tasks/${taskId}/steps`, 'POST', {
-    title,
-  })
-  expectStatus(made, 201, 'POST /tasks/:id/steps must add the step (spec 7.7)')
-  const body = made.json() as {
-    steps?: Array<{ id?: unknown; title?: unknown }>
-  }
-  const step = (body.steps ?? []).find((row) => row.title === title)
-  expect(
-    typeof step?.id,
-    'the affected task carries the step that was just added (spec 7.7)',
-  ).toBe('string')
-  return step?.id as string
-}
-
 /** 7.16's shelf: private to its owner by 4.18, so there is no member variant
  * for anything addressed by a shelf id. */
 export async function makeShelf(owner: Actor, name: string): Promise<string> {

@@ -12,7 +12,6 @@ spelling. The client and tests address these strings literally; section 9 names 
 | 7.4 | [`07.4-folders-and-membership.md`](07.4-folders-and-membership.md) | 7.4 Folders and membership |
 | 7.5 | [`07.5-invites.md`](07.5-invites.md) | 7.5 Invites |
 | 7.6 | [`07.6-tasks.md`](07.6-tasks.md) | 7.6 Tasks |
-| 7.7 | [`07.7-steps.md`](07.7-steps.md) | 7.7 Steps |
 | 7.8 | [`07.8-my-day-membership.md`](07.8-my-day-membership.md) | 7.8 My Day membership |
 | 7.9 | [`07.9-reminder.md`](07.9-reminder.md) | 7.9 Reminder |
 | 7.10 | [`07.10-views-and-search.md`](07.10-views-and-search.md) | 7.10 Views and search |

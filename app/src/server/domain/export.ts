@@ -510,20 +510,27 @@ export async function exportForViewer(
   const stepRows = await rowsOf(
     db,
     cappedPerParent(
-      sql`s.id, s.task_id, s.title, s.done, s.position, s.created_at`,
-      sql`FROM steps s
+      /* Since 0060 a task's steps are the checklist items of its body; this
+         is their projection, in document order, `position` the index and
+         `created_at` the item's last write (a block keeps no creation time). */
+      sql`s.id, s.task_id, s.text AS title, s.checked AS done,
+          (row_number() OVER (PARTITION BY s.task_id
+                              ORDER BY s.page_position ASC NULLS LAST, s.position, s.updated_at, s.id) - 1)::int
+            AS position,
+          s.updated_at AS created_at`,
+      sql`FROM page_blocks s
           JOIN tasks t ON t.id = s.task_id
           JOIN folders f ON f.id = t.folder_id
           LEFT JOIN folder_members m
             ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-          WHERE s.task_id IN ${idSet(cappedTaskIds)}
+          WHERE s.task_id IN ${idSet(cappedTaskIds)} AND s.kind = 'checklist'
             AND (f.owner_id = ${viewerId}
                  OR (m.user_id IS NOT NULL
                      AND f.deleted_at IS NULL
                      AND (t.created_by = ${viewerId}
                           OR t.assignee_id = ${viewerId})))`,
       sql`s.task_id`,
-      sql`s.position ASC, s.id ASC`,
+      sql`s.page_position ASC NULLS LAST, s.position ASC, s.updated_at ASC, s.id ASC`,
     ),
   )
   const stepsByTask = groupBy(stepRows, 'task_id')

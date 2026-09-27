@@ -72,7 +72,7 @@ import {
   createWorkflowFolderLabels,
 } from './labels.js'
 import { upsertReminder } from './tasks.js'
-import { copyTaskDocument } from './task-document.js'
+import { appendChecklist, copyTaskDocument } from './task-document.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
 import { initialKeys, keyBetween } from './fractional-index.js'
 import { copyDependenciesWithin } from './task-dependencies.js'
@@ -523,20 +523,8 @@ export async function duplicateFolder(
         )
         const newTaskId = String(inserted[0]?.id)
         taskIdentity.set(String(task.id), newTaskId)
-        const steps = await rowsOf(
-          tx,
-          sql`SELECT title, position FROM steps
-              WHERE task_id = ${String(task.id)}::uuid
-              ORDER BY position ASC, id ASC`,
-        )
-        for (const step of steps) {
-          await tx.execute(
-            sql`INSERT INTO steps (task_id, title, position)
-                VALUES (${newTaskId}::uuid, ${String(step.title)},
-                        ${Number(step.position)})`,
-          )
-        }
-        /* #221: the Task's document travels with it. A media block's file is
+        /* #221: the Task's document travels with it, its checklist (the
+           subtasks) unticked. A media block's file is
            copied into the new folder once, through the same map the page's
            own assets use, and a quota refusal rolls the whole copy back. */
         await copyTaskDocument(tx, String(task.id), newTaskId, async (originalFile) => {
@@ -548,7 +536,7 @@ export async function duplicateFolder(
           copiedObjects.push(held.id)
           copiedFiles.set(originalFile, held.id)
           return held.id
-        })
+        }, { uncheck: true })
       }
 
       /*
@@ -783,8 +771,8 @@ export type DuplicateTaskResult =
   | { kind: 'tz_required' }
 
 /**
- * The copy carries the title, the notes, the importance, the steps (all
- * undone), the section, the due date and the repeat, and never the
+ * The copy carries the title, the notes, the document with its checklist
+ * (all unticked), the section, the due date and the repeat, and never the
  * conversation, the completion, or the assignment, which lands on whoever
  * made the copy. The date follows 9.6's one rule for a
  * folder applied to one task: a spent due date re-anchors on today and a
@@ -875,19 +863,6 @@ export async function duplicateTask(
           RETURNING id`,
     )
     const newId = String(inserted[0]?.id)
-    const steps = await rowsOf(
-      tx,
-      sql`SELECT title, position FROM steps
-          WHERE task_id = ${source.id}::uuid
-          ORDER BY position ASC, id ASC`,
-    )
-    for (const step of steps) {
-      await tx.execute(
-        sql`INSERT INTO steps (task_id, title, position)
-            VALUES (${newId}::uuid, ${String(step.title)},
-                    ${Number(step.position)})`,
-      )
-    }
     /*
     The Labels (#227 area 1). The copy is in the source's own Folder, so the
     Folder Label assignments carry the **same** ids: the vocabulary is already
@@ -901,8 +876,9 @@ export async function duplicateTask(
     same Labels the original wore.
     */
     /* #221: the Task's document travels with its notes, which is its
-       projection. Same folder, so a media block names the same file. */
-    await copyTaskDocument(tx, source.id, newId)
+       projection. Same folder, so a media block names the same file. Its
+       checklist (the subtasks) comes across unticked. */
+    await copyTaskDocument(tx, source.id, newId, undefined, { uncheck: true })
     await copyTaskLabelsForDuplicate(tx, viewerId, source.id, newId)
     await recordEvent(tx, {
       actorId: viewerId,
@@ -1117,12 +1093,8 @@ export async function importWorkflow(
         if (task.key !== undefined) taskIdOfKey.set(task.key, taskId)
         const sourceTaskId=folder.document?.task_ids[taskIndex]
         if(sourceTaskId!==undefined)taskMap.set(sourceTaskId,taskId)
-        for (const [index, step] of (task.steps ?? []).entries()) {
-          await tx.execute(
-            sql`INSERT INTO steps (task_id, title, position)
-                VALUES (${taskId}::uuid, ${step.title}, ${index})`,
-          )
-        }
+        // A workflow's steps are the task's checklist, after its notes.
+        await appendChecklist(tx, taskId, task.steps ?? [])
         if (task.reminder !== undefined) {
           await upsertReminder(
             tx,

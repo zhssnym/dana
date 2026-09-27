@@ -127,6 +127,8 @@ describe('AC-825 export, import, export again, and the bytes are the same', () =
            all. */
         due_date: '2027-03-01',
         recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO',
+        // The steps become the checklist at the end of the body (7.6).
+        steps: ['ac825 check the calendar', 'ac825 send the note'],
       },
       'the fixture task must stage (spec 7.6)',
     )
@@ -134,20 +136,6 @@ describe('AC-825 export, import, export again, and the bytes are the same', () =
       author,
       { title: 'ac825 send the invite', folder_id: sourceId },
       'the second fixture task must stage (spec 7.6)',
-    )
-    expectStatus(
-      await author.browser.json(`/tasks/${heavy.id}/steps`, 'POST', {
-        title: 'ac825 check the calendar',
-      }),
-      201,
-      'the first step must stage (spec 7.7)',
-    )
-    expectStatus(
-      await author.browser.json(`/tasks/${heavy.id}/steps`, 'POST', {
-        title: 'ac825 send the note',
-      }),
-      201,
-      'the second step must stage (spec 7.7)',
     )
     expectStatus(
       await author.browser.json(`/tasks/${heavy.id}/reminder`, 'PUT', {

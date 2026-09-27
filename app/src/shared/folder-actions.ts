@@ -182,7 +182,6 @@ export const FOLDER_ACTIONS = [
   'task.dependency.manage',
   'task.reminder.manage',
   'step.toggle',
-  'step.manage',
   'label.vocabulary.manage',
   'label.apply',
   'comment.create',
@@ -543,16 +542,10 @@ const RULES: Record<FolderAction, ActionRule> = {
   'step.toggle': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute', 'assigned_work'],
-    /* Ticking an existing step is execution. */
-    why: "You need Can edit access to check or uncheck this task's steps, or Assigned work access if it is assigned to you.",
-  },
-  'step.manage': {
-    atLeast: 'can_edit',
-    whenAssignedToActor: ['can_contribute'],
-    /* Adding, renaming, reordering, deleting or promoting a step rewrites the
-       checklist that defines completion, which is not execution, so Assigned
-       work is refused it. */
-    why: "You need Can edit access to add, change or remove this task's steps, or Can contribute access if it is assigned to you.",
+    /* Ticking an existing checklist item of the task's body is execution.
+       Adding, renaming, reordering or removing one is editing the body, which
+       is `task.edit` (0060 retired `step.manage` with the steps routes). */
+    why: "You need Can edit access to check or uncheck this task's checklist, or Assigned work access if it is assigned to you.",
   },
   'label.vocabulary.manage': {
     atLeast: 'can_edit',

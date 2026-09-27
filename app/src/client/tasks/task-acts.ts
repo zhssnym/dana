@@ -28,18 +28,15 @@ hand, the same filterless call that cache makes.
 **Duplicate** is `POST /tasks/:id/duplicate` (7.16): the copy is the server's,
 the list refetches around it, and a toast and an undo follow. "Make this a
 folder…" is the same shape over `POST /folders` then `PATCH /tasks/:id`, which
-is the hold with one task in it, and a step's move out of its task is the
-promote endpoint, a one-way promotion given an address.
+is the hold with one task in it.
 */
 
 import { taskDetail } from '../../shared/tasks.js'
-import { getPlain, mutateApi, requestTimezone } from '../api/http.js'
+import { mutateApi, requestTimezone } from '../api/http.js'
 import { queryClient, writeFailureMessage } from '../api/queryClient.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { showToast } from '../state/toasts.js'
-import { folderLibrary } from '../lib/folder-library.js'
 import { taskLink } from '../lib/nav-links.js'
-import type { ConceptStep } from './task-model.js'
 
 /**
  * Copy a task's address, silently: a copy is not an event worth a notice.
@@ -81,160 +78,5 @@ export function duplicateTask(taskId: string, title: string): void {
         void mutateApi(null, { method: 'DELETE', path: `/tasks/${copy.id}` }).then(settle)
       })
     })
-    .catch((error: unknown) => showToast(writeFailureMessage(error)))
-}
-
-/** Where the card's step menu can send steps. */
-export type StepDestination =
-  | { kind: 'new-task' }
-  | { kind: 'folder'; name: string; color: string }
-
-/**
- * Steps out of their task, one verb and the destination decides the level.
- *
- * Into a folder each step becomes a task of its own: `POST
- * /tasks/:id/steps/:stepId/promote`, which lands the task in the parent's
- * folder and section, then 7.6's PATCH carries it on when the chosen folder is
- * another. Into a new task they stay steps: 7.6's create takes the titles and
- * 7.7's delete removes the originals. The new task is named "New task" on
- * purpose, because every row renames in place, and it starts loose in the
- * parent's folder.
- *
- * Only steps carrying 7.7's id can move; a step typed into the card and not yet
- * written has none and is skipped rather than invented.
- */
-export function moveStepsOut(
-  taskId: string,
-  folderId: string,
-  steps: readonly ConceptStep[],
-  indices: readonly number[],
-  destination: StepDestination,
-): void {
-  const chosen = indices
-    .map((index) => steps[index])
-    .filter((step): step is ConceptStep & { id: string } => step?.id !== undefined)
-  if (chosen.length === 0) return
-
-  if (destination.kind === 'new-task') {
-    void mutateApi(taskDetail, {
-      method: 'POST',
-      path: '/tasks',
-      body: { title: 'New task', folder_id: folderId, steps: chosen.map((step) => step.title) },
-    })
-      .then((made) =>
-        Promise.all(
-          chosen.map((step) => mutateApi(null, { method: 'DELETE', path: `/steps/${step.id}` })),
-        ).then(() => {
-          settle()
-          showToast(`Moved ${plural(chosen.length, 'subtask')} to "${made.title}"`)
-        }),
-      )
-      .catch((error: unknown) => showToast(writeFailureMessage(error)))
-    return
-  }
-
-  const target = folderLibrary().find((entry) => entry.name === destination.name)
-  void Promise.all(
-    chosen.map((step) =>
-      mutateApi(taskDetail, {
-        method: 'POST',
-        path: `/tasks/${taskId}/steps/${step.id}/promote`,
-      }).then((made) =>
-        target === undefined || target.id === folderId
-          ? undefined
-          : mutateApi(null, {
-              method: 'PATCH',
-              path: `/tasks/${made.id}`,
-              body: { folder_id: target.id },
-            }),
-      ),
-    ),
-  )
-    .then(() => {
-      settle()
-      const where = target?.name ?? destination.name
-      showToast(
-        chosen.length === 1
-          ? `"${chosen[0]?.title ?? ''}" is now a task in "${where}"`
-          : `${chosen.length} subtasks are now tasks in "${where}"`,
-      )
-    })
-    .catch((error: unknown) => showToast(writeFailureMessage(error)))
-}
-
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`
-}
-
-/**
- * The card's step list, written as the 7.7 calls that would produce it.
- *
- * Steps need a diff against the task's current list rather than a field copy;
- * without this a step ticked in an open card would stay ticked only until the
- * next refetch. The current list is read through 7.6's GET rather than off a
- * cache, so a card open for a while diffs against the truth: a step with 7.7's
- * id is patched where its title, box or place changed, one without is added,
- * one the list no longer names is deleted, and the refetch afterwards hands the
- * card the ids.
- */
-export function writeSteps(taskId: string, next: readonly ConceptStep[]): void {
-  void getPlain(taskDetail, `/tasks/${taskId}`)
-    .then((current) => {
-      const before = new Map(current.steps.map((step) => [step.id, step]))
-      const kept = new Set(next.map((step) => step.id).filter((id) => id !== undefined))
-      /*
-      A step the card added and then renamed or ticked before the refetch handed
-      it an id arrives here without one, while the server already holds it.
-      Diffing by id alone would delete the server's copy and post the renamed
-      one, so a rename would read as "removed a step, added a step" in the
-      history and the two writes would race the refetch. An id-less step
-      standing at the same position as a server step nobody kept is that step,
-      so it is patched rather than replaced.
-      */
-      const paired = new Map<number, (typeof current.steps)[number]>()
-      current.steps.forEach((step, index) => {
-        if (kept.has(step.id)) return
-        const candidate = next[index]
-        if (candidate !== undefined && candidate.id === undefined) paired.set(index, step)
-      })
-      const writes: Promise<unknown>[] = []
-      for (const step of current.steps) {
-        if (!kept.has(step.id) && ![...paired.values()].includes(step)) {
-          writes.push(mutateApi(null, { method: 'DELETE', path: `/steps/${step.id}` }))
-        }
-      }
-      next.forEach((step, index) => {
-        const position = index + 1
-        const twin = step.id === undefined ? paired.get(index) : undefined
-        if (twin !== undefined) {
-          const body: Record<string, unknown> = {}
-          if (twin.title !== step.title) body['title'] = step.title
-          if (twin.done !== step.done) body['done'] = step.done
-          if (Object.keys(body).length === 0) return
-          writes.push(mutateApi(taskDetail, { method: 'PATCH', path: `/steps/${twin.id}`, body }))
-          return
-        }
-        if (step.id === undefined) {
-          writes.push(
-            mutateApi(taskDetail, {
-              method: 'POST',
-              path: `/tasks/${taskId}/steps`,
-              body: { title: step.title, position },
-            }),
-          )
-          return
-        }
-        const was = before.get(step.id)
-        if (was === undefined) return
-        const body: Record<string, unknown> = {}
-        if (was.title !== step.title) body['title'] = step.title
-        if (was.done !== step.done) body['done'] = step.done
-        if (was.position !== position) body['position'] = position
-        if (Object.keys(body).length === 0) return
-        writes.push(mutateApi(taskDetail, { method: 'PATCH', path: `/steps/${step.id}`, body }))
-      })
-      return Promise.all(writes)
-    })
-    .then(settle)
     .catch((error: unknown) => showToast(writeFailureMessage(error)))
 }
