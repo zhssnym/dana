@@ -55,7 +55,12 @@ import {
   onDiscussionResolved,
 } from './consultation-hooks.js'
 import { recordEvent } from './events.js'
-import { folderActorFacts, mayPerform, presetOf } from './folder-access.js'
+import {
+  folderActorFacts,
+  joinVisibleFolder,
+  mayPerform,
+  presetFromRow,
+} from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import { UNSTARTED_TASK_THREAD } from './tasks.js'
 
@@ -1212,9 +1217,7 @@ export async function trashedDiscussions(
                fo.name AS folder_name, m.access,
                (fo.owner_id = ${viewerId}) AS is_owner
           FROM discussions d
-          JOIN folder_members m
-            ON m.folder_id = d.folder_id AND m.user_id = ${viewerId}
-          JOIN folders fo ON fo.id = d.folder_id AND fo.deleted_at IS NULL
+          ${joinVisibleFolder(viewerId, { folderId: sql`d.folder_id` })}
          WHERE d.trashed_at IS NOT NULL
          ORDER BY d.trashed_at DESC, d.id DESC`,
   )
@@ -1259,12 +1262,7 @@ function shapeTrashedDiscussion(
   row: Record<string, unknown>,
   viewerId: string,
 ): TrashedDiscussion {
-  const access = presetOf(row.access)
-  if (access === null) {
-    throw new Error(
-      `folder_members.access holds an unknown preset for ${viewerId} in ${String(row.folder_id)}`,
-    )
-  }
+  const access = presetFromRow(row.access, viewerId, String(row.folder_id))
   return {
     id: String(row.id),
     title: String(row.title),

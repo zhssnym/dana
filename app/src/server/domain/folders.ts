@@ -31,6 +31,7 @@ import {
   presetOf,
   recordAccessTransition,
 } from './folder-access.js'
+import { joinVisibleFolder } from './folder-access.js'
 import type { FolderAccess } from './folder-access.js'
 import { folderPersonalLabelsFor } from './labels.js'
 import {
@@ -160,8 +161,8 @@ function folderSelect(viewerId: string, folderId?: string) {
              WHERE mm.folder_id = f.id) AS member_count,
            c.pending, c.completed, c.one_off_done, c.one_off_total,
            c.recurring_active
-    FROM folder_members m
-    JOIN folders f ON f.id = m.folder_id
+    FROM folders f
+    ${joinVisibleFolder(viewerId, { folder: 'f' })}
     -- One pass over the folder's live tasks for all five counts (#205).
     CROSS JOIN LATERAL (
       SELECT
@@ -185,7 +186,7 @@ function folderSelect(viewerId: string, folderId?: string) {
         FROM tasks t
        WHERE t.folder_id = f.id AND t.deleted_at IS NULL
     ) c
-    WHERE m.user_id = ${viewerId} AND f.deleted_at IS NULL${scope}
+    WHERE true${scope}
     ORDER BY f.is_default DESC, lower(f.name) ASC, f.id ASC`
 }
 

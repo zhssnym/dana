@@ -46,6 +46,7 @@ import type { SQL } from 'drizzle-orm'
 
 import { idSet, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
+import { visibleFolder } from './folder-access.js'
 
 export interface TaskDependencyCounts {
   blocked_by_count: number
@@ -56,11 +57,7 @@ export interface TaskDependencyCounts {
 function readable(alias: string, viewerId: string): SQL {
   const t = sql.raw(alias)
   return sql`${t}.deleted_at IS NULL
-    AND EXISTS (
-      SELECT 1 FROM folder_members m
-        JOIN folders f ON f.id = m.folder_id AND f.deleted_at IS NULL
-       WHERE m.folder_id = ${t}.folder_id AND m.user_id = ${viewerId}
-    )`
+    AND ${visibleFolder(sql`${t}.folder_id`, viewerId)}`
 }
 
 /**

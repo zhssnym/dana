@@ -37,6 +37,7 @@ import type { TaskCard } from '../../shared/tasks.js'
 import { LIST_ROW_CAP } from '../../shared/views.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
+import { joinVisibleFolder } from '../domain/folder-access.js'
 import { taskLabelsFor } from '../domain/labels.js'
 import { taskDependencyCountsFor } from '../domain/task-dependency-counts.js'
 import type { TaskDependencyCounts } from '../domain/task-dependency-counts.js'
@@ -229,11 +230,7 @@ export function accessibleTasks(viewerId: string): SQL {
   // is (4.5). Written here once so no view can scope itself differently.
   return sql`
     FROM tasks t
-    JOIN folder_members m
-      ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-    JOIN folders f
-      ON f.id = t.folder_id
-     AND f.deleted_at IS NULL
+    ${joinVisibleFolder(viewerId, { folderId: sql`t.folder_id`, folder: 'f' })}
      AND t.deleted_at IS NULL`
 }
 

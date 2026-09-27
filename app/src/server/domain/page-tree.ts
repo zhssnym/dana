@@ -30,7 +30,7 @@ import type { FolderCrumb } from '../../shared/folders.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
-import { folderActorFacts, mayPerform } from './folder-access.js'
+import { folderActorFacts, mayPerform, visibleFolder } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import { keyBetween } from './fractional-index.js'
 import { seededItems } from './page-order.js'
@@ -65,10 +65,7 @@ export async function lockPageTree(tx: Executor): Promise<void> {
  * same thing and a hidden parent's id never reaches the wire.
  */
 export function visibleParentPredicate(viewerId: string) {
-  return sql`EXISTS (
-    SELECT 1 FROM folders pf
-      JOIN folder_members pm ON pm.folder_id = pf.id AND pm.user_id = ${viewerId}
-     WHERE pf.id = f.parent_folder_id AND pf.deleted_at IS NULL)`
+  return visibleFolder(sql`f.parent_folder_id`, viewerId)
 }
 
 /**
@@ -105,9 +102,7 @@ export async function visibleAncestors(
             FROM up u
             JOIN folders p ON p.id = u.parent_id
            WHERE u.depth < ${PAGE_TREE_MAX_DEPTH}
-             AND p.deleted_at IS NULL
-             AND EXISTS (SELECT 1 FROM folder_members m
-                          WHERE m.folder_id = p.id AND m.user_id = ${viewerId}))
+             AND ${visibleFolder(sql`p.id`, viewerId)})
         SELECT start_id, depth, id, name, icon, color
           FROM up WHERE depth > 0
          ORDER BY start_id, depth DESC`,

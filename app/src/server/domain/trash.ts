@@ -37,7 +37,12 @@ import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { trashedDiscussions } from './consultation.js'
 import { trashedFacets } from './facets.js'
-import { mayPerform, presetOf, resolveScoped } from './folder-access.js'
+import {
+  joinVisibleFolder,
+  mayPerform,
+  presetFromRow,
+  resolveScoped,
+} from './folder-access.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
 import {
   destroyableTrashedWith,
@@ -85,9 +90,7 @@ export async function trashView(
                m.access,
                (f.owner_id = ${viewerId}) AS is_owner
         FROM tasks t
-        JOIN folder_members m
-          ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-        JOIN folders f ON f.id = t.folder_id AND f.deleted_at IS NULL
+        ${joinVisibleFolder(viewerId, { folderId: sql`t.folder_id`, folder: 'f' })}
         WHERE t.deleted_at IS NOT NULL
         ORDER BY t.deleted_at DESC, t.id DESC`,
   )
@@ -98,15 +101,14 @@ export async function trashView(
                (SELECT count(*)::int FROM tasks t
                  WHERE t.folder_id = f.id) AS task_count
         FROM folders f
-        JOIN folder_members m
-          ON m.folder_id = f.id AND m.user_id = ${viewerId}
-        WHERE f.deleted_at IS NOT NULL
+        ${joinVisibleFolder(viewerId, { folder: 'f', trashed: 'trashed' })}
+        WHERE
           /* Wave 2: a sub-page trashed with its parent rides the parent's
              entry, which restores and purges the set. It is listed on its
              own only for a viewer who cannot see that entry (not a member
              of the initiating page), so it never vanishes from the one
              Trash that could bring it back. */
-          AND (f.trashed_with_folder_id IS NULL
+          (f.trashed_with_folder_id IS NULL
                OR NOT EXISTS (SELECT 1 FROM folder_members im
                                WHERE im.folder_id = f.trashed_with_folder_id
                                  AND im.user_id = ${viewerId}))
@@ -159,13 +161,7 @@ function accessOfRow(
   viewerId: string,
   folderId: string,
 ): FolderAccessPreset {
-  const access = presetOf(row.access)
-  if (access === null) {
-    throw new Error(
-      `folder_members.access holds an unknown preset for ${viewerId} in ${folderId}`,
-    )
-  }
-  return access
+  return presetFromRow(row.access, viewerId, folderId)
 }
 
 /** Clears the mark and records the return; 'not_found' covers the row that

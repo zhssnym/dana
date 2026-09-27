@@ -71,7 +71,12 @@ import type { Executor } from '../database.js'
 import { documentHash } from './document-hash.js'
 import { recordEvent } from './events.js'
 import { syncMentions } from './mentions.js'
-import { mayPerform, presetOf, resolveScoped } from './folder-access.js'
+import {
+  joinVisibleFolder,
+  mayPerform,
+  presetFromRow,
+  resolveScoped,
+} from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import { initialKeys, keyBetween } from './fractional-index.js'
 
@@ -1087,21 +1092,14 @@ export async function trashedFacets(
                (fo.owner_id = ${viewerId}) AS is_owner,
                h1.text AS h1_text
           FROM folder_facets ff
-          JOIN folder_members m
-            ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
-          JOIN folders fo ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
+          ${joinVisibleFolder(viewerId, { folderId: sql`ff.folder_id` })}
           LEFT JOIN page_blocks h1 ON h1.id = ff.h1_block_id
          WHERE ff.deleted_at IS NOT NULL
            AND (ff.owner_id IS NULL OR ff.owner_id = ${viewerId}::uuid)
          ORDER BY ff.deleted_at DESC, ff.id DESC`,
   )
   return rows.map((row): TrashedFacet => {
-    const access = presetOf(row.access)
-    if (access === null) {
-      throw new Error(
-        `folder_members.access holds an unknown preset for ${viewerId} in ${String(row.folder_id)}`,
-      )
-    }
+    const access = presetFromRow(row.access, viewerId, String(row.folder_id))
     const kind = String(row.kind) as FacetKind
     return {
       id: String(row.id),

@@ -33,6 +33,7 @@ import type { SQL } from 'drizzle-orm'
 import type { GetSearchResponse, SearchCursor } from '../../shared/views.js'
 import { encodeSearchCursor } from '../../shared/views.js'
 import { rowsOf } from '../database.js'
+import { joinVisibleFolder, visibleFolder } from '../domain/folder-access.js'
 import { visibleAncestors } from '../domain/page-tree.js'
 import type { Executor } from '../database.js'
 
@@ -100,10 +101,8 @@ export async function searchView(
   const folderHits = await rowsOf(
     executor,
     sql`SELECT f.id, f.name FROM folders f
-        JOIN folder_members m
-          ON m.folder_id = f.id AND m.user_id = ${viewerId}
-        WHERE f.deleted_at IS NULL
-          AND (f.name ILIKE ${pattern} OR f.description ILIKE ${pattern})
+        ${joinVisibleFolder(viewerId, { folder: 'f' })}
+        WHERE (f.name ILIKE ${pattern} OR f.description ILIKE ${pattern})
         ORDER BY lower(f.name) ASC, f.id ASC
         LIMIT ${SEARCH_PAGE_SIZE}`,
   )
@@ -132,9 +131,8 @@ export async function searchView(
                          'checklist', 'toggle', 'quote', 'callout', 'code',
                          'diagram')
           AND (
-            (b.folder_id IS NOT NULL AND f.deleted_at IS NULL AND EXISTS (
-              SELECT 1 FROM folder_members m
-              WHERE m.folder_id = b.folder_id AND m.user_id = ${viewerId}))
+            (b.folder_id IS NOT NULL
+             AND ${visibleFolder(sql`b.folder_id`, viewerId)})
             OR (b.shelf_id IS NOT NULL AND sh.user_id = ${viewerId})
           )
         ORDER BY b.id ASC

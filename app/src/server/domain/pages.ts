@@ -46,7 +46,7 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { readableFileScope } from './files.js'
-import { accessOf, mayPerform } from './folder-access.js'
+import { accessOf, mayPerform, visibleFolder } from './folder-access.js'
 import { shelfView } from './shelves.js'
 import { applyShelfDocument, shelfDocumentMetadata, ShelfDocumentRefusal } from './shelf-document.js'
 import { initialKeys } from './fractional-index.js'
@@ -132,11 +132,7 @@ shelf is its owner's alone (4.18).
 function homeCondition(home: PageHome, viewerId: string) {
   return home.folderId !== null
     ? sql`b.folder_id = ${home.folderId}
-          AND EXISTS (SELECT 1 FROM folders vf
-                        JOIN folder_members vm ON vm.folder_id = vf.id
-                       WHERE vf.id = b.folder_id
-                         AND vm.user_id = ${viewerId}
-                         AND vf.deleted_at IS NULL)`
+          AND ${visibleFolder(sql`b.folder_id`, viewerId)}`
     : sql`b.shelf_id = ${home.shelfId}
           AND EXISTS (SELECT 1 FROM shelves vs
                        WHERE vs.id = b.shelf_id
@@ -191,13 +187,7 @@ async function pageItemsIn(
                    WHERE t.folder_id = ${home.folderId}::uuid
                      AND t.deleted_at IS NULL
 
-                     AND EXISTS (
-                       SELECT 1 FROM folders vf
-                       JOIN folder_members vm ON vm.folder_id = vf.id
-                      WHERE vf.id = t.folder_id
-                        AND vm.user_id = ${viewerId}
-                        AND vf.deleted_at IS NULL
-                     )
+                     AND ${visibleFolder(sql`t.folder_id`, viewerId)}
                 ) item
                ORDER BY item.page_position ASC NULLS LAST,
                         CASE WHEN item.page_position IS NULL THEN item.fallback_kind END,
