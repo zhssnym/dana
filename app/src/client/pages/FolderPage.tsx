@@ -1098,7 +1098,7 @@ function FolderPageBody({
           <div className="space-y-2">
             <PageSection name={kind === 'doc' ? 'Doc' : 'Work'}>
               {kind === 'work' ? (
-                <div className="mb-2 flex items-start justify-between gap-2">
+                <div className="-mt-2 mb-2 flex items-start justify-between gap-2">
                   <TaskFilterChips
                     filter={taskFilter}
                     onChange={setTaskFilter}
