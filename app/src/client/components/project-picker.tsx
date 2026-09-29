@@ -3,7 +3,7 @@ A new project's background (step 7): what the project is for, picked once.
 
 It fills the page body until someone picks, across reloads, because the
 project's kind is stored as unpicked (`folders.kind` null on the root) and
-`POST /folders/:id/tabs` is what picks it. "The usual project" comes first
+`POST /folders/:id/tabs` is what picks it. The usual setup comes first
 and carries the screen: Purpose, Work, Results and Discussion in one click,
 the structure every project had before step 7. Then one page to start with,
 as three equal cards, each in its kind's pastel (tokens.css, m14-picker). The pick becomes the first tab; the "+" adds the rest later.
@@ -51,7 +51,7 @@ const ONE_PAGE: readonly {
   { kind: 'discussion', name: 'Discussion', line: 'Threads to talk things through.', icon: MessageSquare },
 ]
 
-/* The usual project's four tabs, as its chips show them. */
+/* The usual setup's four tabs, as its chips show them. */
 const USUAL_TABS: readonly { readonly name: string; readonly kind: PageKind }[] = [
   { name: 'Purpose', kind: 'doc' },
   { name: 'Work', kind: 'work' },
@@ -76,15 +76,15 @@ export function ProjectPicker({
   readonly onPick: (kind: Pick) => void
 }): React.JSX.Element {
   if (!editable) {
-    return <p className="mt-6 text-center text-sm text-muted-foreground">Nobody has picked what this project is for yet.</p>
+    return <p className="mt-6 text-center text-sm text-muted-foreground">Nobody has picked how to start this work yet.</p>
   }
   const pages = ONE_PAGE.filter((option) => discussion || option.kind !== 'discussion')
   return (
-    <section aria-label="Start this project" className="mx-auto mt-6 flex w-full max-w-2xl flex-col gap-3">
+    <section aria-label="Start this work" className="mx-auto mt-6 flex w-full max-w-2xl flex-col gap-3">
       <p className="mb-4 text-center text-sm text-muted-foreground">How do you want to start?</p>
       <button type="button" disabled={pending} onClick={() => onPick('usual')} className={cn(CARD, 'gap-3', KIND.usual.card)}>
         <span className="font-title text-[length:var(--text-heading-size)] leading-[var(--text-heading-line)] text-foreground">
-          The usual project
+          The usual setup
         </span>
         <span className="flex flex-wrap justify-center gap-2">
           {USUAL_TABS.map((tab) => (
