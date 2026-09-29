@@ -9,6 +9,8 @@ import { formatDay } from '../../../lib/dates.js'
 import { isWaiting } from './thread/thread-model.js'
 import { cn } from '../../ui/utils.js'
 import { PersonFace } from '../../person-face.js'
+import { taskMatchesFilter } from '../../../views/filter.js'
+import type { TaskFilter } from '../../../views/filter.js'
 
 type TaskRowsProps = Parameters<typeof TaskRows>[0]
 type TaskCard = TaskRowsProps['tasks'][number]
@@ -41,6 +43,8 @@ type TaskBridge = Pick<TaskRowsProps, 'context' | 'actions' | 'onAsk'> & {
   readonly byId: ReadonlyMap<string, TaskCard>
   /** The folder's completed cards the page already loaded (its first page of them). */
   readonly completedById: ReadonlyMap<string, TaskCard>
+  /** View-only narrowing. The document and Thread facts always keep every Task. */
+  readonly taskFilter?: TaskFilter
 }
 
 const TaskContext = createContext<TaskBridge | null>(null)
@@ -48,16 +52,20 @@ const noTasks: readonly TaskCard[] = []
 
 /** Task records and actions stay in Dana's query/action layer, outside editor history. */
 export function CanvasTaskProvider({
-  tasks, completed = noTasks, context, actions, onAsk, children,
+  tasks, completed = noTasks, context, actions, onAsk, taskFilter, children,
 }: Pick<TaskRowsProps, 'tasks' | 'context' | 'actions' | 'onAsk'> & {
   readonly completed?: readonly TaskCard[]
+  readonly taskFilter?: TaskFilter
   readonly children: ReactNode
 }): React.JSX.Element {
   const byId = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
   const completedById = useMemo(() => new Map(completed.map((task) => [task.id, task])), [completed])
   for (const task of tasks) knownTitles.set(task.id, task.title)
   for (const task of completed) knownTitles.set(task.id, task.title)
-  const value = useMemo(() => ({ byId, completedById, context, actions, onAsk }), [byId, completedById, context, actions, onAsk])
+  const value = useMemo(
+    () => ({ byId, completedById, context, actions, onAsk, taskFilter }),
+    [byId, completedById, context, actions, onAsk, taskFilter],
+  )
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>
 }
 
@@ -118,6 +126,19 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
   const known = listed ?? completedListed ?? detail.data
   const thread = useContext(ThreadContext)
   if (known !== undefined) {
+    /* The Task block alone leaves the view. Its BlockNote outer is hidden by
+       thread.css, while the document, authored neighbours and canonical
+       thread model keep this Task exactly where it is. */
+    if (bridge.taskFilter !== undefined && !taskMatchesFilter(known, bridge.taskFilter, bridge.context.today)) {
+      return (
+        <div
+          data-canvas-task-id={taskId}
+          data-canvas-task-filtered=""
+          aria-hidden="true"
+          contentEditable={false}
+        />
+      )
+    }
     /* Open means on the page's open list; a card the open list lacks is
        finished. Dropped is its own state and is never drawn as done. */
     const state: NodeState = known.status === 'abandoned'

@@ -35,8 +35,9 @@ a heading, a band and a paragraph to read; the heading is always drawn (AC-226).
 `section_block_id` on the folder read, each section carries its own rows and its own quick-add, and the loose
 list holds exactly the tasks under no section.
 
-**No filter, no view strip, no board** (M4). The thread is a document and never
-hides a block, so nothing on this page narrows it.
+**One Task filter, no view strip, no board.** Filtering hides non-matching Task
+placements only. The thread remains the same document: authored blocks,
+ordering, progress and the canonical Next Task do not change.
 
 **Delete asks nothing and the undo bar answers** (9.6: "with the undo bar and no
 confirmation: two ways back is why the question left"). The inverse is 7.13's
@@ -150,6 +151,9 @@ import { FolderSharingPanel, MEMBER_PARAM } from './FolderSharingPanel.js'
 import { PersonFace } from '../components/person-face.js'
 import { cn } from '../components/ui/utils.js'
 import { ConfirmDialog, useConfirm, useRowBasis } from './task-rows.js'
+import { TaskFilterChips, TaskFilterControl } from '../views/TaskFilterControl.js'
+import { labelsWorn, taskFilterActive } from '../views/filter.js'
+import { useTaskFilter } from '../views/filter-store.js'
 import { getLabelsResponse } from '../../shared/labels.js'
 import type { LabelDefinition } from '../../shared/labels.js'
 import { getTaskResponse } from '../../shared/tasks.js'
@@ -362,6 +366,7 @@ function FolderPageBody({
      file, through the cache the row already stores one in. */
   const cache = useQueryClient()
   const basis = useRowBasis()
+  const [taskFilter, setTaskFilter] = useTaskFilter(id)
   const actions = useRowActions()
   const confirm = useConfirm()
   const remove = useDeleteFolder()
@@ -428,6 +433,7 @@ function FolderPageBody({
   const completedDays = mergeCompletedDays(completed.data?.pages)
   /* The finished Tasks the canvas draws in place, checked and muted. */
   const completedRows = useMemo(() => completedDays.flatMap((day) => day.rows), [completedDays])
+  const filterRows = useMemo(() => [...openRows, ...completedRows], [openRows, completedRows])
   const context: RowContext = {
     ...basis,
     showFolder: false,
@@ -445,6 +451,20 @@ function FolderPageBody({
 
   const isDefault = detail?.is_default ?? false
   const members = detail?.members ?? []
+  const filterPeople = useMemo(() => {
+    const people = new Map<string, string>()
+    for (const member of members) {
+      people.set(member.user.id, member.user.display_name ?? 'Deleted user')
+    }
+    for (const task of filterRows) {
+      if (task.assignee !== null && !people.has(task.assignee.id)) {
+        people.set(task.assignee.id, task.assignee.display_name ?? 'Deleted user')
+      }
+    }
+    return [...people].map(([personId, name]) => ({ id: personId, name }))
+  }, [members, filterRows])
+  const filterLabels = useMemo(() => labelsWorn(filterRows), [filterRows])
+  const filteringTasks = kind === 'work' && taskFilterActive(taskFilter)
   /*
   **What this page may offer, from the server's own table** (issue #228).
 
@@ -934,6 +954,14 @@ function FolderPageBody({
 
   const headerActions = (
     <>
+      {kind === 'work' ? (
+        <TaskFilterControl
+          filter={taskFilter}
+          onChange={setTaskFilter}
+          people={filterPeople}
+          labels={filterLabels}
+        />
+      ) : null}
       {/* With one tab the row is not drawn (a note still reads as a page),
           so its "+" waits here. */}
       {shownTabs.length === 1 && tabsEditable && kind !== null ? (
@@ -1077,6 +1105,14 @@ function FolderPageBody({
         ) : (
           <div className="space-y-2">
             <PageSection name={kind === 'doc' ? 'Doc' : 'Work'}>
+              {kind === 'work' ? (
+                <TaskFilterChips
+                  filter={taskFilter}
+                  onChange={setTaskFilter}
+                  people={filterPeople}
+                  labels={filterLabels}
+                />
+              ) : null}
               <PageBody
                 query={open}
                 /* The thread ends in its own add line, which an empty page
@@ -1092,13 +1128,14 @@ function FolderPageBody({
                     page={page.data}
                     tasks={openRows}
                     completed={completedRows}
+                    {...(filteringTasks ? { taskFilter } : {})}
                     folderId={id}
                     context={context}
                     actions={actions}
                     onAsk={confirm.ask}
                     /* A Doc passes the reader's edit right: a reader who
                        cannot write there has nothing filtered to hear about. */
-                    arrangeable={kind === 'doc' ? sharedPageEditable : true}
+                    arrangeable={kind === 'doc' ? sharedPageEditable : !filteringTasks}
                     resultsWritable={sharedPageEditable}
                     {...(kind === 'doc'
                       ? {

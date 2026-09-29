@@ -34,6 +34,7 @@ import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
 import { pasteIntoCanvas } from './paste.js'
 import { lineTitles } from './commands.js'
 import type { TaskRows } from '../../../pages/task-rows.js'
+import type { TaskFilter } from '../../../views/filter.js'
 
 type Rows = Parameters<typeof TaskRows>[0]
 interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
@@ -51,6 +52,8 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   /** The folder's completed task cards the page already loaded; a placement
    * found here draws as its real row, checked and muted. */
   readonly completed?: Rows['tasks']
+  /** View-only Task narrowing. It never changes the document or thread model. */
+  readonly taskFilter?: TaskFilter
   /** Ignored since M4: done work always shows in place on the thread, where
    * long done stretches elide instead. */
   readonly showCompleted?: boolean
@@ -131,7 +134,7 @@ function scrollerOf(element: Element | null): Element | null {
 
 const CHANGED_ELSEWHERE = 'This page changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
-function PersistedCanvas({ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen }: Props & {
+function PersistedCanvas({ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen }: Props & {
   readonly opening: string
   readonly frozen: Frozen
   readonly initialPage: PageView
@@ -154,12 +157,12 @@ function PersistedCanvas({ page, initialPage, folderId, presentationHeadings, on
       else setReloadNote('The page still has no version. Try again in a moment.')
     }) }}>Load the page again</Button>{reloadNote}
   </div>
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen }} width={width} onSaved={(next) => {
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen }} width={width} onSaved={(next) => {
     queryClient.setQueryData(queryKeys.folderPage(folderId), next)
   }} />}</div>
 }
 
-function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen, width, onSaved }: Props & {
+function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen, width, onSaved }: Props & {
   readonly opening: string
   readonly frozen: Frozen
   readonly initialPage: PageView
@@ -673,7 +676,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
       onDiscard={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}
     /> : null}
     <SavedResults.Provider value={savedResults}>
-    <CanvasTaskProvider tasks={tasks} completed={completed} context={context} actions={actions} onAsk={onAsk}>
+    <CanvasTaskProvider tasks={tasks} completed={completed} taskFilter={taskFilter} context={context} actions={actions} onAsk={onAsk}>
       {draftStyle === '' ? null : <style>{draftStyle}</style>}
       <ThreadLayer enabled={presentationHeadings !== true} editor={editor} folderId={folderId} tasks={tasks} context={context} frozen={frozen} finish={workRootId === undefined && resultsWritable === true}>
       <div
