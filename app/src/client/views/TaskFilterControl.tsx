@@ -192,7 +192,6 @@ export function TaskFilterControl({
   const personName = (id: string): string =>
     id === UNASSIGNED ? 'Unassigned' : (people.find((person) => person.id === id)?.name ?? 'Someone')
   const labelName = (id: string): string => labels.find((label) => label.id === id)?.name ?? 'One label'
-  const active = taskFilterChips(filter, personName, labelName, today).length
   const currentLabel = filter.label === null ? 'Any' : labelName(filter.label)
   const statusValue = filter.statuses.length === 1
     ? (STATUS.find((choice) => choice.value === filter.statuses[0])?.label ?? '1 selected')
@@ -218,15 +217,14 @@ export function TaskFilterControl({
         render={
           <Button
             variant="ghost"
-            size="sm"
+            size="icon-sm"
             className={taskFilterActive(filter) ? 'bg-accent text-foreground' : 'text-muted-foreground'}
-            aria-label="Filter"
+            aria-label="Filter tasks"
+            title="Filter tasks"
           />
         }
       >
         <Filter aria-hidden="true" />
-        <span>Filter</span>
-        {active > 0 ? <span aria-hidden="true" className="tabular-nums text-muted-foreground">{active}</span> : null}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[18rem] p-1.5">
         {panel === 'root' ? (
@@ -351,7 +349,7 @@ export function TaskFilterChips({
   const chips = taskFilterChips(filter, personName, labelName, today)
   if (chips.length === 0) return null
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-1" aria-label="Active filters">
+    <div className="flex flex-wrap items-center gap-1" aria-label="Active filters">
       {chips.map((chip) => (
         <Button
           key={chip.key}
