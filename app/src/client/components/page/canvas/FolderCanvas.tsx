@@ -656,7 +656,11 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
   return <>
     {/* Purpose and Results pass the reader's edit right as `arrangeable`: a
        reader who cannot write there has nothing filtered or sorted to hear about. */}
-    {!arrangeable && presentationHeadings !== true ? <p className="mb-3 text-sm text-muted-foreground">Writing is paused while this list is filtered or sorted.</p> : null}
+    {!arrangeable && presentationHeadings !== true ? (
+      <p className="mb-3 text-sm text-muted-foreground">
+        {taskFilter === undefined ? 'Writing is paused while this list is filtered or sorted.' : 'Clear filters to edit this page.'}
+      </p>
+    ) : null}
     {recovery ? <RecoveryNotice
       onDownload={downloadDraft}
       onRestore={!draftHasRequest ? undefined : () => {

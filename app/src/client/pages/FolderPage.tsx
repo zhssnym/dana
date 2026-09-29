@@ -960,6 +960,7 @@ function FolderPageBody({
           onChange={setTaskFilter}
           people={filterPeople}
           labels={filterLabels}
+          today={context.today}
         />
       ) : null}
       {/* With one tab the row is not drawn (a note still reads as a page),
@@ -1111,6 +1112,7 @@ function FolderPageBody({
                   onChange={setTaskFilter}
                   people={filterPeople}
                   labels={filterLabels}
+                  today={context.today}
                 />
               ) : null}
               <PageBody

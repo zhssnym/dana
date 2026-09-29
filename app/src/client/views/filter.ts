@@ -4,6 +4,7 @@ tasks show, and at most one Label to show only (#208). The Label is the one
 narrowing, and the page says so beside its View menu with a way to clear it.
 Nothing here asks the server for anything.
 */
+import { formatDay, parseCivilDate } from '../lib/dates.js'
 import type { TaskCard, TaskStatus } from '../../shared/tasks.js'
 
 /** The person axis's own value for "nobody", which is not a user id. */
@@ -36,7 +37,7 @@ surface. It is deliberately separate from `PageFilter`: that type arranges a
 Focus list, while this one only answers whether one Task is visible. A filter
 therefore cannot move a Task, change its Section, or choose a different order.
 */
-export type ScheduleFilter = 'any' | 'with' | 'without' | 'overdue' | 'today'
+export type ScheduleFilter = 'any' | 'with' | 'without' | 'overdue' | 'today' | 'date'
 
 export interface TaskFilter {
   /** Empty means every status. Values within this axis combine as OR. */
@@ -44,6 +45,8 @@ export interface TaskFilter {
   /** Empty means anyone; `UNASSIGNED` is the explicit nobody value. */
   readonly assignees: readonly string[]
   readonly schedule: ScheduleFilter
+  /** The chosen civil day when `schedule` is `date`. */
+  readonly date: string | null
   readonly important: boolean
   readonly repeating: boolean
   /** One Label id, kept by identity rather than display name. */
@@ -54,13 +57,14 @@ export const NO_TASK_FILTER: TaskFilter = {
   statuses: [],
   assignees: [],
   schedule: 'any',
+  date: null,
   important: false,
   repeating: false,
   label: null,
 }
 
 const TASK_STATUSES: readonly TaskStatus[] = ['pending', 'completed', 'abandoned']
-const SCHEDULE_FILTERS: readonly ScheduleFilter[] = ['any', 'with', 'without', 'overdue', 'today']
+const SCHEDULE_FILTERS: readonly ScheduleFilter[] = ['any', 'with', 'without', 'overdue', 'today', 'date']
 
 /** A stored definition from this or an older client, with unknown values dropped. */
 export function settleTaskFilter(stored: unknown): TaskFilter {
@@ -79,6 +83,9 @@ export function settleTaskFilter(stored: unknown): TaskFilter {
     schedule: SCHEDULE_FILTERS.includes(schedule as ScheduleFilter)
       ? (schedule as ScheduleFilter)
       : 'any',
+    date: typeof record['date'] === 'string' && parseCivilDate(record['date']) !== null
+      ? record['date']
+      : null,
     important: record['important'] === true,
     repeating: record['repeating'] === true,
     label: typeof record['label'] === 'string' && record['label'] !== '' ? record['label'] : null,
@@ -97,7 +104,12 @@ export function taskFilterActive(filter: TaskFilter): boolean {
   )
 }
 
-function matchesSchedule(task: TaskCard, schedule: ScheduleFilter, today: string): boolean {
+function matchesSchedule(
+  task: TaskCard,
+  schedule: ScheduleFilter,
+  today: string,
+  filterDate: string | null,
+): boolean {
   const dated = task.start_date !== null || task.due_date !== null
   switch (schedule) {
     case 'any':
@@ -110,6 +122,8 @@ function matchesSchedule(task: TaskCard, schedule: ScheduleFilter, today: string
       return task.status === 'pending' && task.due_date !== null && task.due_date < today
     case 'today':
       return task.start_date === today || task.due_date === today
+    case 'date':
+      return filterDate !== null && (task.start_date === filterDate || task.due_date === filterDate)
   }
 }
 
@@ -123,7 +137,7 @@ export function taskMatchesFilter(
   return (
     (filter.statuses.length === 0 || filter.statuses.includes(task.status)) &&
     (filter.assignees.length === 0 || filter.assignees.includes(assignee)) &&
-    matchesSchedule(task, filter.schedule, today) &&
+    matchesSchedule(task, filter.schedule, today, filter.date) &&
     (!filter.important || task.important) &&
     (!filter.repeating || task.is_recurring) &&
     wearsLabel(task, filter.label)
@@ -147,6 +161,7 @@ const SCHEDULE_CHIP: Readonly<Record<Exclude<ScheduleFilter, 'any'>, string>> = 
   without: 'No date',
   overdue: 'Overdue',
   today: 'Today',
+  date: 'One date',
 }
 
 /** One removable chip per active axis, the same model every future view can draw. */
@@ -154,6 +169,7 @@ export function taskFilterChips(
   filter: TaskFilter,
   personName: (id: string) => string,
   labelName: (id: string) => string,
+  today: string,
 ): readonly TaskFilterChip[] {
   const chips: TaskFilterChip[] = []
   if (filter.statuses.length > 0) {
@@ -171,10 +187,17 @@ export function taskFilterChips(
     })
   }
   if (filter.schedule !== 'any') {
+    const picked = filter.schedule === 'date' && filter.date !== null
+      ? formatDay(filter.date, today)
+      : null
     chips.push({
       key: 'schedule',
-      label: SCHEDULE_CHIP[filter.schedule],
-      cleared: { ...filter, schedule: 'any' },
+      label: picked === null
+        ? SCHEDULE_CHIP[filter.schedule]
+        : picked === 'Today' || picked === 'Tomorrow' || picked === 'Yesterday'
+          ? picked
+          : `On ${picked}`,
+      cleared: { ...filter, schedule: 'any', date: null },
     })
   }
   if (filter.important) {
