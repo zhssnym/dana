@@ -332,14 +332,16 @@ export const viewQuery = z.object({ tz: viewTz })
 export type ViewQuery = z.infer<typeof viewQuery>
 
 /*
-Q3C's parameters. The dates are shapes here and a range there: this schema
-says start and end are calendar dates, and checkCalendarRange in
-src/server/time decides whether the pair is inverted or longer than 62 days.
+Q3C's parameters. The dates are shapes here and a range there; folder_id is
+an optional exact Folder scope. This schema says start and end are calendar
+dates, and checkCalendarRange in src/server/time decides whether the pair is
+inverted or longer than 62 days.
 Both refusals are 422 naming the pair, and neither number appears twice.
 */
 export const plannedCalendarQuery = viewQuery.extend({
   start: calendarDate,
   end: calendarDate,
+  folder_id: z.uuid({ error: 'must be a uuid' }).optional(),
 })
 export type PlannedCalendarQuery = z.infer<typeof plannedCalendarQuery>
 
