@@ -156,7 +156,8 @@ import { TaskFilterChips, TaskFilterControl } from '../views/TaskFilterControl.j
 import { labelsWorn, taskFilterActive } from '../views/filter.js'
 import { useTaskFilter } from '../views/filter-store.js'
 import { useCurrentWorkView } from '../views/work-view.js'
-import { WorkBoard } from '../views/WorkBoard.js'
+import { BoardGroupControl, WorkBoard } from '../views/WorkBoard.js'
+import type { WorkGroup } from '../views/WorkBoard.js'
 import { getLabelsResponse } from '../../shared/labels.js'
 import type { LabelDefinition } from '../../shared/labels.js'
 import { getTaskResponse } from '../../shared/tasks.js'
@@ -371,6 +372,7 @@ function FolderPageBody({
   const basis = useRowBasis()
   const [taskFilter, setTaskFilter] = useTaskFilter(id)
   const [workView] = useCurrentWorkView()
+  const [boardGroup, setBoardGroup] = useState<WorkGroup>('section')
   const actions = useRowActions()
   const confirm = useConfirm()
   const remove = useDeleteFolder()
@@ -1076,13 +1078,16 @@ function FolderPageBody({
               onRename={renameTab}
               onDelete={removeTab}
               tools={kind === 'work' ? (
-                <TaskFilterControl
-                  filter={taskFilter}
-                  onChange={setTaskFilter}
-                  people={filterPeople}
-                  labels={filterLabels}
-                  today={context.today}
-                />
+                <div className="flex items-center gap-1">
+                  <TaskFilterControl
+                    filter={taskFilter}
+                    onChange={setTaskFilter}
+                    people={filterPeople}
+                    labels={filterLabels}
+                    today={context.today}
+                  />
+                  {workView === 'board' ? <BoardGroupControl group={boardGroup} onChange={setBoardGroup} /> : null}
+                </div>
               ) : undefined}
             />
           )}
@@ -1142,6 +1147,7 @@ function FolderPageBody({
                     context={context}
                     actions={actions}
                     canCreate={facts !== null && mayDraw(facts, 'task.create')}
+                    group={boardGroup}
                   /> : page.data && completedReady ? <FolderCanvas
                     key={id}
                     page={page.data}
