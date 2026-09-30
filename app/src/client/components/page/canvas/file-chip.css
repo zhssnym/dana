@@ -1,8 +1,5 @@
-/* #382: File is an attachment row, never a Media preview. BlockNote already
-   owns the download/name behavior; Dana adds only a quiet type identity.
-   Known extensions replace the generic document glyph with a compact type
-   badge (PDF, DOC, XLS, ...). Unknown extensions keep BlockNote's generic
-   file glyph. The extension remains visible beside the filename either way. */
+/* File is an attachment row, never a Media preview. BlockNote owns the
+   download/name behavior; Dana adds a type identity when known. */
 .dana-writing-canvas .bn-file-name-with-icon {
   min-width: 0;
   gap: calc(var(--spacing) * 2);

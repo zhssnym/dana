@@ -210,7 +210,7 @@ const SLASH_MENUS: Readonly<Record<BlockHome, readonly SlashCommand[]>> = {
   work: THREAD_WORK_MENU,
   doc: DOC_MENU,
   results: DOC_MENU,
-  task: ['text', 'heading', 'checklist', 'blocked_by', 'media'],
+  task: ['text', 'heading', 'checklist', 'blocked_by', 'media', 'file'],
   shelf: ['text', 'heading', 'bullet', 'numbered', 'quote', 'callout', 'divider', 'code', 'media', 'file', 'diagram', 'link'],
 }
 
