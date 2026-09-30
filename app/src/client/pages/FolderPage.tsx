@@ -99,6 +99,7 @@ import { getPlain, getView } from '../api/http.js'
 import { queryKeys } from '../api/keys.js'
 import { showToast } from '../state/toasts.js'
 const FolderCanvas = lazy(() => import('../components/page/canvas/FolderCanvas.js'))
+const WorkCalendar = lazy(() => import('../views/WorkCalendar.js'))
 import { PageCover } from '../components/page-cover.js'
 import { usePageHasCover } from '../components/page-head.js'
 import { FolderCoverDialog, FolderHeader } from '../components/folder-head.js'
@@ -1126,7 +1127,13 @@ function FolderPageBody({
                 truncated={open.data?.truncated ?? false}
               >
                 <Suspense fallback={null}>
-                  {page.data && completedReady && kind === 'work' && workView === 'board' ? <WorkBoard
+                  {page.data && completedReady && kind === 'work' && workView === 'calendar' ? <WorkCalendar
+                    folderId={id}
+                    tasks={[...openRows, ...completedRows]}
+                    filter={taskFilter}
+                    context={context}
+                    canCreate={facts !== null && mayDraw(facts, 'task.create')}
+                  /> : page.data && completedReady && kind === 'work' && workView === 'board' ? <WorkBoard
                     page={page.data}
                     tasks={openRows}
                     completed={completedRows}
