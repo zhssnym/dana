@@ -183,10 +183,24 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
 
   return <div className={cn(
     'min-w-0 space-y-3',
+    [
+      '[&>div>[data-board-column]]:rounded-md',
+      '[&>div>[data-board-column]]:border',
+      '[&>div>[data-board-column]]:p-2',
+      '[&>div>[data-board-column]:nth-child(4n+1)]:border-[var(--color-dana-accent-100)]',
+      '[&>div>[data-board-column]:nth-child(4n+1)]:bg-[var(--color-dana-accent-50)]',
+      '[&>div>[data-board-column]:nth-child(4n+2)]:border-[var(--color-info-200)]',
+      '[&>div>[data-board-column]:nth-child(4n+2)]:bg-[var(--color-info-100)]',
+      '[&>div>[data-board-column]:nth-child(4n+3)]:border-[var(--color-success-200)]',
+      '[&>div>[data-board-column]:nth-child(4n+3)]:bg-[var(--color-success-100)]',
+      '[&>div>[data-board-column]:nth-child(4n+4)]:border-[var(--color-warning-200)]',
+      '[&>div>[data-board-column]:nth-child(4n+4)]:bg-[var(--color-warning-100)]',
+    ],
     group === 'section' && [
       '[&_[data-board-column]_[data-board-column]]:ml-0',
       '[&_[data-board-column]_[data-board-column]]:rounded-md',
       '[&_[data-board-column]_[data-board-column]]:border',
+      '[&_[data-board-column]_[data-board-column]]:bg-background/70',
       '[&_[data-board-column]_[data-board-column]]:p-2',
     ],
   )}>
