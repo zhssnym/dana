@@ -9,6 +9,7 @@ import { formatDay } from '../../../lib/dates.js'
 import { isWaiting } from './thread/thread-model.js'
 import { cn } from '../../ui/utils.js'
 import { PersonFace } from '../../person-face.js'
+import { TaskStar } from '../../task-meta.js'
 import { taskMatchesFilter } from '../../../views/filter.js'
 import type { TaskFilter } from '../../../views/filter.js'
 import { ChevronDown, ChevronRight } from '../../../lib/icons.js'
@@ -103,8 +104,8 @@ type NodeState = 'open' | 'next' | 'waiting' | 'done' | 'dropped'
 
 /**
  * One `danaTask` block, drawn as a node on the Work thread (M4 §2.2): its
- * glyph sits on the rail, then the title, then a little meta on the right.
- * No star, no labels, no counts: the task page holds those.
+ * glyph sits on the rail, then the title, then a little meta and Important
+ * star on the right.
  *
  * - open: an empty box; the one "next" task wears the accent box and a bold title
  * - waiting (a blocker, or a start still ahead): the amber pause; meta names the blocker, or the start day
@@ -159,7 +160,7 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
         data-canvas-task-id={taskId}
         data-thread-state={state}
         {...(state === 'done' || state === 'dropped' ? { 'data-canvas-task-done': '' } : {})}
-        className="min-w-0 rounded-sm"
+        className="group/row min-w-0 rounded-sm"
         contentEditable={false}
         tabIndex={0}
         /* A click that opens the Task must not also pick its block: ProseMirror
@@ -304,11 +305,12 @@ function ThreadRow({ task, state, bridge, thread, expanded, onExpand }: { readon
             : thread.shared ? <span aria-hidden className="size-[var(--icon-size-compact)] shrink-0" /> : null}
         </span>
       ) : null}
+      <TaskStar important={Boolean(task.important)} onToggle={() => bridge.actions.onToggleImportant(task)} touchReachable />
       {onExpand ? <button
         type="button"
         aria-label={`${expanded ? 'Collapse' : 'Expand'} ${task.title}`}
         aria-expanded={expanded === true}
-        className="ml-auto flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover/task:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+        className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover/task:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
         onClick={(event) => { event.stopPropagation(); onExpand() }}
       >
         {expanded ? <ChevronDown className="size-4" aria-hidden="true" /> : <ChevronRight className="size-4" aria-hidden="true" />}
