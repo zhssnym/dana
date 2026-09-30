@@ -27,8 +27,8 @@ src/server/time; this file calls it and fetches what it projects from. The arith
 
 **The two fetches are two queries on purpose, and this is the one thing about
 this file worth arguing with before changing it.** Q3C's virtual sentence
-scopes the projection by three things, accessible, pending and rule-carrying,
-and by nothing else; in particular not by the task's own due_date lying inside
+scopes the global projection by accessible, pending and rule-carrying tasks;
+an optional Folder scope narrows both query arms, but not by due_date lying inside
 the requested range, which is the real-row predicate and belongs to the real
 rows alone. Projecting off the BETWEEN-bounded result set is one line shorter
 and silently empties every month-ahead view of a series anchored before the
@@ -40,6 +40,7 @@ that enforces them is checkCalendarRange in src/server/time, called by the
 route because naming the field and choosing the status are the route's.
 */
 import { sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 
 import type {
   GetPlannedCalendarResponse,
@@ -83,10 +84,10 @@ const Q3C_ORDER = sql`${ACTIVATION_DATE} ASC,
 
 /**
  * Q3C's virtual sentence as a predicate: "for every accessible pending task
- * with a recurrence_rule".
+ * with a recurrence_rule". An optional Folder scope is added to both reads.
  *
  * Accessible is the membership join of accessibleTasks, so what is left here
- * is the other two, and there is no third. The range is deliberately absent:
+ * is the other two. The range is deliberately absent:
  * see the header. 4.11's CHECK makes a rule-carrying row a dated row, so
  * due_date is never null behind this predicate, and the projection re-tests
  * both facts anyway rather than trusting the caller.
@@ -106,13 +107,14 @@ const PROJECTED_SERIES = sql`t.status = 'pending'
 async function projectionSources(
   executor: Executor,
   viewerId: string,
+  folderScope: SQL,
 ): Promise<Record<string, unknown>[]> {
   return rowsOf(
     executor,
     sql`SELECT t.id, t.title, t.status, t.folder_id, t.recurrence_rule,
                ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time
         ${accessibleTasks(viewerId)}
-        WHERE ${PROJECTED_SERIES}
+        WHERE ${PROJECTED_SERIES} ${folderScope}
         ORDER BY t.id ASC`,
   )
 }
@@ -190,14 +192,18 @@ export async function plannedCalendarView(
   viewerId: string,
   start: string,
   end: string,
+  folderId?: string,
 ): Promise<GetPlannedCalendarResponse> {
+  const folderScope = folderId === undefined
+    ? sql``
+    : sql`AND t.folder_id = ${folderId}::uuid`
   const rows = await readCards(executor, {
     viewerId,
     where: sql`${ACTIVATION_DATE} <= ${end}::date
-               AND ${SCHEDULE_DATE} >= ${start}::date`,
+               AND ${SCHEDULE_DATE} >= ${start}::date ${folderScope}`,
     order: Q3C_ORDER,
   })
-  const series = await projectionSources(executor, viewerId)
+  const series = await projectionSources(executor, viewerId, folderScope)
   return {
     real: rows.map((row) => row.card),
     virtual: ghostsOf(series, start, end),
