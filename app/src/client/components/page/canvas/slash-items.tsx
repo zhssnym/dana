@@ -4,12 +4,14 @@ Task body and a Shelf. Each canvas renders `<CanvasSlashMenu>` with the surface
 it is, and its `/` menu is the registry's list for that page kind
 (`SLASH_MENUS` below): only what the page is for.
 
-- `work` (Folder Main): Text, Heading 1-3 and Task. "Heading n" is a Section
-  (it groups Tasks, and folds) where a Section of that level stands, and a
-  presentation heading anywhere else.
-- `document` (a Doc page, step 7): Text, flat headings, Checklist, Task, Page
-  and Media. `plain` (a canvas with no headings) has the same list less
-  Heading.
+- `work` (Folder Main): Thread keeps the focused Text, Heading 1-3 and Task
+  menu. Freeform exposes the same Work document's full existing canvas
+  vocabulary: writing, Task, Page, lists/checklist/toggle, quote/callout/code,
+  divider, Media/File, Diagram and Dana Link. No second document or block
+  system is introduced.
+- `document` (a Doc page, step 7): Text, flat headings, Checklist, Page and
+  Media. A Doc never offers Task creation; Tasks belong to Work pages.
+  `plain` (a canvas with no headings) has the same list less Heading.
 - `task`: Text, headings, Checklist (an item is one of the Task's subtasks),
   Blocked by and Media.
 - `shelf`: unchanged until Shelves are decided.
@@ -51,9 +53,9 @@ export type { CanvasSurfaceKind } from './markdown.js'
 
 export interface SlashContext {
   readonly surface: CanvasSurfaceKind
-  /** Work and Doc pages: the canvas's own Task creation. */
+  /** Work only: the canvas's authoritative Task creation. */
   readonly onCreateTask?: () => void
-  /** Doc pages: a sub-page made here (step 7). */
+  /** Doc/Work pages: a sub-page made here (step 7). */
   readonly onCreatePage?: () => void
   /** Task only: opens the Blocked by picker by the properties; inserts nothing. */
   readonly onCreateBlocker?: () => void
@@ -190,9 +192,14 @@ function turnItems(editor: AnyEditor): Item[] {
 
 /* ------------------------------------------------------------ insert */
 
-type SlashCommand = 'text' | 'heading' | 'checklist' | 'task' | 'page' | 'blocked_by' | 'media' | 'bullet' | 'numbered' | 'quote' | 'callout' | 'divider' | 'code' | 'file' | 'diagram' | 'link'
+type SlashCommand = 'text' | 'heading' | 'checklist' | 'task' | 'page' | 'blocked_by' | 'media' | 'bullet' | 'numbered' | 'toggle' | 'quote' | 'callout' | 'divider' | 'code' | 'file' | 'diagram' | 'link'
 
-const DOC_MENU: readonly SlashCommand[] = ['text', 'heading', 'checklist', 'task', 'page', 'media']
+const THREAD_WORK_MENU: readonly SlashCommand[] = ['text', 'heading', 'task']
+const FREEFORM_WORK_MENU: readonly SlashCommand[] = [
+  'text', 'heading', 'task', 'page', 'checklist', 'bullet', 'numbered', 'toggle',
+  'quote', 'callout', 'divider', 'code', 'media', 'file', 'diagram', 'link',
+]
+const DOC_MENU: readonly SlashCommand[] = ['text', 'heading', 'checklist', 'page', 'media']
 
 /*
 The `/` menu each page home shows (the approved model's slash-command table):
@@ -200,7 +207,7 @@ what that kind of page is for, and nothing else. Markdown shortcuts and Turn
 into still make every kind the home stores; these are only what is offered.
 */
 const SLASH_MENUS: Readonly<Record<BlockHome, readonly SlashCommand[]>> = {
-  work: ['text', 'heading', 'task'],
+  work: THREAD_WORK_MENU,
   doc: DOC_MENU,
   results: DOC_MENU,
   task: ['text', 'heading', 'checklist', 'blocked_by', 'media'],
@@ -214,7 +221,22 @@ export function slashHomeOf(surface: CanvasSurfaceKind, results: boolean): Block
   return surface
 }
 
-/** The `/` menu for this surface: the registry's list for its home (`SLASH_MENUS`), in order. */
+/**
+ * #382: Thread and Freeform are presentations of the same Work document. The
+ * thread presentation owns the `.dana-thread` wrapper; Freeform deliberately
+ * omits it (#380). A slash menu is only queried while the mounted editor is
+ * connected, so that wrapper is the presentation boundary without putting a
+ * view preference into document data. Detached editors (unit helpers) keep the
+ * conservative Thread menu.
+ */
+function slashCommands(editor: AnyEditor, home: BlockHome): readonly SlashCommand[] {
+  if (home !== 'work') return SLASH_MENUS[home]
+  const root = editor.domElement
+  const freeform = root?.isConnected === true && root.closest('.dana-thread') === null
+  return freeform ? FREEFORM_WORK_MENU : THREAD_WORK_MENU
+}
+
+/** The `/` menu for this surface: the registry's list for its home, in order. */
 export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item[] {
   const { surface, onCreateTask, onCreatePage, onCreateBlocker, media = true, results = false } = context
   const home = slashHomeOf(surface, results)
@@ -278,7 +300,7 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     `onCreateTask` itself gave it the editor as its optional block (#204, #234).
     Task answers "todo" and "checkbox" too: it is what a to-do became.
     */
-    task: () => { if ((surface === 'work' || surface === 'document' || surface === 'plain') && onCreateTask !== undefined) add('Basic blocks', 'Task', ['task', 'todo', 'to-do', 'checkbox', 'action', '[]'], () => { onCreateTask() }, glyph(CheckCircle2), { hint: '[]' }) },
+    task: () => { if (surface === 'work' && onCreateTask !== undefined) add('Basic blocks', 'Task', ['task', 'todo', 'to-do', 'checkbox', 'action', '[]'], () => { onCreateTask() }, glyph(CheckCircle2), { hint: '[]' }) },
     page: () => { if (onCreatePage !== undefined) add('Basic blocks', 'Page', ['page', 'sub-page', 'subpage', 'child page'], () => { onCreatePage() }, glyph(FileText)) },
     blocked_by: () => { if (onCreateBlocker !== undefined) add('Basic blocks', 'Blocked by', ['blocked', 'blocked by', 'waits', 'waits on', 'depends', 'dependency'], () => { onCreateBlocker() }, glyph(Workflow)) },
     /* Upstream's item opens the file panel on the new block (`CanvasFilePanel`).
@@ -290,6 +312,7 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     },
     bullet: () => { add('Basic blocks', 'Bulleted list', ['bullet', 'bulleted', '-', '*', 'ul', 'unordered'], insert('bulletListItem'), kindIcon('bulletListItem'), { hint: '-' }) },
     numbered: () => { add('Basic blocks', 'Numbered list', ['num', 'numbered', '1.', 'ol', 'ordered'], insert('numberedListItem'), kindIcon('numberedListItem'), { hint: '1.' }) },
+    toggle: () => { if (toggles) add('Basic blocks', 'Toggle', ['toggle', 'collapsible', 'details', '>'], insert('toggleListItem'), kindIcon('toggleListItem'), { hint: '>' }) },
     // `>` is the toggle list's where there is one, and the quote's elsewhere (`markdown.ts`).
     quote: () => { add('Basic blocks', 'Quote', ['quote', 'blockquote', '"'], insert('quote'), kindIcon('quote'), { hint: toggles ? '"' : '>' }) },
     callout: () => { if (has(editor, 'callout')) add('Basic blocks', 'Callout', ['callout', 'note', 'tip', 'info'], insert('callout'), kindIcon('callout')) },
@@ -305,7 +328,7 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
       add('Advanced', link.title, ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, glyph(Link2))
     },
   }
-  for (const command of SLASH_MENUS[home]) commands[command]()
+  for (const command of slashCommands(editor, home)) commands[command]()
   return items
 }
 

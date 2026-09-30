@@ -1,0 +1,44 @@
+/* #382: File is an attachment row, never a Media preview. BlockNote already
+   owns the download/name behavior; Dana adds only a quiet type identity.
+   Known extensions replace the generic document glyph with a compact type
+   badge (PDF, DOC, XLS, ...). Unknown extensions keep BlockNote's generic
+   file glyph. The extension remains visible beside the filename either way. */
+.dana-writing-canvas .bn-file-name-with-icon {
+  min-width: 0;
+  gap: calc(var(--spacing) * 2);
+}
+
+.dana-writing-canvas .bn-file-name-with-icon .bn-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dana-writing-canvas .bn-file-icon[data-dana-file-type] {
+  display: inline-grid;
+  place-items: center;
+  width: calc(var(--spacing) * 6);
+  height: calc(var(--spacing) * 6);
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  background: transparent;
+  font-size: 7px;
+  line-height: 1;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.03em;
+}
+
+.dana-writing-canvas .bn-file-icon[data-dana-file-type] svg { display: none; }
+.dana-writing-canvas .bn-file-icon[data-dana-file-type]::before { content: attr(data-dana-file-type); }
+
+.dana-writing-canvas .dana-file-type {
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}

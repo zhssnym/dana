@@ -100,19 +100,25 @@ export function CanvasSurface({
 }): React.JSX.Element {
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light'>(pageTheme)
+  /* #382: a Task row is a Work-page primitive. FolderCanvas still hands the
+     same callback to its generic canvas, but Doc/Results presentation headings
+     must not turn that into a second Task-authoring surface. Keeping the gate
+     here removes every client path together: slash menu, Mod-Enter command,
+     block-menu conversion, last-line affordance and reference conversion. */
+  const taskCreator = headingMode === 'section' && !flatGroups ? onCreateTask : undefined
   const requestTask = useCallback((block?: CanvasBlock): void => {
     const target = block ?? editor.getTextCursorPosition().block
     if (folderRefs.has(target.id)) setReferenceToConvert(target)
-    else onCreateTask?.(block)
-  }, [editor, folderRefs, onCreateTask])
+    else taskCreator?.(block)
+  }, [editor, folderRefs, taskCreator])
   const slashContext = useMemo(() => ({
     surface: headingMode === 'document' ? 'document' as const : headingMode === 'none' ? 'plain' as const : flatGroups ? 'shelf' as const : 'work' as const,
-    onCreateTask: onCreateTask === undefined ? undefined : () => { onCreateTask() },
+    onCreateTask: taskCreator === undefined ? undefined : () => { taskCreator() },
     onCreatePage,
     results,
-  }), [headingMode, flatGroups, onCreateTask, onCreatePage, results])
+  }), [headingMode, flatGroups, taskCreator, onCreatePage, results])
   useEffect(() => installCanvasGuard(editor, onNotice), [editor, onNotice])
-  useEffect(() => onCreateTask ? bindTaskCommand(editor, requestTask) : undefined, [editor, onCreateTask, requestTask])
+  useEffect(() => taskCreator ? bindTaskCommand(editor, requestTask) : undefined, [editor, taskCreator, requestTask])
   useEffect(() => {
     const observer = new MutationObserver(() => setTheme(pageTheme()))
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] })
@@ -160,8 +166,8 @@ export function CanvasSurface({
   const menu = useMemo<BlockMenuModel>(() => ({
     targets: (block) => blockMenuTargets(editor, block),
     turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, headingMode === 'none' ? undefined : (block) => headingTogglesFor(editor, block, target)) },
-    // A stored to-do (no longer made anywhere) turns into a Task as text does.
-    extraTarget: (block) => (block.type === 'paragraph' || block.type === 'checkListItem') && onCreateTask !== undefined
+    // A stored to-do (no longer made anywhere) turns into a Task as text does — Work only (#382).
+    extraTarget: (block) => (block.type === 'paragraph' || block.type === 'checkListItem') && taskCreator !== undefined
       ? { title: 'Task', run: () => { requestTask(editor.getBlock(block.id) ?? undefined) } }
       : null,
     canDuplicate: (block) => !contains(block, TASK_OR_FOLDER),
@@ -184,13 +190,13 @@ export function CanvasSurface({
       }
       return { label: 'Delete', run: () => { remove(ids) } }
     },
-  }), [editor, headingMode, onCreateTask, requestTask, duplicate, onRemoveFolder, remove, deleteTask, trashPage])
+  }), [editor, headingMode, taskCreator, requestTask, duplicate, onRemoveFolder, remove, deleteTask, trashPage])
   const move = useCallback((ids: readonly string[], direction: -1 | 1): boolean => moveBlocksBy(editor, ids, direction), [editor])
   const selectionActions = useMemo(() => ({ remove, duplicate, admits, move }), [remove, duplicate, admits, move])
   useBlockSelectionKeys(editor, selectionActions)
   useBlockAnchor(editor, true)
   const scope = `dana-canvas-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
-  const lastLine = onCreateTask !== undefined && headingMode === 'section' && !flatGroups && placeholder !== undefined
+  const lastLine = taskCreator !== undefined && headingMode === 'section' && !flatGroups && placeholder !== undefined
 
   // Tab nests any block under the block above it (0038), only where the
   // result is a shape this canvas can keep; elsewhere it does nothing rather
@@ -321,7 +327,7 @@ export function CanvasSurface({
         sideMenu={false}
         filePanel={false}
         onChange={() => { onNotice(''); onChange(editor) }}
-        aria-label={label ?? (onCreateTask === undefined ? 'Page writing' : 'Page writing and tasks')}
+        aria-label={label ?? (taskCreator === undefined ? 'Page writing' : 'Page writing and tasks')}
       >
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
         <FilePanelController
@@ -347,7 +353,7 @@ export function CanvasSurface({
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction onClick={() => {
-            if (referenceToConvert !== null) onCreateTask?.(referenceToConvert)
+            if (referenceToConvert !== null) taskCreator?.(referenceToConvert)
           }}>Turn into task</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
