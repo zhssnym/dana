@@ -1,7 +1,8 @@
 /*
 One compact Task filter. The state and predicates live in `filter.ts`; this
 file draws one focused picker at a time so Work never turns into a settings
-tree. Freeform, Board and Calendar can reuse the same definition later.
+tree. The Work-view control sits immediately after it with the same compact
+button treatment; both presentations keep this same filter definition.
 */
 import { useState } from 'react'
 
@@ -32,6 +33,7 @@ import {
   UNASSIGNED,
 } from './filter.js'
 import type { ScheduleFilter, TaskFilter } from './filter.js'
+import { WorkViewControl, useCurrentWorkView } from './work-view.js'
 import type { TaskStatus } from '../../shared/tasks.js'
 
 export interface TaskFilterPerson {
@@ -189,6 +191,7 @@ export function TaskFilterControl({
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [panel, setPanel] = useState<Panel>('root')
+  const [workView, setWorkView] = useCurrentWorkView()
   const personName = (id: string): string =>
     id === UNASSIGNED ? 'Unassigned' : (people.find((person) => person.id === id)?.name ?? 'Someone')
   const labelName = (id: string): string => labels.find((label) => label.id === id)?.name ?? 'One label'
@@ -206,127 +209,130 @@ export function TaskFilterControl({
   const back = (): void => setPanel('root')
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (!next) setPanel('root')
-      }}
-    >
-      <PopoverTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className={taskFilterActive(filter) ? 'bg-accent text-foreground' : 'text-muted-foreground'}
-            aria-label="Filter tasks"
-            title="Filter tasks"
-          />
-        }
+    <div className="flex items-center gap-0.5">
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next)
+          if (!next) setPanel('root')
+        }}
       >
-        <Filter aria-hidden="true" />
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-[18rem] p-1.5">
-        {panel === 'root' ? (
-          <>
-            <FilterHeader
+        <PopoverTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={taskFilterActive(filter) ? 'bg-accent text-foreground' : 'text-muted-foreground'}
+              aria-label="Filter tasks"
               title="Filter tasks"
-              {...(taskFilterActive(filter) ? { onClear: () => onChange(NO_TASK_FILTER) } : {})}
             />
-            <div role="group" aria-label="Task filters">
-              <FilterRow icon={ListChecks} label="Status" value={statusValue} onClick={() => setPanel('status')} />
-              <FilterRow icon={CalendarDays} label="Date" value={dayLabel(filter, today)} onClick={() => setPanel('date')} />
-              <FilterRow icon={UserRound} label="Assigned" value={assigneeValue} onClick={() => setPanel('assignee')} />
-              {labels.length > 0 || filter.label !== null ? (
-                <FilterRow icon={Tag} label="Label" value={currentLabel} onClick={() => setPanel('label')} />
-              ) : null}
-              <div aria-hidden="true" className="my-1 h-px bg-border" />
-              <ToggleRow icon={Star} label="Important" pressed={filter.important} onClick={() => onChange({ ...filter, important: !filter.important })} />
-              <ToggleRow icon={Repeat2} label="Repeating" pressed={filter.repeating} onClick={() => onChange({ ...filter, repeating: !filter.repeating })} />
-            </div>
-          </>
-        ) : null}
-
-        {panel === 'status' ? (
-          <>
-            <FilterHeader title="Status" onBack={back} />
-            <div role="group" aria-label="Status">
-              <ChoiceRow label="Any status" active={filter.statuses.length === 0} onClick={() => onChange({ ...filter, statuses: [] })} />
-              {STATUS.map((choice) => (
-                <ChoiceRow
-                  key={choice.value}
-                  label={choice.label}
-                  active={filter.statuses.includes(choice.value)}
-                  onClick={() => onChange({ ...filter, statuses: toggle(filter.statuses, choice.value) })}
-                />
-              ))}
-            </div>
-          </>
-        ) : null}
-
-        {panel === 'date' ? (
-          <>
-            <FilterHeader title="Date" onBack={back} />
-            <div role="group" aria-label="Date range" className="grid grid-cols-2 gap-0.5">
-              <ChoiceRow label="Any date" active={filter.schedule === 'any'} onClick={() => changeSchedule('any')} />
-              <ChoiceRow label="Has date" active={filter.schedule === 'with'} onClick={() => changeSchedule('with')} />
-              <ChoiceRow label="No date" active={filter.schedule === 'without'} onClick={() => changeSchedule('without')} />
-              <ChoiceRow label="Overdue" active={filter.schedule === 'overdue'} onClick={() => changeSchedule('overdue')} />
-            </div>
-            <div aria-hidden="true" className="my-1 h-px bg-border" />
-            <Calendar
-              className="mx-auto"
-              selected={filter.schedule === 'date' && filter.date !== null ? parseIsoDate(filter.date) : null}
-              today={parseIsoDate(today)}
-              onSelect={(date) => changeSchedule('date', isoDay(date))}
-            />
-          </>
-        ) : null}
-
-        {panel === 'assignee' ? (
-          <>
-            <FilterHeader title="Assigned" onBack={back} />
-            <div role="group" aria-label="Assigned" className="max-h-72 overflow-y-auto">
-              <ChoiceRow label="Anyone" active={filter.assignees.length === 0} onClick={() => onChange({ ...filter, assignees: [] })} />
-              {people.map((person) => (
-                <ChoiceRow
-                  key={person.id}
-                  label={person.name}
-                  active={filter.assignees.includes(person.id)}
-                  onClick={() => onChange({ ...filter, assignees: toggle(filter.assignees, person.id) })}
-                />
-              ))}
-              <ChoiceRow
-                label="Unassigned"
-                active={filter.assignees.includes(UNASSIGNED)}
-                onClick={() => onChange({ ...filter, assignees: toggle(filter.assignees, UNASSIGNED) })}
+          }
+        >
+          <Filter aria-hidden="true" />
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-[18rem] p-1.5">
+          {panel === 'root' ? (
+            <>
+              <FilterHeader
+                title="Filter tasks"
+                {...(taskFilterActive(filter) ? { onClear: () => onChange(NO_TASK_FILTER) } : {})}
               />
-            </div>
-          </>
-        ) : null}
+              <div role="group" aria-label="Task filters">
+                <FilterRow icon={ListChecks} label="Status" value={statusValue} onClick={() => setPanel('status')} />
+                <FilterRow icon={CalendarDays} label="Date" value={dayLabel(filter, today)} onClick={() => setPanel('date')} />
+                <FilterRow icon={UserRound} label="Assigned" value={assigneeValue} onClick={() => setPanel('assignee')} />
+                {labels.length > 0 || filter.label !== null ? (
+                  <FilterRow icon={Tag} label="Label" value={currentLabel} onClick={() => setPanel('label')} />
+                ) : null}
+                <div aria-hidden="true" className="my-1 h-px bg-border" />
+                <ToggleRow icon={Star} label="Important" pressed={filter.important} onClick={() => onChange({ ...filter, important: !filter.important })} />
+                <ToggleRow icon={Repeat2} label="Repeating" pressed={filter.repeating} onClick={() => onChange({ ...filter, repeating: !filter.repeating })} />
+              </div>
+            </>
+          ) : null}
 
-        {panel === 'label' ? (
-          <>
-            <FilterHeader title="Label" onBack={back} />
-            <div role="group" aria-label="Label" className="max-h-72 overflow-y-auto">
-              <ChoiceRow label="Any label" active={filter.label === null} onClick={() => onChange({ ...filter, label: null })} />
-              {labels.map((label) => (
+          {panel === 'status' ? (
+            <>
+              <FilterHeader title="Status" onBack={back} />
+              <div role="group" aria-label="Status">
+                <ChoiceRow label="Any status" active={filter.statuses.length === 0} onClick={() => onChange({ ...filter, statuses: [] })} />
+                {STATUS.map((choice) => (
+                  <ChoiceRow
+                    key={choice.value}
+                    label={choice.label}
+                    active={filter.statuses.includes(choice.value)}
+                    onClick={() => onChange({ ...filter, statuses: toggle(filter.statuses, choice.value) })}
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
+
+          {panel === 'date' ? (
+            <>
+              <FilterHeader title="Date" onBack={back} />
+              <div role="group" aria-label="Date range" className="grid grid-cols-2 gap-0.5">
+                <ChoiceRow label="Any date" active={filter.schedule === 'any'} onClick={() => changeSchedule('any')} />
+                <ChoiceRow label="Has date" active={filter.schedule === 'with'} onClick={() => changeSchedule('with')} />
+                <ChoiceRow label="No date" active={filter.schedule === 'without'} onClick={() => changeSchedule('without')} />
+                <ChoiceRow label="Overdue" active={filter.schedule === 'overdue'} onClick={() => changeSchedule('overdue')} />
+              </div>
+              <div aria-hidden="true" className="my-1 h-px bg-border" />
+              <Calendar
+                className="mx-auto"
+                selected={filter.schedule === 'date' && filter.date !== null ? parseIsoDate(filter.date) : null}
+                today={parseIsoDate(today)}
+                onSelect={(date) => changeSchedule('date', isoDay(date))}
+              />
+            </>
+          ) : null}
+
+          {panel === 'assignee' ? (
+            <>
+              <FilterHeader title="Assigned" onBack={back} />
+              <div role="group" aria-label="Assigned" className="max-h-72 overflow-y-auto">
+                <ChoiceRow label="Anyone" active={filter.assignees.length === 0} onClick={() => onChange({ ...filter, assignees: [] })} />
+                {people.map((person) => (
+                  <ChoiceRow
+                    key={person.id}
+                    label={person.name}
+                    active={filter.assignees.includes(person.id)}
+                    onClick={() => onChange({ ...filter, assignees: toggle(filter.assignees, person.id) })}
+                  />
+                ))}
                 <ChoiceRow
-                  key={label.id}
-                  label={label.name}
-                  before={<LabelDot color={label.color} />}
-                  active={filter.label === label.id}
-                  onClick={() => {
-                    onChange({ ...filter, label: label.id })
-                    setPanel('root')
-                  }}
+                  label="Unassigned"
+                  active={filter.assignees.includes(UNASSIGNED)}
+                  onClick={() => onChange({ ...filter, assignees: toggle(filter.assignees, UNASSIGNED) })}
                 />
-              ))}
-            </div>
-          </>
-        ) : null}
-      </PopoverContent>
-    </Popover>
+              </div>
+            </>
+          ) : null}
+
+          {panel === 'label' ? (
+            <>
+              <FilterHeader title="Label" onBack={back} />
+              <div role="group" aria-label="Label" className="max-h-72 overflow-y-auto">
+                <ChoiceRow label="Any label" active={filter.label === null} onClick={() => onChange({ ...filter, label: null })} />
+                {labels.map((label) => (
+                  <ChoiceRow
+                    key={label.id}
+                    label={label.name}
+                    before={<LabelDot color={label.color} />}
+                    active={filter.label === label.id}
+                    onClick={() => {
+                      onChange({ ...filter, label: label.id })
+                      setPanel('root')
+                    }}
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
+        </PopoverContent>
+      </Popover>
+      <WorkViewControl view={workView} onChange={setWorkView} />
+    </div>
   )
 }
 
