@@ -14,10 +14,10 @@ Nothing sits above Focus.
   "…" appears on hover in space the row already reserves, and a right-click
   opens that same menu. The Library's one "+" makes a top-level page or a
   private collection. Right-click on the sidebar's ground opens the same menu.
-- **Projects only**: a Library row is a project and opens it. It has no
-  fold and draws no sub-pages (u2); a project's pages live in its tabs.
-  Dragging a row reorders it or files it in a collection, never inside
-  another row.
+- **Pages mirror their real hierarchy**: Library ordering and collections place
+  only roots. A page with a visible `parent_folder_id` is drawn indented under
+  that parent, using the existing page-tree fold and sibling order. Tabs/facets
+  are still project-internal navigation and do not become another sidebar tree.
 - **The foot** is one row of square icon buttons: Search (Ctrl K / ⌘K,
   named in its tooltip), the bell, Settings, Trash, and collapse at the far
   right. People is a section of Settings; /app/people still answers.
@@ -482,8 +482,9 @@ function usePageTreeValue({
     /* The Desk page is pinned first, so nothing lands beside it, and it is
        never a parent (the server's 422), so nothing lands inside it either. */
     if (drop?.anchor !== undefined && (!allowRoot || onto?.is_default === true)) drop = null
-    /* The Library draws no sub-pages (u2), so a row is never a drop target
-       for "inside": a project would vanish into another one. */
+    /* Tree drops are currently only used to resolve root placement. Nested
+       pages are displayed here, but reparenting remains a separate act until
+       nested rows themselves participate in the drag engine. */
     if (drop !== null && drop.parent !== null) drop = null
     if (drop !== null && isNoop(tree, carried.id, drop)) drop = null
     const next = drop?.mark ?? null
@@ -586,6 +587,26 @@ function inboxOf(folders: readonly Folder[]): Folder | null {
   return folders.find((folder) => folder.is_default) ?? null
 }
 
+/* Tabs are project-internal navigation, not Library rows. A true sub-page may
+   live directly under a tab, so removing the tab must lift that parent edge to
+   the project root. This mirrors the server's old-client projection, but only
+   for the sidebar surface that deliberately keeps Tabs separate. */
+function libraryPages(folders: readonly Folder[]): Folder[] {
+  const tabProjects = new Map(
+    folders
+      .filter((folder) => folder.tab_position !== null && folder.id !== folder.project_id)
+      .map((folder) => [folder.id, folder.project_id]),
+  )
+  return folders
+    .filter((folder) => !tabProjects.has(folder.id))
+    .map((folder) => {
+      const parent = folder.parent_folder_id
+      if (parent === null || parent === undefined) return folder
+      const lifted = tabProjects.get(parent)
+      return lifted === undefined ? folder : { ...folder, parent_folder_id: lifted }
+    })
+}
+
 /*
 The acts a Library row runs by asking the page: `?folder-action=` opens a new
 page's name field, an owner's delete question and the page's History, which
@@ -638,11 +659,13 @@ function SidebarFolderRow({
   folder,
   activeId,
   nested = false,
+  depth = 0,
   drag,
 }: {
   readonly folder: Folder
   readonly activeId: string | null
   readonly nested?: boolean
+  readonly depth?: number
   readonly drag?: {
     readonly itemRef: (element: HTMLElement | null) => void
     readonly rowProps: React.ComponentProps<'li'>
@@ -659,6 +682,9 @@ function SidebarFolderRow({
     isDefault: folder.is_default,
   })
   const pages = usePageTree()
+  const children = pages.tree.children.get(folder.id) ?? []
+  const open = !pages.folded.has(folder.id)
+  const canAddInside = !folder.is_default && pages.mayEdit(folder)
   return (
     <FolderRow
       itemRef={drag?.itemRef}
@@ -673,15 +699,14 @@ function SidebarFolderRow({
       active={activeId === folder.id}
       nested={nested}
       pageId={folder.id}
+      depth={depth}
+      fold={children.length === 0 ? undefined : { open, onToggle: () => { pages.toggle(folder.id) } }}
+      onAddInside={canAddInside ? () => { pages.addInside(folder) } : undefined}
       dropMark={pages.mark?.rowId === folder.id ? pages.mark.kind : null}
       renaming={pages.renaming === folder.id}
       onRename={(name) => {
         pages.rename(folder, name)
       }}
-      /* A Library row is a project and only opens it (u2): no fold, no
-         sub-pages under it, no hover "+". Its menu is the project's list
-         (`lib/object-acts.ts`) less History, which is on the page's "…".
-         The Desk has no menu: nothing in it was worth a press. */
       menuKind={folder.project_id === folder.id ? 'project' : 'folder'}
       acts={
         folder.is_default
@@ -714,7 +739,21 @@ function SidebarFolderRow({
                 : undefined,
             }
       }
-    />
+    >
+      {!open || children.length === 0 ? null : (
+        <SidebarMenu>
+          {children.map((child) => (
+            <SidebarFolderRow
+              key={child.id}
+              folder={child}
+              activeId={activeId}
+              nested={nested}
+              depth={depth + 1}
+            />
+          ))}
+        </SidebarMenu>
+      )}
+    </FolderRow>
   )
 }
 
@@ -984,7 +1023,8 @@ function FolderGroupBlock({
 /**
  * The Library's one ordered column: shelves and loose folders in the viewer's
  * order. Dragging a row reorders it; resting inside a collection files it
- * there; letting go on the middle of a page puts it inside that page.
+ * there. Root-page dragging does not currently reparent nested pages; the
+ * canonical parent relationship is shown here and edited through page acts.
  *
  * Holding one folder on another used to propose a new shelf of the two; the
  * middle of a row now means "inside this page", and one gesture cannot mean
@@ -1028,8 +1068,7 @@ function LibraryColumn({
         pages.clearMark()
         return null
       }
-      /* Onto a page, or between sub-pages: the tree answers first. Beside a
-         root is the column's own reorder, below. */
+      /* Beside a root is the column's own reorder, below. */
       if (pages.probe(entry.folder, point, true) !== null) {
         setDrop(null)
         return TREE_KEY
@@ -1366,20 +1405,30 @@ export function AppSidebar({
     event.preventDefault()
     setGroundMenu({ x: event.clientX, y: event.clientY })
   }
-  /* The Library draws roots; each root draws its own sub-pages. A page whose
-     parent this viewer cannot see is a root here (`page-tree.ts`). */
+  /* The Library draws only project roots and true sub-pages. Tabs are removed
+     from this projection, and a sub-page directly under a tab is lifted under
+     the project root so the sidebar keeps the page hierarchy without copying
+     the project's tab strip. */
   const allFolders = folders ?? NO_FOLDERS
-  const roots = useMemo(() => buildTree(allFolders).roots, [allFolders])
+  const libraryFolders = useMemo(() => libraryPages(allFolders), [allFolders])
+  const activeLibraryId = useMemo(() => {
+    if (activeFolderId === null) return null
+    const active = allFolders.find((folder) => folder.id === activeFolderId)
+    return active !== undefined && active.tab_position !== null && active.id !== active.project_id
+      ? active.project_id
+      : activeFolderId
+  }, [activeFolderId, allFolders])
+  const roots = useMemo(() => buildTree(libraryFolders).roots, [libraryFolders])
   const entries = useMemo(
     () => arrangeColumn(roots, sidebarOrder, shelves ?? NO_SHELVES),
     [roots, sidebarOrder, shelves],
   )
   const pageTree = usePageTreeValue({
-    folders: allFolders,
+    folders: libraryFolders,
     entries,
     onOrderChange: onSidebarOrderChange,
     groups: groupActions,
-    activeId: activeFolderId,
+    activeId: activeLibraryId,
   })
   const libraryKeys = useLibraryKeys(
     pageTree.tree,
@@ -1435,7 +1484,7 @@ export function AppSidebar({
               <SidebarMenu>
                 <SidebarFolderRow
                   folder={inbox}
-                  activeId={activeFolderId}
+                  activeId={activeLibraryId}
                 />
               </SidebarMenu>
             </SidebarGroupContent>
@@ -1443,7 +1492,7 @@ export function AppSidebar({
           <LibraryColumn
             entries={entries}
             onOrderChange={onSidebarOrderChange}
-            activeId={activeFolderId}
+            activeId={activeLibraryId}
             groups={groupActions}
           />
           </PageTreeContext.Provider>
