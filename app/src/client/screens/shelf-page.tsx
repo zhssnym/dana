@@ -63,14 +63,14 @@ export function ShelfPage({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
 
-  /* History asked for by the Library row's "…" (`?shelf-action=history`):
-     opened here and the act dropped from the address, so Back does not
-     reopen it. */
+  /* History or inline rename asked for by the Library (`?shelf-action=...`):
+     open it here and drop the act from the address, so Back does not repeat it. */
   const [search, setSearch] = useSearchParams()
   const action = search.get(SHELF_ACTION_PARAM)
   useEffect(() => {
     if (action === null) return
     if (action === "history") setHistoryOpen(true)
+    if (action === "rename") setRenaming(true)
     setSearch(
       (prev) => {
         const next = new URLSearchParams(prev)

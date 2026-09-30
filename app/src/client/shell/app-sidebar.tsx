@@ -12,8 +12,8 @@ Nothing sits above Focus.
 - **Library**: the Desk folder first, then the viewer's shelves and folders as
   one ordered column (`library-order.ts`). A row is its icon and its name; its
   "…" appears on hover in space the row already reserves, and a right-click
-  opens that same menu. The Library's one "+" makes a top-level page in one
-  click. Right-click on the sidebar's ground opens New page and Import….
+  opens that same menu. The Library's one "+" makes a top-level page or a
+  private collection. Right-click on the sidebar's ground opens the same menu.
 - **Projects only**: a Library row is a project and opens it. It has no
   fold and draws no sub-pages (u2); a project's pages live in its tabs.
   Dragging a row reorders it or files it in a collection, never inside
@@ -68,6 +68,7 @@ import {
   useRenameFolder,
   useRestoreFolder,
 } from '../api/mutations.js'
+import { useCreateShelf } from '../api/shelf-mutations.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
 import { copyLink, leaveFolderConfirm } from '../lib/object-acts.js'
 import { pushUndo, undoLabel } from './undo.js'
@@ -160,6 +161,17 @@ function proposalIn(
 
 const NO_SHELVES: readonly Shelf[] = []
 const NO_FOLDERS: readonly Folder[] = []
+
+/** A temporary shelf name that is unique in the viewer's current Library. */
+function untitledCollectionName(shelves: readonly Shelf[]): string {
+  const names = new Set(shelves.map((shelf) => shelf.name.toLocaleLowerCase()))
+  const base = 'Untitled collection'
+  if (!names.has(base.toLocaleLowerCase())) return base
+  for (let number = 2; ; number += 1) {
+    const candidate = `${base} ${String(number)}`
+    if (!names.has(candidate.toLocaleLowerCase())) return candidate
+  }
+}
 
 /**
  * React Router's `Link` as base-ui's `render` prop takes it. `render` clones it
@@ -585,7 +597,7 @@ export type FolderAction = 'rename' | 'leave' | 'delete' | 'history'
 /** The query the folder page reads to run an act the Library asked for. */
 export const FOLDER_ACTION_PARAM = 'folder-action'
 
-/** The query the collection page reads to open its History from the Library. */
+/** The query the collection page reads to open an act from the Library. */
 export const SHELF_ACTION_PARAM = 'shelf-action'
 
 export function folderActionPath(id: string, action: FolderAction): string {
@@ -976,7 +988,7 @@ function FolderGroupBlock({
  *
  * Holding one folder on another used to propose a new shelf of the two; the
  * middle of a row now means "inside this page", and one gesture cannot mean
- * both. A collection is made from the Library's "+" or a row's menu.
+ * both. A collection is made from the Library's "+".
  */
 function LibraryColumn({
   entries,
@@ -1127,12 +1139,14 @@ function LibraryColumn({
   )
 }
 
-/** The Library's "+" (step 7): the same two items as its right-click. */
+/** The Library's "+": the same three items as its right-click. */
 function NewPageButton({
   onNewPage,
+  onNewCollection,
   onImport,
 }: {
   readonly onNewPage: () => void
+  readonly onNewCollection: () => void
   readonly onImport: () => void
 }): React.JSX.Element {
   return (
@@ -1146,35 +1160,45 @@ function NewPageButton({
             className="size-6 shrink-0 rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
           />
         }
-        aria-label="New project"
-        title="New project"
+        aria-label="Add to Library"
+        title="Add to Library"
       >
         <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-40">
-        <ProjectItems onNewPage={onNewPage} onImport={onImport} />
+        <ProjectItems
+          onNewPage={onNewPage}
+          onNewCollection={onNewCollection}
+          onImport={onImport}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
 
-/* New project and Import project, in the "+" and the right-click alike. */
+/* New work, New collection and Import work, in the "+" and right-click alike. */
 function ProjectItems({
   onNewPage,
+  onNewCollection,
   onImport,
 }: {
   readonly onNewPage: () => void
+  readonly onNewCollection: () => void
   readonly onImport: () => void
 }): React.JSX.Element {
   return (
     <>
       <DropdownMenuItem onClick={onNewPage}>
         <Plus strokeWidth={1.75} aria-hidden="true" />
-        New project
+        New work
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={onNewCollection}>
+        <Folders strokeWidth={1.75} aria-hidden="true" />
+        New collection
       </DropdownMenuItem>
       <DropdownMenuItem onClick={onImport}>
         <Import strokeWidth={1.75} aria-hidden="true" />
-        Import project…
+        Import work…
       </DropdownMenuItem>
     </>
   )
@@ -1209,11 +1233,13 @@ function SidebarGroundMenu({
   at,
   onClose,
   onNewPage,
+  onNewCollection,
   onImport,
 }: {
   readonly at: { readonly x: number; readonly y: number } | null
   readonly onClose: () => void
   readonly onNewPage: () => void
+  readonly onNewCollection: () => void
   readonly onImport: () => void
 }): React.JSX.Element | null {
   if (at === null) return null
@@ -1235,7 +1261,11 @@ function SidebarGroundMenu({
         }
       />
       <DropdownMenuContent sideOffset={0} className="w-auto min-w-40">
-        <ProjectItems onNewPage={onNewPage} onImport={onImport} />
+        <ProjectItems
+          onNewPage={onNewPage}
+          onNewCollection={onNewCollection}
+          onImport={onImport}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -1287,6 +1317,7 @@ export function AppSidebar({
   const inbox = inboxOf(folders ?? [])
   const navigate = useNavigate()
   const create = useCreateFolder()
+  const createShelf = useCreateShelf()
   /* One page per press, the row "+"'s rule: a double click must not stack
      Untitled pages while the first create is in flight. A ref and not
      `create.isPending`, which has not rendered yet when the second click of a
@@ -1304,6 +1335,24 @@ export function AppSidebar({
           creating.current = false
         },
         onSuccess: (made) => void navigate(folderActionPath(made.id, 'rename')),
+      },
+    )
+  }
+  /* Collection creation mirrors a new Work: one request, then its existing
+     title editor is the naming surface. No dialog and no second Collection UI. */
+  const creatingCollection = useRef(false)
+  const newCollection = (): void => {
+    if (creatingCollection.current) return
+    creatingCollection.current = true
+    createShelf.mutate(
+      { name: untitledCollectionName(shelves ?? NO_SHELVES) },
+      {
+        onSettled: () => {
+          creatingCollection.current = false
+        },
+        onSuccess: (made) => {
+          void navigate(`${paths.shelf(made.id)}?${SHELF_ACTION_PARAM}=rename`)
+        },
       },
     )
   }
@@ -1374,7 +1423,11 @@ export function AppSidebar({
             <h2 className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
               Library
             </h2>
-            <NewPageButton onNewPage={newPage} onImport={() => { importPage() }} />
+            <NewPageButton
+              onNewPage={newPage}
+              onNewCollection={newCollection}
+              onImport={() => { importPage() }}
+            />
           </div>
           <PageTreeContext.Provider value={pageTree}>
           {inbox === null ? null : (
@@ -1451,6 +1504,7 @@ export function AppSidebar({
           setGroundMenu(null)
         }}
         onNewPage={newPage}
+        onNewCollection={newCollection}
         onImport={() => {
           importPage()
         }}
