@@ -682,7 +682,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
       onDiscard={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}
     /> : null}
     <SavedResults.Provider value={savedResults}>
-    <CanvasTaskProvider tasks={tasks} completed={completed} taskFilter={taskFilter} context={context} actions={actions} onAsk={onAsk}>
+    <CanvasTaskProvider tasks={tasks} completed={completed} taskFilter={taskFilter} freeform={workView === 'freeform'} context={context} actions={actions} onAsk={onAsk}>
       {draftStyle === '' ? null : <style>{draftStyle}</style>}
       <ThreadLayer enabled={presentationHeadings !== true && workView === 'thread'} editor={editor} folderId={folderId} tasks={tasks} context={context} frozen={frozen} finish={workRootId === undefined && resultsWritable === true}>
       <div
