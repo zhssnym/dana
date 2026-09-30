@@ -94,7 +94,14 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
    blocks.set(op.id,{...op,checked:op.block_kind==='checklist'?(op.checked??false):null,toggleable:op.toggleable===true?true:null})
   }
   else if(op.op==='delete_block') {if(!blocks.delete(op.id))throw new DocumentRefusal('not_found','Block not found.')}
-  else if(op.op==='create_task'){if(tasks.has(op.id)||created.some(t=>t.id===op.id))throw new DocumentRefusal('not_convertible','Task identity already exists.');created.push(op);tasks.add(op.id)}
+  else if(op.op==='create_task'){
+   // #382: Tasks are Work-page records. Existing legacy placements on a Doc
+   // remain readable and must stay in its outline, but no new Task identity may
+   // be created there through a direct document transaction.
+   if(home!=='work')throw new DocumentRefusal('not_convertible','A Task belongs on a Work page.')
+   if(tasks.has(op.id)||created.some(t=>t.id===op.id))throw new DocumentRefusal('not_convertible','Task identity already exists.')
+   created.push(op);tasks.add(op.id)
+  }
   /* Wave 2: a sub-page and its home `page` block, made together. The block is
      an ordinary member of the block set from here on, so the outline must
      place it like any other; the folder row is written after validation. */
