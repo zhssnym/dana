@@ -49,11 +49,12 @@ function CompletedDisclosure({ section, tasks, onHeight }: {
     return () => observer.disconnect()
   }, [onHeight])
   const id = `freeform-completed-${section ?? 'root'}`
-  return <div ref={box} data-freeform-completed-disclosure={section ?? 'root'} className="pt-2">
+  const root = section === null
+  return <div ref={box} data-freeform-completed-disclosure={section ?? 'root'} className={root ? 'mt-3 border-t border-border pt-2' : 'pt-2'}>
     <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((value) => !value)}
       className="flex h-[var(--control-height)] w-full items-center gap-2 rounded-md px-2 text-left text-sm text-muted-foreground hover:bg-hover hover:text-foreground">
       <ChevronRight className={`size-4 transition-transform duration-[var(--duration-fast)] ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
-      <span>Completed tasks</span><span className="text-xs tabular-nums text-quiet-foreground">{tasks.length}</span>
+      <span>{root ? 'Completed' : 'Completed tasks'}</span><span className="text-xs tabular-nums text-quiet-foreground">{tasks.length}</span>
     </button>
     {open ? <div id={id} role="list" className="pl-2">{tasks.map((task) => <FreeformCompletedTask key={task.id} task={task} />)}</div> : null}
   </div>
