@@ -212,6 +212,7 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --duration-fast: 120ms;
   --duration-base: 150ms;
   --duration-slow: 200ms;
+  --duration-task-complete: 500ms;
   --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
@@ -355,6 +356,7 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
     --duration-fast: 1ms;
     --duration-base: 1ms;
     --duration-slow: 1ms;
+    --duration-task-complete: 1ms;
     --duration-enter: 1ms;
     --duration-hover-in: 1ms;
     --duration-hover-out: 1ms;
