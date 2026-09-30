@@ -75,13 +75,13 @@ function FilterHeader({
   readonly onClear?: () => void
 }): React.JSX.Element {
   return (
-    <div className="flex h-8 items-center gap-1 px-1.5">
+    <div className="flex min-h-7 items-center gap-1 px-1">
       {onBack === undefined ? null : (
         <Button type="button" variant="ghost" size="icon-xs" aria-label="Back to filters" onClick={onBack}>
           <ArrowLeft aria-hidden="true" />
         </Button>
       )}
-      <PopoverTitle className="min-w-0 flex-1 truncate text-sm font-medium">{title}</PopoverTitle>
+      <PopoverTitle className="min-w-0 flex-1 truncate px-1 text-xs font-normal text-muted-foreground">{title}</PopoverTitle>
       {onClear === undefined ? null : (
         <Button type="button" variant="ghost" size="xs" className="font-normal text-muted-foreground" onClick={onClear}>
           Clear
@@ -105,13 +105,13 @@ function FilterRow({
   return (
     <button
       type="button"
-      className="flex h-9 w-full items-center gap-2.5 rounded-md px-2 text-left text-sm text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent"
+      className="flex min-h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground outline-none transition-colors duration-[var(--duration-fast)] hover:bg-accent focus-visible:bg-accent"
       onClick={onClick}
     >
       <Icon className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      <span className="max-w-28 truncate text-xs text-muted-foreground">{value}</span>
-      <ChevronRight className="size-3.5 shrink-0 text-quiet-foreground" strokeWidth={1.75} aria-hidden="true" />
+      <span className="ml-auto max-w-24 truncate text-xs text-muted-foreground">{value}</span>
+      <ChevronRight className="size-4 shrink-0 text-quiet-foreground" strokeWidth={1.75} aria-hidden="true" />
     </button>
   )
 }
@@ -131,12 +131,12 @@ function ToggleRow({
     <button
       type="button"
       aria-pressed={pressed}
-      className="flex h-9 w-full items-center gap-2.5 rounded-md px-2 text-left text-sm text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent"
+      className="flex min-h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground outline-none transition-colors duration-[var(--duration-fast)] hover:bg-accent focus-visible:bg-accent"
       onClick={onClick}
     >
       <Icon className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
-      <span className="flex-1">{label}</span>
-      <Check className={pressed ? 'size-3.5 opacity-100' : 'size-3.5 opacity-0'} strokeWidth={2.5} aria-hidden="true" />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <Check className={pressed ? 'ml-auto size-4 opacity-100' : 'ml-auto size-4 opacity-0'} strokeWidth={2.5} aria-hidden="true" />
     </button>
   )
 }
@@ -156,12 +156,14 @@ function ChoiceRow({
     <button
       type="button"
       aria-pressed={active}
-      className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent"
+      className="flex min-h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground outline-none transition-colors duration-[var(--duration-fast)] hover:bg-accent focus-visible:bg-accent"
       onClick={onClick}
     >
-      {before}
+      {before === undefined ? null : (
+        <span className="flex size-4 shrink-0 items-center justify-center">{before}</span>
+      )}
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      <Check className={active ? 'size-3.5 opacity-100' : 'size-3.5 opacity-0'} strokeWidth={2.5} aria-hidden="true" />
+      <Check className={active ? 'ml-auto size-4 opacity-100' : 'ml-auto size-4 opacity-0'} strokeWidth={2.5} aria-hidden="true" />
     </button>
   )
 }
@@ -230,7 +232,7 @@ export function TaskFilterControl({
         >
           <Filter aria-hidden="true" />
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-[18rem] p-1.5">
+        <PopoverContent align="end" className="w-[18rem] p-1">
           {panel === 'root' ? (
             <>
               <FilterHeader
@@ -244,7 +246,7 @@ export function TaskFilterControl({
                 {labels.length > 0 || filter.label !== null ? (
                   <FilterRow icon={Tag} label="Label" value={currentLabel} onClick={() => setPanel('label')} />
                 ) : null}
-                <div aria-hidden="true" className="my-1 h-px bg-border" />
+                <div aria-hidden="true" className="-mx-1 my-1 h-px bg-border" />
                 <ToggleRow icon={Star} label="Important" pressed={filter.important} onClick={() => onChange({ ...filter, important: !filter.important })} />
                 <ToggleRow icon={Repeat2} label="Repeating" pressed={filter.repeating} onClick={() => onChange({ ...filter, repeating: !filter.repeating })} />
               </div>
@@ -271,13 +273,13 @@ export function TaskFilterControl({
           {panel === 'date' ? (
             <>
               <FilterHeader title="Date" onBack={back} />
-              <div role="group" aria-label="Date range" className="grid grid-cols-2 gap-0.5">
+              <div role="group" aria-label="Date range">
                 <ChoiceRow label="Any date" active={filter.schedule === 'any'} onClick={() => changeSchedule('any')} />
                 <ChoiceRow label="Has date" active={filter.schedule === 'with'} onClick={() => changeSchedule('with')} />
                 <ChoiceRow label="No date" active={filter.schedule === 'without'} onClick={() => changeSchedule('without')} />
                 <ChoiceRow label="Overdue" active={filter.schedule === 'overdue'} onClick={() => changeSchedule('overdue')} />
               </div>
-              <div aria-hidden="true" className="my-1 h-px bg-border" />
+              <div aria-hidden="true" className="-mx-1 my-1 h-px bg-border" />
               <Calendar
                 className="mx-auto"
                 selected={filter.schedule === 'date' && filter.date !== null ? parseIsoDate(filter.date) : null}
@@ -313,7 +315,12 @@ export function TaskFilterControl({
             <>
               <FilterHeader title="Label" onBack={back} />
               <div role="group" aria-label="Label" className="max-h-72 overflow-y-auto">
-                <ChoiceRow label="Any label" active={filter.label === null} onClick={() => onChange({ ...filter, label: null })} />
+                <ChoiceRow
+                  label="Any label"
+                  before={<span aria-hidden="true" className="size-2" />}
+                  active={filter.label === null}
+                  onClick={() => onChange({ ...filter, label: null })}
+                />
                 {labels.map((label) => (
                   <ChoiceRow
                     key={label.id}
