@@ -84,6 +84,10 @@
   --dana-thread-done-frontier: var(--dana-thread-done);
   --dana-thread-done-start: linear-gradient(var(--dana-thread-done-ink), var(--dana-thread-done-ink)) 50% var(--dana-thread-knee) / 100% calc(var(--dana-thread-fill) - var(--dana-thread-knee)) no-repeat, var(--dana-thread-under);
 }
+/* A Task filter is a view over the document: only the Task block disappears.
+   Its siblings (headings, prose and media) stay, and the thread model still
+   reads the complete document so filtering cannot appoint another Next Task. */
+.dana-thread .bn-block-outer:has(> .bn-block > .node-danaTask [data-canvas-task-filtered]) { display: none; }
 /* A section heading's badge is its heading's centre, not a row's. Its
    green reaches only past its own row (twice the centre; the first block
    it holds is on the stretch too and draws its own), never down behind
