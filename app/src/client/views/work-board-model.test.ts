@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest'
 import type { PageBlock, PageView } from '../../shared/pages.js'
 import type { TaskCard } from '../../shared/tasks.js'
 import type { BoardTask } from '../components/task-board.js'
-import { appendRootSection, sectionBoardColumns } from './work-board-model.js'
+import { appendRootSection, appendSection, sectionBoardColumns } from './work-board-model.js'
 
 const section = (id: string, name: string, parent: string | null): PageBlock => ({
-  id, kind: 'section', text: name, section_block_id: parent, position: 0,
+  id, kind: 'section', text: name, section_block_id: parent, list_parent_block_id: null, position: 0,
 } as PageBlock)
 const task = (id: string, parent: string | null): TaskCard => ({ id, section_block_id: parent } as TaskCard)
 
@@ -53,5 +53,28 @@ describe('Work Board sections', () => {
       { kind: 'block', id: 'new-root', section_block_id: null, list_parent_block_id: null },
     ] })
     expect(() => appendRootSection({ ...page, task_placements: undefined }, 'new-root', 'Next work')).toThrow('Reload')
+  })
+
+  it('places H2 and H3 after their parent content and before the next sibling', () => {
+    const page = {
+      revision: 'current',
+      blocks: [section('h1', 'First', null), section('h2', 'Inner', 'h1'), section('h3', 'Detail', 'h2'), section('next', 'Second', null)],
+      task_placements: [{ id: 'task', section_block_id: 'h2' }],
+      items: [
+        { kind: 'block', id: 'h1' }, { kind: 'block', id: 'h2' }, { kind: 'block', id: 'h3' },
+        { kind: 'task', id: 'task' }, { kind: 'block', id: 'next' },
+      ],
+    } as PageView
+    const h2 = appendSection(page, 'new-h2', 'Last under First', 'h1').operations[1]
+    expect(h2).toMatchObject({ op: 'set_outline', items: [
+      { id: 'h1' }, { id: 'h2' }, { id: 'h3' }, { id: 'task' },
+      { id: 'new-h2', section_block_id: 'h1' }, { id: 'next' },
+    ] })
+    const h3 = appendSection(page, 'new-h3', 'Last under Inner', 'h2').operations[1]
+    expect(h3).toMatchObject({ op: 'set_outline', items: [
+      { id: 'h1' }, { id: 'h2' }, { id: 'h3' }, { id: 'task' },
+      { id: 'new-h3', section_block_id: 'h2' }, { id: 'next' },
+    ] })
+    expect(() => appendSection(page, 'too-deep', 'No', 'h3')).toThrow('cannot hold')
   })
 })
