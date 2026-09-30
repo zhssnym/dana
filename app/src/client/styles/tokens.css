@@ -251,6 +251,7 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --content-list: clamp(720px, 60vw, 900px);
   --shell-content-max: var(--content-list);
   --calendar-month-cell-height: 104px;
+  --calendar-range-lane-height: 22px;
 
   --dana-mark-plate: var(--color-graphite-950);
   --dana-mark-glyph: var(--color-graphite-0);
