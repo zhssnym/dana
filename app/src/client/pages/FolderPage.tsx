@@ -121,7 +121,7 @@ import {
 } from '../components/ui/dialog.js'
 /* The empty-state icon goes to `PageBody`, whose `StateIcon` is typed on the
    raw lucide component. */
-import { Folder as FolderIcon } from '../lib/icons.js'
+import { Folder as FolderIcon, UsersRound } from '../lib/icons.js'
 
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -978,6 +978,7 @@ function FolderPageBody({
             dropParam(MEMBER_PARAM)
           }}
         >
+          <UsersRound className="size-4" strokeWidth={1.75} aria-hidden="true" />
           {members.length <= 1 ? 'Add teammates' : 'Team'}
         </Button>
       )}
