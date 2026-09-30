@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Button } from '../components/ui/button.js'
 import { Calendar } from '../components/ui/calendar.js'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '../components/ui/popover.js'
+import { cn } from '../components/ui/utils.js'
 import { LabelDot } from '../components/label-chip.js'
 import {
   ArrowLeft,
@@ -77,11 +78,13 @@ function FilterHeader({
   return (
     <div className="flex min-h-7 items-center gap-1 px-1">
       {onBack === undefined ? null : (
-        <Button type="button" variant="ghost" size="icon-xs" aria-label="Back to filters" onClick={onBack}>
+        <Button type="button" variant="ghost" size="icon-xs" className="sm:hidden" aria-label="Back to filters" onClick={onBack}>
           <ArrowLeft aria-hidden="true" />
         </Button>
       )}
-      <PopoverTitle className="min-w-0 flex-1 truncate px-1 text-xs font-normal text-muted-foreground">{title}</PopoverTitle>
+      {onBack === undefined
+        ? <PopoverTitle className="min-w-0 flex-1 truncate px-1 text-xs font-normal text-muted-foreground">{title}</PopoverTitle>
+        : <span className="min-w-0 flex-1 truncate px-1 text-xs text-muted-foreground">{title}</span>}
       {onClear === undefined ? null : (
         <Button type="button" variant="ghost" size="xs" className="font-normal text-muted-foreground" onClick={onClear}>
           Clear
@@ -96,17 +99,25 @@ function FilterRow({
   label,
   value,
   onClick,
+  active,
 }: {
   readonly icon: LucideIcon
   readonly label: string
   readonly value: string
   readonly onClick: () => void
+  readonly active: boolean
 }): React.JSX.Element {
   return (
     <button
       type="button"
-      className="flex min-h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground outline-none transition-colors duration-[var(--duration-fast)] hover:bg-accent focus-visible:bg-accent"
+      aria-expanded={active}
+      className={cn('flex min-h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground outline-none transition-colors duration-[var(--duration-fast)] hover:bg-accent focus-visible:bg-accent', active && 'bg-accent')}
       onClick={onClick}
+      onPointerEnter={(event) => {
+        /* A stacked phone panel would move the row before the pointer's click lands. */
+        if (event.pointerType !== 'touch' && globalThis.matchMedia('(min-width: 640px)').matches) onClick()
+      }}
+      onFocus={(event) => { if (event.currentTarget.matches(':focus-visible')) onClick() }}
     >
       <Icon className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
       <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -121,11 +132,13 @@ function ToggleRow({
   label,
   pressed,
   onClick,
+  onHover,
 }: {
   readonly icon: LucideIcon
   readonly label: string
   readonly pressed: boolean
   readonly onClick: () => void
+  readonly onHover: () => void
 }): React.JSX.Element {
   return (
     <button
@@ -133,6 +146,7 @@ function ToggleRow({
       aria-pressed={pressed}
       className="flex min-h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground outline-none transition-colors duration-[var(--duration-fast)] hover:bg-accent focus-visible:bg-accent"
       onClick={onClick}
+      onPointerEnter={(event) => { if (event.pointerType !== 'touch') onHover() }}
     >
       <Icon className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
       <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -232,26 +246,23 @@ export function TaskFilterControl({
         >
           <Filter aria-hidden="true" />
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-[18rem] p-1">
-          {panel === 'root' ? (
-            <>
+        <PopoverContent align="end" className="relative w-[18rem] max-sm:max-h-[var(--available-height)] max-sm:overflow-y-auto p-1">
               <FilterHeader
                 title="Filter tasks"
                 {...(taskFilterActive(filter) ? { onClear: () => onChange(NO_TASK_FILTER) } : {})}
               />
               <div role="group" aria-label="Task filters">
-                <FilterRow icon={ListChecks} label="Status" value={statusValue} onClick={() => setPanel('status')} />
-                <FilterRow icon={CalendarDays} label="Date" value={dayLabel(filter, today)} onClick={() => setPanel('date')} />
-                <FilterRow icon={UserRound} label="Assigned" value={assigneeValue} onClick={() => setPanel('assignee')} />
+                <FilterRow icon={ListChecks} label="Status" value={statusValue} active={panel === 'status'} onClick={() => setPanel('status')} />
+                <FilterRow icon={CalendarDays} label="Date" value={dayLabel(filter, today)} active={panel === 'date'} onClick={() => setPanel('date')} />
+                <FilterRow icon={UserRound} label="Assigned" value={assigneeValue} active={panel === 'assignee'} onClick={() => setPanel('assignee')} />
                 {labels.length > 0 || filter.label !== null ? (
-                  <FilterRow icon={Tag} label="Label" value={currentLabel} onClick={() => setPanel('label')} />
+                  <FilterRow icon={Tag} label="Label" value={currentLabel} active={panel === 'label'} onClick={() => setPanel('label')} />
                 ) : null}
                 <div aria-hidden="true" className="-mx-1 my-1 h-px bg-border" />
-                <ToggleRow icon={Star} label="Important" pressed={filter.important} onClick={() => onChange({ ...filter, important: !filter.important })} />
-                <ToggleRow icon={Repeat2} label="Repeating" pressed={filter.repeating} onClick={() => onChange({ ...filter, repeating: !filter.repeating })} />
+                <ToggleRow icon={Star} label="Important" pressed={filter.important} onHover={() => setPanel('root')} onClick={() => onChange({ ...filter, important: !filter.important })} />
+                <ToggleRow icon={Repeat2} label="Repeating" pressed={filter.repeating} onHover={() => setPanel('root')} onClick={() => onChange({ ...filter, repeating: !filter.repeating })} />
               </div>
-            </>
-          ) : null}
+          {panel === 'root' ? null : <div className="w-[18rem] rounded-lg border border-border bg-popover p-1 max-sm:mt-1 sm:absolute sm:right-full sm:top-0 sm:max-h-[var(--available-height)] sm:overflow-y-auto">
 
           {panel === 'status' ? (
             <>
@@ -336,6 +347,7 @@ export function TaskFilterControl({
               </div>
             </>
           ) : null}
+          </div>}
         </PopoverContent>
       </Popover>
       <WorkViewControl view={workView} onChange={setWorkView} />
