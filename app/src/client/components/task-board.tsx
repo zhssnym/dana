@@ -59,10 +59,29 @@ export interface BoardColumn {
   every column's answer but that one.
   */
   takes?: boolean
+  /** Keep an empty destination out of the layout until a card is carried. */
+  revealEmptyOnDrag?: boolean
 }
 
 function columnCount(column: BoardColumn): number {
   return column.tasks.length + (column.children ?? []).reduce((total, child) => total + columnCount(child), 0)
+}
+
+function boardColumnAt(zones: Map<string, HTMLElement>, point: { x: number; y: number }): string | null {
+  let inside: { key: string; node: HTMLElement } | null = null
+  let rootBelow: { key: string; top: number } | null = null
+  for (const [key, node] of zones) {
+    const box = node.getBoundingClientRect()
+    if (point.x < box.left || point.x > box.right || point.y < box.top) continue
+    if (point.y <= box.bottom) {
+      // A parent Board contains its children; the smallest containing Board wins.
+      if (inside === null || inside.node.contains(node)) inside = { key, node }
+    } else if (node.parentElement?.closest('[data-board-column]') === null && (rootBelow === null || box.top > rootBelow.top)) {
+      // Keep the existing target below a short root column.
+      rootBelow = { key, top: box.top }
+    }
+  }
+  return inside?.key ?? rootBelow?.key ?? null
 }
 
 /* -------------------------------------------------------------- capture, */
@@ -322,7 +341,7 @@ function BoardCard({
   )
 }
 
-function NestedBoardColumn({ column, columns, zones, onOpenTask, onToggleComplete, onToggleImportant, onDropIn, given, quickAdd, subsectionAdd }: {
+function NestedBoardColumn({ column, columns, zones, onOpenTask, onToggleComplete, onToggleImportant, onDropIn, onDragStateChange, given, quickAdd, subsectionAdd }: {
   column: BoardColumn
   columns: BoardColumn[]
   zones: React.RefObject<Map<string, HTMLElement>>
@@ -330,22 +349,12 @@ function NestedBoardColumn({ column, columns, zones, onOpenTask, onToggleComplet
   onToggleComplete: (taskId: string, done: boolean) => void
   onToggleImportant: (taskId: string) => void
   onDropIn: (taskId: string, columnKey: string) => boolean
+  onDragStateChange: (dragging: boolean) => void
   given?: TaskRowProps['given']
   quickAdd?: (column: BoardColumn) => ReactNode
   subsectionAdd?: (column: BoardColumn) => ReactNode
 }) {
-  const columnAt = (point: { x: number; y: number }): string | null => {
-    let found: string | null = null
-    let top = Number.NEGATIVE_INFINITY
-    for (const [key, node] of zones.current) {
-      const box = node.getBoundingClientRect()
-      if (point.x >= box.left && point.x <= box.right && point.y >= box.top && box.top > top) {
-        found = key
-        top = box.top
-      }
-    }
-    return found
-  }
+  const columnAt = (point: { x: number; y: number }): string | null => boardColumnAt(zones.current, point)
   return <section
     aria-label={column.label}
     data-board-column={column.key}
@@ -361,6 +370,7 @@ function NestedBoardColumn({ column, columns, zones, onOpenTask, onToggleComplet
       className="gap-1.5"
       tasks={column.tasks}
       followAcross
+      onDragStateChange={onDragStateChange}
       onTaskOpen={onOpenTask}
       onDropAt={(taskId, point) => {
         const landing = columnAt(point)
@@ -378,7 +388,7 @@ function NestedBoardColumn({ column, columns, zones, onOpenTask, onToggleComplet
       }}
     />
     {quickAdd ? <div className="pt-1">{quickAdd(column)}</div> : null}
-    {column.children?.map((child) => <NestedBoardColumn key={child.key} column={child} columns={columns} zones={zones} onOpenTask={onOpenTask} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} onDropIn={onDropIn} given={given} quickAdd={quickAdd} subsectionAdd={subsectionAdd} />)}
+    {column.children?.map((child) => <NestedBoardColumn key={child.key} column={child} columns={columns} zones={zones} onOpenTask={onOpenTask} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} onDropIn={onDropIn} onDragStateChange={onDragStateChange} given={given} quickAdd={quickAdd} subsectionAdd={subsectionAdd} />)}
     {subsectionAdd?.(column)}
   </section>
 }
@@ -428,33 +438,23 @@ export function TaskBoard({
   grid?: string
 }) {
   const zones = useRef(new Map<string, HTMLElement>())
+  const [dragging, setDragging] = useState(false)
   const keys = useRowKeys<HTMLDivElement>()
   const allColumns = (columns: BoardColumn[]): BoardColumn[] => columns.flatMap((column) => [column, ...allColumns(column.children ?? [])])
   const everyColumn = allColumns(columns)
 
   /*
-  A column is as short as its cards (`items-start`), so a release anywhere
-  below one still lands in it: the column under the pointer's x whose top is
-  the nearest above the pointer. Side by side that is the one column in that
-  lane; stacked on a phone it is the column the pointer has scrolled into.
+  Nested columns share their parent's rectangle, so the innermost rectangle
+  under the pointer wins. Below a short root column, its lane remains a drop
+  target, including when columns stack on a phone.
   */
   function columnAt(point: { x: number; y: number }) {
-    let found: string | null = null
-    let foundTop = Number.NEGATIVE_INFINITY
-    for (const [key, node] of zones.current) {
-      const box = node.getBoundingClientRect()
-      if (point.x < box.left || point.x > box.right || point.y < box.top) continue
-      if (box.top > foundTop) {
-        found = key
-        foundTop = box.top
-      }
-    }
-    return found
+    return boardColumnAt(zones.current, point)
   }
 
   return (
     <div ref={keys} className={cn("grid items-start gap-3 pb-4", grid)}>
-      {columns.map((column) => (
+      {columns.filter((column) => !column.revealEmptyOnDrag || columnCount(column) > 0 || dragging).map((column) => (
         /*
         9.1's regions rule makes a board column "a named region, named by its
         value", and AC-221, AC-228 and AC-259 all reach a column through
@@ -500,6 +500,7 @@ export function TaskBoard({
             className="gap-1.5"
             tasks={column.tasks}
             followAcross
+            onDragStateChange={setDragging}
             onTaskOpen={onOpenTask}
             onDropAt={(taskId, point) => {
               const landing = columnAt(point)
@@ -543,7 +544,7 @@ export function TaskBoard({
               column's foot. */}
           {quickAdd ? <div className="pt-1">{quickAdd(column)}</div> : null}
           {column.children?.map((child) => (
-            <NestedBoardColumn key={child.key} column={child} columns={everyColumn} zones={zones} onOpenTask={onOpenTask} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} onDropIn={onDropIn} given={given} quickAdd={quickAdd} subsectionAdd={subsectionAdd} />
+            <NestedBoardColumn key={child.key} column={child} columns={everyColumn} zones={zones} onOpenTask={onOpenTask} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} onDropIn={onDropIn} onDragStateChange={setDragging} given={given} quickAdd={quickAdd} subsectionAdd={subsectionAdd} />
           ))}
           {subsectionAdd?.(column)}
         </section>
