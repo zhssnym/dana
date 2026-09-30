@@ -1,12 +1,12 @@
 /*
-A project's tabs (step 7): a row of plain text tabs and one "+", and nothing
-else. Each tab is a page of the project (`tab_position` set), in stored order,
+A project's tabs (step 7): a row of plain text tabs and one "+". Work also
+places its Filter and View controls on this row. Each tab is a page of the project (`tab_position` set), in stored order,
 which is the drawn order: migration 0061 wrote the order the old facet row
 drew. The project root is one of them, labelled by its kind ("Work", "Doc",
 "Discussion"), since its own name is the project's and sits in the header.
 
-**With one tab the row is not drawn**, so a quick note still reads as a page;
-the "+" then sits in the header (`AddTabMenu`).
+**With one tab the tab itself is not drawn**. A Work page keeps the hairline
+for its controls and "+"; other pages keep "+" in the header (`AddTabMenu`).
 
 **The "+"** offers Doc and Work, and Discussion only while the project has
 none (one per project; the server answers a second 409).
@@ -112,6 +112,7 @@ export function FolderTabs<T extends TabPage>({
   onAdd,
   onRename,
   onDelete,
+  tools,
 }: {
   /** The project's tabs, in order (`projectTabs`). */
   readonly tabs: readonly T[]
@@ -124,6 +125,7 @@ export function FolderTabs<T extends TabPage>({
   readonly onAdd: (kind: PageKind) => void
   readonly onRename: (tab: T, name: string) => void
   readonly onDelete: (tab: T) => void
+  readonly tools?: React.ReactNode
 }): React.JSX.Element | null {
   const [drag, setDrag] = useState<TabDrag | null>(null)
   const dragRef = useRef<TabDrag | null>(null)
@@ -206,8 +208,13 @@ export function FolderTabs<T extends TabPage>({
     else if (at.right > box.right) row.scrollLeft += at.right - box.right
   }, [activeId])
 
-  /* One tab is not a choice: the row is not drawn. */
-  if (tabs.length < 2) return null
+  /* One tab is not a choice. Work still needs its controls on the hairline. */
+  if (tabs.length < 2) return tools === undefined ? null : (
+    <div className="flex min-w-0 items-end justify-end gap-2 border-b border-border">
+      {editable && tabs.length === 1 ? <AddTabMenu tabs={tabs} onAdd={onAdd} /> : null}
+      <div className="flex shrink-0 items-center border-l border-border pl-2 pb-0.5">{tools}</div>
+    </div>
+  )
   const active = tabs.find((tab) => tab.id === activeId)
 
   function moveFocus(tab: T, direction: -1 | 1): void {
@@ -249,7 +256,7 @@ export function FolderTabs<T extends TabPage>({
         label="Page tabs"
         /* Padded out and pulled back: the focus outline and the underline
            overhang the tabs, and a scroller clips whatever overhangs it. */
-        className="-my-1 -ms-1 border-b-0 py-1 ps-1 pe-3"
+        className="-my-1 -ms-1 flex-1 border-b-0 py-1 ps-1 pe-3"
       >
         {tabs.map((tab, index) => {
           const current = tab.id === active?.id
@@ -403,6 +410,9 @@ export function FolderTabs<T extends TabPage>({
       </TabList>
       {/* The "+" sits outside the scroller, so a narrow screen never clips it. */}
       {editable ? <AddTabMenu tabs={tabs} onAdd={onAdd} /> : null}
+      {tools === undefined ? null : (
+        <div className="flex shrink-0 items-center border-l border-border pl-2 pb-0.5">{tools}</div>
+      )}
       <DropdownMenu
         open={menu !== null}
         onOpenChange={(open) => {
