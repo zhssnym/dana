@@ -128,7 +128,6 @@ import { folderLink } from '../lib/nav-links.js'
 import {
   eligibleSuccessors,
   folderGates,
-  mayDraw,
   otherMembers,
   viewerFacts,
 } from '../lib/folder-authority.js'
@@ -959,9 +958,9 @@ function FolderPageBody({
       {shownTabs.length === 1 && tabsEditable && kind !== null ? (
         <AddTabMenu tabs={shownTabs} onAdd={addTab} />
       ) : null}
-      {/* 9.6's Share control, a word rather than a glyph. Withheld on a
-          default folder, which INV-2 makes single-member and 5.3 refuses an
-          add on. AC-162 and AC-183 reach the sharing panel through it. */}
+      {/* This is the project's people surface, not external sharing. The label
+          invites the solo creator to add teammates, then settles to Team once
+          another member exists. */}
       {isDefault ? null : (
         <Button
           variant="ghost"
@@ -972,11 +971,7 @@ function FolderPageBody({
             dropParam(MEMBER_PARAM)
           }}
         >
-          {/* The word matches the panel's title: a member who can add
-              nobody opens a list of members, not a share. */}
-          {facts !== null && !mayDraw(facts, 'member.add') && !mayDraw(facts, 'invite.create')
-            ? 'Members'
-            : 'Share'}
+          {members.length <= 1 ? 'Add teammates' : 'Team'}
         </Button>
       )}
       {/*
