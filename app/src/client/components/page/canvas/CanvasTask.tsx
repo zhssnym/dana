@@ -121,8 +121,8 @@ type NodeState = 'open' | 'next' | 'waiting' | 'done' | 'dropped'
  * kept that read off every finished placement); while it loads the block holds
  * one empty line, and if it cannot be read it says "Task unavailable".
  *
- * **A finished Task keeps a visible line, not zero height** (#315, #314): it
- * carries BlockNote's side menu like any block and shows up in a selection.
+ * **A finished Task keeps its document block** (#315, #314). Thread draws it
+ * in place; Freeform draws it in its Section disclosure.
  */
 function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly bridge: TaskBridge }): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
@@ -160,6 +160,7 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
         data-canvas-task-id={taskId}
         data-thread-state={state}
         {...(state === 'done' || state === 'dropped' ? { 'data-canvas-task-done': '' } : {})}
+        {...(bridge.freeform && completedListed !== undefined && state === 'done' ? { 'data-freeform-completed-source': '' } : {})}
         className="group/row min-w-0 rounded-sm"
         contentEditable={false}
         tabIndex={0}
@@ -201,6 +202,20 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
   }
   // Unknown until its own read answers: hold the line, say nothing.
   return <div data-canvas-task-id={taskId} data-canvas-task-loading="" aria-busy="true" className="min-h-6 min-w-0" contentEditable={false} />
+}
+
+/** The same Task row, drawn once in Freeform's completed disclosure. */
+export function FreeformCompletedTask({ task }: { readonly task: TaskCard }): React.JSX.Element {
+  const bridge = useContext(TaskContext)
+  const thread = useContext(ThreadContext)
+  const [expanded, setExpanded] = useState(false)
+  if (bridge === null) return <></>
+  return <div className="min-w-0" role="listitem">
+    <ThreadRow task={task} state="done" bridge={bridge} thread={thread} expanded={expanded} onExpand={() => setExpanded((open) => !open)} />
+    {expanded ? <div data-freeform-task-details="" role="region" aria-label={`${task.title} details`} className="ml-7 border-l border-border py-3 pl-4">
+      <Suspense fallback={<p className="text-sm text-muted-foreground">Loading task…</p>}><FreeformTaskDetails taskId={task.id} /></Suspense>
+    </div> : null}
+  </div>
 }
 
 /**

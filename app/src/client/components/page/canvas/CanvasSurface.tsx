@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { BlockNoteView } from '@blocknote/shadcn'
 import {
   FilePanelController, FormattingToolbarController, SideMenuController,
@@ -69,6 +70,7 @@ export function CanvasSurface({
   peopleFolderId,
   onNotice,
   results = false,
+  footer,
 }: {
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
@@ -98,6 +100,8 @@ export function CanvasSurface({
   readonly onNotice: (message: string) => void
   /** The Results tab: the slash menu offers Result (#213). */
   readonly results?: boolean
+  /** View-only content after the editor and before its writing tail. */
+  readonly footer?: ReactNode
 }): React.JSX.Element {
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
   const [insertMenu, setInsertMenu] = useState<{ readonly id: string; readonly x: number; readonly y: number } | null>(null)
@@ -369,6 +373,7 @@ export function CanvasSurface({
         {editable ? <MentionSuggestions editor={editor} folderId={peopleFolderId} /> : null}
         <CanvasMarquee />
       </BlockNoteView>
+      {footer}
       <DropdownMenu open={insertMenu !== null} onOpenChange={(open) => { if (!open) setInsertMenu(null) }}>
         <DropdownMenuTrigger nativeButton={false} render={<span aria-hidden="true" tabIndex={-1} />}
           style={{ position: 'fixed', left: insertMenu?.x ?? 0, top: insertMenu?.y ?? 0, width: 0, height: 0 }} />

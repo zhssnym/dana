@@ -15,6 +15,7 @@ import { useFolderCompletedTasks, useMultiMemberFolderIds } from '../../../api/q
 import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider, ThreadFactsProvider } from './CanvasTask.js'
+import { FreeformCompleted } from './FreeformCompleted.js'
 import type { ThreadFacts } from './CanvasTask.js'
 import { freezeElision, threadModel, threadStyle } from './thread/thread-model.js'
 import type { FrozenElision, ProgressState, ThreadBlock } from './thread/thread-model.js'
@@ -36,6 +37,7 @@ import type { TaskFilter } from '../../../views/filter.js'
 import { useCurrentWorkView } from '../../../views/work-view.js'
 
 type Rows = Parameters<typeof TaskRows>[0]
+const noCompleted: Rows['tasks'] = []
 interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   readonly page: PageView
   readonly folderId: string
@@ -169,6 +171,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
   readonly onSaved: (page: PageView) => void
 }): React.JSX.Element {
   const [, render] = useState(0)
+  const completedContainer = useRef<HTMLDivElement>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   /* The empty line "/ Task" turned into a task being titled in place: its
@@ -662,7 +665,8 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
       {draftStyle === '' ? null : <style>{draftStyle}</style>}
       <ThreadLayer enabled={presentationHeadings !== true && workView === 'thread'} editor={editor} folderId={folderId} tasks={tasks} context={context} frozen={frozen}>
       <div
-        className="min-w-0"
+        ref={completedContainer}
+        className={workView === 'freeform' && presentationHeadings !== true ? 'dana-freeform-completed min-w-0' : 'min-w-0'}
         onKeyDownCapture={draftKeys}
         onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) settleDraftTask() }}
       >
@@ -680,6 +684,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
         headingMode={presentationHeadings === true ? 'document' : 'section'}
         editable={arrangeable && !creating && !pendingTask}
         onNotice={setNotice}
+        footer={workView === 'freeform' && presentationHeadings !== true ? <FreeformCompleted editor={editor} container={completedContainer} completed={completed ?? noCompleted} context={context} {...(taskFilter === undefined ? {} : { filter: taskFilter })} /> : undefined}
       />
       </div>
       </ThreadLayer>
