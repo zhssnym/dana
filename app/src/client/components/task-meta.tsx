@@ -8,7 +8,8 @@ here so a task looks the same everywhere, in fixed positions:
   the day/month order of the viewer's locale (`lib/dates.ts`, the one formatter).
 - Overdue is the destructive ink, and said to screen readers.
 - The star is a lighter tone than the title, even when set, so it never
-  competes with it; unset, it shows on hover of the enclosing `group/row`.
+  competes with it; unset, it shows on hover or focus of the enclosing
+  `group/row`.
 */
 import type { ReactNode } from "react"
 
@@ -33,6 +34,8 @@ export interface TaskMetaProps {
     readonly important: boolean
     readonly tooltip?: string
     readonly onToggle: () => void
+    /** Work rows/cards keep the action reachable on touch instead of deferring to the Task page. */
+    readonly touchReachable?: boolean
   }
   readonly className?: string
 }
@@ -108,11 +111,13 @@ export function RowMeta({
   source,
   given = {},
   onToggleImportant,
+  starTouchReachable,
   className,
 }: {
   readonly source: RowMetaSource
   readonly given?: RowMetaGiven
   readonly onToggleImportant: () => void
+  readonly starTouchReachable?: boolean
   readonly className?: string
 }) {
   const folderName = given.folder ? undefined : source.folder?.name.trim()
@@ -165,17 +170,18 @@ export function RowMeta({
         important: Boolean(source.important),
         ...(source.importantTooltip === undefined ? {} : { tooltip: source.importantTooltip }),
         onToggle: onToggleImportant,
+        ...(starTouchReachable === undefined ? {} : { touchReachable: starTouchReachable }),
       }}
     />
   )
 }
 
 /*
-Reserved space and opacity only, so hovering never shifts the meta. On a touch
-screen an unset star is not drawn and a set one is an indicator you cannot hit
-by accident: starring on a phone happens in the task itself.
+Reserved space and opacity only, so hovering or focusing never shifts the meta.
+Most lists keep the old phone rule (the Task page owns starring there); Work can
+opt into a visible, tappable star because its rows/cards are direct work surfaces.
 */
-function TaskStar({ important, tooltip, onToggle }: NonNullable<TaskMetaProps["star"]>) {
+export function TaskStar({ important, tooltip, onToggle, touchReachable }: NonNullable<TaskMetaProps["star"]>) {
   const label = important ? "Important" : "Mark as important"
   return (
     <button
@@ -188,9 +194,9 @@ function TaskStar({ important, tooltip, onToggle }: NonNullable<TaskMetaProps["s
       title={tooltip ?? label}
       className={cn(
         "flex size-6 shrink-0 items-center justify-center rounded-sm text-quiet-foreground transition-[opacity,color] hover:text-muted-foreground",
-        important ? "opacity-100" : "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
-        "[@media(hover:none)]:pointer-events-none",
-        !important && "[@media(hover:none)]:invisible",
+        important ? "opacity-100" : "opacity-0 group-hover/row:opacity-100 group-focus/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100",
+        touchReachable ? "[@media(hover:none)]:opacity-100" : "[@media(hover:none)]:pointer-events-none",
+        !important && !touchReachable && "[@media(hover:none)]:invisible",
       )}
     >
       <span className="sr-only">{label}</span>
