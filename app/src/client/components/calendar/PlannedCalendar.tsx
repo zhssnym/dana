@@ -243,7 +243,7 @@ function RangeBar({ range, week, zoom, editable }: { readonly range: WeekRange; 
     writeCalendarDrag(transfer, { taskId: task.id, action, from })
   }
   return <div
-    className={cn('group/range relative mx-0.5 min-w-0', zoom === 'week' && 'max-sm:col-span-7!')}
+    className={cn('group/range pointer-events-auto relative min-w-0', zoom === 'week' && 'max-sm:col-span-7!')}
     style={{ gridColumn: `${range.first + 1} / ${range.last + 2}`, gridRow: range.lane + 1 }}
   >
     <button
@@ -296,7 +296,7 @@ function DayCell({
   onReveal,
   onDropTask,
   hiddenRanges,
-  visibleRanges,
+  rangeLanes,
   editable,
   onCreate,
   scoped,
@@ -315,7 +315,7 @@ function DayCell({
   /** A row dropped here takes this date. */
   readonly onDropTask: (drag: CalendarDrag) => void
   readonly hiddenRanges: number
-  readonly visibleRanges: number
+  readonly rangeLanes: number
   readonly editable: boolean
   /** Makes a task due on this day; absent, the cell makes nothing. */
   readonly onCreate?: (title: string) => void
@@ -330,8 +330,8 @@ function DayCell({
   one only where it is needed would make that week's row taller than the
   others, which is the growth the constant height forbids.
   */
-  const overflows = !dense && zoom === 'month' && events.length + hiddenRanges + visibleRanges > MONTH_CELL_LINES
-  const visible = overflows ? events.slice(0, Math.max(0, MONTH_CELL_LINES - 1 - visibleRanges)) : events
+  const overflows = !dense && zoom === 'month' && events.length + hiddenRanges + rangeLanes > MONTH_CELL_LINES
+  const visible = overflows ? events.slice(0, Math.max(0, MONTH_CELL_LINES - 1 - rangeLanes)) : events
   const hidden = events.length - visible.length + hiddenRanges
   /* A phone draws the week as an agenda, one day per line, so titles stay
      whole. */
@@ -440,6 +440,12 @@ function DayCell({
           aria-hidden="true"
         />
       </div>
+
+      {rangeLanes > 0 ? <div
+        aria-hidden="true"
+        className={agenda && column > 0 ? 'max-sm:hidden' : undefined}
+        style={{ height: `calc(var(--calendar-range-lane-height) * ${String(rangeLanes)})` }}
+      /> : null}
 
       <div className={cn('relative z-10', dense ? 'pointer-events-none flex flex-wrap gap-0.5' : 'space-y-0.5')}>
         {visible.map((event) => (
@@ -609,8 +615,8 @@ export function PlannedCalendar({
     if (by > 0) scroller.scrollBy({ top: by })
   }, [view.data, folderId])
 
-  /* Single-date Tasks and ghosts sit in day cells. A Start+Due Task is drawn
-     once per visible week as a continuous bar above those cells. */
+  /* Single-date Tasks and ghosts sit in day cells. A Start+Due Task crosses
+     those cells in a top overlay lane, once per visible week. */
   const { real, virtual } = useMemo(() => {
     const narrowing = filter !== undefined && taskFilterActive(filter)
     const accepted = narrowing ? new Set((filterTasks ?? [])
@@ -755,16 +761,19 @@ export function PlannedCalendar({
           )}
 
           {weeks.map((week, row) => (
-            <div key={week[0] ?? ''}>
+            <div key={week[0] ?? ''} className={zoom === 'day' ? undefined : 'grid'}>
               {(ranges[row]?.lanes ?? 0) > 0 ? <div
-                className="grid gap-y-0.5 border-b border-border py-1"
+                className={cn(
+                  'grid gap-y-0.5',
+                  zoom === 'day' ? 'border-b border-border py-1' : 'pointer-events-none z-20 col-start-1 row-start-1 self-start pt-9',
+                )}
                 style={{ gridTemplateColumns: template }}
               >
                 {ranges[row]?.visible.map((range) => <RangeBar key={range.task.id} range={range} week={week} zoom={zoom} editable={editable} />)}
               </div> : null}
               <div
                 role="row"
-                className={cn('grid', zoom === 'week' && 'max-sm:grid-cols-1!')}
+                className={cn('grid', zoom !== 'day' && 'col-start-1 row-start-1', zoom === 'week' && 'max-sm:grid-cols-1!')}
                 style={{ gridTemplateColumns: template }}
               >
               {week.map((date, column) => (
@@ -779,7 +788,7 @@ export function PlannedCalendar({
                   lastRow={row === weeks.length - 1}
                   events={cells.get(date) ?? []}
                   hiddenRanges={ranges[row]?.hidden.get(date) ?? 0}
-                  visibleRanges={ranges[row]?.visible.filter((range) => column >= range.first && column <= range.last).length ?? 0}
+                  rangeLanes={zoom === 'day' ? 0 : ranges[row]?.lanes ?? 0}
                   dense={dense}
                   scoped={folderId !== undefined}
                   editable={editable}
