@@ -18,6 +18,7 @@ import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 import { mentionInlineSpec } from './mentions.js'
 import { canvasMarkdownShortcuts, legacyCheckList, withoutInputRules } from './markdown.js'
 import { isSectionHeading } from './outline.js'
+import './file-chip.css'
 
 // The vocabulary only, derived from the one ceiling rather than restated beside it.
 // A Section's level is its depth in the persisted outline, so the editor must be able
@@ -211,9 +212,67 @@ function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T
   } as unknown as WithReclaimedAt<T>
 }
 
+/* #382: BlockNote 0.54 renders every attachment with the same generic file
+   glyph. File remains its stock non-preview block; this wrapper only gives the
+   row a visible extension and swaps the glyph for a compact type badge when
+   the extension is a common, recognizable one. Unknown extensions deliberately
+   keep the generic glyph rather than guessing a type. */
+const FILE_TYPE_BADGES: Readonly<Record<string, string>> = {
+  pdf: 'PDF',
+  doc: 'DOC', docx: 'DOC', odt: 'DOC', rtf: 'DOC', txt: 'TXT', md: 'TXT',
+  xls: 'XLS', xlsx: 'XLS', ods: 'XLS', csv: 'CSV',
+  ppt: 'PPT', pptx: 'PPT', odp: 'PPT',
+  zip: 'ZIP', rar: 'ZIP', '7z': 'ZIP', tar: 'ZIP', gz: 'ZIP',
+  json: 'CODE', js: 'CODE', jsx: 'CODE', ts: 'CODE', tsx: 'CODE', html: 'CODE', css: 'CODE', xml: 'CODE', yaml: 'CODE', yml: 'CODE', sql: 'CODE', py: 'CODE', java: 'CODE', go: 'CODE', rs: 'CODE',
+  png: 'IMG', jpg: 'IMG', jpeg: 'IMG', gif: 'IMG', webp: 'IMG', svg: 'IMG',
+  mp3: 'AUD', wav: 'AUD', m4a: 'AUD', ogg: 'AUD', flac: 'AUD',
+  mp4: 'VID', mov: 'VID', webm: 'VID', mkv: 'VID', avi: 'VID',
+}
+
+function fileExtension(name: string): string {
+  const leaf = name.split(/[\\/]/).at(-1) ?? name
+  const dot = leaf.lastIndexOf('.')
+  return dot > 0 && dot < leaf.length - 1 ? leaf.slice(dot + 1).toLowerCase() : ''
+}
+
+function withFileTypeIdentity<T>(spec: T): T {
+  const typed = spec as unknown as { implementation: { render: MediaRender } }
+  const stockRender = typed.implementation.render
+  return {
+    ...typed,
+    implementation: {
+      ...typed.implementation,
+      render: function (block, editor) {
+        const stock = stockRender.call(this, block, editor)
+        if (block.props.url === '') return stock
+        const row = stock.dom.querySelector<HTMLElement>('.bn-file-name-with-icon')
+        const nameElement = row?.querySelector<HTMLElement>('.bn-file-name')
+        if (row === null || row === undefined || nameElement === null || nameElement === undefined) return stock
+
+        const name = String((block.props as { name?: string }).name ?? nameElement.textContent ?? '')
+        const extension = fileExtension(name)
+        const label = extension === '' ? 'File' : extension.toUpperCase()
+        const icon = row.querySelector<HTMLElement>('.bn-file-icon')
+        const badge = FILE_TYPE_BADGES[extension]
+        if (icon !== null) {
+          if (badge === undefined) delete icon.dataset.danaFileType
+          else icon.dataset.danaFileType = badge
+        }
+        row.querySelector('.dana-file-type')?.remove()
+        const type = document.createElement('span')
+        type.className = 'dana-file-type'
+        type.contentEditable = 'false'
+        type.textContent = label
+        nameElement.insertAdjacentElement('afterend', type)
+        return stock
+      } satisfies MediaRender,
+    },
+  } as unknown as T
+}
+
 const audio = withReclaimNotice(mediaSpec(defaultBlockSpecs.audio, AUDIO_MIMES), 'file')
 const video = withReclaimNotice(mediaSpec(defaultBlockSpecs.video, VIDEO_MIMES), 'file')
-const file = withReclaimNotice(defaultBlockSpecs.file, 'file', 'Add a file')
+const file = withFileTypeIdentity(withReclaimNotice(defaultBlockSpecs.file, 'file', 'Add a file'))
 // An empty image block is the Media command's placeholder (#220, `CanvasFilePanel`).
 const image = withReclaimNotice(mediaSpec(defaultBlockSpecs.image, RASTER_MIMES), 'picture', 'Add media')
 
