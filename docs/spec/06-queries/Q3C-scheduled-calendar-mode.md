@@ -26,14 +26,13 @@ one-day scheduled event; and a Start+Due pair on different days one continuous s
 bar from Start through Due, rendered as connected weekly segments where the grid needs
 them but semantically one task. The range is inclusive at the day level. Dragging moves a
 Due-only task's Due Date, a Start-only task's Start Date, and a Start+Due range whole,
-preserving its day span; there is no edge resizing.
+preserving its day span. Dragging a Due-only event's left edge backward adds Start;
+dragging a Start-only event's right edge forward adds Due; either end of a range
+changes that date. The existing Task Date control serves touch editing.
 
-Until the spanning bar is built, a Start+Due pair draws as one chip on its Due Date. A row
-the query returned must be drawn somewhere: a row whose own day (its Due Date, or its
-Start Date when it has no Due Date) is off the grid is listed once above the grid under
-"Also running" rather than in a day cell, so a day cell holds the same rows at every zoom
-and a phone's month count matches the day it opens. Dragging that
-chip moves both dates by the days between the cell it left and the cell it landed on. A pair dropped where no day is (No date) is refused rather than losing a date.
+A range crossing a grid edge draws its visible weekly segment, so a row the query
+returned is still visible even when both of its dates are off the grid. A pair
+dropped where no day is (No date) is refused rather than losing a date.
 
 Pending renders normal (overdue styled on past dates), completed faded and checked,
 abandoned faded and struck: the calendar is a record. Virtual instances: for every
