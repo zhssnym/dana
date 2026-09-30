@@ -9,12 +9,12 @@ never become document data or make two versions of the Work. A page with no
 session choice follows the preferred default. The old `dana.folder-view` key is
 retired in `view-mode.ts` and is deliberately not reused here.
 */
-import { useCallback, useState, useSyncExternalStore } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 import { useLocation } from 'react-router'
 
 import { Button } from '../components/ui/button.js'
-import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '../components/ui/popover.js'
-import { CalendarDays, Check, GitCommitVertical, List, SquareKanban } from '../lib/icons.js'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu.js'
+import { CalendarDays, GitCommitVertical, List, SquareKanban } from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
 
 export type WorkView = 'thread' | 'freeform' | 'board' | 'calendar'
@@ -123,13 +123,12 @@ export function WorkViewControl({
   readonly view: WorkView
   readonly onChange: (view: WorkView) => void
 }): React.JSX.Element {
-  const [open, setOpen] = useState(false)
   const active = OPTIONS.find((option) => option.value === view) ?? OPTIONS[0]!
   const ActiveIcon = active.icon
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
+    <DropdownMenu>
+      <DropdownMenuTrigger
         render={
           <Button
             variant="ghost"
@@ -141,38 +140,27 @@ export function WorkViewControl({
         }
       >
         <ActiveIcon aria-hidden="true" />
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-44 p-1.5">
-        <PopoverTitle className="flex h-8 items-center px-2 text-sm font-medium">
-          Work view
-        </PopoverTitle>
-        <div role="group" aria-label="Work view">
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44" aria-label="Work view">
+        <DropdownMenuRadioGroup value={view} onValueChange={(value: unknown) => {
+          const selected = OPTIONS.find((option) => option.value === value)
+          if (selected !== undefined) onChange(selected.value)
+        }}>
           {OPTIONS.map((option) => {
             const Icon = option.icon
-            const selected = option.value === view
             return (
-              <button
+              <DropdownMenuRadioItem
                 key={option.value}
-                type="button"
-                aria-pressed={selected}
-                className="flex h-9 w-full items-center gap-2.5 rounded-md px-2 text-left text-sm text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent"
-                onClick={() => {
-                  onChange(option.value)
-                  setOpen(false)
-                }}
+                value={option.value}
+                closeOnClick
               >
                 <Icon className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
-                <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                <Check
-                  className={selected ? 'size-3.5 opacity-100' : 'size-3.5 opacity-0'}
-                  strokeWidth={2.5}
-                  aria-hidden="true"
-                />
-              </button>
+                {option.label}
+              </DropdownMenuRadioItem>
             )
           })}
-        </div>
-      </PopoverContent>
-    </Popover>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
