@@ -7,6 +7,7 @@ import { BoardQuickAdd, TaskBoard } from '../components/task-board.js'
 import type { BoardColumn, BoardTask } from '../components/task-board.js'
 import { Button } from '../components/ui/button.js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu.js'
+import { cn } from '../components/ui/utils.js'
 import { ChevronDown } from '../lib/icons.js'
 import { taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
@@ -107,7 +108,15 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
     ? columnKeys.has(key) ? { section_block_id: key === 'no-section' ? null : key } : null
     : groups?.get(key)?.capture ?? null
 
-  return <div className="min-w-0 space-y-3">
+  return <div className={cn(
+    'min-w-0 space-y-3',
+    group === 'section' && [
+      '[&_[data-board-column]_[data-board-column]]:ml-0',
+      '[&_[data-board-column]_[data-board-column]]:rounded-md',
+      '[&_[data-board-column]_[data-board-column]]:border',
+      '[&_[data-board-column]_[data-board-column]]:p-2',
+    ],
+  )}>
     {columns.length === 0 ? <p className="text-sm text-muted-foreground">No tasks here.</p> : <TaskBoard
       columns={columns}
       grid="grid-cols-1 md:grid-cols-2"
