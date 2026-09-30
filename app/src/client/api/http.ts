@@ -318,6 +318,20 @@ export async function uploadFile(
   )
 }
 
+/** Read the stored type for a file chip without downloading its bytes. */
+export async function fileMime(id: string): Promise<string | null> {
+  if (!isOnline()) return null
+  try {
+    const response = await fetch(urlOf(`/files/${id}`, undefined), {
+      method: 'HEAD',
+      credentials: 'same-origin',
+    })
+    return response.ok ? response.headers.get('content-type') : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * 7.15's avatar arm: `POST /me/avatar`, one part named `file`, answering the
  * serving path it pointed `users.avatar_url` at.

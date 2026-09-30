@@ -2,6 +2,7 @@ import { BlockNoteSchema, createExtension, createHeadingBlockSpec, defaultBlockS
 
 import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
 import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
+import { fileMime } from '../../../api/http.js'
 
 import { createCanvasCallout } from './CanvasCallout.js'
 import { createCanvasResult } from './CanvasResult.js'
@@ -212,21 +213,48 @@ function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T
   } as unknown as WithReclaimedAt<T>
 }
 
-/* #382: BlockNote 0.54 renders every attachment with the same generic file
-   glyph. File remains its stock non-preview block; this wrapper only gives the
-   row a visible extension and swaps the glyph for a compact type badge when
-   the extension is a common, recognizable one. Unknown extensions deliberately
-   keep the generic glyph rather than guessing a type. */
+/* File remains BlockNote's stock non-preview block, including its download
+   action. The wrapper adds a type badge from the stored MIME when available,
+   then the filename extension. An unknown type keeps the generic glyph. */
 const FILE_TYPE_BADGES: Readonly<Record<string, string>> = {
   pdf: 'PDF',
-  doc: 'DOC', docx: 'DOC', odt: 'DOC', rtf: 'DOC', txt: 'TXT', md: 'TXT',
-  xls: 'XLS', xlsx: 'XLS', ods: 'XLS', csv: 'CSV',
+  doc: 'DOC', docx: 'DOCX', odt: 'DOC', rtf: 'DOC', txt: 'TXT', md: 'TXT',
+  xls: 'XLS', xlsx: 'XLSX', ods: 'XLS', csv: 'CSV',
   ppt: 'PPT', pptx: 'PPT', odp: 'PPT',
   zip: 'ZIP', rar: 'ZIP', '7z': 'ZIP', tar: 'ZIP', gz: 'ZIP',
   json: 'CODE', js: 'CODE', jsx: 'CODE', ts: 'CODE', tsx: 'CODE', html: 'CODE', css: 'CODE', xml: 'CODE', yaml: 'CODE', yml: 'CODE', sql: 'CODE', py: 'CODE', java: 'CODE', go: 'CODE', rs: 'CODE',
-  png: 'IMG', jpg: 'IMG', jpeg: 'IMG', gif: 'IMG', webp: 'IMG', svg: 'IMG',
+  png: 'PNG', jpg: 'JPG', jpeg: 'JPG', gif: 'GIF', webp: 'WEBP', svg: 'SVG',
   mp3: 'AUD', wav: 'AUD', m4a: 'AUD', ogg: 'AUD', flac: 'AUD',
   mp4: 'VID', mov: 'VID', webm: 'VID', mkv: 'VID', avi: 'VID',
+}
+
+const FILE_MIME_BADGES: Readonly<Record<string, string>> = {
+  'application/pdf': 'PDF',
+  'application/msword': 'DOC',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+  'application/vnd.oasis.opendocument.text': 'DOC',
+  'application/rtf': 'DOC',
+  'application/vnd.ms-excel': 'XLS',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+  'application/vnd.oasis.opendocument.spreadsheet': 'XLS',
+  'text/csv': 'CSV',
+  'text/plain': 'TXT',
+  'application/zip': 'ZIP',
+  'application/x-zip-compressed': 'ZIP',
+  'image/jpeg': 'JPG',
+  'image/png': 'PNG',
+  'image/gif': 'GIF',
+  'image/webp': 'WEBP',
+  'image/svg+xml': 'SVG',
+}
+
+const mimeCache = new Map<string, Promise<string | null>>()
+
+function fileType(name: string, mime: string | null): string | undefined {
+  const normalized = mime?.split(';', 1)[0]?.trim().toLowerCase()
+  const fromMime = normalized === undefined ? undefined
+    : FILE_MIME_BADGES[normalized] ?? (normalized.startsWith('audio/') ? 'AUD' : normalized.startsWith('video/') ? 'VID' : undefined)
+  return fromMime ?? FILE_TYPE_BADGES[fileExtension(name)]
 }
 
 function fileExtension(name: string): string {
@@ -250,20 +278,30 @@ function withFileTypeIdentity<T>(spec: T): T {
         if (row === null || row === undefined || nameElement === null || nameElement === undefined) return stock
 
         const name = String((block.props as { name?: string }).name ?? nameElement.textContent ?? '')
-        const extension = fileExtension(name)
-        const label = extension === '' ? 'File' : extension.toUpperCase()
         const icon = row.querySelector<HTMLElement>('.bn-file-icon')
-        const badge = FILE_TYPE_BADGES[extension]
-        if (icon !== null) {
-          if (badge === undefined) delete icon.dataset.danaFileType
-          else icon.dataset.danaFileType = badge
-        }
         row.querySelector('.dana-file-type')?.remove()
         const type = document.createElement('span')
         type.className = 'dana-file-type'
         type.contentEditable = 'false'
-        type.textContent = label
         nameElement.insertAdjacentElement('afterend', type)
+        const paint = (mime: string | null): void => {
+          const badge = fileType(name, mime)
+          if (icon !== null) {
+            if (badge === undefined) delete icon.dataset.danaFileType
+            else icon.dataset.danaFileType = badge
+          }
+          type.textContent = badge ?? 'File'
+        }
+        paint(null)
+        const id = /\/api\/v1\/files\/([0-9a-f-]{36})$/.exec(String(block.props.url))?.[1]
+        if (id !== undefined) {
+          let pending = mimeCache.get(id)
+          if (pending === undefined) {
+            pending = fileMime(id)
+            mimeCache.set(id, pending)
+          }
+          void pending.then(paint)
+        }
         return stock
       } satisfies MediaRender,
     },
