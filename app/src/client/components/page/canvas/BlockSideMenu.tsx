@@ -3,8 +3,8 @@ The block gutter every Dana canvas shares (Folder Work, Purpose, Results, the
 Shelf, a Task's body): ⋮⋮ on hover, level with the block's first line
 of text; clicking ⋮⋮ selects the block (the tint of `block-selection.ts`) and
 opens its menu: Turn into ›, Duplicate, Copy link to block, Delete. Moving is
-by dragging the handle, or Tab / Shift-Tab. There is no "+": Enter
-makes the next line, and Work ends in its own last line (`AddTaskLine`).
+by dragging the handle, or Tab / Shift-Tab. Work also offers a small + to
+insert a line before the hovered block.
 
 What each surface allows (which kinds, what Delete means for a Task or a
 Shelf's Folder row) comes in through `BlockMenuModel`.
@@ -17,7 +17,7 @@ import { useBlockNoteEditor, useComponentsContext, useExtension, useExtensionSta
 import { blockLink, blockSelection, setBlockSelection } from './block-selection.js'
 import { conversionOf, isCurrent, withoutIds } from './turn-into.js'
 import type { TreeBlock, TurnTarget } from './turn-into.js'
-import { Check, CheckCircle2, Copy, GripVertical, Link2, Repeat2, Trash2 } from '../../../lib/icons.js'
+import { Check, CheckCircle2, Copy, GripVertical, Link2, Plus, Repeat2, Trash2 } from '../../../lib/icons.js'
 import type { LucideIcon } from '../../../lib/icons.js'
 import { kindIconOf } from './slash-items.js'
 
@@ -32,6 +32,8 @@ export interface BlockMenuModel {
   readonly extraTarget?: (block: TreeBlock) => { title: string; run: () => void } | null
   readonly canDuplicate: (block: TreeBlock) => boolean
   readonly duplicate: (ids: readonly string[]) => void
+  /** Work can insert a blank line before even a noneditable Task block. */
+  readonly insertBefore?: (id: string) => void
   /** Delete's row: a label and act, a quiet note instead, or nothing. */
   readonly removal: (block: TreeBlock, ids: readonly string[]) => { label: string; run: () => void } | { note: string } | null
 }
@@ -114,10 +116,19 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
 function DragHandle(): React.JSX.Element | null {
   const Components = useComponentsContext()!
   const editor = useBlockNoteEditor() as AnyEditor
+  const model = useContext(BlockMenuContext)!
   const sideMenu = useExtension(SideMenuExtension)
   const block = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block })
   if (block === undefined) return null
   return (
+    <>
+    {model.insertBefore === undefined ? null : <Components.SideMenu.Button
+      label="Insert block above"
+      className="bn-button dana-insert-before"
+      data-focus="self"
+      icon={<Plus size={16} />}
+      onClick={() => { model.insertBefore?.(block.id) }}
+    />}
     <Components.Generic.Menu.Root
       position="left"
       onOpenChange={(open: boolean) => {
@@ -140,13 +151,15 @@ function DragHandle(): React.JSX.Element | null {
       </Components.Generic.Menu.Trigger>
       <BlockMenu block={editor.getBlock(block.id) as TreeBlock ?? block as TreeBlock} />
     </Components.Generic.Menu.Root>
+    </>
   )
 }
 
 export function BlockSideMenu(): React.JSX.Element {
   const Components = useComponentsContext()!
+  const model = useContext(BlockMenuContext)!
   return (
-    <Components.SideMenu.Root className="bn-side-menu">
+    <Components.SideMenu.Root className={model.insertBefore === undefined ? 'bn-side-menu' : 'bn-side-menu dana-work-side-menu'}>
       <DragHandle />
     </Components.SideMenu.Root>
   )
@@ -195,7 +208,7 @@ export const blockSidePosition = {
       if (content === undefined || content === null) return { mainAxis: 8 }
       const referenceBox = reference.getBoundingClientRect()
       const toggle = content.querySelector('.bn-toggle-button')
-      const mainAxis = toggle ? referenceBox.left - toggle.getBoundingClientRect().left + 4 : 4
+      const mainAxis = (toggle ? referenceBox.left - toggle.getBoundingClientRect().left + 4 : 4) - (elements.floating.querySelector('.dana-insert-before') ? 9 : 0)
       const centre = firstLineCentre(content)
       if (Number.isNaN(centre)) return { mainAxis, crossAxis: 0 }
       return { mainAxis, crossAxis: centre - referenceBox.top - rects.floating.height / 2 }
