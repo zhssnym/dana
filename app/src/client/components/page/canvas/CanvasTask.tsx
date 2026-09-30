@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef } from 'react'
+import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createReactBlockSpec } from '@blocknote/react'
 
@@ -11,6 +11,9 @@ import { cn } from '../../ui/utils.js'
 import { PersonFace } from '../../person-face.js'
 import { taskMatchesFilter } from '../../../views/filter.js'
 import type { TaskFilter } from '../../../views/filter.js'
+import { ChevronDown, ChevronRight } from '../../../lib/icons.js'
+
+const FreeformTaskDetails = lazy(() => import('./FreeformTaskDetails.js'))
 
 type TaskRowsProps = Parameters<typeof TaskRows>[0]
 type TaskCard = TaskRowsProps['tasks'][number]
@@ -45,6 +48,7 @@ type TaskBridge = Pick<TaskRowsProps, 'context' | 'actions' | 'onAsk'> & {
   readonly completedById: ReadonlyMap<string, TaskCard>
   /** View-only narrowing. The document and Thread facts always keep every Task. */
   readonly taskFilter?: TaskFilter
+  readonly freeform: boolean
 }
 
 const TaskContext = createContext<TaskBridge | null>(null)
@@ -52,10 +56,11 @@ const noTasks: readonly TaskCard[] = []
 
 /** Task records and actions stay in Dana's query/action layer, outside editor history. */
 export function CanvasTaskProvider({
-  tasks, completed = noTasks, context, actions, onAsk, taskFilter, children,
+  tasks, completed = noTasks, context, actions, onAsk, taskFilter, freeform = false, children,
 }: Pick<TaskRowsProps, 'tasks' | 'context' | 'actions' | 'onAsk'> & {
   readonly completed?: readonly TaskCard[]
   readonly taskFilter?: TaskFilter
+  readonly freeform?: boolean
   readonly children: ReactNode
 }): React.JSX.Element {
   const byId = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
@@ -63,8 +68,8 @@ export function CanvasTaskProvider({
   for (const task of tasks) knownTitles.set(task.id, task.title)
   for (const task of completed) knownTitles.set(task.id, task.title)
   const value = useMemo(
-    () => ({ byId, completedById, context, actions, onAsk, taskFilter }),
-    [byId, completedById, context, actions, onAsk, taskFilter],
+    () => ({ byId, completedById, context, actions, onAsk, taskFilter, freeform }),
+    [byId, completedById, context, actions, onAsk, taskFilter, freeform],
   )
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>
 }
@@ -119,6 +124,7 @@ type NodeState = 'open' | 'next' | 'waiting' | 'done' | 'dropped'
  * carries BlockNote's side menu like any block and shows up in a selection.
  */
 function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly bridge: TaskBridge }): React.JSX.Element {
+  const [expanded, setExpanded] = useState(false)
   const listed = bridge.byId.get(taskId)
   const completedListed = bridge.completedById.get(taskId)
   const detail = useTask(listed === undefined && completedListed === undefined ? taskId : null)
@@ -161,11 +167,13 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
            mousedown is one ProseMirror ignores; React's capture phase runs
            before the editor's own listener. The glyph keeps its own press. */
         onMouseDownCapture={(event) => {
+          if ((event.target as HTMLElement).closest('[data-freeform-task-details]')) return
           if ((event.target as HTMLElement).closest('button, a, input')) return
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return
           event.preventDefault()
         }}
         onClick={(event) => {
+          if ((event.target as HTMLElement).closest('[data-freeform-task-details]')) return
           if ((event.target as HTMLElement).closest('button, a, input')) return
           if (event.metaKey || event.ctrlKey || event.shiftKey) return
           bridge.actions.onOpenTask(known)
@@ -178,7 +186,12 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
         }}
       >
         {/* One task, announced as a list of one, as every task row is. */}
-        <div role="list"><div role="listitem"><ThreadRow task={known} state={state} bridge={bridge} thread={thread} /></div></div>
+        <div role="list"><div role="listitem"><ThreadRow task={known} state={state} bridge={bridge} thread={thread} {...(bridge.freeform ? { expanded, onExpand: () => setExpanded((open) => !open) } : {})} /></div></div>
+        {bridge.freeform && expanded ? <div data-freeform-task-details="" role="region" aria-label={`${known.title} details`} className="ml-7 border-l border-border py-3 pl-4">
+          <Suspense fallback={<p className="text-sm text-muted-foreground">Loading task…</p>}>
+            <FreeformTaskDetails taskId={taskId} />
+          </Suspense>
+        </div> : null}
       </div>
     )
   }
@@ -216,7 +229,7 @@ const GLYPH_LABEL: Record<NodeState, string> = {
   dropped: 'Restore task',
 }
 
-function ThreadRow({ task, state, bridge, thread }: { readonly task: TaskCard; readonly state: NodeState; readonly bridge: TaskBridge; readonly thread: ThreadFacts }): React.JSX.Element {
+function ThreadRow({ task, state, bridge, thread, expanded, onExpand }: { readonly task: TaskCard; readonly state: NodeState; readonly bridge: TaskBridge; readonly thread: ThreadFacts; readonly expanded?: boolean; readonly onExpand?: () => void }): React.JSX.Element {
   const finished = state === 'done' || state === 'dropped'
   const display = finished ? null : taskRowDisplay(task, bridge.context)
   const blockers = useTaskDependencies(state === 'waiting' && (task.blocked_by_count ?? 0) > 0 ? task.id : null)
@@ -240,7 +253,7 @@ function ThreadRow({ task, state, bridge, thread }: { readonly task: TaskCard; r
     glyph.current?.scrollIntoView({ block: 'nearest' })
   }, [state])
   return (
-    <div data-row-key="" className="dana-thread-row flex min-h-[var(--row-height)] min-w-0 items-center gap-x-3">
+    <div data-row-key="" className="dana-thread-row group/task flex min-h-[var(--row-height)] min-w-0 items-center gap-x-3">
       <button
         ref={glyph}
         type="button"
@@ -291,6 +304,15 @@ function ThreadRow({ task, state, bridge, thread }: { readonly task: TaskCard; r
             : thread.shared ? <span aria-hidden className="size-[var(--icon-size-compact)] shrink-0" /> : null}
         </span>
       ) : null}
+      {onExpand ? <button
+        type="button"
+        aria-label={`${expanded ? 'Collapse' : 'Expand'} ${task.title}`}
+        aria-expanded={expanded === true}
+        className="ml-auto flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover/task:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+        onClick={(event) => { event.stopPropagation(); onExpand() }}
+      >
+        {expanded ? <ChevronDown className="size-4" aria-hidden="true" /> : <ChevronRight className="size-4" aria-hidden="true" />}
+      </button> : null}
     </div>
   )
 }
