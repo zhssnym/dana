@@ -322,7 +322,7 @@ function BoardCard({
   )
 }
 
-function NestedBoardColumn({ column, columns, zones, onOpenTask, onToggleComplete, onToggleImportant, onDropIn, given, quickAdd }: {
+function NestedBoardColumn({ column, columns, zones, onOpenTask, onToggleComplete, onToggleImportant, onDropIn, given, quickAdd, subsectionAdd }: {
   column: BoardColumn
   columns: BoardColumn[]
   zones: React.RefObject<Map<string, HTMLElement>>
@@ -332,6 +332,7 @@ function NestedBoardColumn({ column, columns, zones, onOpenTask, onToggleComplet
   onDropIn: (taskId: string, columnKey: string) => boolean
   given?: TaskRowProps['given']
   quickAdd?: (column: BoardColumn) => ReactNode
+  subsectionAdd?: (column: BoardColumn) => ReactNode
 }) {
   const columnAt = (point: { x: number; y: number }): string | null => {
     let found: string | null = null
@@ -348,8 +349,9 @@ function NestedBoardColumn({ column, columns, zones, onOpenTask, onToggleComplet
   return <section
     aria-label={column.label}
     data-board-column={column.key}
+    data-empty={columnCount(column) === 0 ? '' : undefined}
     ref={(node) => { if (node) zones.current.set(column.key, node); else zones.current.delete(column.key) }}
-    className="ml-2 mt-2 border-l border-border pl-2"
+    className="group/column ml-2 mt-2 border-l border-border pl-2"
   >
     <div className="mb-1 flex h-7 items-center gap-1.5 px-1 text-sm font-section">
       <span className="min-w-0 flex-1 truncate">{column.label}</span>
@@ -376,7 +378,8 @@ function NestedBoardColumn({ column, columns, zones, onOpenTask, onToggleComplet
       }}
     />
     {quickAdd ? <div className="pt-1">{quickAdd(column)}</div> : null}
-    {column.children?.map((child) => <NestedBoardColumn key={child.key} column={child} columns={columns} zones={zones} onOpenTask={onOpenTask} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} onDropIn={onDropIn} given={given} quickAdd={quickAdd} />)}
+    {column.children?.map((child) => <NestedBoardColumn key={child.key} column={child} columns={columns} zones={zones} onOpenTask={onOpenTask} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} onDropIn={onDropIn} given={given} quickAdd={quickAdd} subsectionAdd={subsectionAdd} />)}
+    {subsectionAdd?.(column)}
   </section>
 }
 
@@ -393,6 +396,7 @@ export function TaskBoard({
   columnRef,
   footer,
   quickAdd,
+  subsectionAdd,
   grid = "grid-cols-2",
 }: {
   columns: BoardColumn[]
@@ -416,6 +420,8 @@ export function TaskBoard({
   /* Capture inside a column: adding here means adding *with this group's
      value*, which is the whole reason a board has one per column. */
   quickAdd?: (column: BoardColumn) => ReactNode
+  /** Work's nested Section creation, after a column's existing children. */
+  subsectionAdd?: (column: BoardColumn) => ReactNode
   /* After the last column, the folder page's "Add section". */
   footer?: ReactNode
   /* The column grid: two by default; a page's status board is three across. */
@@ -537,8 +543,9 @@ export function TaskBoard({
               column's foot. */}
           {quickAdd ? <div className="pt-1">{quickAdd(column)}</div> : null}
           {column.children?.map((child) => (
-            <NestedBoardColumn key={child.key} column={child} columns={everyColumn} zones={zones} onOpenTask={onOpenTask} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} onDropIn={onDropIn} given={given} quickAdd={quickAdd} />
+            <NestedBoardColumn key={child.key} column={child} columns={everyColumn} zones={zones} onOpenTask={onOpenTask} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} onDropIn={onDropIn} given={given} quickAdd={quickAdd} subsectionAdd={subsectionAdd} />
           ))}
+          {subsectionAdd?.(column)}
         </section>
       ))}
       {footer}

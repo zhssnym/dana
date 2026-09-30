@@ -20,7 +20,7 @@ import { taskFilterActive, taskMatchesFilter } from './filter.js'
 import type { TaskFilter } from './filter.js'
 import { groupRows } from './grouping.js'
 import { scheduleLanding } from './place-pages.js'
-import { appendRootSection, sectionBoardColumns } from './work-board-model.js'
+import { appendSection, sectionBoardColumns } from './work-board-model.js'
 import { getPageResponse } from '../../shared/pages.js'
 
 export type WorkGroup = 'section' | 'person' | 'date'
@@ -68,23 +68,24 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
 }): React.JSX.Element {
   const create = useCreateTask()
   const queryClient = useQueryClient()
-  const [naming, setNaming] = useState(false)
+  const [naming, setNaming] = useState<string | null>(null)
   const [name, setName] = useState('')
-  const [pending, setPending] = useState<{ readonly id: string; readonly title: string } | null>(null)
+  const [pending, setPending] = useState<{ readonly id: string; readonly title: string; readonly parentId: string | null } | null>(null)
   const [sectionError, setSectionError] = useState<string | null>(null)
   const filtered = taskFilterActive(filter)
   const addSection = async (): Promise<void> => {
     const title = name.trim()
-    if (!title || pending !== null) return
+    if (!title || pending !== null || naming === null) return
     const id = crypto.randomUUID()
+    const parentId = naming === 'root' ? null : naming
     setSectionError(null)
-    setPending({ id, title })
+    setPending({ id, title, parentId })
     try {
-      const body = appendRootSection(page, id, title)
+      const body = appendSection(page, id, title, parentId)
       const next = await mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body })
       queryClient.setQueryData(queryKeys.folderPage(folderId), next)
       setName('')
-      setNaming(false)
+      setNaming(null)
     } catch {
       setSectionError('Could not create the Section. Try again.')
       void queryClient.invalidateQueries({ queryKey: queryKeys.folderPage(folderId) })
@@ -103,6 +104,17 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
       .sort((a, b) => (rank.get(a.id) ?? a.position) - (rank.get(b.id) ?? b.position))
   }, [page.blocks, page.items])
   const sectionById = new Map(sections.map((section) => [section.id, section]))
+  const depthOf = (id: string): number => {
+    let depth = 0
+    let at: string | null = id
+    while (at !== null) {
+      const section = sectionById.get(at)
+      if (section === undefined) return 3
+      depth += 1
+      at = section.section_block_id
+    }
+    return depth
+  }
   const pathOf = (id: string | null): string => {
     const names: string[] = []
     const seen = new Set<string>()
@@ -128,17 +140,46 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
     tasks: column.rows.map(card),
     takes: column.capture !== null,
   }))
-  if (group === 'section' && pending !== null && !page.blocks.some((block) => block.id === pending.id)) {
-    const beforeLoose = columns.findIndex((column) => column.key === 'no-section')
-    columns.splice(beforeLoose < 0 ? columns.length : beforeLoose, 0, { key: pending.id, label: pending.title, tasks: [], takes: false })
-  }
   const allColumns = (input: BoardColumn[]): BoardColumn[] => input.flatMap((column) => [column, ...allColumns(column.children ?? [])])
+  if (group === 'section' && pending !== null && !page.blocks.some((block) => block.id === pending.id)) {
+    const provisional: BoardColumn = { key: pending.id, label: pending.title, tasks: [], takes: false }
+    if (pending.parentId === null) {
+      const beforeLoose = columns.findIndex((column) => column.key === 'no-section')
+      columns.splice(beforeLoose < 0 ? columns.length : beforeLoose, 0, provisional)
+    } else {
+      allColumns(columns).find((column) => column.key === pending.parentId)?.children?.push(provisional)
+    }
+  }
   if (filtered) for (const column of allColumns(columns)) column.takes = false
   const columnKeys = new Set(allColumns(columns).map((column) => column.key))
   const groups = new Map(flatGroups.map((item) => [item.key, item]))
   const captureOf = (key: string) => group === 'section'
     ? columnKeys.has(key) ? { section_block_id: key === 'no-section' ? null : key } : null
     : groups?.get(key)?.capture ?? null
+  const sectionControl = (parentId: string | null): React.JSX.Element => {
+    const key = parentId ?? 'root'
+    const nested = parentId !== null
+    const label = nested ? 'New subsection' : 'New section'
+    return <div className={nested ? 'ml-2 mt-2 border-l border-border pl-2' : 'pt-1'}>
+      {naming === key ? <InlineInput
+        autoFocus
+        aria-label={nested ? `New subsection in ${sectionById.get(parentId)?.text ?? 'Section'}` : 'New section name'}
+        placeholder="Section name"
+        maxLength={120}
+        value={name}
+        disabled={pending !== null}
+        onChange={(event) => { setName(event.target.value); setSectionError(null) }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') { event.preventDefault(); void addSection() }
+          if (event.key === 'Escape') { setNaming(null); setName(''); setSectionError(null) }
+        }}
+        className="mx-0 h-[var(--control-height)] w-full px-2 text-sm"
+      /> : <Button variant="ghost" size="sm" className="text-muted-foreground" aria-label={nested ? `New subsection in ${sectionById.get(parentId)?.text ?? 'Section'}` : undefined} disabled={pending !== null} onClick={() => { setNaming(key); setName(''); setSectionError(null) }}>
+        <Plus className="size-4" aria-hidden="true" />{label}
+      </Button>}
+      {naming === key && sectionError !== null ? <p role="alert" className="px-2 text-sm text-destructive">{sectionError}</p> : null}
+    </div>
+  }
 
   return <div className={cn(
     'min-w-0 space-y-3',
@@ -171,25 +212,11 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
         if (target === null) return null
         return <BoardQuickAdd label={`New task in ${column.label}`} onAdd={(title) => create.mutate({ title, folder_id: folderId, ...target })} />
       }}
+      subsectionAdd={(column) => {
+        if (group !== 'section' || !canEdit || filtered || !sectionById.has(column.key) || depthOf(column.key) >= 3) return null
+        return sectionControl(column.key)
+      }}
     />}
-    {group === 'section' && canEdit && !filtered ? <div className="pt-1">
-      {naming ? <InlineInput
-        autoFocus
-        aria-label="New section name"
-        placeholder="Section name"
-        maxLength={120}
-        value={name}
-        disabled={pending !== null}
-        onChange={(event) => { setName(event.target.value); setSectionError(null) }}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') { event.preventDefault(); void addSection() }
-          if (event.key === 'Escape') { setNaming(false); setName(''); setSectionError(null) }
-        }}
-        className="mx-0 h-[var(--control-height)] w-full px-2 text-sm"
-      /> : <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setNaming(true)}>
-        <Plus className="size-4" aria-hidden="true" />New section
-      </Button>}
-      {sectionError === null ? null : <p role="alert" className="px-2 text-sm text-destructive">{sectionError}</p>}
-    </div> : null}
+    {group === 'section' && canEdit && !filtered ? sectionControl(null) : null}
   </div>
 }
