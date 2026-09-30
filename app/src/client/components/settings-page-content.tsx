@@ -180,9 +180,10 @@ export function SettingsPageContent({
                     { value: 'thread', label: 'Thread' },
                     { value: 'freeform', label: 'Freeform' },
                     { value: 'board', label: 'Board' },
+                    { value: 'calendar', label: 'Calendar' },
                   ]}
                   onValueChange={(next) => {
-                    if (next === 'thread' || next === 'freeform' || next === 'board') setDefaultWorkView(next)
+                    if (next === 'thread' || next === 'freeform' || next === 'board' || next === 'calendar') setDefaultWorkView(next)
                   }}
                 />
               }

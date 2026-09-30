@@ -24,13 +24,8 @@ instances, and no server order exists over the union; Q3C states the cell
 order for exactly that reason. Nothing below reorders either array within
 itself.
 
-**Which cell a row lands in is decided here, and since issue #216 that is a
-decision rather than a lookup.** The sentence above used to end "nothing below
-decides which rows a day holds: the date on each row does that, and the date
-is the server's", and a row carried one date while that was true. A task now
-carries a span, Q3C returns it to every grid that span crosses, and a grid
-holding neither of its ends still has to draw it somewhere; `cellDateOf`
-below is where that is answered and why.
+**Single-date Tasks land on the date they carry.** Start+Due Tasks are removed
+before this function and drawn by `ranges.ts` as continuous weekly bars.
 
 **The one display value taken from `parts/presenters.ts` is the folder
 colour**, through `folderDisplay`, because 7.0's card carries a folder stub
@@ -75,13 +70,6 @@ export interface CellEvent {
    * null here as well as undraggable for the reason `PlannedCalendar` gives.
    */
   readonly moves: 'start_date' | 'due_date' | 'range' | null
-  /**
-   * Drawn here only because the task's own day is off this grid: a span
-   * whose deadline is past the grid, drawn on its start or on the grid's
-   * first day. `PlannedCalendar` lists these above the grid rather than in a
-   * cell, so a day cell holds the same tasks at every zoom.
-   */
-  readonly running: boolean
 }
 
 /**
@@ -133,58 +121,18 @@ export function compareCellEvents(a: CellEvent, b: CellEvent): number {
   return compare(a.date, b.date) || compare(a.taskId, b.taskId)
 }
 
-/**
- * The inclusive range of days the grid is drawing, which is the same range
- * the request carried: `PlannedCalendar` reads both off the cells it laid
- * out, so the grid and the response cannot disagree about it.
- */
-export interface GridRange {
-  readonly start: string
-  readonly end: string
-}
-
-/**
- * Which cell one real row draws in, Q3C's rule in its own order: the Due Date
- * where the grid holds that day, else the Start Date, else the grid's first
- * day when the span encloses the whole range. A row the query returned is
- * drawn somewhere (issue #216), and only the last case draws on a day the task
- * does not carry.
- *
- * The rule never moves a task toward a grid edge while one of its own dates
- * is on the grid, so a week and a month put a task on the same day whenever
- * both hold that day.
- *
- * **This is a chip and not a bar.** 9.5's continuous bar from Start through
- * Due is still unbuilt.
- */
-function cellDateOf(task: TaskCard, range: GridRange): string {
-  const inRange = (date: string): boolean =>
-    date >= range.start && date <= range.end
-  const { start_date: start, due_date: due } = task
-  if (due !== null && inRange(due)) return due
-  if (start !== null && inRange(start)) return start
-  if (start !== null && due !== null && start <= range.start && due >= range.end) {
-    return range.start
-  }
-  /* Q3C admits no row without a date, so the last fallback keeps the shape
-     total rather than asserting it; such a row lands in no cell. */
-  return due ?? start ?? ''
-}
-
 /** A real row, from 7.0's card. */
 function realEvent(
   task: TaskCard,
   folders: readonly Folder[],
-  range: GridRange,
 ): CellEvent {
-  const date = cellDateOf(task, range)
+  const date = task.due_date ?? task.start_date ?? ''
   return {
     key: `real:${task.id}`,
     kind: 'real',
     taskId: task.id,
     title: task.title,
     date,
-    running: date !== (task.due_date ?? task.start_date),
     dueTime: task.due_time,
     statusRank: STATUS_RANK[task.status] ?? 0,
     status: task.status,
@@ -212,7 +160,6 @@ function ghostEvent(instance: VirtualInstance): CellEvent {
     status: null,
     folderColor: null,
     moves: null,
-    running: false,
   }
 }
 
@@ -224,17 +171,12 @@ function ghostEvent(instance: VirtualInstance): CellEvent {
  * scanning both arrays once per cell is forty-two passes over a response that
  * 13.23 already records as unbounded in its ghost arm.
  *
- * `range` is the grid's own inclusive span and is what makes the placement
- * above possible: a Schedule is a span now, and which of its two ends a cell
- * can hold is a question about this grid rather than about the task. Ghosts
- * are unaffected - a projection is one instant and the server already
- * intersected them with the range.
+ * Callers supply only single-date Tasks; range Tasks go to weekly bars.
  */
 export function cellsByDate(
   real: readonly TaskCard[],
   virtual: readonly VirtualInstance[],
   folders: readonly Folder[],
-  range: GridRange,
 ): Map<string, CellEvent[]> {
   const cells = new Map<string, CellEvent[]>()
   const place = (event: CellEvent): void => {
@@ -242,7 +184,7 @@ export function cellsByDate(
     if (existing === undefined) cells.set(event.date, [event])
     else existing.push(event)
   }
-  for (const task of real) place(realEvent(task, folders, range))
+  for (const task of real) place(realEvent(task, folders))
   for (const instance of virtual) place(ghostEvent(instance))
   for (const rows of cells.values()) rows.sort(compareCellEvents)
   return cells

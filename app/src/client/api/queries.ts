@@ -345,13 +345,15 @@ export function useFolderCompletedTasks(
 export function usePlannedCalendarView(
   start: string | null,
   end: string | null,
+  folderId?: string,
 ): UseQueryResult<GetPlannedCalendarResponse> {
   return useQuery({
-    queryKey: [...queryKeys.view('planned-calendar'), start, end],
+    queryKey: [...queryKeys.view('planned-calendar'), start, end, folderId ?? null],
     queryFn: () =>
       getView(getPlannedCalendarResponse, '/views/planned/calendar', {
         start: start ?? '',
         end: end ?? '',
+        ...(folderId === undefined ? {} : { folder_id: folderId }),
       }),
     enabled: start !== null && end !== null,
   })
