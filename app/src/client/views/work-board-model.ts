@@ -26,6 +26,74 @@ export function sectionBoardColumns(page: PageView, rows: readonly TaskCard[], c
   return roots
 }
 
+function normalizedOutline(page: PageView) {
+  if (!page.revision || page.task_placements === undefined) throw new Error('Reload the page before arranging Sections.')
+  const blocks = new Map(page.blocks.map((block) => [block.id, block]))
+  const tasks = new Map(page.task_placements.map((task) => [task.id, task]))
+  return page.items.map((item) => {
+    if (item.kind === 'task') {
+      const task = tasks.get(item.id)
+      if (task === undefined) throw new Error('Reload the page before arranging Sections.')
+      return { ...item, section_block_id: task.section_block_id, list_parent_block_id: null }
+    }
+    const block = blocks.get(item.id)
+    if (block === undefined) throw new Error('Reload the page before arranging Sections.')
+    return { ...item, section_block_id: block.section_block_id, list_parent_block_id: block.list_parent_block_id }
+  })
+}
+
+/** Move one root H1 Section as one semantic span, carrying every nested Section and item with it. */
+export function reorderRootSection(page: PageView, sourceId: string, targetId: string): DocumentTransaction {
+  const items = normalizedOutline(page)
+  const sections = new Map(page.blocks.filter((block) => block.kind === 'section').map((block) => [block.id, block]))
+  const source = sections.get(sourceId)
+  const target = sections.get(targetId)
+  if (source === undefined || target === undefined || source.section_block_id !== null || target.section_block_id !== null) {
+    throw new Error('Only root Sections can be reordered here.')
+  }
+
+  const roots = items.flatMap((item) => {
+    if (item.kind !== 'block') return []
+    const section = sections.get(item.id)
+    return section?.section_block_id === null ? [item.id] : []
+  })
+  const from = roots.indexOf(sourceId)
+  const to = roots.indexOf(targetId)
+  if (from < 0 || to < 0) throw new Error('Reload the page before arranging Sections.')
+
+  const inSubtree = (item: typeof items[number], rootId: string): boolean => {
+    let at: string | null = item.kind === 'block' && sections.has(item.id) ? item.id : item.section_block_id
+    const seen = new Set<string>()
+    while (at !== null && !seen.has(at)) {
+      if (at === rootId) return true
+      seen.add(at)
+      at = sections.get(at)?.section_block_id ?? null
+    }
+    return false
+  }
+
+  if (from === to) {
+    return {
+      action: 'document_transaction', mutation_id: crypto.randomUUID(), base_revision: page.revision!,
+      operations: [{ op: 'set_outline', items }],
+    }
+  }
+
+  const carried = items.filter((item) => inSubtree(item, sourceId))
+  const remaining = items.filter((item) => !inSubtree(item, sourceId))
+  let insertAt = remaining.findIndex((item) => item.kind === 'block' && item.id === targetId)
+  if (insertAt < 0 || carried.length === 0) throw new Error('Reload the page before arranging Sections.')
+
+  if (from < to) {
+    while (insertAt < remaining.length && inSubtree(remaining[insertAt]!, targetId)) insertAt += 1
+  }
+  remaining.splice(insertAt, 0, ...carried)
+  return {
+    action: 'document_transaction', mutation_id: crypto.randomUUID(), base_revision: page.revision!,
+    operations: [{ op: 'set_outline', items: remaining }],
+  }
+}
+
 /** Append an H1 without rewriting any existing Work placement. */
 export function appendRootSection(page: PageView, id: string, title: string): DocumentTransaction {
   return appendSection(page, id, title, null)
@@ -33,10 +101,8 @@ export function appendRootSection(page: PageView, id: string, title: string): Do
 
 /** Add a root, H2 or H3 at the end of its parent's subtree in the Work outline. */
 export function appendSection(page: PageView, id: string, title: string, parentId: string | null): DocumentTransaction {
-  if (!page.revision || page.task_placements === undefined) throw new Error('Reload the page before adding a Section.')
-  const blocks = new Map(page.blocks.map((block) => [block.id, block]))
+  const items = normalizedOutline(page)
   const sections = new Map(page.blocks.filter((block) => block.kind === 'section').map((block) => [block.id, block]))
-  const tasks = new Map(page.task_placements.map((task) => [task.id, task]))
   if (parentId !== null) {
     let depth = 0
     let at: string | null = parentId
@@ -46,16 +112,6 @@ export function appendSection(page: PageView, id: string, title: string, parentI
       at = parent.section_block_id
     }
   }
-  const items = page.items.map((item) => {
-    if (item.kind === 'task') {
-      const task = tasks.get(item.id)
-      if (task === undefined) throw new Error('Reload the page before adding a Section.')
-      return { ...item, section_block_id: task.section_block_id, list_parent_block_id: null }
-    }
-    const block = blocks.get(item.id)
-    if (block === undefined) throw new Error('Reload the page before adding a Section.')
-    return { ...item, section_block_id: block.section_block_id, list_parent_block_id: block.list_parent_block_id }
-  })
   let insertAt = items.length
   if (parentId !== null) {
     insertAt = items.findIndex((item) => item.kind === 'block' && item.id === parentId)
@@ -75,7 +131,7 @@ export function appendSection(page: PageView, id: string, title: string, parentI
   return {
     action: 'document_transaction',
     mutation_id: crypto.randomUUID(),
-    base_revision: page.revision,
+    base_revision: page.revision!,
     operations: [
       { op: 'put_block', id, block_kind: 'section', text: title, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null },
       { op: 'set_outline', items },
