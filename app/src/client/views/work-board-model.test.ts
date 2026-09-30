@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { PageBlock, PageView } from '../../shared/pages.js'
 import type { TaskCard } from '../../shared/tasks.js'
 import type { BoardTask } from '../components/task-board.js'
-import { appendRootSection, appendSection, sectionBoardColumns } from './work-board-model.js'
+import { appendRootSection, appendSection, reorderRootSection, sectionBoardColumns } from './work-board-model.js'
 
 const section = (id: string, name: string, parent: string | null): PageBlock => ({
   id, kind: 'section', text: name, section_block_id: parent, list_parent_block_id: null, position: 0,
@@ -80,5 +80,52 @@ describe('Work Board sections', () => {
       { id: 'new-h3', section_block_id: 'h2' }, { id: 'next' },
     ] })
     expect(() => appendSection(page, 'too-deep', 'No', 'h3')).toThrow('cannot hold')
+  })
+
+  it('reorders a root Section as one span with its nested Sections, Tasks and content', () => {
+    const page = {
+      revision: 'current',
+      blocks: [
+        section('a', 'A', null),
+        { id: 'a-note', kind: 'paragraph', section_block_id: 'a', list_parent_block_id: null },
+        section('a2', 'A child', 'a'),
+        section('b', 'B', null),
+        { id: 'b-note', kind: 'paragraph', section_block_id: 'b', list_parent_block_id: null },
+      ],
+      task_placements: [
+        { id: 'a-task', section_block_id: 'a2' },
+        { id: 'b-task', section_block_id: 'b' },
+        { id: 'loose', section_block_id: null },
+      ],
+      items: [
+        { kind: 'block', id: 'a' },
+        { kind: 'block', id: 'a-note' },
+        { kind: 'block', id: 'a2' },
+        { kind: 'task', id: 'a-task' },
+        { kind: 'block', id: 'b' },
+        { kind: 'block', id: 'b-note' },
+        { kind: 'task', id: 'b-task' },
+        { kind: 'task', id: 'loose' },
+      ],
+    } as PageView
+
+    const forward = reorderRootSection(page, 'a', 'b').operations[0]
+    expect(forward).toMatchObject({ op: 'set_outline', items: [
+      { id: 'b' }, { id: 'b-note' }, { id: 'b-task' },
+      { id: 'a' }, { id: 'a-note' }, { id: 'a2' }, { id: 'a-task' },
+      { id: 'loose', section_block_id: null },
+    ] })
+
+    const backwardPage = {
+      ...page,
+      items: (forward as Extract<typeof forward, { op: 'set_outline' }>).items,
+    } as PageView
+    const backward = reorderRootSection(backwardPage, 'a', 'b').operations[0]
+    expect(backward).toMatchObject({ op: 'set_outline', items: [
+      { id: 'a' }, { id: 'a-note' }, { id: 'a2' }, { id: 'a-task' },
+      { id: 'b' }, { id: 'b-note' }, { id: 'b-task' },
+      { id: 'loose', section_block_id: null },
+    ] })
+    expect(() => reorderRootSection(page, 'a2', 'b')).toThrow('root Sections')
   })
 })
