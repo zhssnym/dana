@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
 import type { PageView } from '../../shared/pages.js'
@@ -12,7 +12,8 @@ import { Button } from '../components/ui/button.js'
 import { InlineInput } from '../components/ui/inline-field.js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu.js'
 import { cn } from '../components/ui/utils.js'
-import { ChevronDown, Plus } from '../lib/icons.js'
+import { ChevronDown, GripVertical, Plus } from '../lib/icons.js'
+import { swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
 import { taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import type { RowActions } from '../parts/useRowActions.js'
@@ -20,7 +21,7 @@ import { taskFilterActive, taskMatchesFilter } from './filter.js'
 import type { TaskFilter } from './filter.js'
 import { groupRows } from './grouping.js'
 import { scheduleLanding } from './place-pages.js'
-import { appendSection, sectionBoardColumns } from './work-board-model.js'
+import { appendSection, reorderRootSection, sectionBoardColumns } from './work-board-model.js'
 import { getPageResponse } from '../../shared/pages.js'
 
 export type WorkGroup = 'section' | 'person' | 'date'
@@ -68,10 +69,13 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
 }): React.JSX.Element {
   const create = useCreateTask()
   const queryClient = useQueryClient()
+  const sectionZones = useRef(new Map<string, HTMLElement>())
   const [naming, setNaming] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [pending, setPending] = useState<{ readonly id: string; readonly title: string; readonly parentId: string | null } | null>(null)
   const [sectionError, setSectionError] = useState<string | null>(null)
+  const [reordering, setReordering] = useState(false)
+  const [reorderError, setReorderError] = useState<string | null>(null)
   const filtered = taskFilterActive(filter)
   const addSection = async (): Promise<void> => {
     const title = name.trim()
@@ -150,6 +154,53 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
       allColumns(columns).find((column) => column.key === pending.parentId)?.children?.push(provisional)
     }
   }
+  const rootSections = group === 'section' ? columns.filter((column) => sectionById.get(column.key)?.section_block_id === null) : []
+  const dragDisabled = !canEdit || filtered || pending !== null || reordering || rootSections.length < 2
+  const targetSectionAt = (from: number, point: { x: number; y: number }): number => {
+    for (let index = 0; index < rootSections.length; index += 1) {
+      if (index === from) continue
+      const column = rootSections[index]
+      if (column === undefined) continue
+      const node = sectionZones.current.get(column.key)
+      if (node === undefined) continue
+      const box = node.getBoundingClientRect()
+      if (point.x >= box.left && point.x <= box.right && point.y >= box.top && point.y <= box.bottom) return index
+    }
+    return -1
+  }
+  const persistSectionOrder = async (from: number, to: number): Promise<void> => {
+    const source = rootSections[from]
+    const target = rootSections[to]
+    if (source === undefined || target === undefined || source.key === target.key || reordering) return
+    setReorderError(null)
+    setReordering(true)
+    try {
+      const body = reorderRootSection(page, source.key, target.key)
+      const next = await mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body })
+      queryClient.setQueryData(queryKeys.folderPage(folderId), next)
+    } catch {
+      setReorderError('Could not move the Section. Try again.')
+      void queryClient.invalidateQueries({ queryKey: queryKeys.folderPage(folderId) })
+    } finally { setReordering(false) }
+  }
+  const sectionDrag = useSortableList({
+    count: rootSections.length,
+    axis: 'x',
+    followAcross: true,
+    disabled: dragDisabled,
+    onLift: swallowNextClick,
+    describe: (index) => rootSections[index]?.label ?? 'Section',
+    onReorder: (from, to) => { void persistSectionOrder(from, to) },
+    onOver: (from, point) => {
+      const target = targetSectionAt(from, point)
+      return target < 0 ? '__section-board__' : rootSections[target]?.key ?? '__section-board__'
+    },
+    onDropAt: (from, point) => {
+      const target = targetSectionAt(from, point)
+      if (target >= 0) void persistSectionOrder(from, target)
+      return true
+    },
+  })
   if (filtered) for (const column of allColumns(columns)) column.takes = false
   const columnKeys = new Set(allColumns(columns).map((column) => column.key))
   const groups = new Map(flatGroups.map((item) => [item.key, item]))
@@ -207,6 +258,37 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
     {columns.length === 0 ? <p className="text-sm text-muted-foreground">No tasks here.</p> : <TaskBoard
       columns={columns}
       grid="grid-cols-1 md:grid-cols-2"
+      columnLead={(column) => {
+        const index = rootSections.findIndex((entry) => entry.key === column.key)
+        if (index < 0 || dragDisabled) return null
+        return <button
+          type="button"
+          aria-label={`Move ${column.label} Section`}
+          title="Move Section"
+          {...sectionDrag.handleProps(index)}
+          className="flex size-5 shrink-0 cursor-grab items-center justify-center rounded-sm text-quiet-foreground hover:bg-hover hover:text-foreground active:cursor-grabbing"
+        >
+          <GripVertical className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        </button>
+      }}
+      columnRef={(column) => (node) => {
+        const index = rootSections.findIndex((entry) => entry.key === column.key)
+        if (index < 0) return
+        if (node === null) {
+          sectionZones.current.delete(column.key)
+          return
+        }
+        sectionZones.current.set(column.key, node)
+        const state = sectionDrag.itemState(index)
+        const moving = state.isActive || state.offset !== 0 || state.crossOffset !== 0
+        node.style.transform = moving ? `translate3d(${String(state.offset)}px, ${String(state.crossOffset)}px, 0)` : ''
+        node.style.transition = state.isActive && !state.isSettling
+          ? 'none'
+          : 'transform var(--duration-base) var(--ease-enter), box-shadow var(--duration-base) var(--ease-enter), opacity var(--duration-fast) var(--ease-standard)'
+        node.style.zIndex = state.isActive ? '20' : ''
+        node.style.boxShadow = state.isActive ? 'var(--elevation-2)' : ''
+        node.style.opacity = state.isActive ? '0.9' : ''
+      }}
       onOpenTask={(id) => { const task = byTask.get(id); if (task) actions.onOpenTask(task) }}
       onToggleComplete={(id) => { const task = byTask.get(id); if (task) { if (task.status === 'abandoned') actions.onRestore(task); else actions.onToggleComplete(task) } }}
       onToggleImportant={(id) => { const task = byTask.get(id); if (task) actions.onToggleImportant(task) }}
@@ -231,6 +313,8 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
         return sectionControl(column.key)
       }}
     />}
+    <span className="sr-only" aria-live="polite">{sectionDrag.announcement}</span>
+    {reorderError !== null ? <p role="alert" className="text-sm text-destructive">{reorderError}</p> : null}
     {group === 'section' && canEdit && !filtered ? sectionControl(null) : null}
   </div>
 }
