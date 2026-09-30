@@ -12,17 +12,14 @@ Nothing here imports BlockNote: a thread with fifty posts draws fifty of these,
 and the editor is loaded only for the one composer.
 */
 import { useLayoutEffect, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router'
 
 import { walkPostBlocks } from '../../../shared/comments.js'
 import type { CommentFile, PostBlock, PostContent } from '../../../shared/comments.js'
 import type { RichContent } from '../../../shared/rich-content.js'
-import { OfflineError } from '../../api/http.js'
-import { queryKeys } from '../../api/keys.js'
 import { FileText } from '../../lib/icons.js'
 import { fileSrc } from '../../lib/thread.js'
-import { danaLinkOf, resolveReference } from '../links/dana-link.js'
+import { danaLinkOf } from '../links/dana-link.js'
+import { DanaLinkChip } from '../links/dana-link-display.js'
 import { MentionChip } from '../page/canvas/mention-chip.js'
 import { cn } from '../ui/utils.js'
 
@@ -266,47 +263,12 @@ function Runs({ rich }: { readonly rich: RichContent | undefined }): React.JSX.E
         if (run.mention !== undefined) return <MentionChip key={index} label={run.text} />
         if (run.href !== undefined) {
           node = danaLinkOf(run.href) !== null
-            ? <PostLink href={run.href} stored={run.text} />
+            ? <DanaLinkChip href={run.href} stored={run.text} />
             : <a href={run.href} target="_blank" rel="noreferrer noopener" className="underline underline-offset-2 hover:text-muted-foreground">{node}</a>
         }
         return <span key={index}>{node}</span>
       })}
     </>
-  )
-}
-
-/**
- * A Dana Link in a post, by the canvas chip's rule: the label is the target's
- * live name, and a target this reader cannot open reads "Unavailable".
- */
-function PostLink({ href, stored }: { readonly href: string; readonly stored: string }): React.JSX.Element {
-  const target = danaLinkOf(href)
-  const navigate = useNavigate()
-  const query = useQuery({
-    queryKey: queryKeys.reference(target?.kind ?? '', target?.id ?? ''),
-    queryFn: () => resolveReference(target!.kind, target!.id),
-    enabled: target !== null,
-    retry: false,
-    staleTime: 30_000,
-  })
-  const offline = query.error instanceof OfflineError
-  const chip = 'mx-px inline-flex max-w-full items-center rounded-md bg-muted px-1.5 font-medium'
-  if (target === null || (query.isError && !offline)) {
-    return <span className={cn(chip, 'text-muted-foreground')}>Unavailable</span>
-  }
-  const label = query.data?.label ?? (offline ? stored : '')
-  return (
-    <a
-      href={target.path}
-      className={cn(chip, 'text-foreground hover:bg-accent')}
-      onClick={(event) => {
-        if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return
-        event.preventDefault()
-        void navigate(target.path)
-      }}
-    >
-      <span className="truncate">{query.isPending ? '…' : label === '' ? 'Untitled' : label}</span>
-    </a>
   )
 }
 
