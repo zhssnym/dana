@@ -100,7 +100,7 @@ export function CanvasSurface({
   readonly onNotice: (message: string) => void
   /** The Results tab: the slash menu offers Result (#213). */
   readonly results?: boolean
-  /** View-only content after the editor and before its writing tail. */
+  /** Terminal view-only content after the editor's writing tail. */
   readonly footer?: ReactNode
 }): React.JSX.Element {
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
@@ -373,7 +373,6 @@ export function CanvasSurface({
         {editable ? <MentionSuggestions editor={editor} folderId={peopleFolderId} /> : null}
         <CanvasMarquee />
       </BlockNoteView>
-      {footer}
       <DropdownMenu open={insertMenu !== null} onOpenChange={(open) => { if (!open) setInsertMenu(null) }}>
         <DropdownMenuTrigger nativeButton={false} render={<span aria-hidden="true" tabIndex={-1} />}
           style={{ position: 'fixed', left: insertMenu?.x ?? 0, top: insertMenu?.y ?? 0, width: 0, height: 0 }} />
@@ -383,6 +382,7 @@ export function CanvasSurface({
       </DropdownMenu>
       {/* Work's last line, for a reader who can write (the one asked to, `placeholder`). */}
       {lastLine ? <AddTaskLine editor={editor} page={peopleFolderId ?? ''} editable={editable} /> : null}
+      {footer}
       {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}
     </div>
     <AlertDialog open={referenceToConvert !== null} onOpenChange={(open) => { if (!open) setReferenceToConvert(null) }}>
