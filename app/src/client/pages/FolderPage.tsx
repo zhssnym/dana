@@ -960,7 +960,7 @@ function FolderPageBody({
     <>
       {/* With one tab the row is not drawn (a note still reads as a page),
           so its "+" waits here. */}
-      {shownTabs.length === 1 && tabsEditable && kind !== null ? (
+      {shownTabs.length === 1 && tabsEditable && kind !== null && kind !== 'work' ? (
         <AddTabMenu tabs={shownTabs} onAdd={addTab} />
       ) : null}
       {/* This is the project's people surface, not external sharing. The label
@@ -1075,6 +1075,15 @@ function FolderPageBody({
               onAdd={addTab}
               onRename={renameTab}
               onDelete={removeTab}
+              tools={kind === 'work' ? (
+                <TaskFilterControl
+                  filter={taskFilter}
+                  onChange={setTaskFilter}
+                  people={filterPeople}
+                  labels={filterLabels}
+                  today={context.today}
+                />
+              ) : undefined}
             />
           )}
         </div>
@@ -1097,8 +1106,8 @@ function FolderPageBody({
         ) : (
           <div className="space-y-2">
             <PageSection name={kind === 'doc' ? 'Doc' : 'Work'}>
-              {kind === 'work' ? (
-                <div className="-mt-2 mb-2 flex items-start justify-between gap-2">
+              {kind === 'work' && taskFilterActive(taskFilter) ? (
+                <div className="-mt-2 mb-2">
                   <TaskFilterChips
                     filter={taskFilter}
                     onChange={setTaskFilter}
@@ -1106,15 +1115,6 @@ function FolderPageBody({
                     labels={filterLabels}
                     today={context.today}
                   />
-                  <div className="ml-auto">
-                    <TaskFilterControl
-                      filter={taskFilter}
-                      onChange={setTaskFilter}
-                      people={filterPeople}
-                      labels={filterLabels}
-                      today={context.today}
-                    />
-                  </div>
                 </div>
               ) : null}
               <PageBody
