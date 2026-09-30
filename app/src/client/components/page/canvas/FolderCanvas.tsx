@@ -4,7 +4,6 @@ import { useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteEditor } from '@blocknote/core'
 import { en } from '@blocknote/core/locales'
 import { useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router'
 import '@blocknote/shadcn/style.css'
 import type { PageView } from '../../../../shared/pages.js'
 import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
@@ -12,8 +11,7 @@ import { getPageResponse } from '../../../../shared/pages.js'
 import { documentTransaction } from '../../../../shared/page-document.js'
 import { getPlain, mutateApi, uploadFile as uploadDanaFile } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
-import { useAllPages, useFolderCompletedTasks, useMultiMemberFolderIds } from '../../../api/queries.js'
-import { projectTabs, resultsTab } from '../../../../shared/folders.js'
+import { useFolderCompletedTasks, useMultiMemberFolderIds } from '../../../api/queries.js'
 import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider, ThreadFactsProvider } from './CanvasTask.js'
@@ -58,8 +56,7 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   /** Ignored since M4: done work always shows in place on the thread, where
    * long done stretches elide instead. */
   readonly showCompleted?: boolean
-  /** The viewer may write the Results tab: the Work thread's end line
-   * ("Write what came of it") is offered only then. */
+  /** Compatibility with the page caller; Results is reached through its tab. */
   readonly resultsWritable?: boolean
 }
 
@@ -135,7 +132,7 @@ function scrollerOf(element: Element | null): Element | null {
 
 const CHANGED_ELSEWHERE = 'This page changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
-function PersistedCanvas({ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen }: Props & {
+function PersistedCanvas({ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen }: Props & {
   readonly opening: string
   readonly frozen: Frozen
   readonly initialPage: PageView
@@ -158,12 +155,12 @@ function PersistedCanvas({ page, initialPage, folderId, presentationHeadings, on
       else setReloadNote('The page still has no version. Try again in a moment.')
     }) }}>Load the page again</Button>{reloadNote}
   </div>
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen }} width={width} onSaved={(next) => {
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen }} width={width} onSaved={(next) => {
     queryClient.setQueryData(queryKeys.folderPage(folderId), next)
   }} />}</div>
 }
 
-function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, resultsWritable, onCheckpoint, opening, frozen, width, onSaved }: Props & {
+function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen, width, onSaved }: Props & {
   readonly opening: string
   readonly frozen: Frozen
   readonly initialPage: PageView
@@ -596,27 +593,6 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     }, 0)
     return () => { cancelAnimationFrame(frame); window.clearTimeout(done) }
   }, [editor, draftKey])
-  /* "Write what came of it" opened this Results tab: the cursor goes in it. */
-  useEffect(() => {
-    if (results !== true || focusResultsOf?.folderId !== folderId) return
-    // A request older than a few seconds was left behind (the viewer went
-    // elsewhere before Results opened): it must not grab focus later.
-    if (performance.now() - focusResultsOf.at > FOCUS_RESULTS_WITHIN) { focusResultsOf = null; return }
-    // The view mounts a frame or so after this session does, and the editor
-    // may be made twice on the way; the request is let go once it lands or
-    // the tries run out.
-    let frame = 0
-    let tries = 0
-    const land = (): void => {
-      if (editor.domElement?.isConnected !== true) { if (++tries < 30) frame = requestAnimationFrame(land); else focusResultsOf = null; return }
-      const last = editor.document.at(-1)
-      if (last !== undefined) editor.setTextCursorPosition(last, 'end')
-      editor.focus()
-      focusResultsOf = null
-    }
-    frame = requestAnimationFrame(land)
-    return () => { cancelAnimationFrame(frame) }
-  }, [editor, results, folderId])
   const draftKeys = (event: React.KeyboardEvent<HTMLDivElement>): void => {
     if (draftRef.current === null) return
     const drafting = editor.getBlock(draftRef.current)
@@ -684,7 +660,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     <SavedResults.Provider value={savedResults}>
     <CanvasTaskProvider tasks={tasks} completed={completed} taskFilter={taskFilter} freeform={workView === 'freeform'} context={context} actions={actions} onAsk={onAsk}>
       {draftStyle === '' ? null : <style>{draftStyle}</style>}
-      <ThreadLayer enabled={presentationHeadings !== true && workView === 'thread'} editor={editor} folderId={folderId} tasks={tasks} context={context} frozen={frozen} finish={workRootId === undefined && resultsWritable === true}>
+      <ThreadLayer enabled={presentationHeadings !== true && workView === 'thread'} editor={editor} folderId={folderId} tasks={tasks} context={context} frozen={frozen}>
       <div
         className="min-w-0"
         onKeyDownCapture={draftKeys}
@@ -716,10 +692,6 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     />
   </>
 }
-
-/** The folder whose Results tab "Write what came of it" just opened, to put the cursor in, and when. */
-let focusResultsOf: { readonly folderId: string; readonly at: number } | null = null
-const FOCUS_RESULTS_WITHIN = 10_000
 
 /* What the viewer opened on the thread, for this session only (M4 §2.9):
    the "Earlier work" breaks they expanded. Never stored. Section headings
@@ -776,23 +748,19 @@ const FILL_FOR = 2000
  * keyboard or screen reader reaches it. Section headings are numbered stops
  * and never fold.
  */
-function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish, children }: {
+function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, children }: {
   readonly enabled: boolean
   readonly editor: CanvasEditor
   readonly folderId: string
   readonly tasks: readonly Card[]
   readonly context: Rows['context']
   readonly frozen: Frozen
-  /** The end line may be offered: the page's own Work, to a writer. */
-  readonly finish: boolean
   readonly children: ReactNode
 }): React.JSX.Element {
   const [, bump] = useState(0)
   useEffect(() => enabled ? editor.onChange(() => { bump((value) => value + 1) }) : undefined, [editor, enabled])
   const shared = useMultiMemberFolderIds().has(folderId)
   const done = useFolderCompletedTasks(folderId, enabled)
-  const pages = useAllPages(enabled && finish)
-  const navigate = useNavigate()
   const completedOn = useMemo(() => {
     const on = new Map<string, string>()
     for (const page of done.data?.pages ?? []) for (const day of page.days) for (const row of day.rows) if (!on.has(row.id)) on.set(row.id, day.date)
@@ -849,9 +817,6 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
     setGrown(null)
   }, [folderId])
   const facts = useMemo<ThreadFacts>(() => ({ next: model.next, shared, completedOn, onTick }), [model.next, shared, completedOn, onTick])
-  /* The project's Results tab, where "Write what came of it" goes. */
-  const projectId = pages.data?.find((page) => page.id === folderId)?.project_id
-  const results = projectId === undefined ? undefined : resultsTab(projectTabs(pages.data ?? [], projectId))
   /* A press on an "Earlier work" break shows what it holds. Heard on the
      window, before the marquee (CanvasMarquee), which takes any press outside
      a block's row for a band selection. */
@@ -925,18 +890,6 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, finish
           </button>
         ))}
         {children}
-        {finish && model.hasTasks && !model.anyOpen && results !== undefined ? (
-          <button
-            type="button"
-            className="dana-thread-end"
-            onClick={() => {
-              focusResultsOf = { folderId: results.id, at: performance.now() }
-              void navigate(`/app/folders/${encodeURIComponent(results.id)}`)
-            }}
-          >
-            Write what came of it
-          </button>
-        ) : null}
       </div>
     </ThreadFactsProvider>
   )
