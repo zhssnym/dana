@@ -128,6 +128,7 @@ import { folderLink } from '../lib/nav-links.js'
 import {
   eligibleSuccessors,
   folderGates,
+  mayDraw,
   otherMembers,
   viewerFacts,
 } from '../lib/folder-authority.js'
@@ -153,6 +154,8 @@ import { ConfirmDialog, useConfirm, useRowBasis } from './task-rows.js'
 import { TaskFilterChips, TaskFilterControl } from '../views/TaskFilterControl.js'
 import { labelsWorn, taskFilterActive } from '../views/filter.js'
 import { useTaskFilter } from '../views/filter-store.js'
+import { useCurrentWorkView } from '../views/work-view.js'
+import { WorkBoard } from '../views/WorkBoard.js'
 import { getLabelsResponse } from '../../shared/labels.js'
 import type { LabelDefinition } from '../../shared/labels.js'
 import { getTaskResponse } from '../../shared/tasks.js'
@@ -366,6 +369,7 @@ function FolderPageBody({
   const cache = useQueryClient()
   const basis = useRowBasis()
   const [taskFilter, setTaskFilter] = useTaskFilter(id)
+  const [workView] = useCurrentWorkView()
   const actions = useRowActions()
   const confirm = useConfirm()
   const remove = useDeleteFolder()
@@ -1122,7 +1126,16 @@ function FolderPageBody({
                 truncated={open.data?.truncated ?? false}
               >
                 <Suspense fallback={null}>
-                  {page.data && completedReady ? <FolderCanvas
+                  {page.data && completedReady && kind === 'work' && workView === 'board' ? <WorkBoard
+                    page={page.data}
+                    tasks={openRows}
+                    completed={completedRows}
+                    folderId={id}
+                    filter={taskFilter}
+                    context={context}
+                    actions={actions}
+                    canCreate={facts !== null && mayDraw(facts, 'task.create')}
+                  /> : page.data && completedReady ? <FolderCanvas
                     key={id}
                     page={page.data}
                     tasks={openRows}

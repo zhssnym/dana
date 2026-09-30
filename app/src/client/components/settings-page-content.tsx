@@ -179,9 +179,10 @@ export function SettingsPageContent({
                   options={[
                     { value: 'thread', label: 'Thread' },
                     { value: 'freeform', label: 'Freeform' },
+                    { value: 'board', label: 'Board' },
                   ]}
                   onValueChange={(next) => {
-                    if (next === 'thread' || next === 'freeform') setDefaultWorkView(next)
+                    if (next === 'thread' || next === 'freeform' || next === 'board') setDefaultWorkView(next)
                   }}
                 />
               }

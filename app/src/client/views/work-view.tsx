@@ -1,7 +1,7 @@
 /*
-Work has one document and two presentations. Thread is the progressive reading
-of that document; Freeform is the same Sections, blocks and Tasks without the
-thread rail or Next-task treatment.
+Work has one document and three presentations. Thread is the progressive reading
+of that document; Freeform draws its writing without the rail, and Board groups
+its canonical Tasks without changing them.
 
 The default is a device preference, separate from the view someone chooses on
 a particular Work. A switch is kept for this session only, per page, so it can
@@ -14,13 +14,13 @@ import { useLocation } from 'react-router'
 
 import { Button } from '../components/ui/button.js'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '../components/ui/popover.js'
-import { Check, GitCommitVertical, List } from '../lib/icons.js'
+import { Check, GitCommitVertical, List, SquareKanban } from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
 
-export type WorkView = 'thread' | 'freeform'
+export type WorkView = 'thread' | 'freeform' | 'board'
 
 const DEFAULT_KEY = 'dana.work-view-default'
-const WORK_VIEWS: readonly WorkView[] = ['thread', 'freeform']
+const WORK_VIEWS: readonly WorkView[] = ['thread', 'freeform', 'board']
 
 function isWorkView(value: string | null): value is WorkView {
   return value !== null && (WORK_VIEWS as readonly string[]).includes(value)
@@ -112,6 +112,7 @@ const OPTIONS: readonly {
 }[] = [
   { value: 'thread', label: 'Thread', icon: GitCommitVertical },
   { value: 'freeform', label: 'Freeform', icon: List },
+  { value: 'board', label: 'Board', icon: SquareKanban },
 ]
 
 export function WorkViewControl({
