@@ -246,6 +246,11 @@
   padding: 0;
   border-radius: var(--radius-sm);
 }
+.dana-writing-canvas .dana-work-side-menu { gap: calc(var(--spacing) * 0.5); }
+.dana-writing-canvas .dana-work-side-menu .bn-button {
+  width: calc(var(--spacing) * 5);
+  height: calc(var(--spacing) * 5);
+}
 .dana-writing-canvas .bn-side-menu .dana-drag-handle { cursor: grab; }
 /* The block menu and the slash menu: one menu treatment, the popover surface,
    rows the height of every other menu's (28px) at 14px, the single menu shadow. */

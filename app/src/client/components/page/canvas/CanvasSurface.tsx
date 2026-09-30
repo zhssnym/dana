@@ -17,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../ui/alert-dialog.js'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../ui/dropdown-menu.js'
 import { installCanvasGuard, removingPages } from './guard.js'
 import { publishedFolders } from '../../../lib/folder-library.js'
 import { pushUndo, undoLabel } from '../../../shell/undo.js'
@@ -99,6 +100,7 @@ export function CanvasSurface({
   readonly results?: boolean
 }): React.JSX.Element {
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
+  const [insertMenu, setInsertMenu] = useState<{ readonly id: string; readonly x: number; readonly y: number } | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light'>(pageTheme)
   /* #382: a Task row is a Work-page primitive. FolderCanvas still hands the
      same callback to its generic canvas, but Doc/Results presentation headings
@@ -163,7 +165,15 @@ export function CanvasSurface({
     if (blocks.some((block) => contains(block, TASK_OR_FOLDER))) { onNotice("This selection contains a page, which can't be duplicated. Select only the writing."); return }
     duplicateBlocks(editor, ids)
   }, [editor, onNotice])
+  const insertBefore = useCallback((id: string): void => {
+    if (!editable || editor.getBlock(id) === undefined) return
+    const [line] = editor.insertBlocks([{ type: 'paragraph' }], id, 'before')
+    if (line === undefined) return
+    editor.setTextCursorPosition(line.id, 'start')
+    editor.focus()
+  }, [editor, editable])
   const menu = useMemo<BlockMenuModel>(() => ({
+    insertBefore: taskCreator === undefined || !editable ? undefined : insertBefore,
     targets: (block) => blockMenuTargets(editor, block),
     turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, headingMode === 'none' ? undefined : (block) => headingTogglesFor(editor, block, target)) },
     // A stored to-do (no longer made anywhere) turns into a Task as text does — Work only (#382).
@@ -190,7 +200,7 @@ export function CanvasSurface({
       }
       return { label: 'Delete', run: () => { remove(ids) } }
     },
-  }), [editor, headingMode, taskCreator, requestTask, duplicate, onRemoveFolder, remove, deleteTask, trashPage])
+  }), [editor, headingMode, taskCreator, editable, insertBefore, requestTask, duplicate, onRemoveFolder, remove, deleteTask, trashPage])
   const move = useCallback((ids: readonly string[], direction: -1 | 1): boolean => moveBlocksBy(editor, ids, direction), [editor])
   const selectionActions = useMemo(() => ({ remove, duplicate, admits, move }), [remove, duplicate, admits, move])
   useBlockSelectionKeys(editor, selectionActions)
@@ -233,6 +243,14 @@ export function CanvasSurface({
   }
 
   const onKeyDownCapture = (event: React.KeyboardEvent): void => {
+    if (taskCreator !== undefined && editable && (event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'Enter') {
+      const row = (event.target as Element).closest('.bn-block-outer[data-id]')
+      const id = row?.getAttribute('data-id') ?? editor.getTextCursorPosition().block.id
+      event.preventDefault()
+      event.stopPropagation()
+      insertBefore(id)
+      return
+    }
     if (event.key === 'Tab' && !event.metaKey && !event.ctrlKey && !event.altKey && event.target === editor.domElement && !writing.current) {
       // Passing through: the browser's Tab, with no editor behind it.
       event.stopPropagation()
@@ -315,6 +333,17 @@ export function CanvasSurface({
       onKeyDown={linkKey}
       onFocusCapture={onFocusCapture}
       onMouseDownCapture={() => { writing.current = true }}
+      onContextMenu={(event) => {
+        if (taskCreator === undefined || !editable) return
+        const row = (event.target as Element).closest('.bn-block-outer[data-id]')
+        if (row === null) return
+        const id = row.getAttribute('data-id')
+        if (id === null) return
+        if (!window.matchMedia('(hover: none)').matches && row.querySelector('[data-canvas-task-id]') === null) return
+        event.preventDefault()
+        const box = row.getBoundingClientRect()
+        setInsertMenu({ id, x: event.clientX || box.left, y: event.clientY || box.bottom })
+      }}
       className={`dana-writing-canvas ${scope} min-w-0${lastLine ? ' dana-last-line' : ''}`}
       style={placeholder === undefined || lastLine ? undefined : ({ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties)}
     >
@@ -340,6 +369,13 @@ export function CanvasSurface({
         {editable ? <MentionSuggestions editor={editor} folderId={peopleFolderId} /> : null}
         <CanvasMarquee />
       </BlockNoteView>
+      <DropdownMenu open={insertMenu !== null} onOpenChange={(open) => { if (!open) setInsertMenu(null) }}>
+        <DropdownMenuTrigger nativeButton={false} render={<span aria-hidden="true" tabIndex={-1} />}
+          style={{ position: 'fixed', left: insertMenu?.x ?? 0, top: insertMenu?.y ?? 0, width: 0, height: 0 }} />
+        <DropdownMenuContent align="start" className="w-auto" finalFocus={() => false}>
+          <DropdownMenuItem onClick={() => { if (insertMenu !== null) insertBefore(insertMenu.id) }}>Insert block above</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       {/* Work's last line, for a reader who can write (the one asked to, `placeholder`). */}
       {lastLine ? <AddTaskLine editor={editor} page={peopleFolderId ?? ''} editable={editable} /> : null}
       {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}
