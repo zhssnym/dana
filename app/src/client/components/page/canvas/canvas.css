@@ -308,9 +308,9 @@
   animation: dana-freeform-finish var(--duration-task-complete) var(--ease-standard) both;
 }
 @keyframes dana-freeform-finish {
-  0% { opacity: 1; transform: translate(0, 0); }
-  80% { opacity: 0; transform: translate(calc(var(--spacing) * 3), calc(var(--spacing) * 3)); }
-  100% { opacity: 0; transform: translate(calc(var(--spacing) * 4), calc(var(--spacing) * 4)); }
+  0% { max-height: var(--freeform-flight-height); opacity: 1; transform: translate(0, 0); }
+  80% { max-height: var(--freeform-flight-height); opacity: 0; transform: translate(calc(var(--spacing) * 3), calc(var(--spacing) * 3)); }
+  100% { max-height: 0; opacity: 0; transform: translate(calc(var(--spacing) * 4), calc(var(--spacing) * 4)); }
 }
 
 

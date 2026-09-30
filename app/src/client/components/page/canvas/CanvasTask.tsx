@@ -1,5 +1,5 @@
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { createReactBlockSpec } from '@blocknote/react'
 
 import type { TaskRows } from '../../../pages/task-rows.js'
@@ -50,8 +50,8 @@ type TaskBridge = Pick<TaskRowsProps, 'context' | 'actions' | 'onAsk'> & {
   /** View-only narrowing. The document and Thread facts always keep every Task. */
   readonly taskFilter?: TaskFilter
   readonly freeform: boolean
-  readonly flights: ReadonlySet<string>
-  readonly startFlight: (taskId: string) => void
+  readonly flights: ReadonlyMap<string, number>
+  readonly startFlight: (taskId: string, height: number) => void
   readonly cancelFlight: (taskId: string) => void
 }
 
@@ -67,22 +67,22 @@ export function CanvasTaskProvider({
   readonly freeform?: boolean
   readonly children: ReactNode
 }): React.JSX.Element {
-  const [flights, setFlights] = useState<ReadonlySet<string>>(() => new Set())
+  const [flights, setFlights] = useState<ReadonlyMap<string, number>>(() => new Map())
   const timers = useRef(new Map<string, number>())
   const cancelFlight = useCallback((taskId: string): void => {
     window.clearTimeout(timers.current.get(taskId))
     timers.current.delete(taskId)
     setFlights((old) => {
       if (!old.has(taskId)) return old
-      const next = new Set(old)
+      const next = new Map(old)
       next.delete(taskId)
       return next
     })
   }, [])
-  const startFlight = useCallback((taskId: string): void => {
+  const startFlight = useCallback((taskId: string, height: number): void => {
     if (!freeform || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
     window.clearTimeout(timers.current.get(taskId))
-    setFlights((old) => new Set(old).add(taskId))
+    setFlights((old) => new Map(old).set(taskId, height))
     timers.current.set(taskId, window.setTimeout(() => cancelFlight(taskId), 500))
   }, [freeform, cancelFlight])
   useEffect(() => () => { for (const timer of timers.current.values()) window.clearTimeout(timer) }, [])
@@ -97,8 +97,8 @@ export function CanvasTaskProvider({
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>
 }
 
-export function useFreeformFlights(): ReadonlySet<string> {
-  return useContext(TaskContext)?.flights ?? new Set()
+export function useFreeformFlights(): ReadonlyMap<string, number> {
+  return useContext(TaskContext)?.flights ?? new Map()
 }
 
 /**
@@ -188,6 +188,7 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
         {...(state === 'done' || state === 'dropped' ? { 'data-canvas-task-done': '' } : {})}
         {...(bridge.freeform && completedListed !== undefined && state === 'done' && !bridge.flights.has(taskId) ? { 'data-freeform-completed-source': '' } : {})}
         {...(bridge.flights.has(taskId) ? { 'data-freeform-finishing': '' } : {})}
+        style={bridge.flights.has(taskId) ? { '--freeform-flight-height': `${bridge.flights.get(taskId)}px` } as CSSProperties : undefined}
         className="group/row min-w-0 rounded-sm"
         contentEditable={false}
         tabIndex={0}
@@ -316,7 +317,10 @@ function ThreadRow({ task, state, bridge, thread, expanded, onExpand }: { readon
           if (bridge.flights.has(task.id)) {
             if (state !== 'done') return
             bridge.cancelFlight(task.id)
-          } else if (state !== 'done') bridge.startFlight(task.id)
+          } else if (state !== 'done') {
+            const source = event.currentTarget.closest<HTMLElement>('[data-canvas-task-id]') ?? event.currentTarget
+            bridge.startFlight(task.id, source.getBoundingClientRect().height)
+          }
           if (state !== 'done') {
             thread.onTick?.(task.id)
             // From the keyboard (the glyph holds focus): a pointer's tick leaves focus alone.
