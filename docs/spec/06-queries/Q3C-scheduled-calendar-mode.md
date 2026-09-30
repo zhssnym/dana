@@ -8,6 +8,11 @@ produces hundreds of markers with no designed density rendering. The zoom levels
 viewports rather than ranges: this query answers whatever inclusive range the request
 carries, and what the month zoom asks for is 9.5's.
 
+An optional `folder_id` scopes the result to one accessible Folder. Without it, Q3C
+keeps its global accessible scope. With it, both the real-row read and the recurrence
+projection-source read use that exact Folder, before virtual instances are generated.
+An inaccessible or missing Folder answers 404.
+
 Real rows: folder_id IN ACCESSIBLE(V) AND the task's Schedule overlaps [start, end], all
 three statuses. The Schedule's span runs from activation_date = COALESCE(start_date,
 due_date) to schedule_date = COALESCE(due_date, start_date), and the overlap is inclusive

@@ -154,7 +154,7 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
         sendValidationError(res, parsed.error)
         return
       }
-      const { tz: _tz, start, end } = parsed.data
+      const { tz: _tz, start, end, folder_id: folderId } = parsed.data
       /*
       Q3C's two range rules, measured by src/server/time because they are
       calendar arithmetic, and answered here because that module says
@@ -176,9 +176,14 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
         ])
         return
       }
+      const viewerId = viewer(req)
+      if (folderId !== undefined && (await accessOf(db, viewerId, folderId)) === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
       res
         .status(200)
-        .json(await plannedCalendarView(db, viewer(req), start, end))
+        .json(await plannedCalendarView(db, viewerId, start, end, folderId))
     },
   )
 
