@@ -298,6 +298,12 @@
 .dana-writing-canvas:not(.dana-thread *) .bn-block:has(> .bn-block-content[data-dana-section]) > .bn-block-group > .bn-block-outer::before {
   display: none;
 }
+.dana-freeform-completed .bn-block-outer:has(> .bn-block > .node-danaTask [data-freeform-completed-source]) {
+  display: none;
+}
+.dana-freeform-completed .dana-writing-canvas {
+  position: relative;
+}
 
 
 /* ---- r4-editor: one hint at a time. While the page is being written in,
