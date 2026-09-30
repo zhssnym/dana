@@ -75,13 +75,13 @@ function FilterHeader({
   readonly onClear?: () => void
 }): React.JSX.Element {
   return (
-    <div className="flex h-8 items-center gap-1 px-1.5">
+    <div className="flex h-7 items-center gap-1 px-2">
       {onBack === undefined ? null : (
         <Button type="button" variant="ghost" size="icon-xs" aria-label="Back to filters" onClick={onBack}>
           <ArrowLeft aria-hidden="true" />
         </Button>
       )}
-      <PopoverTitle className="min-w-0 flex-1 truncate text-sm font-medium">{title}</PopoverTitle>
+      <PopoverTitle className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{title}</PopoverTitle>
       {onClear === undefined ? null : (
         <Button type="button" variant="ghost" size="xs" className="font-normal text-muted-foreground" onClick={onClear}>
           Clear
@@ -105,7 +105,7 @@ function FilterRow({
   return (
     <button
       type="button"
-      className="flex h-9 w-full items-center gap-2.5 rounded-md px-2 text-left text-sm text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent"
+      className="flex min-h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground outline-none hover:bg-accent focus-visible:bg-accent"
       onClick={onClick}
     >
       <Icon className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
@@ -131,7 +131,7 @@ function ToggleRow({
     <button
       type="button"
       aria-pressed={pressed}
-      className="flex h-9 w-full items-center gap-2.5 rounded-md px-2 text-left text-sm text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent"
+      className="flex min-h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground outline-none hover:bg-accent focus-visible:bg-accent"
       onClick={onClick}
     >
       <Icon className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
@@ -156,7 +156,7 @@ function ChoiceRow({
     <button
       type="button"
       aria-pressed={active}
-      className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent"
+      className="flex min-h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground outline-none hover:bg-accent focus-visible:bg-accent"
       onClick={onClick}
     >
       {before}
@@ -230,7 +230,7 @@ export function TaskFilterControl({
         >
           <Filter aria-hidden="true" />
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-[18rem] p-1.5">
+        <PopoverContent align="end" className="w-[18rem] p-1">
           {panel === 'root' ? (
             <>
               <FilterHeader
@@ -271,7 +271,7 @@ export function TaskFilterControl({
           {panel === 'date' ? (
             <>
               <FilterHeader title="Date" onBack={back} />
-              <div role="group" aria-label="Date range" className="grid grid-cols-2 gap-0.5">
+              <div role="group" aria-label="Date range">
                 <ChoiceRow label="Any date" active={filter.schedule === 'any'} onClick={() => changeSchedule('any')} />
                 <ChoiceRow label="Has date" active={filter.schedule === 'with'} onClick={() => changeSchedule('with')} />
                 <ChoiceRow label="No date" active={filter.schedule === 'without'} onClick={() => changeSchedule('without')} />
@@ -313,7 +313,7 @@ export function TaskFilterControl({
             <>
               <FilterHeader title="Label" onBack={back} />
               <div role="group" aria-label="Label" className="max-h-72 overflow-y-auto">
-                <ChoiceRow label="Any label" active={filter.label === null} onClick={() => onChange({ ...filter, label: null })} />
+                <ChoiceRow label="Any label" before={<span className="size-4 shrink-0" aria-hidden="true" />} active={filter.label === null} onClick={() => onChange({ ...filter, label: null })} />
                 {labels.map((label) => (
                   <ChoiceRow
                     key={label.id}
