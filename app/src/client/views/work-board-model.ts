@@ -20,9 +20,9 @@ export function sectionBoardColumns(page: PageView, rows: readonly TaskCard[], c
     if (parent === undefined) roots.push(node)
     else parent.children.push(node)
   }
-  const loose: BoardColumn = { key: 'no-section', label: 'No section', tasks: [], quiet: true }
+  const loose: BoardColumn = { key: 'no-section', label: 'No section', tasks: [], quiet: true, revealEmptyOnDrag: roots.length > 0 }
   for (const task of rows) (nodes.get(task.section_block_id ?? '') ?? loose).tasks.push(card(task))
-  if (loose.tasks.length > 0 || roots.length === 0) roots.push(loose)
+  roots.push(loose)
   return roots
 }
 

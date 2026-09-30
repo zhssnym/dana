@@ -24,6 +24,10 @@ describe('Work Board sections', () => {
     expect(columns[0]?.children?.[0]?.children?.[0]?.label).toBe('Detail')
     expect(columns[0]?.children?.[0]?.children?.[0]?.tasks.map((row) => row.id)).toEqual(['deep'])
     expect(columns[1]?.tasks.map((row) => row.id)).toEqual(['loose'])
+    expect(sectionBoardColumns(page, [task('root', 'h1')], (row) => ({ id: row.id, title: row.id } as BoardTask)).at(-1))
+      .toMatchObject({ key: 'no-section', tasks: [], revealEmptyOnDrag: true })
+    expect(sectionBoardColumns({ blocks: [], items: [] } as unknown as PageView, [], (row) => ({ id: row.id, title: row.id } as BoardTask)))
+      .toMatchObject([{ key: 'no-section', revealEmptyOnDrag: false }])
   })
 
   it('appends a root Section while keeping every Task and writing parent', () => {
