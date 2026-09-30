@@ -6,7 +6,7 @@ import { taskMatchesFilter } from '../../../views/filter.js'
 import { ChevronRight } from '../../../lib/icons.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { isSectionHeading } from './outline.js'
-import { FreeformCompletedTask } from './CanvasTask.js'
+import { FreeformCompletedTask, useFreeformFlights } from './CanvasTask.js'
 
 type TaskCard = Parameters<typeof TaskRows>[0]['tasks'][number]
 type Context = Parameters<typeof TaskRows>[0]['context']
@@ -75,13 +75,14 @@ export function FreeformCompleted({ editor, container, completed, context, filte
   readonly context: Context
   readonly filter?: TaskFilter
 }): React.JSX.Element {
+  const flights = useFreeformFlights()
   const [revision, setRevision] = useState(0)
   const [heights, setHeights] = useState<Map<string, number>>(() => new Map())
   const [positions, setPositions] = useState<Map<string, Position>>(() => new Map())
   useEffect(() => editor.onChange(() => setRevision((value) => value + 1)), [editor])
   const groups = useMemo(() => completedGroups(editor.document, new Map(completed
-    .filter((task) => filter === undefined || taskMatchesFilter(task, filter, context.today))
-    .map((task) => [task.id, task]))), [editor, revision, completed, filter, context.today])
+    .filter((task) => !flights.has(task.id) && (filter === undefined || taskMatchesFilter(task, filter, context.today)))
+    .map((task) => [task.id, task]))), [editor, revision, completed, filter, context.today, flights])
 
   useLayoutEffect(() => {
     const root = container.current
