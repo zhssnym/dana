@@ -73,18 +73,17 @@ export function LandingPage(): React.JSX.Element {
       {import.meta.env.DEV ? <SignedInRedirect /> : null}
       <div className="mx-auto w-full max-w-[520px]">
         <h1 className="text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-balance">
-          All your projects, in one quiet place.
+          All your work, in one quiet place.
         </h1>
         <div className="mt-4 flex flex-col gap-3 text-sm text-muted-foreground">
           <p>
-            Dana helps you plan and work on projects without juggling multiple tools. You create a
-            project, describe what you&apos;re building, break it into tasks, and keep track of
-            what&apos;s done and what&apos;s left. Add people to your projects and discuss each task
-            in a thread right next to the work itself.
+            Dana helps you plan and run work without juggling multiple tools. Write down what it&apos;s
+            for, keep pages and tasks together, and see what&apos;s done and what&apos;s next. Add people
+            when the work is shared and discuss it right next to the work itself.
           </p>
           <p>
             We&apos;re building Dana as a bloat-free combination of Notion, GitHub Issues, and
-            Slack, giving you the tools you need to move projects forward without drowning in
+            Slack, giving you the tools you need to move work forward without drowning in
             features you don&apos;t need.
           </p>
           <p>

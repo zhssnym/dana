@@ -105,10 +105,10 @@ export type ActKey =
   | 'copy-link'
   | 'duplicate'
   /* Download the project as a Dana file (7.16), the one the Library's
-     Import project reads. */
+     import action reads. */
   | 'export'
   /* Import a Dana file under this page (round 3). No list offers it now:
-     the Library's Import project is the one way a file comes in. */
+     the Library's import action is the one way a file comes in. */
   | 'import'
   | 'abandon'
   | 'restore'
@@ -169,7 +169,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
   it: the page's header passes no Rename (its title renames in place) and
   the Library row no History (the page's "…" has it). Add a page inside and
   Import as sub-page… left every menu: the `/` menu's Page makes a sub-page,
-  and the Library's Import project brings a file in. Transfer ownership is
+  and the Library's import action brings a file in. Transfer ownership is
   Share's.
   */
   project: [
@@ -178,14 +178,14 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     { key: 'rename', label: 'Rename', icon: Pencil, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
-    { key: 'export', label: 'Export project', icon: Download, group: 3 },
+    { key: 'export', label: 'Export work', icon: Download, group: 3 },
     /* Leave and Delete are never offered together: a surface supplies the one
        its viewer's role permits (9.6's matrix), which is the contract's own
        safety property doing the permission work. */
     /* Leave asks first (access goes, no undo), so it keeps its ellipsis;
        Delete goes to Trash with undo and asks nothing. */
-    { key: 'leave', label: 'Leave project…', icon: LogOut, group: 4 },
-    { key: 'delete', label: 'Delete project', icon: Trash2, group: 5, destructive: true },
+    { key: 'leave', label: 'Leave work…', icon: LogOut, group: 4 },
+    { key: 'delete', label: 'Delete work', icon: Trash2, group: 5, destructive: true },
   ],
   folder: [
     { key: 'open-tab', label: 'Open in new tab', icon: OpenInNewTab, group: 1 },
@@ -195,7 +195,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
     /* Step 8: people belong to the project, so leaving any page of it
        leaves the project. */
-    { key: 'leave', label: 'Leave project…', icon: LogOut, group: 4 },
+    { key: 'leave', label: 'Leave work…', icon: LogOut, group: 4 },
     { key: 'delete', label: 'Delete page', icon: Trash2, group: 5, destructive: true },
   ],
   shelf: [
