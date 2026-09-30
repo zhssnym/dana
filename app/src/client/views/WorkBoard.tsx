@@ -274,6 +274,7 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
       columnRef={(column) => (node) => {
         const index = rootSections.findIndex((entry) => entry.key === column.key)
         if (index < 0) return
+        sectionDrag.setItemRef(index)(node)
         if (node === null) {
           sectionZones.current.delete(column.key)
           return
