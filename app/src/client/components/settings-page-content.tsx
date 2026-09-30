@@ -36,6 +36,7 @@ import { signOut } from '../shell/session.js'
 import { ImagePlus } from '../lib/icons.js'
 import { setTheme, useTheme } from '../lib/theme.js'
 import { setClock, useTimeFormat } from '../lib/time-format.js'
+import { useDefaultWorkView } from '../views/work-view.js'
 import {
   clearViewerImage,
   setViewerImage,
@@ -123,6 +124,7 @@ export function SettingsPageContent({
 }) {
   const theme = useTheme()
   const clock = useTimeFormat()
+  const [defaultWorkView, setDefaultWorkView] = useDefaultWorkView()
 
   /* /app/people and other deep links arrive as /app/settings#<section>; the
      sections draw after the bundle, so scroll once they exist. */
@@ -164,6 +166,22 @@ export function SettingsPageContent({
                   ]}
                   onValueChange={(next) => {
                     setTheme(next as typeof theme)
+                  }}
+                />
+              }
+            />
+            <StackingRow
+              label="Default Work view"
+              control={
+                <Choice
+                  label="Default Work view"
+                  value={defaultWorkView}
+                  options={[
+                    { value: 'thread', label: 'Thread' },
+                    { value: 'freeform', label: 'Freeform' },
+                  ]}
+                  onValueChange={(next) => {
+                    if (next === 'thread' || next === 'freeform') setDefaultWorkView(next)
                   }}
                 />
               }
