@@ -35,6 +35,7 @@ import { pasteIntoCanvas } from './paste.js'
 import { lineTitles } from './commands.js'
 import type { TaskRows } from '../../../pages/task-rows.js'
 import type { TaskFilter } from '../../../views/filter.js'
+import { useCurrentWorkView } from '../../../views/work-view.js'
 
 type Rows = Parameters<typeof TaskRows>[0]
 interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
@@ -182,6 +183,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
   const [creating, setCreating] = useState(false)
   const [recovery, setRecovery] = useState(false)
   const [previousDraft, setPreviousDraft] = useState<string | null>(null)
+  const [workView] = useCurrentWorkView()
   const editorPage = useMemo(() => workRootId === undefined ? initialPage : workPageOf(initialPage, workRootId), [initialPage, workRootId])
   const initial = useMemo(() => {
     const hydrated = hydrateCanvas(editorPage, width)
@@ -682,7 +684,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     <SavedResults.Provider value={savedResults}>
     <CanvasTaskProvider tasks={tasks} completed={completed} taskFilter={taskFilter} context={context} actions={actions} onAsk={onAsk}>
       {draftStyle === '' ? null : <style>{draftStyle}</style>}
-      <ThreadLayer enabled={presentationHeadings !== true} editor={editor} folderId={folderId} tasks={tasks} context={context} frozen={frozen} finish={workRootId === undefined && resultsWritable === true}>
+      <ThreadLayer enabled={presentationHeadings !== true && workView === 'thread'} editor={editor} folderId={folderId} tasks={tasks} context={context} frozen={frozen} finish={workRootId === undefined && resultsWritable === true}>
       <div
         className="min-w-0"
         onKeyDownCapture={draftKeys}
