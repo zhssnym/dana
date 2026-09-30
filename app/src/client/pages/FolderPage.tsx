@@ -7,7 +7,8 @@ sharing or deleting it acts on the project. A sub-page (no `tab_position`)
 draws its own header and no tab row.
 
 The body is drawn by the page's kind: Work is the canvas drawn as the thread
-(M4), where a finished Task stays in place, checked and muted; a Doc is the
+(M4), where a finished Task stays in place, checked and muted; Freeform groups
+finished Tasks by Section. A Doc is the
 same canvas with flat headings and no thread; a Discussion is the project's
 threads; a new project nobody has picked a kind for is the picker. Linear,
 Board and the issue page are gone; an old `?issue=<id>` address lands on
@@ -429,10 +430,13 @@ function FolderPageBody({
       .map((entry) => entry.row)
   }, [scheduled, unscheduled, page.data?.items])
 
-  /* Always read: the thread draws each finished Task in place from these
-     cards. One request for the first 50, where a by-id read per finished
-     placement is what #312 removed. */
+  /* Always read finished Tasks for Thread and Freeform. The first page
+     replaces per-placement reads (#312); Freeform follows the cursor. */
   const completed = useFolderCompletedTasks(id, writes)
+  useEffect(() => {
+    // Freeform needs every placed finished Task to fill its Section disclosures.
+    if (kind === 'work' && workView === 'freeform' && completed.hasNextPage && !completed.isFetchingNextPage) void completed.fetchNextPage()
+  }, [kind, workView, completed.hasNextPage, completed.isFetchingNextPage, completed.fetchNextPage])
   /* The canvas waits for them, so no finished placement is read by id while
      the list is still on its way. */
   const completedReady = completed.data !== undefined || completed.isError
