@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 import type { PageView } from '../../shared/pages.js'
 import type { TaskCard } from '../../shared/tasks.js'
 import { useCreateTask } from '../api/mutations.js'
 import { BoardQuickAdd, TaskBoard } from '../components/task-board.js'
 import type { BoardColumn, BoardTask } from '../components/task-board.js'
+import { Button } from '../components/ui/button.js'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu.js'
+import { ChevronDown } from '../lib/icons.js'
 import { taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import type { RowActions } from '../parts/useRowActions.js'
@@ -14,9 +17,38 @@ import { groupRows } from './grouping.js'
 import { scheduleLanding } from './place-pages.js'
 import { sectionBoardColumns } from './work-board-model.js'
 
-type WorkGroup = 'section' | 'person' | 'date'
+export type WorkGroup = 'section' | 'person' | 'date'
 
-export function WorkBoard({ page, tasks, completed, folderId, filter, context, actions, canCreate }: {
+const GROUPS: readonly { value: WorkGroup; label: string }[] = [
+  { value: 'section', label: 'Section' },
+  { value: 'person', label: 'Assignee' },
+  { value: 'date', label: 'Date' },
+]
+
+export function BoardGroupControl({ group, onChange }: {
+  group: WorkGroup
+  onChange: (group: WorkGroup) => void
+}): React.JSX.Element {
+  const label = GROUPS.find((choice) => choice.value === group)?.label ?? 'Section'
+  return <DropdownMenu>
+    <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="font-normal text-muted-foreground" aria-label={`Group by: ${label}`} />}>
+      <span><span className="max-sm:hidden">Group by: </span>{label}</span>
+      <ChevronDown strokeWidth={1.75} aria-hidden="true" />
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end" className="w-40">
+      <DropdownMenuRadioGroup value={group} onValueChange={(value: unknown) => {
+        const choice = GROUPS.find((item) => item.value === value)
+        if (choice !== undefined) onChange(choice.value)
+      }}>
+        {GROUPS.map((choice) => <DropdownMenuRadioItem key={choice.value} value={choice.value} closeOnClick>
+          {choice.label}
+        </DropdownMenuRadioItem>)}
+      </DropdownMenuRadioGroup>
+    </DropdownMenuContent>
+  </DropdownMenu>
+}
+
+export function WorkBoard({ page, tasks, completed, folderId, filter, context, actions, canCreate, group }: {
   page: PageView
   tasks: readonly TaskCard[]
   completed: readonly TaskCard[]
@@ -25,8 +57,8 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
   context: RowContext
   actions: RowActions
   canCreate: boolean
+  group: WorkGroup
 }): React.JSX.Element {
-  const [group, setGroup] = useState<WorkGroup>('section')
   const create = useCreateTask()
   const filtered = taskFilterActive(filter)
   const rows = useMemo(() => {
@@ -76,14 +108,6 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
     : groups?.get(key)?.capture ?? null
 
   return <div className="min-w-0 space-y-3">
-    <label className="flex items-center gap-2 text-sm text-muted-foreground">
-      Group by
-      <select className="rounded-md border border-border bg-background px-2 py-1 text-foreground" value={group} onChange={(event) => setGroup(event.target.value as WorkGroup)}>
-        <option value="section">Section</option>
-        <option value="person">Assignee</option>
-        <option value="date">Date</option>
-      </select>
-    </label>
     {columns.length === 0 ? <p className="text-sm text-muted-foreground">No tasks here.</p> : <TaskBoard
       columns={columns}
       grid="grid-cols-1 md:grid-cols-2"
