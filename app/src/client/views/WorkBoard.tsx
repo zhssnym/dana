@@ -1,14 +1,18 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 
 import type { PageView } from '../../shared/pages.js'
 import type { TaskCard } from '../../shared/tasks.js'
 import { useCreateTask } from '../api/mutations.js'
+import { mutateApi } from '../api/http.js'
+import { queryKeys } from '../api/keys.js'
 import { BoardQuickAdd, TaskBoard } from '../components/task-board.js'
 import type { BoardColumn, BoardTask } from '../components/task-board.js'
 import { Button } from '../components/ui/button.js'
+import { InlineInput } from '../components/ui/inline-field.js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu.js'
 import { cn } from '../components/ui/utils.js'
-import { ChevronDown } from '../lib/icons.js'
+import { ChevronDown, Plus } from '../lib/icons.js'
 import { taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import type { RowActions } from '../parts/useRowActions.js'
@@ -16,7 +20,8 @@ import { taskFilterActive, taskMatchesFilter } from './filter.js'
 import type { TaskFilter } from './filter.js'
 import { groupRows } from './grouping.js'
 import { scheduleLanding } from './place-pages.js'
-import { sectionBoardColumns } from './work-board-model.js'
+import { appendRootSection, sectionBoardColumns } from './work-board-model.js'
+import { getPageResponse } from '../../shared/pages.js'
 
 export type WorkGroup = 'section' | 'person' | 'date'
 
@@ -49,7 +54,7 @@ export function BoardGroupControl({ group, onChange }: {
   </DropdownMenu>
 }
 
-export function WorkBoard({ page, tasks, completed, folderId, filter, context, actions, canCreate, group }: {
+export function WorkBoard({ page, tasks, completed, folderId, filter, context, actions, canCreate, canEdit, group }: {
   page: PageView
   tasks: readonly TaskCard[]
   completed: readonly TaskCard[]
@@ -58,10 +63,33 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
   context: RowContext
   actions: RowActions
   canCreate: boolean
+  canEdit: boolean
   group: WorkGroup
 }): React.JSX.Element {
   const create = useCreateTask()
+  const queryClient = useQueryClient()
+  const [naming, setNaming] = useState(false)
+  const [name, setName] = useState('')
+  const [pending, setPending] = useState<{ readonly id: string; readonly title: string } | null>(null)
+  const [sectionError, setSectionError] = useState<string | null>(null)
   const filtered = taskFilterActive(filter)
+  const addSection = async (): Promise<void> => {
+    const title = name.trim()
+    if (!title || pending !== null) return
+    const id = crypto.randomUUID()
+    setSectionError(null)
+    setPending({ id, title })
+    try {
+      const body = appendRootSection(page, id, title)
+      const next = await mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body })
+      queryClient.setQueryData(queryKeys.folderPage(folderId), next)
+      setName('')
+      setNaming(false)
+    } catch {
+      setSectionError('Could not create the Section. Try again.')
+      void queryClient.invalidateQueries({ queryKey: queryKeys.folderPage(folderId) })
+    } finally { setPending(null) }
+  }
   const rows = useMemo(() => {
     const rank = new Map(page.items.filter((item) => item.kind === 'task').map((item, index) => [item.id, index]))
     return [...tasks, ...completed]
@@ -100,6 +128,10 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
     tasks: column.rows.map(card),
     takes: column.capture !== null,
   }))
+  if (group === 'section' && pending !== null && !page.blocks.some((block) => block.id === pending.id)) {
+    const beforeLoose = columns.findIndex((column) => column.key === 'no-section')
+    columns.splice(beforeLoose < 0 ? columns.length : beforeLoose, 0, { key: pending.id, label: pending.title, tasks: [], takes: false })
+  }
   const allColumns = (input: BoardColumn[]): BoardColumn[] => input.flatMap((column) => [column, ...allColumns(column.children ?? [])])
   if (filtered) for (const column of allColumns(columns)) column.takes = false
   const columnKeys = new Set(allColumns(columns).map((column) => column.key))
@@ -134,11 +166,30 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
         return true
       }}
       quickAdd={(column) => {
-        if (filtered || !canCreate) return null
+        if (filtered || !canCreate || pending?.id === column.key) return null
         const target = captureOf(column.key)
         if (target === null) return null
         return <BoardQuickAdd label={`New task in ${column.label}`} onAdd={(title) => create.mutate({ title, folder_id: folderId, ...target })} />
       }}
     />}
+    {group === 'section' && canEdit && !filtered ? <div className="pt-1">
+      {naming ? <InlineInput
+        autoFocus
+        aria-label="New section name"
+        placeholder="Section name"
+        maxLength={120}
+        value={name}
+        disabled={pending !== null}
+        onChange={(event) => { setName(event.target.value); setSectionError(null) }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') { event.preventDefault(); void addSection() }
+          if (event.key === 'Escape') { setNaming(false); setName(''); setSectionError(null) }
+        }}
+        className="mx-0 h-[var(--control-height)] w-full px-2 text-sm"
+      /> : <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setNaming(true)}>
+        <Plus className="size-4" aria-hidden="true" />New section
+      </Button>}
+      {sectionError === null ? null : <p role="alert" className="px-2 text-sm text-destructive">{sectionError}</p>}
+    </div> : null}
   </div>
 }
