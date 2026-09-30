@@ -28,7 +28,7 @@ import {
   savePageIdentity,
   usePageIdentity,
 } from '../lib/page-identity.js'
-import { FolderCoverPicker } from './folder-cover.js'
+import { FolderCoverPicker, resolveCover } from './folder-cover.js'
 import { AddCoverAction } from './page-cover.js'
 import { T_FAST } from './task-row.js'
 import { IconPicker } from './page/IconPicker.js'
@@ -72,14 +72,28 @@ export function FolderHeader({
   readonly coverKey?: string
 }): React.JSX.Element {
   const [markOpen, setMarkOpen] = useState(false)
+  const coverIdentity = usePageIdentity(coverKey ?? 'today')
+  const hasCover = coverKey !== undefined && Boolean(
+    resolveCover(coverIdentity.cover, coverKey, coverIdentity.coverPos ?? 50),
+  )
   /* Where a click on the heading landed, as a text offset, so the field opens
      with the caret there; null (the `?folder-action=rename` path) selects all. */
   const caretAt = useRef<number | null>(null)
   const glyph = (
-    <Icon className="size-7" style={{ color }} strokeWidth={1.5} aria-hidden="true" />
+    <Icon
+      className={cn('size-7', hasCover && 'drop-shadow-md')}
+      style={{ color }}
+      strokeWidth={1.5}
+      aria-hidden="true"
+    />
   )
   return (
-    <header className="group/head space-y-1 pt-2">
+    <header
+      className={cn(
+        'group/head space-y-1 pt-2',
+        hasCover && 'relative z-30 flex min-h-16 flex-col justify-end pt-0',
+      )}
+    >
       {editable && coverKey !== undefined ? (
         <div
           className={cn(
@@ -98,7 +112,10 @@ export function FolderHeader({
                 <button
                   type="button"
                   aria-label={`Icon and colour for ${name}`}
-                  className="mt-1 flex size-[var(--control-height)] shrink-0 items-center justify-center rounded-md hover:bg-accent"
+                  className={cn(
+                    'mt-1 flex size-[var(--control-height)] shrink-0 items-center justify-center rounded-md hover:bg-accent',
+                    hasCover && 'drop-shadow-md',
+                  )}
                 />
               }
             >
@@ -154,7 +171,10 @@ export function FolderHeader({
             }}
             className={cn(
               FIELD,
-              'flex-1 resize-none overflow-hidden [field-sizing:content] break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-foreground',
+              'flex-1 resize-none overflow-hidden [field-sizing:content] break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title',
+              hasCover
+                ? 'text-white drop-shadow-md focus:bg-background/90 focus:text-foreground focus:drop-shadow-none'
+                : 'text-foreground',
             )}
           />
         ) : (
@@ -170,14 +190,22 @@ export function FolderHeader({
                 : undefined
             }
             className={cn(
-              'min-w-0 flex-1 break-words [overflow-wrap:anywhere] text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-foreground',
+              'min-w-0 flex-1 break-words [overflow-wrap:anywhere] text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title',
+              hasCover ? 'text-white drop-shadow-md' : 'text-foreground',
               editable ? 'cursor-text' : '',
             )}
           >
             {name}
           </h1>
         )}
-        <div className="mt-1 flex shrink-0 items-center gap-1">{actions}</div>
+        <div
+          className={cn(
+            'mt-1 flex shrink-0 items-center gap-1',
+            hasCover && '[&_button]:text-white [&_button]:drop-shadow-md',
+          )}
+        >
+          {actions}
+        </div>
       </div>
     </header>
   )
