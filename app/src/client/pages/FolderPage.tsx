@@ -1148,6 +1148,7 @@ function FolderPageBody({
                     context={context}
                     actions={actions}
                     canCreate={facts !== null && mayDraw(facts, 'task.create')}
+                    canEdit={sharedPageEditable}
                     group={boardGroup}
                   /> : page.data && completedReady ? <FolderCanvas
                     key={id}
