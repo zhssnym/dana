@@ -35,12 +35,14 @@ import {
 } from "./task-row.js"
 import { cn } from "./ui/utils.js"
 
-export type BoardTask = TaskRowProps & { id: string }
+export type BoardTask = TaskRowProps & { id: string; sectionPath?: string }
 
 export interface BoardColumn {
   key: string
   label: string
   tasks: BoardTask[]
+  /** Nested Work Sections stay inside their root column. */
+  children?: BoardColumn[]
   /* A folder's mark, a person's face, a calendar, whatever the group's own
      kind of thing is. The same marks `GroupedList` puts on its headings. */
   mark?: ReactNode
@@ -57,6 +59,10 @@ export interface BoardColumn {
   every column's answer but that one.
   */
   takes?: boolean
+}
+
+function columnCount(column: BoardColumn): number {
+  return column.tasks.length + (column.children ?? []).reduce((total, child) => total + columnCount(child), 0)
 }
 
 /* -------------------------------------------------------------- capture, */
@@ -267,6 +273,7 @@ function BoardCard({
           {task.title}
         </span>
       </span>
+      {task.sectionPath ? <span className="block truncate pl-7 text-xs text-muted-foreground">{task.sectionPath}</span> : null}
       {/* The one meta line every view draws (`task-meta.tsx`): date, folder,
           face, subtasks, repeat, then the star at its end. A finished card's
           deadline is spent, so it drops its date, as a finished row does. */}
@@ -307,6 +314,64 @@ function BoardCard({
       )}
     </div>
   )
+}
+
+function NestedBoardColumn({ column, columns, zones, onOpenTask, onToggleComplete, onToggleImportant, onDropIn, given, quickAdd }: {
+  column: BoardColumn
+  columns: BoardColumn[]
+  zones: React.RefObject<Map<string, HTMLElement>>
+  onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
+  onToggleComplete: (taskId: string, done: boolean) => void
+  onToggleImportant: (taskId: string) => void
+  onDropIn: (taskId: string, columnKey: string) => boolean
+  given?: TaskRowProps['given']
+  quickAdd?: (column: BoardColumn) => ReactNode
+}) {
+  const columnAt = (point: { x: number; y: number }): string | null => {
+    let found: string | null = null
+    let top = Number.NEGATIVE_INFINITY
+    for (const [key, node] of zones.current) {
+      const box = node.getBoundingClientRect()
+      if (point.x >= box.left && point.x <= box.right && point.y >= box.top && box.top > top) {
+        found = key
+        top = box.top
+      }
+    }
+    return found
+  }
+  return <section
+    aria-label={column.label}
+    data-board-column={column.key}
+    ref={(node) => { if (node) zones.current.set(column.key, node); else zones.current.delete(column.key) }}
+    className="ml-2 mt-2 border-l border-border pl-2"
+  >
+    <div className="mb-1 flex h-7 items-center gap-1.5 px-1 text-sm font-section">
+      <span className="min-w-0 flex-1 truncate">{column.label}</span>
+      <span className="text-xs text-quiet-foreground tabular-nums">{columnCount(column)}</span>
+    </div>
+    <TaskList
+      className="gap-1.5"
+      tasks={column.tasks}
+      followAcross
+      onTaskOpen={onOpenTask}
+      onDropAt={(taskId, point) => {
+        const landing = columnAt(point)
+        return landing !== null && landing !== column.key && onDropIn(taskId, landing)
+      }}
+      onOver={(_taskId, point) => {
+        const landing = columnAt(point)
+        if (landing === null || landing === column.key) return null
+        const named = columns.find((entry) => entry.key === landing)
+        return named === undefined || named.takes === false ? null : `Into ${named.label}`
+      }}
+      renderRow={(task, wiring) => {
+        const done = column.done || task.status === 'completed'
+        return <BoardCard key={task.id} task={task} done={done} given={given} wiring={wiring} onOpen={() => onOpenTask(task.id)} onCheck={() => onToggleComplete(task.id, !done)} onStar={() => onToggleImportant(task.id)} />
+      }}
+    />
+    {quickAdd ? <div className="pt-1">{quickAdd(column)}</div> : null}
+    {column.children?.map((child) => <NestedBoardColumn key={child.key} column={child} columns={columns} zones={zones} onOpenTask={onOpenTask} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} onDropIn={onDropIn} given={given} quickAdd={quickAdd} />)}
+  </section>
 }
 
 /* --------------------------------------------------------------- board, */
@@ -352,6 +417,8 @@ export function TaskBoard({
 }) {
   const zones = useRef(new Map<string, HTMLElement>())
   const keys = useRowKeys<HTMLDivElement>()
+  const allColumns = (columns: BoardColumn[]): BoardColumn[] => columns.flatMap((column) => [column, ...allColumns(column.children ?? [])])
+  const everyColumn = allColumns(columns)
 
   /*
   A column is as short as its cards (`items-start`), so a release anywhere
@@ -387,7 +454,7 @@ export function TaskBoard({
           key={column.key}
           aria-label={column.label}
           data-board-column={column.key}
-          data-empty={column.tasks.length === 0 ? "" : undefined}
+          data-empty={columnCount(column) === 0 ? "" : undefined}
           ref={(node) => {
             if (node) zones.current.set(column.key, node)
             else zones.current.delete(column.key)
@@ -413,7 +480,7 @@ export function TaskBoard({
             </span>
             {/* The count sits at the far end, apart from the name. */}
             <span className="ml-auto text-xs text-quiet-foreground tabular-nums">
-              {column.tasks.length}
+              {columnCount(column)}
             </span>
           </div>
 
@@ -437,7 +504,7 @@ export function TaskBoard({
             onOver={(_taskId, point) => {
               const landing = columnAt(point)
               if (landing === null || landing === column.key) return null
-              const named = columns.find((entry) => entry.key === landing)
+              const named = everyColumn.find((entry) => entry.key === landing)
               /* And a column that cannot take the release is not proposed, so
                  the promise and the act agree. */
               if (named === undefined || named.takes === false) return null
@@ -463,6 +530,9 @@ export function TaskBoard({
           {/* Right after the last card, as Notion draws it, not pinned to the
               column's foot. */}
           {quickAdd ? <div className="pt-1">{quickAdd(column)}</div> : null}
+          {column.children?.map((child) => (
+            <NestedBoardColumn key={child.key} column={child} columns={everyColumn} zones={zones} onOpenTask={onOpenTask} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} onDropIn={onDropIn} given={given} quickAdd={quickAdd} />
+          ))}
         </section>
       ))}
       {footer}
