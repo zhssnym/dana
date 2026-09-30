@@ -25,7 +25,7 @@ import { Plus } from "../lib/icons.js"
 import { InlineInput } from "./ui/inline-field.js"
 import { CheckMark } from "./ui/checkbox.js"
 import { useRowKeys } from "./row-keys.js"
-import { RowMeta } from "./task-meta.js"
+import { RowMeta, TaskStar } from "./task-meta.js"
 import {
   T_FAST,
   TaskList,
@@ -180,9 +180,9 @@ function BoardCard({
     return () => wiring.onRegisterOpen(null)
   })
 
-  /* Whether the meta line has anything to say. A card with nothing (no date,
-     folder, face, count, repeat or set star) is its title alone, so a board
-     of plain tasks stays compact; such a card is starred from the task. */
+  /* Whether the meta line has anything to say besides importance. A plain
+     card keeps the star on its title line, so revealing it never makes the
+     card taller and toggling it never moves the control. */
   const finished = done || task.status === "abandoned"
   const hasMeta =
     ((task.due !== undefined || task.starts !== undefined) && !given?.due && !done) ||
@@ -191,8 +191,7 @@ function BoardCard({
     (task.assignee !== undefined && task.assignee !== null && !given?.assignee) ||
     (task.steps !== undefined && task.steps.total > 0) ||
     task.recurrence !== undefined ||
-    (task.labels !== undefined && task.labels.length > 0) ||
-    Boolean(task.important)
+    (task.labels !== undefined && task.labels.length > 0)
   const drag = wiring.dragState
   const carried = Boolean(drag?.isActive) && !drag?.isSettling
 
@@ -272,6 +271,12 @@ function BoardCard({
         >
           {task.title}
         </span>
+        {!hasMeta ? <TaskStar
+          important={Boolean(task.important)}
+          {...(task.importantTooltip === undefined ? {} : { tooltip: task.importantTooltip })}
+          onToggle={onStar}
+          touchReachable
+        /> : null}
       </span>
       {task.sectionPath ? <span className="block truncate pl-7 text-xs text-muted-foreground">{task.sectionPath}</span> : null}
       {/* The one meta line every view draws (`task-meta.tsx`): date, folder,
@@ -295,6 +300,7 @@ function BoardCard({
           }}
           given={{ ...given, ...(done ? { due: true } : {}) }}
           onToggleImportant={onStar}
+          starTouchReachable
         />
       ) : null}
       {/*
