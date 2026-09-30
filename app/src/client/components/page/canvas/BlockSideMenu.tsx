@@ -208,7 +208,9 @@ export const blockSidePosition = {
       if (content === undefined || content === null) return { mainAxis: 8 }
       const referenceBox = reference.getBoundingClientRect()
       const toggle = content.querySelector('.bn-toggle-button')
-      const mainAxis = (toggle ? referenceBox.left - toggle.getBoundingClientRect().left + 4 : 4) - (elements.floating.querySelector('.dana-insert-before') ? 9 : 0)
+      const hasInsert = elements.floating.querySelector('.dana-insert-before') !== null
+      const inThread = content.closest('.dana-thread') !== null
+      const mainAxis = (toggle ? referenceBox.left - toggle.getBoundingClientRect().left + 4 : 4) - (hasInsert && inThread ? 9 : 0)
       const centre = firstLineCentre(content)
       if (Number.isNaN(centre)) return { mainAxis, crossAxis: 0 }
       return { mainAxis, crossAxis: centre - referenceBox.top - rects.floating.height / 2 }
