@@ -521,7 +521,7 @@ export function TaskCard({
         </Suspense>
       </div>
 
-      <TaskHistory taskId={task.id} folderId={folderId} />
+      <TaskHistory key={task.id} taskId={task.id} folderId={folderId} />
     </div>
   )
 }
