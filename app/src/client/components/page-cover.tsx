@@ -66,7 +66,12 @@ const FULL_BLEED = { marginInline: "calc(50% - 50cqw)" } as const
    the cover is remembered under, a folder's real name, or the page's.
 
    `readOnly` draws the picture and nothing that changes it (issue #228): a
-   viewer below Can edit, whom `PATCH /folders/:id` answers 403. */
+   viewer below Can edit, whom `PATCH /folders/:id` answers 403.
+
+   The 176px band remains in normal document flow. The identity layer is the
+   thing that moves over its lower portion, so the page body can never inherit
+   a missing slice of cover height. 176px also matches the reposition arithmetic
+   below, keeping the gesture and visible band in one geometry. */
 export function PageCover({
   storageName,
   readOnly = false,
@@ -88,7 +93,7 @@ export function PageCover({
     <div
       /* `w-full` is gone with the bleed above it: an auto width fills the
          containing block minus the margins, which is the whole window. */
-      className={cn("group/cover relative h-32", repositioning && "cursor-ns-resize select-none")}
+      className={cn("group/cover relative h-44", repositioning && "cursor-ns-resize select-none")}
       style={
         repositioning
           ? { ...cover, ...FULL_BLEED, backgroundPosition: `center ${draftPos}%` }
@@ -127,11 +132,13 @@ export function PageCover({
         </div>
       ) : null}
       {/* Not rendered rather than hidden for a viewer: a band with no controls
-          is the whole of what `readOnly` means here. */}
+          is the whole of what `readOnly` means here. Controls live at the top
+          so they never compete with the identity text layered over the lower
+          edge of the image. */}
       {readOnly ? null : (
       <div
         className={cn(
-          "absolute right-4 bottom-3 flex items-center gap-1 transition-opacity",
+          "absolute top-3 right-4 flex items-center gap-1 transition-opacity",
           T_FAST,
           repositioning
             ? "opacity-100"
