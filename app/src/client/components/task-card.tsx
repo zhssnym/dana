@@ -14,7 +14,7 @@ Files go in the task's document, which takes file and image blocks.
 */
 
 import { Face } from "./person-face.js"
-import { Plus, type LucideIcon } from "../lib/icons.js"
+import { Check, Plus, type LucideIcon } from "../lib/icons.js"
 import { TaskDependencies, isRelatableTask } from "./task-dependencies.js"
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react"
 import { Link, useNavigate } from "react-router"
@@ -39,6 +39,7 @@ import {
 import { TaskHistory } from "./thread/TaskHistory.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
 import { useAllPages, useMe, useTask } from "../api/queries.js"
+import { useUpdateTask } from "../api/mutations.js"
 import { useDiscussTask } from "../api/consultation.js"
 import { mayDraw } from "../lib/folder-authority.js"
 import { paths } from "../routes.js"
@@ -245,7 +246,9 @@ function useTaskMay(taskId: string, folderId: string | null) {
   const row = pages.data?.find((folder) => folder.id === folderId)
   const root = row === undefined ? undefined : pages.data?.find((folder) => folder.id === row.project_id)
   const viewerId = me.data?.user.id ?? null
-  const mine = viewerId !== null && detail?.assignee?.id === viewerId
+  const mine = viewerId !== null &&
+    (detail?.assignees?.some((person) => person.id === viewerId)
+      ?? detail?.assignee?.id === viewerId)
   const facts =
     row === undefined
       ? null
@@ -422,9 +425,11 @@ export function TaskCard({
   const timeFormat = useTimeFormat()
   const folderId = task.folder?.id ?? null
   const roster = usePeopleLibrary(folderId)
+  const assignment = useUpdateTask()
   /* "Invite by email" opens its address field inside the Assignee menu, so
      the field goes wherever the menu goes: Escape, a click outside, a pick. */
   const [assigneeOpen, setAssigneeOpen] = useState(false)
+  const assignees = task.assignees ?? (task.assignee ? [task.assignee] : [])
   const [inviting, setInviting] = useState(false)
   /* `/Blocked by`: the block under the writing opens already asking. */
   const [depOpening, setDepOpening] = useState(false)
@@ -439,17 +444,17 @@ export function TaskCard({
 
         <MenuRow
           label={CHIP_ASSIGNEE}
-          empty={!task.assignee}
+          empty={assignees.length === 0}
           open={assigneeOpen}
           onOpenChange={(open) => {
             setAssigneeOpen(open)
             if (!open) setInviting(false)
           }}
           value={
-            task.assignee ? (
+            assignees.length > 0 ? (
               <>
-                <Face person={task.assignee} className="size-4 data-[size=sm]:size-4" />
-                <span className="truncate">{task.assignee.name}</span>
+                <Face person={assignees[0]!} className="size-4 data-[size=sm]:size-4" />
+                <span className="truncate">{assignees.map((person) => person.name).join(', ')}</span>
               </>
             ) : (
               "Empty"
@@ -457,9 +462,17 @@ export function TaskCard({
           }
         >
           {roster.map((person) => (
-            <DropdownMenuItem key={person.name} onClick={() => patch(task.id, { assignee: person })}>
+            <DropdownMenuItem key={person.id ?? person.name} closeOnClick={false}
+              onClick={() => {
+                if (!person.id) return
+                const selected = assignees.some((assigned) => assigned.id === person.id)
+                assignment.mutate({ id: task.id, body: selected
+                  ? { assignee_remove_id: person.id }
+                  : { assignee_add_id: person.id } })
+              }}>
               <Face person={person} className="size-4 data-[size=sm]:size-4" />
               {person.name}
+              {assignees.some((assigned) => assigned.id === person.id) ? <Check className="ml-auto size-4" /> : null}
             </DropdownMenuItem>
           ))}
           {folderId === null ? null : inviting ? (
@@ -475,7 +488,7 @@ export function TaskCard({
           )}
           <DropdownMenuSeparator />
           {/* `null`, issue #169: the patch that says "clear the assignee". */}
-          <DropdownMenuItem onClick={() => patch(task.id, { assignee: null })}>{UNASSIGNED}</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => patch(task.id, { assignees: [], assignee: null })}>{UNASSIGNED}</DropdownMenuItem>
         </MenuRow>
 
         <PropertyPicker

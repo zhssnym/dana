@@ -146,6 +146,7 @@ export interface TaskAccess {
   title: string
   status: TaskStatus
   assigneeId: string | null
+  assigneeIds: string[]
   dueDate: string | null
   dueTime: string | null
   /** The rule the row holds, which two decisions read: whether a PATCH is
@@ -178,7 +179,7 @@ export interface TaskAccess {
    (`resolveScoped`), so there is no window in which the preset could be read
    from a different snapshot than the assignee. */
 const TASK_ACCESS_COLUMNS = sql`t.id, t.folder_id, t.title, t.status,
-       t.assignee_id, ${START_DATE} AS start_date,
+       t.assignee_id, t.assignee_ids, ${START_DATE} AS start_date,
        ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
        t.recurrence_rule, t.section_block_id`
 
@@ -191,6 +192,7 @@ function taskAccessFrom(scoped: Scoped | null): TaskAccess | null {
     title: String(row.title),
     status: String(row.status) as TaskStatus,
     assigneeId: nullableString(row.assignee_id),
+    assigneeIds: Array.isArray(row.assignee_ids) ? row.assignee_ids.map(String) : [],
     dueDate: nullableString(row.due_date),
     dueTime: nullableString(row.due_time),
     recurrenceRule: nullableString(row.recurrence_rule),
@@ -213,7 +215,11 @@ export function mayActOnTask(
   task: TaskAccess,
   action: FolderAction,
 ): FolderActionDecision {
-  return mayPerform(task.facts, action, { assigneeId: task.assigneeId })
+  return mayPerform(task.facts, action, {
+    assigneeId: task.assigneeIds.includes(task.facts.actorId)
+      ? task.facts.actorId
+      : task.assigneeId,
+  })
 }
 
 /** Null means the task does not exist or lives in a folder the viewer is not
@@ -296,6 +302,14 @@ async function folderMemberIds(
   return found.map((row) => String(row.user_id))
 }
 
+function assigneeArray(ids: readonly string[]): SQL {
+  return sql`ARRAY(SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb) AS values(value))`
+}
+
+function validAssignees(ids: readonly string[], members: readonly string[]): boolean {
+  return new Set(ids).size === ids.length && ids.every((id) => members.includes(id))
+}
+
 /** 7.6's create default: the folder every account is provisioned with (7.1),
  * unique per owner by INV-2's partial index. */
 async function inboxOf(executor: Executor, viewerId: string): Promise<string> {
@@ -358,6 +372,11 @@ export async function taskView(
                f.is_default AS folder_is_default,
                a.id AS assignee_id, a.display_name AS assignee_display_name,
                a.avatar_url AS assignee_avatar_url,
+               (SELECT coalesce(json_agg(json_build_object(
+                         'id', au.id, 'display_name', au.display_name,
+                         'avatar_url', au.avatar_url) ORDER BY ids.ord), '[]'::json)
+                  FROM unnest(t.assignee_ids) WITH ORDINALITY AS ids(user_id, ord)
+                  JOIN users au ON au.id = ids.user_id) AS assignees,
                (SELECT count(*)::int FROM page_blocks ck
                  WHERE ck.task_id = t.id AND ck.kind = 'checklist')
                  AS steps_total,
@@ -409,6 +428,7 @@ export async function taskView(
             display_name: nullableString(row.assignee_display_name),
             avatar_url: nullableString(row.assignee_avatar_url),
           },
+    assignees: Array.isArray(row.assignees) ? row.assignees as TaskCard['assignees'] : [],
     is_recurring: row.recurrence_rule !== null,
     recurrence_rule: nullableString(row.recurrence_rule),
     steps_done: Number(row.steps_done),
@@ -732,6 +752,13 @@ export async function createTaskIn(
         return { kind: 'assignee_not_member' }
       }
     }
+    const assigneeIds = onlyMember !== undefined
+      ? [onlyMember]
+      : body.assignee_ids ?? (assigneeId === null ? [] : [assigneeId])
+    if (!validAssignees(assigneeIds, members)) {
+      return { kind: 'assignee_not_member' }
+    }
+    assigneeId = assigneeIds[0] ?? null
 
     // 4.5: a section assignment names a section block of this
     // folder's own page, or it names nothing.
@@ -759,14 +786,14 @@ export async function createTaskIn(
       sql`INSERT INTO tasks (id, folder_id, title, notes, important,
                              start_date, due_date,
                              due_time, recurrence_rule, series_id,
-                             assignee_id, created_by, section_block_id,
+                             assignee_id, assignee_ids, created_by, section_block_id,
                              page_position)
           VALUES (${options.id === undefined ? sql`gen_random_uuid()` : sql`${options.id}::uuid`}, ${folderId}::uuid, ${body.title}, ${body.notes ?? null},
                   ${body.important ?? false},
                   ${body.start_date ?? null}::date,
                   ${body.due_date ?? null}::date,
                   ${body.due_time ?? null}::time, ${rule}, ${seriesId},
-                  ${assigneeId}::uuid, ${viewerId}::uuid, ${sectionId},
+                  ${assigneeId}::uuid, ${assigneeArray(assigneeIds)}, ${viewerId}::uuid, ${sectionId},
                   ${pagePosition})
           RETURNING id`,
     )
@@ -809,7 +836,7 @@ export async function createTaskIn(
         assigneeId !== null && assigneeId !== viewerId
           ? `assigned to ${await displayNameOf(tx, assigneeId)}`
           : undefined,
-      recipients: assigneeId === null ? undefined : [assigneeId],
+      recipients: assigneeIds,
     })
 
     return { kind: 'created', task: await viewOrFail(tx, viewerId, taskId) }
@@ -1030,7 +1057,10 @@ async function patchTaskIn(
     ) {
       acts.push('task.edit')
     }
-    if (patch.assignee_id !== undefined) acts.push('task.assign')
+    if (patch.assignee_id !== undefined || patch.assignee_ids !== undefined ||
+        patch.assignee_add_id !== undefined || patch.assignee_remove_id !== undefined) {
+      acts.push('task.assign')
+    }
     if (patch.folder_id !== undefined || patch.section_block_id !== undefined) {
       acts.push('task.move')
     }
@@ -1084,6 +1114,33 @@ async function patchTaskIn(
       const survives =
         current.assigneeId !== null && members.includes(current.assigneeId)
       assigneeId = onlyMember ?? (survives ? current.assigneeId : null)
+    }
+    let assigneeIds: string[] | undefined
+    if (patch.assignee_ids !== undefined) {
+      assigneeIds = patch.assignee_ids
+    } else if (patch.assignee_add_id !== undefined) {
+      assigneeIds = current.assigneeIds.includes(patch.assignee_add_id)
+        ? current.assigneeIds : [...current.assigneeIds, patch.assignee_add_id]
+    } else if (patch.assignee_remove_id !== undefined) {
+      assigneeIds = current.assigneeIds.filter((id) => id !== patch.assignee_remove_id)
+    } else if (patch.assignee_id !== undefined) {
+      assigneeIds = assigneeId === null ? [] : [assigneeId!]
+    } else if (moving) {
+      assigneeIds = onlyMember === undefined
+        ? current.assigneeIds.filter((id) => members.includes(id))
+        : [onlyMember]
+    }
+    if (assigneeIds !== undefined) {
+      if (assigneeIds.length === 0 && onlyMember !== undefined) {
+        return { kind: 'unassign_single_member' }
+      }
+      if (!validAssignees(assigneeIds, members)) return { kind: 'assignee_not_member' }
+      assigneeId = assigneeIds[0] ?? null
+      if (!moving && assigneeIds.length === current.assigneeIds.length &&
+          assigneeIds.every((id, index) => id === current.assigneeIds[index])) {
+        assigneeIds = undefined
+        assigneeId = undefined
+      }
     }
 
     // 4.5: a section names a block of the folder the task ends
@@ -1208,6 +1265,9 @@ async function patchTaskIn(
     if (moving) sets.push(sql`folder_id = ${folderId}::uuid`)
     if (assigneeId !== undefined) {
       sets.push(sql`assignee_id = ${assigneeId}::uuid`)
+    }
+    if (assigneeIds !== undefined) {
+      sets.push(sql`assignee_ids = ${assigneeArray(assigneeIds)}`)
     }
     if (sectionId !== undefined) {
       sets.push(sql`section_block_id = ${sectionId}`)
@@ -1337,12 +1397,9 @@ async function patchTaskIn(
     // real change of hands fans out, because an assignee rewritten with the
     // value it already held concerns nobody newly.
     if (sets.length > 0 || reminder !== null) {
-      const newAssignee =
-        assigneeId !== undefined &&
-        assigneeId !== null &&
-        assigneeId !== current.assigneeId
-          ? assigneeId
-          : null
+      const addedAssignees = (assigneeIds ?? current.assigneeIds)
+        .filter((id) => !current.assigneeIds.includes(id))
+      const newAssignee = addedAssignees[0] ?? null
       const verb = moving
         ? 'moved'
         : patch.title !== undefined && patch.title !== current.title
@@ -1366,7 +1423,7 @@ async function patchTaskIn(
                 verb === 'edited'
                 ? await plainEditDetail(tx, patch, current, assigneeId)
                 : undefined,
-        recipients: newAssignee === null ? undefined : [newAssignee],
+        recipients: addedAssignees.length === 0 ? undefined : addedAssignees,
       })
     }
 

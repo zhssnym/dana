@@ -136,6 +136,8 @@ export function toConceptTask(
     ...(task.due_date === null || task.due_time === null ? {} : { dueTime: task.due_time.slice(0, 5) }),
     ...(task.start_date === null ? {} : { start: task.start_date }),
     assignee,
+    assignees: (task.assignees ?? (task.assignee === null ? [] : [task.assignee]))
+      .map(toConceptPerson),
     important: task.important,
     pulled: task.pulled,
     recurrence: task.is_recurring,
@@ -251,7 +253,11 @@ export function conceptPatchToBody(fields: Partial<ConceptTask>): PatchTaskBody 
   and a person named without an id, who is not an address this client can send
   (see the paragraph above about `folder`).
   */
-  if (fields.assignee !== undefined) body['assignee_id'] = fields.assignee?.id ?? null
+  if (fields.assignees !== undefined) {
+    body['assignee_ids'] = fields.assignees.map((person) => person.id)
+  } else if (fields.assignee !== undefined) {
+    body['assignee_id'] = fields.assignee?.id ?? null
+  }
   return body as PatchTaskBody
 }
 

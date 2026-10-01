@@ -234,6 +234,11 @@ const CARD_COLUMNS = sql`
     f.is_default AS folder_is_default,
     a.id AS assignee_id, a.display_name AS assignee_display_name,
     a.avatar_url AS assignee_avatar_url,
+    (SELECT coalesce(json_agg(json_build_object(
+              'id', au.id, 'display_name', au.display_name,
+              'avatar_url', au.avatar_url) ORDER BY ids.ord), '[]'::json)
+       FROM unnest(t.assignee_ids) WITH ORDINALITY AS ids(user_id, ord)
+       JOIN users au ON au.id = ids.user_id) AS assignees,
     (t.recurrence_rule IS NOT NULL) AS is_recurring, t.recurrence_rule,
     c.steps_total, c.steps_done,
     (e.task_id IS NOT NULL) AS pulled,
@@ -326,6 +331,7 @@ function cardFromRow(
             display_name: nullableString(row.assignee_display_name),
             avatar_url: nullableString(row.assignee_avatar_url),
           },
+    assignees: Array.isArray(row.assignees) ? row.assignees as TaskCard['assignees'] : [],
     is_recurring: row.is_recurring === true,
     recurrence_rule: nullableString(row.recurrence_rule),
     steps_done: Number(row.steps_done),

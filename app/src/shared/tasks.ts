@@ -316,6 +316,10 @@ export const postTasksBody = z
     due_time: dueTime.nullable().optional(),
     recurrence_rule: recurrenceRule.nullable().optional(),
     assignee_id: uuid.nullable().optional(),
+    assignee_ids: z.array(uuid).max(100).refine(
+      (ids) => new Set(ids).size === ids.length,
+      { error: 'must not repeat a person' },
+    ).optional(),
     // 4.5: the section this task sits under on its folder's
     // page; null is the loose block. Membership of the named block in the
     // task's folder is the server's to check (7.11).
@@ -325,6 +329,9 @@ export const postTasksBody = z
       .array(stepTitle)
       .max(50, { error: 'must be at most 50 steps' })
       .optional(),
+  })
+  .refine((body) => body.assignee_id === undefined || body.assignee_ids === undefined, {
+    error: 'use assignee_id or assignee_ids', path: ['assignee_ids'],
   })
   /*
   7.6's dependency check, and the whole of it that a create body can answer:
@@ -505,8 +512,18 @@ export const patchTaskBody = z
     recurrence_rule: recurrenceRule.nullable().optional(),
     folder_id: uuid.optional(),
     assignee_id: uuid.nullable().optional(),
+    assignee_ids: z.array(uuid).max(100).refine(
+      (ids) => new Set(ids).size === ids.length,
+      { error: 'must not repeat a person' },
+    ).optional(),
+    assignee_add_id: uuid.optional(),
+    assignee_remove_id: uuid.optional(),
     section_block_id: uuid.nullable().optional(),
     reminder: patchReminderInput.optional(),
+  })
+  .refine((body) => [body.assignee_id, body.assignee_ids,
+    body.assignee_add_id, body.assignee_remove_id].filter((value) => value !== undefined).length <= 1, {
+    error: 'send one assignment change', path: ['assignee_ids'],
   })
   /*
   The one INV-6 violation a PATCH body states without any help from the row:
@@ -864,6 +881,7 @@ export const taskCard = z.object({
   due_time: wallClockTime.nullable(),
   folder: taskCardFolder,
   assignee: folderMemberUser.nullable(),
+  assignees: z.array(folderMemberUser).optional(),
   is_recurring: z.boolean(),
   /* The rule itself rides the card so a list row can name the repeat ("Daily")
      rather than guess one; it was TaskDetail's alone and every row said "Weekly". */

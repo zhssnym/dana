@@ -26,6 +26,7 @@ export interface ThreadTask {
   readonly blocked_by_count?: number | undefined
   readonly start_date: string | null
   readonly assignee: { readonly id: string } | null
+  readonly assignees?: readonly { readonly id: string }[]
   /** The page's open list also carries dropped tasks; they are closed work. */
   readonly status?: string | undefined
 }
@@ -214,7 +215,9 @@ function findNext(list: readonly ThreadBlock[], input: ThreadInput): string | nu
     const task = openCard(input.open, id)
     if (id === null || task === undefined) continue
     if (isWaiting(task, input.today)) continue
-    if (input.shared && task.assignee !== null && task.assignee.id !== input.viewerId) continue
+    if (input.shared && (task.assignees?.length ?? (task.assignee ? 1 : 0)) > 0 &&
+        !(task.assignees?.some((person) => person.id === input.viewerId)
+          ?? task.assignee?.id === input.viewerId)) continue
     return id
   }
   return null

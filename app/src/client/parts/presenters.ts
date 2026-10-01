@@ -572,6 +572,7 @@ export type TaskRowDisplay = Pick<
   | 'important'
   | 'importantTooltip'
   | 'assignee'
+  | 'assignees'
   | 'unassigned'
   | 'createdBy'
   | 'pulled'
@@ -621,14 +622,15 @@ and is due next week qualifies automatically, and must not be offered an un-pull
 that would delete the entry and leave the row where it was.
 */
 function qualifiesAutomatically(
-  task: Pick<TaskCard, 'assignee' | 'start_date' | 'due_date'>,
+  task: Pick<TaskCard, 'assignee' | 'assignees' | 'start_date' | 'due_date'>,
   viewerId: string | null,
   today: string,
 ): boolean {
   const activation = activationDateOf(task)
   return (
     viewerId !== null &&
-    task.assignee?.id === viewerId &&
+    (task.assignees?.some((person) => person.id === viewerId)
+      ?? task.assignee?.id === viewerId) &&
     activation !== null &&
     activation <= today
   )
@@ -671,12 +673,12 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
   because a card whose folder stub says is_default is by Q2's own parenthesis
   the viewer's own.
   */
-  const assignee =
-    task.assignee !== null &&
-    task.assignee.id !== viewerId &&
-    !task.folder.is_default
-      ? personDisplay(task.assignee)
-      : undefined
+  const visibleAssignees = !task.folder.is_default
+    ? (task.assignees ?? (task.assignee === null ? [] : [task.assignee]))
+        .filter((person) => person.id !== viewerId)
+        .map(personDisplay)
+    : []
+  const assignee = visibleAssignees[0]
 
   const range = showDue ? rangeDisplay(task, today, clock) : undefined
 
@@ -689,6 +691,7 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
     important: task.important,
     importantTooltip: importantTooltipFor(task, starTooltip, today),
     assignee,
+    assignees: visibleAssignees,
     // Q3: null assignee in a folder with more than one member. Pending rows
     // only: the state lab scopes the chip ("Shared Planned context only"),
     // and on an abandoned row the Abandoned chip is the state that matters.

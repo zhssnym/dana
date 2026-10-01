@@ -158,7 +158,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         case 'assignee_not_member':
           fieldError(
             res,
-            'assignee_id',
+            parsed.assignee_ids === undefined ? 'assignee_id' : 'assignee_ids',
             'must be a member of the folder the task is created in',
           )
           return
@@ -286,7 +286,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         case 'assignee_not_member':
           fieldError(
             res,
-            'assignee_id',
+            parsed.assignee_add_id !== undefined ? 'assignee_add_id'
+              : parsed.assignee_remove_id !== undefined ? 'assignee_remove_id'
+                : parsed.assignee_ids === undefined ? 'assignee_id' : 'assignee_ids',
             'must be a member of the task\'s folder',
           )
           return

@@ -208,6 +208,10 @@ const claimDueReminders = sql`
          to_char(t.due_time, 'HH24:MI') AS due_time,
          fo.name AS folder_name,
          u.email AS assignee_email,
+         (SELECT coalesce(json_agg(au.email ORDER BY ids.ord), '[]'::json)
+            FROM unnest(t.assignee_ids) WITH ORDINALITY AS ids(user_id, ord)
+            JOIN users au ON au.id = ids.user_id
+           WHERE au.email IS NOT NULL) AS assignee_emails,
          now() - r.fire_at > ${STALE_WINDOW}::interval AS stale
     FROM reminders r
     JOIN tasks t ON t.id = r.task_id AND t.deleted_at IS NULL
@@ -226,6 +230,12 @@ function isTrue(value: unknown): boolean {
 
 function text(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
+}
+
+function recipientEmails(row: Record<string, unknown>): string[] {
+  return Array.isArray(row.assignee_emails)
+    ? row.assignee_emails.filter((email): email is string => typeof email === 'string')
+    : text(row.assignee_email) === null ? [] : [String(row.assignee_email)]
 }
 
 /** 8.6's three skip rules, in the order that section writes them, plus the
@@ -247,14 +257,14 @@ function skipReasonFor(row: Record<string, unknown>): SkipReason | null {
   // for the reason 8.6 gives that one, which is that there is no one person
   // to deliver to; the alternative, throwing, would take down every other
   // reminder in the batch for one unreachable row.
-  if (text(row.assignee_email) === null) return 'no_recipient_address'
+  if (recipientEmails(row).length === 0) return 'no_recipient_address'
   return null
 }
 
-function reminderMessage(row: Record<string, unknown>): OutboundMessage {
+function reminderMessage(row: Record<string, unknown>, email: string): OutboundMessage {
   return {
     template: 'reminder',
-    to: String(row.assignee_email),
+    to: email,
     reminder: {
       taskId: String(row.task_id),
       title: String(row.title),
@@ -356,7 +366,9 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
           continue
         }
         try {
-          await notifier.send(reminderMessage(row))
+          for (const email of recipientEmails(row)) {
+            await notifier.send(reminderMessage(row, email))
+          }
         } catch (err: unknown) {
           // The row stays scheduled, so the next tick retries it until it
           // crosses the stale window and is skipped honestly. Rolling the

@@ -296,6 +296,7 @@ export const exportTask = z.object({
   series_id: z.uuid().nullable(),
   created_by: z.string().nullable(),
   assignee: z.string().nullable(),
+  assignees: z.array(z.string().nullable()),
   completed_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),

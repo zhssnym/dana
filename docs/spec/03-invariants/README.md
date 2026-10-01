@@ -9,8 +9,8 @@ enforces it; "guard" means an API precondition enforces it.
 | INV-1 | Every task's folder_id references an existing folder and is never null | NOT NULL plus FK |
 | INV-2 | Every non-deleted user has exactly one folder with is_default true; that folder is never shared, never deleted, and its owner never changes | Partial unique index; guards on share, delete, transfer |
 | INV-3 | A default folder has exactly one membership row, its owner's | Guards on member add; invite validation rejects default folders |
-| INV-4 | tasks.assignee_id is null or (folder_id, assignee_id) exists in folder_members | Composite FK (section 4.5) |
-| INV-5 | In a folder with exactly one member, every task has assignee_id equal to that member | Transactions: create, move, unassign guard, member removal, leave |
+| INV-4 | Every id in tasks.assignee_ids belongs to the task's project, with no repeats; assignee_id is its first id or null | Write trigger and composite FK (section 4.5) |
+| INV-5 | In a project with exactly one member, every task has that one assignee | Transactions: create, move, unassign guard, member removal, leave |
 | INV-6 | due_time, recurrence_rule, and a reminder row exist only while due_date is set | CHECK constraints; clear-date cascade (section 8.4) |
 | INV-7 | Per series_id, at most one task row has status pending | Generation transaction; un-complete and restore guards |
 | INV-8 | status = completed exactly when completed_at is set and exactly when completed_by is set | CHECK constraints |

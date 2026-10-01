@@ -202,6 +202,7 @@ export interface ConceptTask {
   of a patch has to choose between them.
   */
   assignee?: { initials: string; name: string; image?: string; id?: string } | null
+  assignees?: { initials: string; name: string; image?: string; id?: string }[]
   /* Steps are the items themselves rather than a count, so the count is
      derived and ticking one in an expanded card moves the number in the row
      behind it. A count that cannot be wrong is better than a count. */
