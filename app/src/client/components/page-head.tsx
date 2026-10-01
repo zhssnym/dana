@@ -118,7 +118,7 @@ export function PageMark({
 
   const shape = cn(
     "relative flex shrink-0 items-center justify-center text-foreground",
-    hasCover ? "z-40 -ml-1.5 -mt-9 size-14" : "-ml-1.5 size-10",
+    hasCover ? "z-40 -ml-1.5 size-14 text-white drop-shadow-md" : "-ml-1.5 size-10",
     className,
   )
 
@@ -170,11 +170,22 @@ function PageHeadingStructure({
       {/* On a phone the fact wraps under the name. */}
       <div className="mt-1.5 flex items-baseline justify-between gap-6">
         <div className="flex min-w-0 items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
-          <h1 data-page-title="" className="min-w-0 max-w-full truncate text-[length:var(--text-title-size)] leading-8 font-title text-foreground max-md:whitespace-normal">
+          <h1
+            data-page-title=""
+            className={cn(
+              "min-w-0 max-w-full truncate text-[length:var(--text-title-size)] leading-8 font-title max-md:whitespace-normal",
+              hasCover ? "text-white drop-shadow-md" : "text-foreground",
+            )}
+          >
             {title}
           </h1>
           {fact === undefined ? null : (
-            <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">
+            <span
+              className={cn(
+                "shrink-0 text-xs leading-4 tabular-nums",
+                hasCover ? "text-white/90 drop-shadow-md" : "text-muted-foreground",
+              )}
+            >
               {fact}
             </span>
           )}
@@ -284,9 +295,10 @@ export function PageHead({
       {/*
       **The band is drawn here rather than by the page above.**
 
-      `PageMark` rides up over the band on a negative margin, which only works
-      while the two are adjacent in one flow, and a page putting them in a
-      `space-y-*` stack would open a gap between them.
+      The cover now gives back its lower 96px to the identity layer, so the
+      mark and title occupy the image instead of forming a second band below
+      it. The body still starts at the image's lower edge because the identity
+      layer consumes that overlap in normal flow.
 
       The negative inset undoes the shell's own measure and nothing else.
       `app-shell.tsx` wraps every page in padding, and a cover is a band across

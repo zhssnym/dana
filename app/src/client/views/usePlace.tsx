@@ -326,7 +326,12 @@ export function PlaceHead({
       )}
       <div className="mt-1.5 flex items-baseline justify-between gap-6">
         <div className="flex min-w-0 items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
-          <h1 data-page-title="" className="min-w-0 max-w-full truncate text-[length:var(--text-title-size)] leading-8 font-title text-foreground max-md:whitespace-normal">
+          <h1
+            data-page-title=""
+            className={hasCover
+              ? 'min-w-0 max-w-full truncate text-[length:var(--text-title-size)] leading-8 font-title text-white drop-shadow-md max-md:whitespace-normal'
+              : 'min-w-0 max-w-full truncate text-[length:var(--text-title-size)] leading-8 font-title text-foreground max-md:whitespace-normal'}
+          >
             {place.spine.name}
           </h1>
         </div>
