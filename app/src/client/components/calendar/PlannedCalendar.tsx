@@ -94,8 +94,16 @@ const MONTH_CELL_LINES = 3
 function identityStyle(id: string): React.CSSProperties {
   let hash = 0
   for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) | 0
-  const slot = (hash >>> 0) % 4
-  return { backgroundColor: `var(--calendar-identity-${slot})`, borderColor: `var(--calendar-identity-${slot}-border)` }
+  const unsigned = hash >>> 0
+  const pair = [
+    [0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3],
+  ] as const
+  const [first, second] = pair[unsigned % pair.length] ?? pair[0]
+  const mix = 15 + ((unsigned >>> 3) % 71)
+  return {
+    backgroundColor: `color-mix(in oklch, var(--calendar-identity-${first}) ${String(mix)}%, var(--calendar-identity-${second}))`,
+    borderColor: `color-mix(in oklch, var(--calendar-identity-${first}-border) ${String(mix)}%, var(--calendar-identity-${second}-border))`,
+  }
 }
 
 type CalendarPointerStart = (event: ReactPointerEvent<HTMLElement>, taskId: string, action: CalendarDrag['action'], from: string) => void
