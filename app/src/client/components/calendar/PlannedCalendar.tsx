@@ -179,15 +179,16 @@ function CalendarEvent({
           : undefined
       }
       className={cn(
-        '@container relative flex w-full gap-1.5 overflow-hidden rounded-sm border border-transparent bg-muted px-1.5 text-left text-foreground transition-[background-color,border-color] hover:border-border hover:bg-background focus-visible:outline-none',
+        '@container relative flex w-full gap-1.5 overflow-hidden rounded-sm border px-1.5 text-left text-foreground transition-[background-color,border-color] focus-visible:outline-none',
         movable && 'cursor-grab active:cursor-grabbing',
         /* A week or a day has the height to spare, so a title takes two lines
            there rather than three letters (m2). */
         compact ? 'min-h-5 items-center text-xs' : 'min-h-7 items-start py-1.5 text-xs leading-4',
-        completed && 'bg-background text-muted-foreground',
-        abandoned && 'bg-background text-muted-foreground line-through',
+        !completed && !abandoned && !ghost && 'border-[var(--color-dana-accent-300)] bg-[var(--color-dana-accent-100)] hover:border-primary hover:bg-[var(--color-dana-accent-50)]',
+        completed && 'border-border bg-background text-muted-foreground hover:bg-hover',
+        abandoned && 'border-border bg-background text-muted-foreground line-through hover:bg-hover',
         ghost &&
-          'border-dashed border-border bg-transparent text-muted-foreground',
+          'border-dashed border-border bg-transparent text-muted-foreground hover:bg-hover',
       )}
       onClick={(mouse) => {
         mouse.stopPropagation()
@@ -252,10 +253,11 @@ function RangeBar({ range, week, zoom, editable }: { readonly range: WeekRange; 
       aria-label={`${task.title}, ${task.start_date ?? ''} to ${task.due_date ?? ''}`}
       title={`${task.title}, ${task.start_date ?? ''} to ${task.due_date ?? ''}`}
       className={cn(
-        'flex h-5 w-full min-w-0 items-center rounded-sm bg-muted px-2 text-left text-xs text-foreground hover:bg-accent',
+        'flex h-5 w-full min-w-0 items-center rounded-sm border px-2 text-left text-xs text-foreground',
         movable && 'cursor-grab active:cursor-grabbing',
-        task.status === 'completed' && 'bg-background text-muted-foreground',
-        task.status === 'abandoned' && 'bg-background text-muted-foreground line-through',
+        task.status === 'pending' && 'border-[var(--color-dana-accent-300)] bg-[var(--color-dana-accent-100)] hover:border-primary hover:bg-[var(--color-dana-accent-50)]',
+        task.status === 'completed' && 'border-border bg-background text-muted-foreground hover:bg-hover',
+        task.status === 'abandoned' && 'border-border bg-background text-muted-foreground line-through hover:bg-hover',
       )}
       onClick={() => openTask(task.id, { upcoming: false })}
       onDragStart={movable ? (drag) => {
