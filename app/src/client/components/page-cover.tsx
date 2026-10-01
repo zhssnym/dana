@@ -13,7 +13,7 @@ The controls stay minimal: Change, Remove and (for a photo) Reposition as 28px
 ghost buttons in the band's corner, appearing on hover.
 */
 
-import { useRef, useState } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
 
 import { Image as ImageIcon } from "../lib/icons.js"
 import {
@@ -38,6 +38,7 @@ import {
   coverPhotoPicker,
   coverUploader,
 } from "../lib/page-identity.js"
+import { clearCoverChrome, setCoverChrome } from "../shell/cover-chrome.js"
 import { cn } from "./ui/utils.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
@@ -66,7 +67,12 @@ const FULL_BLEED = { marginInline: "calc(50% - 50cqw)" } as const
    the cover is remembered under, a folder's real name, or the page's.
 
    `readOnly` draws the picture and nothing that changes it (issue #228): a
-   viewer below Can edit, whom `PATCH /folders/:id` answers 403. */
+   viewer below Can edit, whom `PATCH /folders/:id` answers 403.
+
+   On desktop the cover also publishes its live visual to the shell when it
+   directly touches the window bar. The shell can then continue the same cover
+   upward through that 36px strip to the bottom of the workspace tabs. Nothing
+   in the page head moves; only the cover surface extends. */
 export function PageCover({
   storageName,
   readOnly = false,
@@ -80,20 +86,48 @@ export function PageCover({
   const [repositioning, setRepositioning] = useState(false)
   const [draftPos, setDraftPos] = useState(coverPos)
   const dragStart = useRef<{ y: number; pos: number } | null>(null)
+  const coverRef = useRef<HTMLDivElement>(null)
+  const chromeOwner = useRef(Symbol("page-cover")).current
+  const visibleCover =
+    cover === null
+      ? null
+      : repositioning
+        ? { ...cover, backgroundPosition: `center ${draftPos}%` }
+        : cover
 
-  if (!cover) return null
+  /* Only a cover that physically meets the window bar may extend into it. A
+     hidden thread head or an InviteGate above the page therefore cannot paint
+     into global chrome by accident. Re-evaluate after every render because a
+     parent can hide this band without changing any of its own props. */
+  useLayoutEffect(() => {
+    const node = coverRef.current
+    const bar = document.querySelector<HTMLElement>("[data-window-bar]")
+    if (
+      visibleCover === null ||
+      node === null ||
+      bar === null ||
+      node.getClientRects().length === 0 ||
+      Math.abs(node.getBoundingClientRect().top - bar.getBoundingClientRect().bottom) > 1.5
+    ) {
+      clearCoverChrome(chromeOwner)
+      return
+    }
+    setCoverChrome(chromeOwner, visibleCover)
+  })
+
+  useLayoutEffect(() => () => clearCoverChrome(chromeOwner), [chromeOwner])
+
+  if (!cover || !visibleCover) return null
   const repositionable = coverRepositions(identity.cover) && coverStoresPosition(storageName)
 
   return (
     <div
+      ref={coverRef}
+      data-page-cover
       /* `w-full` is gone with the bleed above it: an auto width fills the
          containing block minus the margins, which is the whole window. */
       className={cn("group/cover relative h-32", repositioning && "cursor-ns-resize select-none")}
-      style={
-        repositioning
-          ? { ...cover, ...FULL_BLEED, backgroundPosition: `center ${draftPos}%` }
-          : { ...cover, ...FULL_BLEED }
-      }
+      style={{ ...visibleCover, ...FULL_BLEED }}
       onPointerDown={
         repositioning
           ? (event) => {
@@ -110,7 +144,8 @@ export function PageCover({
         repositioning
           ? (event) => {
               if (!dragStart.current) return
-              const delta = ((event.clientY - dragStart.current.y) / 176) * 100
+              const height = event.currentTarget.getBoundingClientRect().height || 128
+              const delta = ((event.clientY - dragStart.current.y) / height) * 100
               setDraftPos(
                 Math.max(0, Math.min(100, dragStart.current.pos - delta)),
               )
@@ -120,7 +155,7 @@ export function PageCover({
       onPointerUp={repositioning ? () => (dragStart.current = null) : undefined}
     >
       {repositioning ? (
-        <div className="absolute inset-x-0 top-3 flex justify-center">
+        <div className="absolute inset-x-0 top-3 z-20 flex justify-center">
           <span className="rounded-md bg-background px-2.5 py-1 text-xs leading-4 font-medium text-foreground">
             Drag to reposition
           </span>
@@ -131,7 +166,7 @@ export function PageCover({
       {readOnly ? null : (
       <div
         className={cn(
-          "absolute right-4 bottom-3 flex items-center gap-1 transition-opacity",
+          "absolute right-4 bottom-3 z-20 flex items-center gap-1 transition-opacity",
           T_FAST,
           repositioning
             ? "opacity-100"
