@@ -26,11 +26,18 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
   const actions = useRowActions()
   const confirm = useConfirm()
   const host = useRef<HTMLDivElement>(null)
+  const undatedTarget = useRef<HTMLDivElement>(null)
   const [draggingUndated, setDraggingUndated] = useState(false)
   const [dropDate, setDropDate] = useState<string | null>(null)
+  const [draggingScheduled, setDraggingScheduled] = useState(false)
+  const [overUndated, setOverUndated] = useState(false)
   const onUndatedDragState = useCallback((dragging: boolean) => {
     setDraggingUndated(dragging)
     if (!dragging) setDropDate(null)
+  }, [])
+  const onScheduledDragState = useCallback((dragging: boolean) => {
+    setDraggingScheduled(dragging)
+    if (!dragging) setOverUndated(false)
   }, [])
   const filtered = taskFilterActive(filter)
   const undated = tasks.filter((task) => !isScheduled(task) && taskMatchesFilter(task, filter, context.today))
@@ -63,6 +70,11 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
     return [...grouped.entries()].map(([key, group]) => ({ key, ...group }))
   }, [page.data?.blocks, undated])
 
+  const pointInside = (element: HTMLElement | null, point: { readonly x: number; readonly y: number }): boolean => {
+    if (element === null) return false
+    const box = element.getBoundingClientRect()
+    return point.x >= box.left && point.x <= box.right && point.y >= box.top && point.y <= box.bottom
+  }
   const calendarDateAt = (point: { x: number; y: number }): string | null => {
     const root = host.current
     if (root === null) return null
@@ -75,7 +87,6 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
   }
   const dropIntoCalendar = (taskId: string, point: { x: number; y: number }): boolean => {
     setDropDate(null)
-    if (filtered) return false
     const task = undated.find((entry) => entry.id === taskId)
     if (task === undefined || task.status !== 'pending') return false
     const date = calendarDateAt(point)
@@ -84,12 +95,24 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
     return true
   }
   const calendarProposal = (taskId: string, point: { x: number; y: number }): string | null => {
-    if (filtered) { setDropDate(null); return null }
     const task = undated.find((entry) => entry.id === taskId)
     if (task === undefined || task.status !== 'pending') { setDropDate(null); return null }
     const date = calendarDateAt(point)
     setDropDate((was) => was === date ? was : date)
     return date === null ? null : `Start ${formatDueDate(date, context.today)}`
+  }
+  const undatedProposal = (taskId: string, point: { readonly x: number; readonly y: number }): string | null => {
+    const task = tasks.find((entry) => entry.id === taskId)
+    const valid = task !== undefined && task.status === 'pending' && isScheduled(task) && pointInside(undatedTarget.current, point)
+    setOverUndated(valid)
+    return valid ? 'Make undated' : null
+  }
+  const dropIntoUndated = (taskId: string, point: { readonly x: number; readonly y: number }): boolean => {
+    setOverUndated(false)
+    const task = tasks.find((entry) => entry.id === taskId)
+    if (task === undefined || task.status !== 'pending' || !isScheduled(task) || !pointInside(undatedTarget.current, point)) return false
+    update.mutate({ id: taskId, body: { start_date: null, due_date: null } })
+    return true
   }
 
   return <div ref={host}>
@@ -100,27 +123,38 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
       filterToday={context.today}
       externalDragging={draggingUndated}
       externalDropDate={dropDate}
+      onExternalDrop={dropIntoUndated}
+      onExternalOver={undatedProposal}
+      onDragStateChange={onScheduledDragState}
       {...(canCreate && !filtered ? { onCreate: (title: string, date: string) => {
         create.mutate({ title, folder_id: folderId, due_date: date })
       } } : {})}
     />
-    {undated.length === 0 ? null : <div className="mt-6 border-t border-border pt-4">
+    {undated.length === 0 && !draggingScheduled ? null : <div
+      ref={undatedTarget}
+      data-calendar-undated-target
+      className={`mt-6 border-t border-border pt-4 transition-colors${overUndated ? ' bg-selected' : ''}`}
+    >
       <PlaceGroup name="Undated" heading="Undated">
-        <div className="space-y-4">
-          {sectionGroups.map((group) => <section key={group.key} aria-label={group.label}>
-            <h3 className="mb-1 px-1.5 text-xs font-medium text-muted-foreground">{group.label}</h3>
-            <TaskRows
-              tasks={group.tasks}
-              context={context}
-              actions={actions}
-              onAsk={confirm.ask}
-              onDropAt={dropIntoCalendar}
-              onOver={calendarProposal}
-              followAcross
-              onDragStateChange={onUndatedDragState}
-            />
-          </section>)}
-        </div>
+        {undated.length === 0 ? (
+          <div className="flex h-9 items-center rounded-sm px-1.5 text-xs text-muted-foreground">Drop here to make undated</div>
+        ) : (
+          <div className="space-y-4">
+            {sectionGroups.map((group) => <section key={group.key} aria-label={group.label}>
+              <h3 className="mb-1 px-1.5 text-xs font-medium text-muted-foreground">{group.label}</h3>
+              <TaskRows
+                tasks={group.tasks}
+                context={context}
+                actions={actions}
+                onAsk={confirm.ask}
+                onDropAt={dropIntoCalendar}
+                onOver={calendarProposal}
+                followAcross
+                onDragStateChange={onUndatedDragState}
+              />
+            </section>)}
+          </div>
+        )}
       </PlaceGroup>
     </div>}
     <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />
