@@ -10,6 +10,8 @@ import { useSyncExternalStore, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 
 import { TabStrip } from "../shell/TabStrip.js"
+import { useCoverChrome } from "../shell/cover-chrome.js"
+import { useSidebar } from "./ui/sidebar.js"
 
 const slots: { lead: HTMLElement | null; trail: HTMLElement | null } = {
   lead: null,
@@ -37,28 +39,57 @@ function useSlot(end: "lead" | "trail") {
 
 /* The two quiet strips themselves, rendered once by the shell. Workspace tabs
    sit above the existing window bar on desktop; the tab component removes
-   itself on a phone, where the full strip would compete with Menu and Search. */
+   itself on a phone, where the full strip would compete with Menu and Search.
+
+   When the visible page's cover touches this bar, the bar becomes the upper
+   36px of that same cover surface. The workspace tabs remain untouched above
+   it. Its breadcrumb/actions stay in front with a restrained light/shadow
+   treatment so a busy photograph does not erase the chrome. */
 export function WindowBar() {
+  const cover = useCoverChrome()
+  const { isMobile } = useSidebar()
+  const extendsCover = cover !== null && !isMobile
+
   return (
     <>
       <TabStrip />
-      <div className="flex h-[var(--shell-windowbar-height)] shrink-0 items-center gap-1.5 bg-card px-3">
+      <div
+        data-window-bar
+        data-cover-extension={extendsCover ? "true" : undefined}
+        className={`relative flex h-[var(--shell-windowbar-height)] shrink-0 items-center gap-1.5 px-3 ${
+          extendsCover
+            ? "z-10 bg-transparent text-white [&_a]:!text-white [&_button]:!text-white [&_span]:!text-white"
+            : "bg-card"
+        }`}
+        style={
+          extendsCover
+            ? { textShadow: "0 1px 2px rgb(0 0 0 / 0.72)" }
+            : undefined
+        }
+      >
+        {extendsCover ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 h-[calc(var(--shell-windowbar-height)+8rem)]"
+            style={cover}
+          />
+        ) : null}
         {/* The left end: history arrows and the breadcrumb trail. */}
         <div
           ref={(node) => setSlot("lead", node)}
-          className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
+          className="relative z-10 flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
         />
         <div
           ref={(node) => setSlot("trail", node)}
-          className="flex shrink-0 items-center gap-1.5"
+          className="relative z-10 flex shrink-0 items-center gap-1.5"
         />
       </div>
     </>
   )
 }
 
-/* The bar's left end. Same portal arrangement as `WindowBarActions`, and the
-   same reason: whatever owns the state renders into the chrome without the
+/* The window bar's left end. Same portal arrangement as `WindowBarActions`, and
+   the same reason: whatever owns the state renders into the chrome without the
    chrome having to be told what the state is. */
 export function WindowBarLead({ children }: { children: ReactNode }) {
   const node = useSlot("lead")
