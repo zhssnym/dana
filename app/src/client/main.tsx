@@ -25,7 +25,6 @@ the router beside them. The import in `components/ui/index.ts` is that role's
 to remove; while both exist Vite emits one stylesheet either way.
 */
 import './styles/tokens.css'
-import './styles/cover-header.css'
 import './observability/error-tracker.js'
 
 import { getPlain } from './api/http.js'
