@@ -43,12 +43,14 @@ function useSlot(end: "lead" | "trail") {
 
    When the visible page's cover touches this bar, the bar becomes the upper
    36px of that same cover surface. The workspace tabs remain untouched above
-   it. Its breadcrumb/actions stay in front with a restrained light/shadow
-   treatment so a busy photograph does not erase the chrome. */
+   it. A photo gets a localized, theme-aware scrim only in this chrome reading
+   zone, while the breadcrumb/actions stay fixed white with a compact shadow.
+   Flat colour covers remain untouched. */
 export function WindowBar() {
   const cover = useCoverChrome()
   const { isMobile } = useSidebar()
   const extendsCover = cover !== null && !isMobile
+  const photoCover = extendsCover && Boolean(cover?.backgroundImage)
 
   return (
     <>
@@ -65,7 +67,7 @@ export function WindowBar() {
           extendsCover
             ? {
                 textShadow:
-                  "0 1px 2px rgb(0 0 0 / 0.95), 0 2px 6px rgb(0 0 0 / 0.82)",
+                  "0 0 1px rgb(0 0 0 / 0.98), 0 1px 2px rgb(0 0 0 / 0.92), 0 2px 5px rgb(0 0 0 / 0.68)",
               }
             : undefined
         }
@@ -75,7 +77,17 @@ export function WindowBar() {
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-0 top-0 h-[calc(var(--shell-windowbar-height)+8rem)]"
             style={cover}
-          />
+          >
+            {photoCover ? (
+              <div
+                className="absolute inset-x-0 top-0 h-[calc(var(--shell-windowbar-height)+12px)] opacity-100 dark:opacity-[0.55]"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(to bottom, var(--scrim) 0%, var(--scrim) 68%, transparent 100%)",
+                }}
+              />
+            ) : null}
+          </div>
         ) : null}
         {/* The left end: history arrows and the breadcrumb trail. */}
         <div
