@@ -36,19 +36,44 @@ function useSlot(end: "lead" | "trail") {
   )
 }
 
+/* A photo-cover readability treatment belongs to the content that needs it,
+   never to the whole bar. The soft surface sits just behind one content group,
+   uses the existing theme-aware scrim, and blurs only the pixels immediately
+   beneath that group. It adds no border, card shadow or layout padding. */
+function CoverContrastIsland({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className: string
+}) {
+  const cover = useCoverChrome()
+  const photoCover = Boolean(cover?.backgroundImage)
+
+  return (
+    <div className={`relative isolate ${className}`}>
+      {photoCover ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -inset-x-1.5 -inset-y-0.5 -z-10 rounded-md bg-[var(--scrim)] opacity-100 backdrop-blur-[6px] dark:opacity-[0.4]"
+        />
+      ) : null}
+      {children}
+    </div>
+  )
+}
+
 /* The two quiet strips themselves, rendered once by the shell. Workspace tabs
    sit above the existing window bar on desktop; the tab component removes
    itself on a phone, where the full strip would compete with Menu and Search.
 
    Whenever the visible page publishes a nearby cover, this bar becomes the
-   continuation of that same cover surface on every viewport size. A photo gets
-   a localized, theme-aware scrim only in this chrome reading zone, while the
-   breadcrumb/actions stay fixed white with a compact shadow. Flat colour covers
-   remain untouched. */
+   continuation of that same cover surface on every viewport size. The cover
+   itself stays untouched: photo contrast is added only behind actual chrome
+   content through `CoverContrastIsland`. Flat colour covers remain untouched. */
 export function WindowBar() {
   const cover = useCoverChrome()
   const extendsCover = cover !== null
-  const photoCover = extendsCover && Boolean(cover?.backgroundImage)
 
   return (
     <>
@@ -65,7 +90,7 @@ export function WindowBar() {
           extendsCover
             ? {
                 textShadow:
-                  "0 0 1px rgb(0 0 0 / 0.98), 0 1px 2px rgb(0 0 0 / 0.92), 0 2px 5px rgb(0 0 0 / 0.68)",
+                  "0 1px 2px rgb(0 0 0 / 0.9), 0 2px 4px rgb(0 0 0 / 0.55)",
               }
             : undefined
         }
@@ -75,17 +100,7 @@ export function WindowBar() {
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-0 top-0 h-[calc(var(--shell-windowbar-height)+8rem)]"
             style={cover}
-          >
-            {photoCover ? (
-              <div
-                className="absolute inset-x-0 top-0 h-[calc(var(--shell-windowbar-height)+12px)] opacity-100 dark:opacity-[0.55]"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(to bottom, var(--scrim) 0%, var(--scrim) 68%, transparent 100%)",
-                }}
-              />
-            ) : null}
-          </div>
+          />
         ) : null}
         {/* The left end: history arrows and the breadcrumb trail. */}
         <div
@@ -103,11 +118,18 @@ export function WindowBar() {
 
 /* The window bar's left end. Same portal arrangement as `WindowBarActions`, and
    the same reason: whatever owns the state renders into the chrome without the
-   chrome having to be told what the state is. */
+   chrome having to be told what the state is. A photo cover protects the whole
+   trail as one quiet contrast island instead of putting a pill around each
+   breadcrumb. */
 export function WindowBarLead({ children }: { children: ReactNode }) {
   const node = useSlot("lead")
-  if (!node) return null
-  return createPortal(children, node)
+  if (!node || children === null || children === undefined) return null
+  return createPortal(
+    <CoverContrastIsland className="flex min-w-0 max-w-full items-center">
+      {children}
+    </CoverContrastIsland>,
+    node,
+  )
 }
 
 /*
@@ -132,7 +154,9 @@ export function WindowBarActions({
   if (!node) return null
   return createPortal(
     <div style={{ order }} className="flex shrink-0 items-center gap-1.5">
-      {children}
+      <CoverContrastIsland className="flex shrink-0 items-center gap-1.5">
+        {children}
+      </CoverContrastIsland>
     </div>,
     node,
   )
