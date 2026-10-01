@@ -314,6 +314,10 @@ beforeAll(async () => {
   await block(Q.binnedBlock, { facet: Q.binned }, 'paragraph', 0, 'a0', { text: 'Gone' })
 
   await db.migrate(through0061)
+  // The access check below runs current code against this deliberately old
+  // schema. Supply only its newer visibility column; keep the migration under
+  // test cut at 0061.
+  await db.exec(sql`ALTER TABLE folders ADD COLUMN archived_at timestamptz`)
 }, 120_000)
 
 // DROP DATABASE checkpoints, which takes longer than the default 10 s while

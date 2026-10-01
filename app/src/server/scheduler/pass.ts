@@ -215,7 +215,7 @@ const claimDueReminders = sql`
          now() - r.fire_at > ${STALE_WINDOW}::interval AS stale
     FROM reminders r
     JOIN tasks t ON t.id = r.task_id AND t.deleted_at IS NULL
-    JOIN folders fo ON fo.id = t.folder_id AND fo.deleted_at IS NULL
+    JOIN folders fo ON fo.id = t.folder_id AND fo.deleted_at IS NULL AND fo.archived_at IS NULL
     LEFT JOIN users u ON u.id = t.assignee_id
    WHERE r.state = 'scheduled'
      AND r.fire_at <= now()

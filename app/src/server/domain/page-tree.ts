@@ -540,8 +540,8 @@ export async function ensureHomeBlock(tx: Executor, folderId: string): Promise<v
   const rows = await rowsOf(
     tx,
     sql`SELECT f.parent_folder_id FROM folders f
-          JOIN folders p ON p.id = f.parent_folder_id AND p.deleted_at IS NULL
-         WHERE f.id = ${folderId}::uuid AND f.deleted_at IS NULL`,
+          JOIN folders p ON p.id = f.parent_folder_id AND p.deleted_at IS NULL AND p.archived_at IS NULL
+         WHERE f.id = ${folderId}::uuid AND f.deleted_at IS NULL AND f.archived_at IS NULL`,
   )
   const parent = rows[0]?.parent_folder_id
   if (parent === null || parent === undefined) return

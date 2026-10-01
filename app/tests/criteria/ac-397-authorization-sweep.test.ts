@@ -286,6 +286,7 @@ function idBearingRoutes(application: unknown): string[] {
 type ResourceId =
   | 'folderId'
   | 'trashedFolderId'
+  | 'archivedFolderId'
   | 'taskId'
   | 'blockingTaskId'
   | 'dependencyId'
@@ -435,6 +436,9 @@ async function fixturesOf(): Promise<Fixtures> {
     'ac397 doomed',
   )
   await trashFolder(owner, trashedFolderId)
+  const archivedFolderId = await makeSharedFolder(app, owner, member, 'ac397 archived')
+  const archived = await owner.browser.json(`/folders/${archivedFolderId}/archive`, 'POST', {})
+  expect(archived.status).toBe(204)
 
   const outcomeId = randomUUID()
   await app.db.execute(sql`
@@ -448,6 +452,7 @@ async function fixturesOf(): Promise<Fixtures> {
     stranger,
     folderId,
     trashedFolderId,
+    archivedFolderId,
     taskId,
     blockingTaskId,
     dependencyId,
@@ -574,6 +579,14 @@ const TABLE = new Map<string, Row>([
         expected: 403,
         rule: "5.4: moving the folder to Trash is Full control's, and `fx.member` holds Can edit (AC-015)",
       },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:id/archive',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/archive` }),
+      stranger: { expected: 404, rule: 'an outsider cannot see Work to archive it' },
+      member: { expected: 403, rule: 'archiving Work requires Full control' },
     },
   ],
   [
@@ -1497,6 +1510,22 @@ const TABLE = new Map<string, Row>([
       },
     },
   ],
+  [
+    'POST /api/v1/archive/folders/:id/restore',
+    {
+      attempt: (fx) => ({ path: `/archive/folders/${fx.archivedFolderId}/restore` }),
+      stranger: { expected: 404, rule: 'archive restore is scoped by project membership' },
+      member: { expected: 403, rule: 'archive restore requires Full control or ownership' },
+    },
+  ],
+  [
+    'DELETE /api/v1/archive/folders/:id',
+    {
+      attempt: (fx) => ({ path: `/archive/folders/${fx.archivedFolderId}` }),
+      stranger: { expected: 404, rule: 'archived Work is invisible outside its project' },
+      member: { expected: 403, rule: 'permanent deletion needs ownership and Full control' },
+    },
+  ],
 
   /* -------------------------------------------------------------- *
    * The viewer-scoped four: this file's PUBLIC_READS
@@ -2338,6 +2367,11 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       what: 'the trashed folder',
       path: '/trash',
       holds: fx.trashedFolderId,
+    }),
+    archivedFolderId: (fx) => ({
+      what: 'the archived Work',
+      path: '/archive/folders',
+      holds: fx.archivedFolderId,
     }),
     /* Both Label fixtures are read through the one listing that answers for
        both scopes, with `scope=all`, which is also the cheapest way to prove

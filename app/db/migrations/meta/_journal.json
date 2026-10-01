@@ -365,6 +365,13 @@
       "when": 1793800000000,
       "tag": "0063_multiple_task_assignees",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1793900000000,
+      "tag": "0064_archive_work",
+      "breakpoints": true
     }
   ]
 }
