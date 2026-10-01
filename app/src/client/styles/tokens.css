@@ -602,26 +602,22 @@ button:not(:disabled),
   }
 }
 
-/* ---- i475-calendar-identity: stronger perceptual separation for the four
-   stable active-Task treatments. Fills stay pastel/muted; borders carry a
-   firmer version of the same hue so adjacent rows read apart at a glance. */
+/* ---- i479-calendar-identity: Task id supplies a continuous hue while Dana
+   owns lightness/chroma. Three restrained tones add another perceptual axis
+   without coloring the text or turning Calendar into a dashboard. */
 :root {
-  --calendar-identity-0: #dceafb;
-  --calendar-identity-0-border: #7daee0;
-  --calendar-identity-1: #deeee2;
-  --calendar-identity-1-border: #91be9e;
-  --calendar-identity-2: #f6e7c9;
-  --calendar-identity-2-border: #d9b46a;
-  --calendar-identity-3: #eadff3;
-  --calendar-identity-3-border: #b89bcf;
+  --calendar-task-fill-0: oklch(0.87 0.1 var(--calendar-task-hue, 220));
+  --calendar-task-fill-1: oklch(0.9 0.1 var(--calendar-task-hue, 220));
+  --calendar-task-fill-2: oklch(0.93 0.1 var(--calendar-task-hue, 220));
+  --calendar-task-border-0: oklch(0.64 0.14 var(--calendar-task-hue, 220));
+  --calendar-task-border-1: oklch(0.68 0.14 var(--calendar-task-hue, 220));
+  --calendar-task-border-2: oklch(0.72 0.14 var(--calendar-task-hue, 220));
 }
 [data-theme="dark"] {
-  --calendar-identity-0: #1e3348;
-  --calendar-identity-0-border: #4c789f;
-  --calendar-identity-1: #203629;
-  --calendar-identity-1-border: #4f795c;
-  --calendar-identity-2: #3a2f1c;
-  --calendar-identity-2-border: #826a37;
-  --calendar-identity-3: #30253b;
-  --calendar-identity-3-border: #6c5283;
+  --calendar-task-fill-0: oklch(0.28 0.08 var(--calendar-task-hue, 220));
+  --calendar-task-fill-1: oklch(0.33 0.08 var(--calendar-task-hue, 220));
+  --calendar-task-fill-2: oklch(0.38 0.08 var(--calendar-task-hue, 220));
+  --calendar-task-border-0: oklch(0.48 0.13 var(--calendar-task-hue, 220));
+  --calendar-task-border-1: oklch(0.54 0.13 var(--calendar-task-hue, 220));
+  --calendar-task-border-2: oklch(0.6 0.13 var(--calendar-task-hue, 220));
 }
