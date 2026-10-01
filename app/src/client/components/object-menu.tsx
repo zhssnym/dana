@@ -22,13 +22,19 @@ resolved from the current task route/query. No caller has to grow a second
 navigation mapping, and an object menu that has no resolvable destination does
 not invent one.
 
+**Project export stays page-owned.** The page already owns the one serializer
+that writes a Dana work file. A project row in the Library therefore forwards
+`Export work` to that project's page instead of growing a second serializer in
+the sidebar. The forwarding query exists only long enough for the page's own
+project menu to consume it, then is removed before the export handler runs.
+
 **The trigger's name is 9.1's fixed string and never an interpolation.** A name in
 9.1's table is a fixed string, and what tells four instances apart is 9.1's region rule, this
 one being reached inside the row or the bar that names its object. So `name`
 here is not drawn into the label; it is the tooltip's, and the surface's own
 region is what separates one menu from the next.
 */
-import { useState, type ReactElement, type ReactNode, type SyntheticEvent } from 'react'
+import { useEffect, useRef, useState, type ReactElement, type ReactNode, type SyntheticEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 
 import { actsFor } from '../lib/object-acts.js'
@@ -49,6 +55,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu.js'
+
+const OBJECT_MENU_ACTION_PARAM = 'object-action'
 
 function taskDestination(pathname: string, search: string): string | null {
   /* On the task's own page the tab already is that page: no second copy
@@ -98,7 +106,13 @@ export function ObjectMenu({
   const navigate = useNavigate()
   const location = useLocation()
   const [libraryPath, setLibraryPath] = useState<string | null>(null)
+  const handledForward = useRef<string | null>(null)
   const destination = kind === 'task' ? taskDestination(location.pathname, location.search) : libraryPath
+  const forwardProjectExport =
+    kind === 'project' &&
+    destination !== null &&
+    handlers.export === undefined &&
+    handlers['copy-link'] !== undefined
   const supplied: ActHandlers =
     destination === null
       ? handlers
@@ -107,7 +121,37 @@ export function ObjectMenu({
           'open-tab': () => {
             void navigate(openInNewTab(destination))
           },
+          ...(forwardProjectExport
+            ? {
+                export: () => {
+                  const join = destination.includes('?') ? '&' : '?'
+                  void navigate(`${destination}${join}${OBJECT_MENU_ACTION_PARAM}=export`)
+                },
+              }
+            : {}),
         }
+
+  /* A Library project row has the project's route but deliberately not the
+     serializer. Once it forwards here, the destination page's own ObjectMenu
+     is the only instance with the real export handler, so it consumes the act
+     exactly once and removes the transient address before starting the file. */
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const forwarded = params.get(OBJECT_MENU_ACTION_PARAM)
+    if (forwarded === null) {
+      handledForward.current = null
+      return
+    }
+    if (forwarded !== 'export' || kind !== 'project' || typeof handlers.export !== 'function') return
+    const key = `${location.pathname}${location.search}`
+    if (handledForward.current === key) return
+    handledForward.current = key
+    params.delete(OBJECT_MENU_ACTION_PARAM)
+    const search = params.size === 0 ? '' : `?${params.toString()}`
+    void navigate(`${location.pathname}${search}`, { replace: true })
+    handlers.export()
+  }, [handlers.export, kind, location.pathname, location.search, navigate])
+
   const acts = actsFor(kind, supplied)
   if (acts.length === 0 && extra === undefined) return null
 
