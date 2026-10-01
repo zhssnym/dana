@@ -42,6 +42,11 @@ import { clearCoverChrome, setCoverChrome } from "../shell/cover-chrome.js"
 import { cn } from "./ui/utils.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
+/* Page heads use 16px/24px top compensation depending on viewport. A 32px
+   proximity window therefore covers every native page-head geometry, including
+   the phone bar's 6px centering offset, without allowing a cover deeper in the
+   page to leak into global chrome. */
+const COVER_CHROME_PROXIMITY = 32
 
 /* A control over a picture: solid ground so it reads on any photo. */
 const ON_COVER = "bg-background text-foreground hover:bg-hover"
@@ -69,10 +74,11 @@ const FULL_BLEED = { marginInline: "calc(50% - 50cqw)" } as const
    `readOnly` draws the picture and nothing that changes it (issue #228): a
    viewer below Can edit, whom `PATCH /folders/:id` answers 403.
 
-   On desktop the cover also publishes its live visual to the shell when it
-   directly touches the window bar. The shell can then continue the same cover
-   upward through that 36px strip to the bottom of the workspace tabs. Nothing
-   in the page head moves; only the cover surface extends. */
+   A visible top-of-page cover publishes its live visual to the shared window
+   bar whenever it sits within the normal page-head spacing range. The shell can
+   then continue that same surface through the breadcrumb/chrome reading zone on
+   desktop and phone. Nothing in the page head moves; only the cover surface
+   extends. */
 export function PageCover({
   storageName,
   readOnly = false,
@@ -95,10 +101,11 @@ export function PageCover({
         ? { ...cover, backgroundPosition: `center ${draftPos}%` }
         : cover
 
-  /* Only a cover that physically meets the window bar may extend into it. A
-     hidden thread head or an InviteGate above the page therefore cannot paint
-     into global chrome by accident. Re-evaluate after every render because a
-     parent can hide this band without changing any of its own props. */
+  /* A native page head can leave a small structural offset between the bar and
+     its cover (16/24px head compensation, plus the phone bar's centering).
+     Treat that as the same continuous top surface instead of requiring a
+     brittle 1.5px physical touch. A hidden cover still has no client rects, and
+     anything more than one spacing step away is not allowed to paint chrome. */
   useLayoutEffect(() => {
     const node = coverRef.current
     const bar = document.querySelector<HTMLElement>("[data-window-bar]")
@@ -106,9 +113,13 @@ export function PageCover({
       visibleCover === null ||
       node === null ||
       bar === null ||
-      node.getClientRects().length === 0 ||
-      Math.abs(node.getBoundingClientRect().top - bar.getBoundingClientRect().bottom) > 1.5
+      node.getClientRects().length === 0
     ) {
+      clearCoverChrome(chromeOwner)
+      return
+    }
+    const gap = node.getBoundingClientRect().top - bar.getBoundingClientRect().bottom
+    if (Math.abs(gap) > COVER_CHROME_PROXIMITY) {
       clearCoverChrome(chromeOwner)
       return
     }

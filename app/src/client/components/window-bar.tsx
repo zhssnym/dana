@@ -11,7 +11,6 @@ import { createPortal } from "react-dom"
 
 import { TabStrip } from "../shell/TabStrip.js"
 import { useCoverChrome } from "../shell/cover-chrome.js"
-import { useSidebar } from "./ui/sidebar.js"
 
 const slots: { lead: HTMLElement | null; trail: HTMLElement | null } = {
   lead: null,
@@ -41,15 +40,14 @@ function useSlot(end: "lead" | "trail") {
    sit above the existing window bar on desktop; the tab component removes
    itself on a phone, where the full strip would compete with Menu and Search.
 
-   When the visible page's cover touches this bar, the bar becomes the upper
-   36px of that same cover surface. The workspace tabs remain untouched above
-   it. A photo gets a localized, theme-aware scrim only in this chrome reading
-   zone, while the breadcrumb/actions stay fixed white with a compact shadow.
-   Flat colour covers remain untouched. */
+   Whenever the visible page publishes a nearby cover, this bar becomes the
+   continuation of that same cover surface on every viewport size. A photo gets
+   a localized, theme-aware scrim only in this chrome reading zone, while the
+   breadcrumb/actions stay fixed white with a compact shadow. Flat colour covers
+   remain untouched. */
 export function WindowBar() {
   const cover = useCoverChrome()
-  const { isMobile } = useSidebar()
-  const extendsCover = cover !== null && !isMobile
+  const extendsCover = cover !== null
   const photoCover = extendsCover && Boolean(cover?.backgroundImage)
 
   return (
