@@ -92,18 +92,22 @@ uses dots and a day tap can still reveal its full contents.
 const MONTH_CELL_LINES = 3
 
 function identityStyle(id: string): React.CSSProperties {
-  let hash = 0
-  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) | 0
-  const unsigned = hash >>> 0
-  const pair = [
-    [0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3],
-  ] as const
-  const [first, second] = pair[unsigned % pair.length] ?? pair[0]
-  const mix = 15 + ((unsigned >>> 3) % 71)
-  return {
-    backgroundColor: `color-mix(in oklch, var(--calendar-identity-${first}) ${String(mix)}%, var(--calendar-identity-${second}))`,
-    borderColor: `color-mix(in oklch, var(--calendar-identity-${first}-border) ${String(mix)}%, var(--calendar-identity-${second}-border))`,
+  // FNV-1a gives Task ids a well-distributed, deterministic identity. Hue is
+  // continuous rather than a small palette slot; a second hash slice picks
+  // one of three restrained tones so nearby hues still separate in a stack.
+  let hash = 2166136261
+  for (const char of id) {
+    hash ^= char.charCodeAt(0)
+    hash = Math.imul(hash, 16777619)
   }
+  const unsigned = hash >>> 0
+  const hue = (unsigned % 36000) / 100
+  const tone = (unsigned >>> 8) % 3
+  return {
+    '--calendar-task-hue': String(hue),
+    backgroundColor: `var(--calendar-task-fill-${String(tone)})`,
+    borderColor: `var(--calendar-task-border-${String(tone)})`,
+  } as React.CSSProperties
 }
 
 type CalendarPointerStart = (event: ReactPointerEvent<HTMLElement>, taskId: string, action: CalendarDrag['action'], from: string) => void
@@ -560,6 +564,9 @@ export function PlannedCalendar({
   filterToday,
   externalDropDate = null,
   externalDragging = false,
+  onExternalDrop,
+  onExternalOver,
+  onDragStateChange,
 }: {
   /** Makes a task due on the given day; the page supplies its own capture. */
   readonly onCreate?: (title: string, date: string) => void
@@ -569,6 +576,10 @@ export function PlannedCalendar({
   readonly filterToday?: string
   readonly externalDropDate?: string | null
   readonly externalDragging?: boolean
+  /** Optional target outside the grid, used by Work Calendar's Undated section. */
+  readonly onExternalDrop?: (taskId: string, point: { readonly x: number; readonly y: number }) => boolean
+  readonly onExternalOver?: (taskId: string, point: { readonly x: number; readonly y: number }) => string | null
+  readonly onDragStateChange?: (dragging: boolean) => void
 } = {}): React.JSX.Element {
   const today = presenterToday()
   /*
@@ -605,10 +616,12 @@ export function PlannedCalendar({
   const end = dates[dates.length - 1] ?? anchor
 
   const view = usePlannedCalendarView(start, end, folderId)
-  const editable = filter === undefined || !taskFilterActive(filter)
+  // Filters only narrow what is visible. A visible pending Task remains editable;
+  // otherwise Calendar's default Open filter would disable every date interaction.
+  const editable = true
   const folders = useFolders()
   const update = useUpdateTask()
-  const [dragPreview, setDragPreview] = useState<{ drag: CalendarDrag; date: string | null; x: number; y: number; title: string } | null>(null)
+  const [dragPreview, setDragPreview] = useState<{ drag: CalendarDrag; date: string | null; externalProposal: string | null; x: number; y: number; title: string } | null>(null)
   const suppressOpenUntil = useRef(0)
   const [weekSteps, setWeekSteps] = useState<Record<string, number>>({})
   /*
@@ -681,54 +694,64 @@ export function PlannedCalendar({
   }
 
   function pointerStart(pointer: ReactPointerEvent<HTMLElement>, taskId: string, action: CalendarDrag['action'], from: string): void {
-    if (!editable || pointer.button !== 0) return
-    const row = real.find((task) => task.id === taskId)
-    if (row === undefined || row.status !== 'pending') return
-    if (action !== 'move') pointer.preventDefault()
-    const id = pointer.pointerId
-    const startX = pointer.clientX
-    const startY = pointer.clientY
-    const drag: CalendarDrag = { taskId, action, from }
-    let lifted = false
-    let target: string | null = null
-    const clear = (): void => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', release)
-      window.removeEventListener('pointercancel', cancel)
-      window.removeEventListener('keydown', key)
-      document.body.style.removeProperty('cursor')
-      if (grid.current?.hasPointerCapture(id)) grid.current.releasePointerCapture(id)
-      setDragPreview(null)
-    }
-    const move = (event: PointerEvent): void => {
-      if (event.pointerId !== id) return
-      if (!lifted && Math.hypot(event.clientX - startX, event.clientY - startY) < 5) return
-      if (!lifted) {
-        lifted = true
-        grid.current?.setPointerCapture(id)
-      }
-      document.body.style.cursor = action === 'move' ? 'grabbing' : 'ew-resize'
-      const cell = Array.from(grid.current?.querySelectorAll<HTMLElement>('[data-date]') ?? []).find((candidate) => {
-        const box = candidate.getBoundingClientRect()
-        return event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom
-      })
-      const date = cell?.dataset.date ?? null
-      target = date !== null && proposedSchedule(drag, date) !== null ? date : null
-      setDragPreview({ drag, date: target, x: event.clientX, y: event.clientY, title: row.title })
-    }
-    const release = (event: PointerEvent): void => {
-      if (event.pointerId !== id) return
-      clear()
-      if (lifted) suppressOpenUntil.current = performance.now() + 350
-      if (lifted && target !== null) moveTaskTo(drag, target)
-    }
-    const cancel = (event: PointerEvent): void => { if (event.pointerId === id) clear() }
-    const key = (event: KeyboardEvent): void => { if (event.key === 'Escape') { suppressOpenUntil.current = performance.now() + 350; clear() } }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', release)
-    window.addEventListener('pointercancel', cancel)
-    window.addEventListener('keydown', key)
+  if (!editable || pointer.button !== 0) return
+  const row = real.find((task) => task.id === taskId)
+  if (row === undefined || row.status !== 'pending') return
+  if (action !== 'move') pointer.preventDefault()
+  const id = pointer.pointerId
+  const startX = pointer.clientX
+  const startY = pointer.clientY
+  const drag: CalendarDrag = { taskId, action, from }
+  let lifted = false
+  let target: string | null = null
+  let externalTarget = false
+  const clear = (): void => {
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', release)
+    window.removeEventListener('pointercancel', cancel)
+    window.removeEventListener('keydown', key)
+    document.body.style.removeProperty('cursor')
+    if (grid.current?.hasPointerCapture(id)) grid.current.releasePointerCapture(id)
+    setDragPreview(null)
+    if (action === 'move') onDragStateChange?.(false)
   }
+  const move = (event: PointerEvent): void => {
+    if (event.pointerId !== id) return
+    if (!lifted && Math.hypot(event.clientX - startX, event.clientY - startY) < 5) return
+    if (!lifted) {
+      lifted = true
+      grid.current?.setPointerCapture(id)
+      if (action === 'move') onDragStateChange?.(true)
+    }
+    document.body.style.cursor = action === 'move' ? 'grabbing' : 'ew-resize'
+    const point = { x: event.clientX, y: event.clientY }
+    const cell = Array.from(grid.current?.querySelectorAll<HTMLElement>('[data-date]') ?? []).find((candidate) => {
+      const box = candidate.getBoundingClientRect()
+      return event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom
+    })
+    const date = cell?.dataset.date ?? null
+    target = date !== null && proposedSchedule(drag, date) !== null ? date : null
+    const externalProposal = action === 'move' ? onExternalOver?.(taskId, point) ?? null : null
+    externalTarget = target === null && externalProposal !== null
+    setDragPreview({ drag, date: target, externalProposal: target === null ? externalProposal : null, x: event.clientX, y: event.clientY, title: row.title })
+  }
+  const release = (event: PointerEvent): void => {
+    if (event.pointerId !== id) return
+    const point = { x: event.clientX, y: event.clientY }
+    const dropDate = target
+    const dropExternal = lifted && action === 'move' && externalTarget
+    if (dropExternal) onExternalDrop?.(taskId, point)
+    clear()
+    if (lifted) suppressOpenUntil.current = performance.now() + 350
+    if (lifted && dropDate !== null) moveTaskTo(drag, dropDate)
+  }
+  const cancel = (event: PointerEvent): void => { if (event.pointerId === id) clear() }
+  const key = (event: KeyboardEvent): void => { if (event.key === 'Escape') { suppressOpenUntil.current = performance.now() + 350; clear() } }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', release)
+  window.addEventListener('pointercancel', cancel)
+  window.addEventListener('keydown', key)
+}
 
   const previewReal = useMemo(() => {
     if (dragPreview?.date === null || dragPreview === null) return real
@@ -961,7 +984,7 @@ export function PlannedCalendar({
         className="pointer-events-none fixed z-50 max-w-56 truncate rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground"
         style={{ left: dragPreview.x + 12, top: dragPreview.y + 12 }}
         aria-hidden="true"
-      >{dragPreview.title}</div> : null}
+      >{dragPreview.externalProposal === null ? dragPreview.title : `${dragPreview.externalProposal} · ${dragPreview.title}`}</div> : null}
     </div>
   )
 }
