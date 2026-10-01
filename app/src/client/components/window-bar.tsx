@@ -58,7 +58,7 @@ export function WindowBar() {
         data-cover-extension={extendsCover ? "true" : undefined}
         className={`relative flex h-[var(--shell-windowbar-height)] shrink-0 items-center gap-1.5 px-3 ${
           extendsCover
-            ? "z-10 bg-transparent text-white [&_a]:!text-white [&_button]:!text-white [&_span]:!text-white"
+            ? "z-10 bg-transparent text-fixed-white [&_a]:!text-fixed-white [&_button]:!text-fixed-white [&_span]:!text-fixed-white"
             : "bg-card"
         }`}
         style={
