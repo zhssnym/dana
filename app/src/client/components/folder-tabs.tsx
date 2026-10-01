@@ -256,7 +256,7 @@ export function FolderTabs<T extends TabPage>({
         label="Page tabs"
         /* Padded out and pulled back: the focus outline and the underline
            overhang the tabs, and a scroller clips whatever overhangs it. */
-        className="-my-1 -ms-1 flex-1 border-b-0 py-1 ps-1 pe-3"
+        className="-my-1 -ms-1 min-w-0 flex-[0_1_auto] border-b-0 py-1 ps-1 pe-3"
       >
         {tabs.map((tab, index) => {
           const current = tab.id === active?.id
@@ -410,6 +410,7 @@ export function FolderTabs<T extends TabPage>({
       </TabList>
       {/* The "+" sits outside the scroller, so a narrow screen never clips it. */}
       {editable ? <AddTabMenu tabs={tabs} onAdd={onAdd} /> : null}
+      <div className="min-w-0 flex-1" aria-hidden="true" />
       {tools === undefined ? null : (
         <div className="flex shrink-0 items-center border-l border-border pl-2 pb-0.5">{tools}</div>
       )}
