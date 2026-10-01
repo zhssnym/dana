@@ -253,6 +253,15 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --shell-content-max: var(--content-list);
   --calendar-month-cell-height: 104px;
   --calendar-range-lane-height: 22px;
+  --drag-proposal-width: 320px;
+  --calendar-identity-0: var(--color-dana-accent-100);
+  --calendar-identity-0-border: var(--color-dana-accent-300);
+  --calendar-identity-1: #edf3ec;
+  --calendar-identity-1-border: #c8dacb;
+  --calendar-identity-2: #f7f1e6;
+  --calendar-identity-2-border: #e4d7bd;
+  --calendar-identity-3: #f0edf5;
+  --calendar-identity-3-border: #d8d0e3;
 
   --dana-mark-plate: var(--color-graphite-950);
   --dana-mark-glyph: var(--color-graphite-0);
@@ -295,6 +304,12 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --color-info-100: #1b2a31;
   --color-info-200: #213742;
   --color-info-700: #6fb0d6;
+  --calendar-identity-1: #222d26;
+  --calendar-identity-1-border: #405847;
+  --calendar-identity-2: #302b22;
+  --calendar-identity-2-border: #62533a;
+  --calendar-identity-3: #292630;
+  --calendar-identity-3-border: #50465d;
 
   --popover: #252525;
   /* r3-feel */

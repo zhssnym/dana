@@ -574,6 +574,7 @@ export function ExpandShell({
   isArmed = false,
   isSettling = false,
   offset = 0,
+  crossOffset = 0,
   isSelected = false,
   proposal,
 }: {
@@ -589,6 +590,7 @@ export function ExpandShell({
   isArmed?: boolean
   isSettling?: boolean
   offset?: number
+  crossOffset?: number
   isSelected?: boolean
 }) {
   /* The row being carried has to track the pointer exactly, so its transform
@@ -620,7 +622,8 @@ export function ExpandShell({
       ref={itemRef}
       {...drag}
       style={{
-        transform: offset === 0 ? undefined : `translate3d(0, ${offset}px, 0)`,
+        transform: offset === 0 && crossOffset === 0 ? undefined : `translate3d(${crossOffset}px, ${offset}px, 0)`,
+        maxWidth: carrying && proposal !== undefined ? 'var(--drag-proposal-width)' : undefined,
         /* `scale` as its own property rather than inside `transform`, so the
            armed nudge can ease while the carried row keeps tracking the
            pointer on an untransitioned translate. Putting both in `transform`
@@ -681,7 +684,7 @@ export function ExpandShell({
       It rides the carried row for the reason the comment above gives.
        */}
       {proposal === undefined ? null : (
-        <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-sm bg-foreground px-2 py-0.5 text-xs whitespace-nowrap text-background">
+        <span className="pointer-events-none absolute top-full left-1 z-40 mt-1 rounded-sm bg-foreground px-2 py-0.5 text-xs whitespace-nowrap text-background">
           {proposal}
         </span>
       )}
@@ -844,6 +847,7 @@ export interface TaskRowProps {
     isArmed: boolean
     isSettling: boolean
     offset: number
+    crossOffset?: number
   }
   isSelected?: boolean
   selecting?: boolean
@@ -1072,7 +1076,7 @@ export function TaskRow(props: TaskRowProps) {
       >
         {task.title || <span className="text-muted-foreground">Untitled task</span>}
       </span>
-      <RowMeta
+      {props.dragState?.isActive && props.proposal !== undefined ? null : <RowMeta
         className="max-w-[60vw] pl-3 md:max-w-none"
         source={{
           ...(task.due === undefined ? {} : { due: task.due }),
@@ -1090,7 +1094,7 @@ export function TaskRow(props: TaskRowProps) {
           patch(task.id, { important: !task.important })
           props.onToggleImportant?.()
         }}
-      />
+      />}
     </div>
   )
 
@@ -1107,6 +1111,7 @@ export function TaskRow(props: TaskRowProps) {
       isArmed={props.dragState?.isArmed}
       isSettling={props.dragState?.isSettling}
       offset={props.dragState?.offset}
+      crossOffset={props.dragState?.crossOffset}
       proposal={props.proposal}
     />
   )
