@@ -15,9 +15,9 @@ browser-only answer would create another split record. The contract (#142) is
 the column, migration 0013's named CHECK, the field on the v2 bundle, and AC-378 to
 AC-380 over the wire. This module is the client half.
 
-**Peeking is not choosing** (#140). 9.5's "+N more" control switches to the
-day zoom to show a crowded day whole, and that is not written to the account:
-a person pressing "+N more" is looking at one day, not changing what
+**Peeking is not choosing** (#140). Tapping a day in the phone month switches to
+day zoom to show it whole, and that is not written to the account:
+a person peeking at a day is looking at one day, not changing what
 their calendar is, and a look that silently rewrites a preference on every
 device they own is a control with a side effect nobody asked for. So the reveal
 sets a **transient** zoom, local to this visit and to this browser: it is not
@@ -113,7 +113,7 @@ The reveal's zoom, which is a look rather than a preference (see the header).
 Module state and not React state, so that one subscription serves both it and
 the mirror, and so that `setCalendarZoom` can drop it from outside the
 component. Null means nobody is peeking, which is every visit that has not
-pressed "+N more".
+peeked at a day.
 */
 let revealed: CalendarZoom | null = null
 const listeners = new Set<() => void>()
@@ -156,7 +156,7 @@ export function clearCalendarZoomMirror(): void {
 }
 
 /**
- * 9.5's "+N more": show this day whole, for this visit, changing nothing.
+ * 9.5's phone day tap: show this day whole, for this visit, changing nothing.
  *
  * Nothing is written and nothing is mirrored. `PlannedCalendar` drops it when
  * it unmounts, which is 9.5's "leaves the page", and `setCalendarZoom` drops it
