@@ -19,9 +19,9 @@ the same reason.
 Two columns per row, because a one-row board is too short.
 */
 
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useId, useRef, useState, type ReactNode } from "react"
 
-import { Plus } from "../lib/icons.js"
+import { ChevronRight, Plus } from "../lib/icons.js"
 import { InlineInput } from "./ui/inline-field.js"
 import { CheckMark } from "./ui/checkbox.js"
 import { useRowKeys } from "./row-keys.js"
@@ -41,6 +41,8 @@ export interface BoardColumn {
   key: string
   label: string
   tasks: BoardTask[]
+  /** Work keeps finished cards at the end of their own group. */
+  completedTasks?: BoardTask[]
   /** Nested Work Sections stay inside their root column. */
   children?: BoardColumn[]
   /* A folder's mark, a person's face, a calendar, whatever the group's own
@@ -64,7 +66,7 @@ export interface BoardColumn {
 }
 
 function columnCount(column: BoardColumn): number {
-  return column.tasks.length + (column.children ?? []).reduce((total, child) => total + columnCount(child), 0)
+  return column.tasks.length + (column.completedTasks?.length ?? 0) + (column.children ?? []).reduce((total, child) => total + columnCount(child), 0)
 }
 
 function boardColumnAt(zones: Map<string, HTMLElement>, point: { x: number; y: number }): string | null {
@@ -341,6 +343,52 @@ function BoardCard({
   )
 }
 
+function CompletedCards({ column, columns, zones, onOpenTask, onToggleComplete, onToggleImportant, onDropIn, onDragStateChange, given }: {
+  column: BoardColumn
+  columns: BoardColumn[]
+  zones: React.RefObject<Map<string, HTMLElement>>
+  onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
+  onToggleComplete: (taskId: string, done: boolean) => void
+  onToggleImportant: (taskId: string) => void
+  onDropIn: (taskId: string, columnKey: string) => boolean
+  onDragStateChange: (dragging: boolean) => void
+  given?: TaskRowProps['given']
+}) {
+  const [open, setOpen] = useState(false)
+  const id = useId()
+  const tasks = column.completedTasks
+  if (tasks === undefined || tasks.length === 0) return null
+  const columnAt = (point: { x: number; y: number }): string | null => boardColumnAt(zones.current, point)
+  return <div className="pt-2">
+    <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((value) => !value)}
+      className="flex h-[var(--control-height)] w-full items-center gap-2 rounded-md px-2 text-left text-sm text-muted-foreground hover:bg-hover hover:text-foreground">
+      <ChevronRight className={cn('size-4 transition-transform duration-[var(--duration-fast)]', open && 'rotate-90')} aria-hidden="true" />
+      <span>Completed tasks</span><span className="text-xs tabular-nums text-quiet-foreground">{tasks.length}</span>
+    </button>
+    {open ? <div id={id} className="pt-1">
+      <TaskList
+        className="gap-1.5"
+        tasks={tasks}
+        followAcross
+        onDragStateChange={onDragStateChange}
+        onTaskOpen={onOpenTask}
+        onDropAt={(taskId, point) => {
+          const landing = columnAt(point)
+          return landing !== null && landing !== column.key && onDropIn(taskId, landing)
+        }}
+        onOver={(_taskId, point) => {
+          const landing = columnAt(point)
+          if (landing === null || landing === column.key) return null
+          const named = columns.find((entry) => entry.key === landing)
+          return named === undefined || named.takes === false ? null : `Into ${named.label}`
+        }}
+        renderRow={(task, wiring) => <BoardCard key={task.id} task={task} done given={given} wiring={wiring}
+          onOpen={() => onOpenTask(task.id)} onCheck={() => onToggleComplete(task.id, false)} onStar={() => onToggleImportant(task.id)} />}
+      />
+    </div> : null}
+  </div>
+}
+
 function NestedBoardColumn({ column, columns, zones, onOpenTask, onToggleComplete, onToggleImportant, onDropIn, onDragStateChange, given, quickAdd, subsectionAdd }: {
   column: BoardColumn
   columns: BoardColumn[]
@@ -390,6 +438,7 @@ function NestedBoardColumn({ column, columns, zones, onOpenTask, onToggleComplet
     {quickAdd ? <div className="pt-1">{quickAdd(column)}</div> : null}
     {column.children?.map((child) => <NestedBoardColumn key={child.key} column={child} columns={columns} zones={zones} onOpenTask={onOpenTask} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} onDropIn={onDropIn} onDragStateChange={onDragStateChange} given={given} quickAdd={quickAdd} subsectionAdd={subsectionAdd} />)}
     {subsectionAdd?.(column)}
+    <CompletedCards column={column} columns={columns} zones={zones} onOpenTask={onOpenTask} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} onDropIn={onDropIn} onDragStateChange={onDragStateChange} given={given} />
   </section>
 }
 
@@ -547,6 +596,7 @@ export function TaskBoard({
             <NestedBoardColumn key={child.key} column={child} columns={everyColumn} zones={zones} onOpenTask={onOpenTask} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} onDropIn={onDropIn} onDragStateChange={setDragging} given={given} quickAdd={quickAdd} subsectionAdd={subsectionAdd} />
           ))}
           {subsectionAdd?.(column)}
+          <CompletedCards column={column} columns={everyColumn} zones={zones} onOpenTask={onOpenTask} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} onDropIn={onDropIn} onDragStateChange={setDragging} given={given} />
         </section>
       ))}
       {footer}

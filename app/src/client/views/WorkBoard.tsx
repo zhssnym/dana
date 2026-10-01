@@ -201,6 +201,12 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
       return true
     },
   })
+  for (const column of allColumns(columns)) {
+    const finished = column.tasks.filter((task) => task.status === 'completed')
+    if (finished.length === 0) continue
+    column.tasks = column.tasks.filter((task) => task.status !== 'completed')
+    column.completedTasks = finished
+  }
   if (filtered) for (const column of allColumns(columns)) column.takes = false
   const columnKeys = new Set(allColumns(columns).map((column) => column.key))
   const groups = new Map(flatGroups.map((item) => [item.key, item]))
