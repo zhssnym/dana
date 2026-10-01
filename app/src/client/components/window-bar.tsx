@@ -72,7 +72,9 @@ export function WindowBar() {
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-0 top-0 h-[calc(var(--shell-windowbar-height)+8rem)]"
             style={cover}
-          />
+          >
+            {cover.backgroundImage ? <div className="absolute inset-x-0 top-0 h-[var(--cover-photo-shade-height)]" style={{ backgroundImage: 'var(--cover-photo-shade)' }} /> : null}
+          </div>
         ) : null}
         {/* The left end: history arrows and the breadcrumb trail. */}
         <div

@@ -239,6 +239,8 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --shell-sidebar-row-height: 28px;
   --shell-sidebar-width: 240px;
   --shell-windowbar-height: 36px;
+  --cover-photo-shade-height: 50px;
+  --cover-photo-shade: linear-gradient(to bottom, rgb(0 0 0 / 90%), rgb(0 0 0 / 0%));
   --checkbox-size: 16px;
   --icon-size-compact: 16px;
   /* r12-settings: a grouped card (Settings' sections, after Hassan's
