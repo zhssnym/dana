@@ -40,7 +40,6 @@ import {
 } from "../lib/page-identity.js"
 import { clearCoverChrome, setCoverChrome } from "../shell/cover-chrome.js"
 import { cn } from "./ui/utils.js"
-import { useSidebar } from "./ui/sidebar.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 
@@ -89,8 +88,6 @@ export function PageCover({
   const dragStart = useRef<{ y: number; pos: number } | null>(null)
   const coverRef = useRef<HTMLDivElement>(null)
   const chromeOwner = useRef(Symbol("page-cover")).current
-  const { isMobile } = useSidebar()
-  const [shadeInBar, setShadeInBar] = useState(false)
   const visibleCover =
     cover === null
       ? null
@@ -105,11 +102,13 @@ export function PageCover({
   useLayoutEffect(() => {
     const node = coverRef.current
     const bar = document.querySelector<HTMLElement>("[data-window-bar]")
-    const meetsBar = visibleCover !== null && node !== null && bar !== null &&
-      node.getClientRects().length > 0 &&
-      Math.abs(node.getBoundingClientRect().top - bar.getBoundingClientRect().bottom) <= 1.5
-    setShadeInBar(meetsBar && !isMobile)
-    if (!meetsBar || visibleCover === null) {
+    if (
+      visibleCover === null ||
+      node === null ||
+      bar === null ||
+      node.getClientRects().length === 0 ||
+      Math.abs(node.getBoundingClientRect().top - bar.getBoundingClientRect().bottom) > 1.5
+    ) {
       clearCoverChrome(chromeOwner)
       return
     }
@@ -155,7 +154,6 @@ export function PageCover({
       }
       onPointerUp={repositioning ? () => (dragStart.current = null) : undefined}
     >
-      {visibleCover.backgroundImage && !shadeInBar ? <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[var(--cover-photo-shade-height)]" style={{ backgroundImage: 'var(--cover-photo-shade)' }} /> : null}
       {repositioning ? (
         <div className="absolute inset-x-0 top-3 z-20 flex justify-center">
           <span className="rounded-md bg-background px-2.5 py-1 text-xs leading-4 font-medium text-foreground">
