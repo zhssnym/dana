@@ -142,6 +142,7 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
  * defaults. A column that is a relation rather than a value (Overdue) has none.
  */
 export interface ColumnValue {
+  readonly assignee_ids?: string[]
   readonly folder_id?: string
   readonly assignee_id?: string | null
   readonly due_date?: string | null

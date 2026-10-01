@@ -290,7 +290,7 @@ export async function createComment(
     const found = await rowsOf(
       tx,
       sql`SELECT d.title, d.state, d.trashed_at,
-                 t.assignee_id AS task_assignee, t.created_by AS task_creator
+                 t.assignee_ids AS task_assignees, t.created_by AS task_creator
             FROM discussions d
             LEFT JOIN tasks t
               ON t.id = d.task_id AND t.folder_id = d.folder_id
@@ -302,7 +302,10 @@ export async function createComment(
     if (discussionRow === undefined) return { kind: 'discussion_not_here' } as const
     if (isFrozen(discussionRow)) return { kind: 'frozen' } as const
     const discussionTitle = String(discussionRow.title)
-    const taskPeople = [discussionRow.task_assignee, discussionRow.task_creator].filter(
+    const taskPeople = [
+      ...(Array.isArray(discussionRow.task_assignees) ? discussionRow.task_assignees : []),
+      discussionRow.task_creator,
+    ].filter(
       (id): id is string => typeof id === 'string' && id.length > 0,
     )
 

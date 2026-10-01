@@ -302,6 +302,8 @@ function taskFrom(
        scrubbed row, which is not this document's business. */
     created_by: nullableString(row.creator_display_name),
     assignee: nullableString(row.assignee_display_name),
+    assignees: Array.isArray(row.assignee_names)
+      ? row.assignee_names.map(nullableString) : [],
     completed_at: nullableIso(row.completed_at),
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
@@ -328,6 +330,9 @@ const TASK_COLUMNS = sql`t.id, t.section_block_id, t.page_position, t.title, t.n
   t.deleted_at, t.folder_id,
   cb.display_name AS creator_display_name,
   asg.display_name AS assignee_display_name,
+  (SELECT coalesce(json_agg(au.display_name ORDER BY ids.ord), '[]'::json)
+     FROM unnest(t.assignee_ids) WITH ORDINALITY AS ids(user_id, ord)
+     JOIN users au ON au.id = ids.user_id) AS assignee_names,
   r.offset_minutes, to_char(r.time_of_day, 'HH24:MI') AS reminder_time_of_day,
   r.fire_at, r.state AS reminder_state, r.fired_at`
 
@@ -481,7 +486,7 @@ export async function exportForViewer(
         JOIN folders f ON f.id = t.folder_id AND f.deleted_at IS NULL
         ${TASK_JOINS}
         WHERE f.owner_id <> ${viewerId}
-          AND (t.created_by = ${viewerId} OR t.assignee_id = ${viewerId})
+          AND (t.created_by = ${viewerId} OR ${viewerId}::uuid = ANY(t.assignee_ids))
         ORDER BY t.created_at ASC, t.id ASC
         LIMIT ${FETCH}`,
   )
@@ -528,7 +533,7 @@ export async function exportForViewer(
                  OR (m.user_id IS NOT NULL
                      AND f.deleted_at IS NULL
                      AND (t.created_by = ${viewerId}
-                          OR t.assignee_id = ${viewerId})))`,
+                          OR ${viewerId}::uuid = ANY(t.assignee_ids))))`,
       sql`s.task_id`,
       sql`s.page_position ASC NULLS LAST, s.position ASC, s.updated_at ASC, s.id ASC`,
     ),
@@ -554,7 +559,7 @@ export async function exportForViewer(
                  OR (m.user_id IS NOT NULL
                      AND f.deleted_at IS NULL
                      AND (t.created_by = ${viewerId}
-                          OR t.assignee_id = ${viewerId})))`,
+                          OR ${viewerId}::uuid = ANY(t.assignee_ids))))`,
       sql`b.task_id`,
       sql`b.page_position ASC NULLS LAST, b.position ASC, b.id ASC`,
     ),
@@ -658,7 +663,7 @@ export async function exportForViewer(
             OR (m.user_id IS NOT NULL
                 AND f.deleted_at IS NULL
                 AND (t.created_by = ${viewerId}
-                     OR t.assignee_id = ${viewerId})))`
+                     OR ${viewerId}::uuid = ANY(t.assignee_ids))))`
 
   const taskFolderRows = await rowsOf(
     db,

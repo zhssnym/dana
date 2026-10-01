@@ -871,18 +871,18 @@ export async function memberDetailsOf(
   )
   const counts = await rowsOf(
     executor,
-    sql`SELECT t.assignee_id, count(*)::int AS n
+    sql`SELECT wanted.member_id, count(*)::int AS n
           FROM tasks t
           JOIN jsonb_array_elements_text(${ids}::jsonb) AS wanted(member_id)
-            ON wanted.member_id::uuid = t.assignee_id
+            ON wanted.member_id::uuid = ANY(t.assignee_ids)
          WHERE t.project_id = ${folderId}::uuid
            AND t.deleted_at IS NULL
            AND t.status = 'pending'
-         GROUP BY t.assignee_id`,
+         GROUP BY wanted.member_id`,
   )
   const byMember = new Map<string, number>()
   for (const row of counts) {
-    byMember.set(String(row.assignee_id), Number(row.n))
+    byMember.set(String(row.member_id), Number(row.n))
   }
   const standings = await standingOf(
     executor,

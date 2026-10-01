@@ -475,8 +475,11 @@ export async function createInvite(
       */
       if (taskId !== null) {
         await tx.execute(
-          sql`UPDATE tasks SET assignee_id = ${target.id}, updated_at = now()
-              WHERE id = ${taskId}`,
+          sql`UPDATE tasks
+                 SET assignee_ids = array_append(assignee_ids, ${target.id}::uuid),
+                     updated_at = now()
+               WHERE id = ${taskId}
+                 AND NOT ${target.id}::uuid = ANY(assignee_ids)`,
         )
       }
 
@@ -861,10 +864,11 @@ export async function acceptInvite(
       if (taskId !== null && folderId !== null) {
         const assigned = await rowsOf(
           tx,
-          sql`UPDATE tasks SET assignee_id = ${acceptorId}::uuid,
+          sql`UPDATE tasks SET assignee_ids = array_append(assignee_ids, ${acceptorId}::uuid),
                                updated_at = now()
                WHERE id = ${taskId} AND project_id = ${folderId}::uuid
-                 AND assignee_id IS NULL AND deleted_at IS NULL
+                 AND NOT ${acceptorId}::uuid = ANY(assignee_ids)
+                 AND deleted_at IS NULL
                RETURNING id`,
         )
         assignedTaskId = nullableString(assigned[0]?.id)

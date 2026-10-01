@@ -789,7 +789,7 @@ export async function attachTaskLabel(
        rather than a caller's argument that was true a moment ago (#274). */
     const locked = await rowsOf(
       tx,
-      sql`SELECT folder_id, assignee_id FROM tasks
+      sql`SELECT folder_id, assignee_id, assignee_ids FROM tasks
           WHERE id = ${taskId}::uuid FOR UPDATE`,
     )
     const task = locked[0]
@@ -811,7 +811,8 @@ export async function attachTaskLabel(
       viewerId,
       taskFolderId,
       label.scope,
-      nullableString(task.assignee_id),
+      Array.isArray(task.assignee_ids) && task.assignee_ids.includes(viewerId)
+        ? viewerId : nullableString(task.assignee_id),
     )
     if (refusal !== null) return refusal
     if (label.archived) return { kind: 'archived' }
@@ -885,7 +886,7 @@ export async function detachTaskLabel(
   return inTransaction(db, async (tx) => {
     const locked = await rowsOf(
       tx,
-      sql`SELECT folder_id, assignee_id FROM tasks
+      sql`SELECT folder_id, assignee_id, assignee_ids FROM tasks
           WHERE id = ${taskId}::uuid FOR UPDATE`,
     )
     const task = locked[0]
@@ -898,7 +899,8 @@ export async function detachTaskLabel(
       viewerId,
       String(task.folder_id),
       label.scope,
-      nullableString(task.assignee_id),
+      Array.isArray(task.assignee_ids) && task.assignee_ids.includes(viewerId)
+        ? viewerId : nullableString(task.assignee_id),
     )
     if (refusal !== null) return refusal
 

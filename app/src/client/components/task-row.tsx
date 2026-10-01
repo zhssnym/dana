@@ -767,6 +767,7 @@ export interface TaskRowProps {
   important?: boolean
   importantTooltip?: string
   assignee?: { initials: string; name: string; image?: string; id?: string }
+  assignees?: { initials: string; name: string; image?: string; id?: string }[]
   pulled?: boolean
   steps?: { complete: number; total: number }
   recurrence?: string
@@ -883,6 +884,7 @@ function toConceptTask(props: TaskRowProps): ConceptTask {
     folder: props.folder,
     due: props.due,
     assignee: props.assignee,
+    assignees: props.assignees,
     pulled: props.pulled,
     important: props.important,
     notes: props.notes,
@@ -1079,6 +1081,7 @@ export function TaskRow(props: TaskRowProps) {
           ...(props.starts === undefined ? {} : { starts: props.starts }),
           ...(task.folder === undefined ? {} : { folder: task.folder }),
           ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
+          ...(task.assignees === undefined ? {} : { assignees: task.assignees }),
           ...(task.recurrence ? { recurrence: repeatShort(task) } : {}),
           blockedBy: props.blockedBy ?? 0,
           finished,

@@ -36,8 +36,8 @@ second one.
   start date nor a due date, Scheduled when it carries either. Never assigned manually.
 - **View**: a page that queries tasks without being their home: Today, Assignments. A
   view is pinned or unpinned per the pin list of 9.7.
-- **Assignee**: the single member a task is assigned to, or null (unassigned). Must be a
-  member of the task's folder.
+- **Assignees**: the members a task is assigned to, or an empty list (unassigned). Each must
+  be a member of the task's project. The first assignee anchors its one reminder.
 - **Step**: a checklist item in a task's body, also called a subtask: text and a tick. No
   dates, no assignee.
 - **Pull into focus**: the manual act of adding a task to the viewer's own Today, stored

@@ -189,7 +189,8 @@ export function useRowActions(): RowActions {
         ...(value.folder_id === undefined ? {} : { folder_id: task.folder.id }),
         ...(value.assignee_id === undefined
           ? {}
-          : { assignee_id: task.assignee?.id ?? null }),
+          : { assignee_ids: task.assignees?.map((person) => person.id)
+              ?? (task.assignee === null ? [] : [task.assignee.id]) }),
         ...(value.due_date === undefined ? {} : { due_date: task.due_date }),
         /* The other end of the Schedule, which a date column's drop writes
            instead of the due date for a Start-only row (issue #216). Same

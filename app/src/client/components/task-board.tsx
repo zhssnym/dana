@@ -209,7 +209,7 @@ function BoardCard({
     ((task.due !== undefined || task.starts !== undefined) && !given?.due && !done) ||
     (task.folder !== undefined && !given?.folder) ||
     ((task.blockedBy ?? 0) > 0 && !finished) ||
-    (task.assignee !== undefined && task.assignee !== null && !given?.assignee) ||
+    ((task.assignees?.length ?? (task.assignee ? 1 : 0)) > 0 && !given?.assignee) ||
     (task.steps !== undefined && task.steps.total > 0) ||
     task.recurrence !== undefined ||
     (task.labels !== undefined && task.labels.length > 0)
@@ -311,6 +311,7 @@ function BoardCard({
             ...(task.starts === undefined ? {} : { starts: task.starts }),
             ...(task.folder === undefined ? {} : { folder: task.folder }),
             ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
+            ...(task.assignees === undefined ? {} : { assignees: task.assignees }),
             ...(task.steps === undefined ? {} : { steps: { done: task.steps.complete, total: task.steps.total } }),
             ...(task.recurrence === undefined ? {} : { recurrence: task.recurrence }),
             ...(task.labels === undefined ? {} : { labels: task.labels }),

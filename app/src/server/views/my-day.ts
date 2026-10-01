@@ -66,7 +66,7 @@ import { ACTIVATION_DATE, CAP_PROBE, readCards } from './cards.js'
  * second spelling of the clause could hold in one place and not the other.
  */
 function automaticClause(viewerId: string, todayLocal: string): SQL {
-  return sql`(t.assignee_id = ${viewerId} AND ${ACTIVATION_DATE} IS NOT NULL
+  return sql`(t.assignee_ids @> ARRAY[${viewerId}::uuid] AND ${ACTIVATION_DATE} IS NOT NULL
               AND ${ACTIVATION_DATE} <= ${todayLocal}::date)`
 }
 
@@ -154,7 +154,7 @@ async function recap(
     where: sql`t.status = 'completed'
                AND t.completed_at >= ${window.startInclusive.toISOString()}::timestamptz
                AND t.completed_at < ${window.endExclusive.toISOString()}::timestamptz
-               AND (t.assignee_id = ${viewerId} OR t.completed_by = ${viewerId}
+               AND (t.assignee_ids @> ARRAY[${viewerId}::uuid] OR t.completed_by = ${viewerId}
                     OR e.task_id IS NOT NULL)`,
     order: sql`t.completed_at DESC, t.id DESC`,
     limit: CAP_PROBE,

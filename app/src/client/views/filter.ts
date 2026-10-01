@@ -133,10 +133,13 @@ export function taskMatchesFilter(
   filter: TaskFilter,
   today: string,
 ): boolean {
-  const assignee = task.assignee?.id ?? UNASSIGNED
+  const assignees = task.assignees?.map((person) => person.id)
+    ?? (task.assignee === null ? [] : [task.assignee.id])
   return (
     (filter.statuses.length === 0 || filter.statuses.includes(task.status)) &&
-    (filter.assignees.length === 0 || filter.assignees.includes(assignee)) &&
+    (filter.assignees.length === 0 ||
+      (assignees.length === 0 && filter.assignees.includes(UNASSIGNED)) ||
+      assignees.some((id) => filter.assignees.includes(id))) &&
     matchesSchedule(task, filter.schedule, today, filter.date) &&
     (!filter.important || task.important) &&
     (!filter.repeating || task.is_recurring) &&

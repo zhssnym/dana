@@ -43,6 +43,7 @@ export function surfaceTask(
     ...(task.assignee === undefined || task.assignee === null
       ? {}
       : { assignee: task.assignee }),
+    ...(task.assignees === undefined ? {} : { assignees: task.assignees }),
     ...(task.pulled === undefined ? {} : { pulled: task.pulled }),
     detail: task,
   }
