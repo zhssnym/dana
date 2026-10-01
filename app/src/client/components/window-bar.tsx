@@ -1,16 +1,19 @@
 /*
-The window bar: the strip at the top of the page area. Left is the way here
-(history arrows and the breadcrumb trail, portalled in through WindowBarLead);
-right holds the controls for whatever the page is showing (WindowBarActions).
-Both ends are module-store slots, so a screen renders into the chrome without
-lifting its state into the shell.
+The window bar: the compact strip at the top of the page area. Left is the way
+here (history arrows and the breadcrumb trail, portalled in through
+WindowBarLead); right holds the controls for whatever the page is showing
+(WindowBarActions). Both ends are module-store slots, so a screen renders into
+the chrome without lifting its state into the shell.
+
+The strip is intentionally a stable shell surface. Covers begin below it and
+never paint behind it, leaving this row reliable for directory context, page
+controls and future work-page actions.
 */
 
 import { useSyncExternalStore, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 
 import { TabStrip } from "../shell/TabStrip.js"
-import { useCoverChrome } from "../shell/cover-chrome.js"
 
 const slots: { lead: HTMLElement | null; trail: HTMLElement | null } = {
   lead: null,
@@ -36,80 +39,26 @@ function useSlot(end: "lead" | "trail") {
   )
 }
 
-/* A photo-cover readability treatment belongs to the content that needs it,
-   never to the whole bar. The soft surface sits just behind one content group,
-   uses the existing theme-aware scrim, and blurs only the pixels immediately
-   beneath that group. It adds no border, card shadow or layout padding. */
-function CoverContrastIsland({
-  children,
-  className,
-}: {
-  children: ReactNode
-  className: string
-}) {
-  const cover = useCoverChrome()
-  const photoCover = Boolean(cover?.backgroundImage)
-
-  return (
-    <div className={`relative isolate ${className}`}>
-      {photoCover ? (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -inset-x-1.5 -inset-y-0.5 -z-10 rounded-md bg-[var(--scrim)] opacity-100 backdrop-blur-[6px] dark:opacity-[0.4]"
-        />
-      ) : null}
-      {children}
-    </div>
-  )
-}
-
-/* The two quiet strips themselves, rendered once by the shell. Workspace tabs
-   sit above the existing window bar on desktop; the tab component removes
+/* Workspace tabs sit above this row on desktop; the tab component removes
    itself on a phone, where the full strip would compete with Menu and Search.
-
-   Whenever the visible page publishes a nearby cover, this bar becomes the
-   continuation of that same cover surface on every viewport size. The cover
-   itself stays untouched: photo contrast is added only behind actual chrome
-   content through `CoverContrastIsland`. Flat colour covers remain untouched. */
+   The work-page row stays compact at Dana's 32px row height, only 4px taller
+   than its controls. */
 export function WindowBar() {
-  const cover = useCoverChrome()
-  const extendsCover = cover !== null
-
   return (
     <>
       <TabStrip />
       <div
         data-window-bar
-        data-cover-extension={extendsCover ? "true" : undefined}
-        className={`relative flex h-[var(--shell-windowbar-height)] shrink-0 items-center gap-1.5 px-3 ${
-          extendsCover
-            ? "z-10 bg-transparent text-fixed-white [&_a]:!text-fixed-white [&_button]:!text-fixed-white [&_span]:!text-fixed-white"
-            : "bg-card"
-        }`}
-        style={
-          extendsCover
-            ? {
-                textShadow:
-                  "0 1px 2px rgb(0 0 0 / 0.9), 0 2px 4px rgb(0 0 0 / 0.55)",
-              }
-            : undefined
-        }
+        className="flex h-[var(--row-height)] shrink-0 items-center gap-1.5 bg-card px-3"
       >
-        {extendsCover ? (
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 h-[calc(var(--shell-windowbar-height)+8rem)]"
-            style={cover}
-          />
-        ) : null}
         {/* The left end: history arrows and the breadcrumb trail. */}
         <div
           ref={(node) => setSlot("lead", node)}
-          className="relative z-10 flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
+          className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
         />
         <div
           ref={(node) => setSlot("trail", node)}
-          className="relative z-10 flex shrink-0 items-center gap-1.5"
+          className="flex shrink-0 items-center gap-1.5"
         />
       </div>
     </>
@@ -118,18 +67,11 @@ export function WindowBar() {
 
 /* The window bar's left end. Same portal arrangement as `WindowBarActions`, and
    the same reason: whatever owns the state renders into the chrome without the
-   chrome having to be told what the state is. A photo cover protects the whole
-   trail as one quiet contrast island instead of putting a pill around each
-   breadcrumb. */
+   chrome having to be told what the state is. */
 export function WindowBarLead({ children }: { children: ReactNode }) {
   const node = useSlot("lead")
-  if (!node || children === null || children === undefined) return null
-  return createPortal(
-    <CoverContrastIsland className="flex min-w-0 max-w-full items-center">
-      {children}
-    </CoverContrastIsland>,
-    node,
-  )
+  if (!node) return null
+  return createPortal(children, node)
 }
 
 /*
@@ -154,9 +96,7 @@ export function WindowBarActions({
   if (!node) return null
   return createPortal(
     <div style={{ order }} className="flex shrink-0 items-center gap-1.5">
-      <CoverContrastIsland className="flex shrink-0 items-center gap-1.5">
-        {children}
-      </CoverContrastIsland>
+      {children}
     </div>,
     node,
   )
