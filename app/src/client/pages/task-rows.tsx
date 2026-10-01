@@ -170,6 +170,7 @@ export function TaskRows({
   onDropAt,
   onOver,
   onDragStateChange,
+  followAcross,
   given,
 }: {
   readonly tasks: readonly TaskCard[]
@@ -183,6 +184,7 @@ export function TaskRows({
   readonly onDropAt?: (taskId: string, point: { x: number; y: number }) => boolean
   readonly onOver?: (taskId: string, point: { x: number; y: number }) => string | null
   readonly onDragStateChange?: (dragging: boolean) => void
+  readonly followAcross?: boolean
   /**
    * What the heading above these rows already says: `day` when it names the
    * one day every row is due (Today, Tomorrow, Saturday), so a row keeps only
@@ -234,6 +236,7 @@ export function TaskRows({
       onDropAt={onDropAt}
       onOver={onOver}
       onDragStateChange={onDragStateChange}
+      followAcross={followAcross}
       onMerge={acts.onMerge}
       onBulk={acts.onBulk}
       onMove={acts.onMove}

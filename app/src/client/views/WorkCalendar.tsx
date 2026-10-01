@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 import type { TaskCard } from '../../shared/tasks.js'
 import { useCreateTask, useUpdateTask } from '../api/mutations.js'
@@ -26,6 +26,12 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
   const actions = useRowActions()
   const confirm = useConfirm()
   const host = useRef<HTMLDivElement>(null)
+  const [draggingUndated, setDraggingUndated] = useState(false)
+  const [dropDate, setDropDate] = useState<string | null>(null)
+  const onUndatedDragState = useCallback((dragging: boolean) => {
+    setDraggingUndated(dragging)
+    if (!dragging) setDropDate(null)
+  }, [])
   const filtered = taskFilterActive(filter)
   const undated = tasks.filter((task) => !isScheduled(task) && taskMatchesFilter(task, filter, context.today))
 
@@ -68,6 +74,7 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
     return null
   }
   const dropIntoCalendar = (taskId: string, point: { x: number; y: number }): boolean => {
+    setDropDate(null)
     if (filtered) return false
     const task = undated.find((entry) => entry.id === taskId)
     if (task === undefined || task.status !== 'pending') return false
@@ -77,10 +84,11 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
     return true
   }
   const calendarProposal = (taskId: string, point: { x: number; y: number }): string | null => {
-    if (filtered) return null
+    if (filtered) { setDropDate(null); return null }
     const task = undated.find((entry) => entry.id === taskId)
-    if (task === undefined || task.status !== 'pending') return null
+    if (task === undefined || task.status !== 'pending') { setDropDate(null); return null }
     const date = calendarDateAt(point)
+    setDropDate((was) => was === date ? was : date)
     return date === null ? null : `Start ${formatDueDate(date, context.today)}`
   }
 
@@ -90,6 +98,8 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
       filter={filter}
       filterTasks={tasks}
       filterToday={context.today}
+      externalDragging={draggingUndated}
+      externalDropDate={dropDate}
       {...(canCreate && !filtered ? { onCreate: (title: string, date: string) => {
         create.mutate({ title, folder_id: folderId, due_date: date })
       } } : {})}
@@ -106,6 +116,8 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
               onAsk={confirm.ask}
               onDropAt={dropIntoCalendar}
               onOver={calendarProposal}
+              followAcross
+              onDragStateChange={onUndatedDragState}
             />
           </section>)}
         </div>
