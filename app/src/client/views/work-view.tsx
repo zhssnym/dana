@@ -20,6 +20,7 @@ import type { LucideIcon } from '../lib/icons.js'
 export type WorkView = 'thread' | 'freeform' | 'board' | 'calendar'
 
 const DEFAULT_KEY = 'dana.work-view-default'
+const INITIAL_VIEW: WorkView = 'freeform'
 const WORK_VIEWS: readonly WorkView[] = ['thread', 'freeform', 'board', 'calendar']
 
 function isWorkView(value: string | null): value is WorkView {
@@ -33,12 +34,12 @@ const workListeners = new Map<string, Set<() => void>>()
 
 function readDefault(): WorkView {
   if (cachedDefault !== null) return cachedDefault
-  let view: WorkView = 'thread'
+  let view: WorkView = INITIAL_VIEW
   try {
     const stored = globalThis.localStorage.getItem(DEFAULT_KEY)
     if (isWorkView(stored)) view = stored
   } catch {
-    // Storage is optional; Thread is still the safe first default this session.
+    // Storage is optional; the initial view still applies this session.
   }
   cachedDefault = view
   return view
@@ -69,7 +70,7 @@ function subscribeDefault(listener: () => void): () => void {
 }
 
 export function useDefaultWorkView(): [WorkView, (view: WorkView) => void] {
-  const view = useSyncExternalStore(subscribeDefault, readDefault, () => 'thread' as WorkView)
+  const view = useSyncExternalStore(subscribeDefault, readDefault, () => INITIAL_VIEW)
   return [view, writeDefaultWorkView]
 }
 
@@ -90,7 +91,7 @@ export function useWorkView(workId: string): [WorkView, (view: WorkView) => void
     (): WorkView => currentByWork.get(workId) ?? readDefault(),
     [workId],
   )
-  const view = useSyncExternalStore(subscribe, snapshot, () => 'thread' as WorkView)
+  const view = useSyncExternalStore(subscribe, snapshot, () => INITIAL_VIEW)
   const setView = useCallback((next: WorkView): void => {
     currentByWork.set(workId, next)
     emitWork(workId)
