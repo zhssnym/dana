@@ -85,6 +85,7 @@ export interface RowMetaSource {
   readonly starts?: string
   readonly folder?: { readonly name: string }
   readonly assignee?: { readonly initials: string; readonly name: string; readonly image?: string; readonly id?: string } | null
+  readonly assignees?: readonly { readonly initials: string; readonly name: string; readonly image?: string; readonly id?: string }[]
   readonly steps?: { readonly done: number; readonly total: number }
   readonly recurrence?: string
   readonly blockedBy?: number
@@ -131,7 +132,7 @@ export function RowMeta({
       source.recurrence !== undefined,
       Boolean(folderName),
       (source.blockedBy ?? 0) > 0 && !source.finished,
-      Boolean(source.assignee) && !given.assignee,
+      Boolean(source.assignee || source.assignees?.length) && !given.assignee,
     ].filter(Boolean).length >= 2
   if (source.labels !== undefined && source.labels.length > 0) {
     extras.push(<RowLabels key="labels" labels={source.labels} crowded={crowded} />)
@@ -150,10 +151,13 @@ export function RowMeta({
       </span>,
     )
   }
-  if (source.assignee && !given.assignee) {
+  const assignees = source.assignees ?? (source.assignee ? [source.assignee] : [])
+  if (assignees.length > 0 && !given.assignee) {
     extras.push(
-      <span key="assignee" className="flex shrink-0 items-center" title={source.assignee.name}>
-        <Face person={source.assignee} className="size-5 data-[size=sm]:size-5" />
+      <span key="assignee" className="flex shrink-0 items-center gap-0.5" title={assignees.map((person) => person.name).join(', ')}>
+        {assignees.slice(0, 3).map((person, index) =>
+          <Face key={person.id ?? index} person={person} className="size-5 data-[size=sm]:size-5" />)}
+        {assignees.length > 3 ? <span>+{assignees.length - 3}</span> : null}
       </span>,
     )
   }

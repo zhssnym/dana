@@ -798,13 +798,14 @@ export async function promoteToProjects(
   const held = await rowsOf(
     tx,
     sql`WITH old AS (
-          SELECT id, assignee_id FROM tasks
+          SELECT id, assignee_ids FROM tasks
            WHERE assignee_id IS NOT NULL
              AND project_id IN (${sql.join(projects.map((id) => sql`${id}::uuid`), sql`, `)})
            FOR UPDATE
         )
-        UPDATE tasks t SET assignee_id = NULL FROM old WHERE t.id = old.id
-        RETURNING old.id, old.assignee_id`,
+        UPDATE tasks t SET assignee_id = NULL, assignee_ids = '{}'::uuid[]
+          FROM old WHERE t.id = old.id
+        RETURNING old.id, old.assignee_ids`,
   )
   /* Rows 0062 left unread on a page (old presets, people since removed)
      must not become the new project's people. */
@@ -846,9 +847,14 @@ export async function promoteToProjects(
     }
   }
   if (held.length > 0) {
-    const back = JSON.stringify(held.map((row) => ({ t: String(row.id), a: String(row.assignee_id) })))
+    const back = JSON.stringify(held.map((row) => ({ t: String(row.id), a: row.assignee_ids })))
     await tx.execute(
-      sql`UPDATE tasks t SET assignee_id = (h->>'a')::uuid
+      sql`UPDATE tasks t SET assignee_ids = ARRAY(
+            SELECT person.value::uuid
+              FROM jsonb_array_elements_text(h->'a') AS person(value)
+             WHERE EXISTS (SELECT 1 FROM folder_members m
+                            WHERE m.folder_id = t.project_id
+                              AND m.user_id = person.value::uuid))
             FROM jsonb_array_elements(${back}::jsonb) AS h
            WHERE t.id = (h->>'t')::uuid`,
     )

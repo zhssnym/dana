@@ -188,22 +188,27 @@ export function groupRows(
     })
   }
   for (const task of rows) {
-    let slot = slotFor(task, axis, today, viewerId)
-    /* A task naming a section the page no longer has is loose, which is the
-       list view's own rule (4.17 deletes a block without touching the tasks
-       that named it). The seeded columns are the authority on which sections
-       exist, so this is the one axis where an unseeded key is a fallback
-       rather than a new column. */
-    if (axis === 'section' && !groups.has(slot.key)) {
-      slot = { key: LOOSE, name: LOOSE, capture: { section_block_id: null }, mark: null }
+    const assignees = task.assignees ?? (task.assignee === null ? [] : [task.assignee])
+    const slots = axis === 'person' && assignees.length > 0
+      ? assignees.map((person) => slotFor({ ...task, assignee: person }, axis, today, viewerId))
+      : [slotFor(task, axis, today, viewerId)]
+    for (let slot of slots) {
+      /* A task naming a section the page no longer has is loose, which is the
+         list view's own rule (4.17 deletes a block without touching the tasks
+         that named it). The seeded columns are the authority on which sections
+         exist, so this is the one axis where an unseeded key is a fallback
+         rather than a new column. */
+      if (axis === 'section' && !groups.has(slot.key)) {
+        slot = { key: LOOSE, name: LOOSE, capture: { section_block_id: null }, mark: null }
+      }
+      const existing = groups.get(slot.key)
+      if (existing === undefined) {
+        order.push(slot.key)
+        groups.set(slot.key, { slot, rows: [task] })
+        continue
+      }
+      existing.rows.push(task)
     }
-    const existing = groups.get(slot.key)
-    if (existing === undefined) {
-      order.push(slot.key)
-      groups.set(slot.key, { slot, rows: [task] })
-      continue
-    }
-    existing.rows.push(task)
   }
   const built = order.map((key) => {
     const held = groups.get(key)

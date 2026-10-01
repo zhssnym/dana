@@ -632,6 +632,13 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         columns: ['assignee_id', 'status', 'due_date'],
         partial: false,
       },
+      {
+        name: 'tasks_assignee_ids_idx',
+        unique: false,
+        columns: ['assignee_ids'],
+        partial: false,
+        method: 'gin',
+      },
       { name: 'tasks_series_id_idx', unique: false, columns: ['series_id'], partial: true },
       {
         name: 'tasks_done_pagination_idx',

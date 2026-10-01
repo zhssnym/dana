@@ -23,6 +23,7 @@ import type { LabelRef } from '../../shared/labels.js'
 import type { ResponsibilityDocument } from '../../shared/responsibility.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
+import { recomputeReminders } from '../time/reminder-recompute.js'
 import { recordEvent } from './events.js'
 import {
   folderActorFacts,
@@ -1296,9 +1297,16 @@ export async function runRClean(
   await deletePrivateFacetsOf(tx, folderId, leaverId)
   /* Step 8: `folderId` is a project root, and the membership is the whole
      project's: its tasks on every page go with it. */
-  await tx.execute(
-    sql`UPDATE tasks SET assignee_id = NULL, updated_at = now()
-        WHERE project_id = ${folderId} AND assignee_id = ${leaverId}`,
+  const changedAssignments = await rowsOf(tx,
+    sql`WITH old AS (
+          SELECT id, assignee_id FROM tasks
+           WHERE project_id = ${folderId} AND ${leaverId}::uuid = ANY(assignee_ids)
+           FOR UPDATE
+        )
+        UPDATE tasks t SET assignee_ids = array_remove(t.assignee_ids, ${leaverId}::uuid),
+                           updated_at = now()
+          FROM old WHERE t.id = old.id
+        RETURNING t.id, old.assignee_id AS previous_assignee_id`,
   )
   await tx.execute(
     sql`DELETE FROM my_day_entries
@@ -1324,6 +1332,11 @@ export async function runRClean(
       sql`UPDATE tasks SET assignee_id = ${String(only.user_id)}, updated_at = now()
           WHERE project_id = ${folderId} AND assignee_id IS NULL`,
     )
+  }
+  for (const row of changedAssignments) {
+    if (String(row.previous_assignee_id) === leaverId) {
+      await recomputeReminders(tx, { kind: 'assignee_id', taskId: String(row.id) })
+    }
   }
 }
 

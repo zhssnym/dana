@@ -52,6 +52,7 @@ import { rows } from './helpers.js'
  */
 export const TASK_CARD_KEYS = [
   'assignee',
+  'assignees',
   /* Issue #225's row-level dependency counts, sent by every producer. */
   'blocked_by_count',
   'blocks_count',
@@ -208,6 +209,10 @@ export function expectTaskCardShape(value: unknown, source: string): void {
   ).toBe('boolean')
 
   expectPersonOrNull(card.assignee, `${source}.assignee`)
+  expect(Array.isArray(card.assignees), `${source}.assignees must be a list`).toBe(true)
+  for (const person of card.assignees as unknown[]) {
+    expectPersonOrNull(person, `${source}.assignees[]`)
+  }
   expect(
     typeof card.is_recurring,
     `${source}.is_recurring must be a boolean`,
@@ -305,6 +310,7 @@ export interface TaskDetailBody extends Record<string, unknown> {
   id: string
   status: string
   title: string
+  assignees: { id: string }[]
 }
 
 /** The whole of the 7.0 TaskDetail shape: TaskCard plus its seven. */

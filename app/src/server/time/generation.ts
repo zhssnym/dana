@@ -123,10 +123,10 @@ export async function generateSuccessor(
   const inserted = await rowsOf(
     tx,
     sql`INSERT INTO tasks (folder_id, title, notes, important, due_date,
-                           due_time, recurrence_rule, series_id, assignee_id,
+                           due_time, recurrence_rule, series_id, assignee_id, assignee_ids,
                            created_by, status)
         SELECT folder_id, title, notes, important, ${nextDue}::date,
-               due_time, recurrence_rule, series_id, assignee_id,
+               due_time, recurrence_rule, series_id, assignee_id, assignee_ids,
                created_by, 'pending'
           FROM tasks WHERE id = ${request.taskId}::uuid
         RETURNING id`,

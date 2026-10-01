@@ -541,6 +541,14 @@ describe('AC-1527 migration 0062: people belong to the project', () => {
 
   test('after it: a person removed from a project loses the rows 0062 left on its pages', async () => {
     expect(await people(A.tab)).toContainEqual({ user_id: u.viewer, access: 'can_view' })
+    // Current server code reads 0063's assignee list. Keep the 0062 assertions
+    // above on their original schema, then upgrade before invoking that code.
+    const currentSchema = path.join(scratch, 'c')
+    cutThrough('0063_', currentSchema)
+    await db.migrate(currentSchema)
+    for (const row of await db.exec(sql`SELECT assignee_id, assignee_ids FROM tasks WHERE assignee_id IS NOT NULL`)) {
+      expect(row.assignee_ids).toEqual([row.assignee_id])
+    }
     await asNewServer(() => removeMembership(db.db, A.root, u.viewer, { transferOwnership: false, actorId: u.owner }))
     expect(await db.exec(sql`SELECT f.id FROM folder_members m JOIN folders f ON f.id = m.folder_id
       WHERE m.user_id = ${u.viewer}::uuid AND f.project_id = ${A.root}::uuid`)).toEqual([])

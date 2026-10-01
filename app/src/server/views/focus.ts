@@ -54,7 +54,7 @@ function whenScope(when: FocusWhen, viewerId: string, todayLocal: string): SQL {
          unassigned row is null and NOT (null AND true) would drop a
          teammate's overdue task from both lists. */
       return sql` AND ${SCHEDULED} AND e.task_id IS NULL
-        AND NOT (t.assignee_id IS NOT DISTINCT FROM ${viewerId}::uuid
+        AND NOT (t.assignee_ids @> ARRAY[${viewerId}::uuid]
                  AND ${rung} IN ('overdue', 'started', 'today'))`
   }
 }
