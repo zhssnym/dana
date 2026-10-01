@@ -10,7 +10,7 @@ import type { RowContext } from '../parts/presenters.js'
 import { isScheduled } from '../parts/schedule.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { PlaceGroup } from './usePlace.js'
-import { taskFilterActive, taskMatchesFilter, type TaskFilter } from './filter.js'
+import { taskMatchesFilter, type TaskFilter } from './filter.js'
 
 /** The shared calendar, scoped to this Work's canonical Tasks and filter. */
 export default function WorkCalendar({ folderId, tasks, filter, context, canCreate }: {
@@ -39,7 +39,6 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
     setDraggingScheduled(dragging)
     if (!dragging) setOverUndated(false)
   }, [])
-  const filtered = taskFilterActive(filter)
   const undated = tasks.filter((task) => !isScheduled(task) && taskMatchesFilter(task, filter, context.today))
 
   const sectionGroups = useMemo(() => {
@@ -126,7 +125,7 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
       onExternalDrop={dropIntoUndated}
       onExternalOver={undatedProposal}
       onDragStateChange={onScheduledDragState}
-      {...(canCreate && !filtered ? { onCreate: (title: string, date: string) => {
+      {...(canCreate ? { onCreate: (title: string, date: string) => {
         create.mutate({ title, folder_id: folderId, due_date: date })
       } } : {})}
     />
