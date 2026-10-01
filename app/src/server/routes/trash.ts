@@ -20,6 +20,7 @@ so the client can place it without a second round trip.
 import type { Request, Response, Router } from 'express'
 
 import type { DbClient } from '../../../db/client.js'
+import { archiveFolder, archivedWorkView, destroyArchivedFolder, restoreArchivedFolder } from '../domain/archive.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
 import { folderView } from '../domain/folders.js'
 import {
@@ -47,6 +48,53 @@ export interface TrashRouterOptions {
 export function createTrashRouter(options: TrashRouterOptions = {}): Router {
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+
+  const archiveOutcome = (res: Response, outcome: Awaited<ReturnType<typeof archiveFolder>>): boolean => {
+    if (outcome === 'done') return true
+    if (outcome === 'not_found') sendError(res, 404, 'not_found', 'Not found.')
+    else sendError(res, outcome.kind === 'forbidden' ? 403 : 409,
+      outcome.kind === 'forbidden' ? 'forbidden' : 'conflict', outcome.reason)
+    return false
+  }
+
+  router.get('/archive/folders', requireSession, async (req: Request, res: Response) => {
+    const db = database(res)
+    if (db === null) return
+    res.status(200).json(await archivedWorkView(db, viewer(req)))
+  })
+
+  router.post('/folders/:id/archive', requireSession, requireCsrf, mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const id = parsedId(res, req.params.id)
+      if (id === null) return
+      if (archiveOutcome(res, await archiveFolder(db, viewer(req), id))) res.status(204).end()
+    })
+
+  router.post('/archive/folders/:id/restore', requireSession, requireCsrf, mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const id = parsedId(res, req.params.id)
+      if (id === null) return
+      if (archiveOutcome(res, await restoreArchivedFolder(db, viewer(req), id))) {
+        res.status(200).json(await folderView(db, viewer(req), id))
+      }
+    })
+
+  router.delete('/archive/folders/:id', requireSession, requireCsrf, mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const id = parsedId(res, req.params.id)
+      if (id === null) return
+      const outcome = await destroyArchivedFolder(db, viewer(req), id)
+      if (typeof outcome === 'object' && outcome.kind === 'destroyed') {
+        await removeObjects(options.fileStore, outcome.fileIds)
+        res.status(204).end()
+      } else archiveOutcome(res, outcome)
+    })
 
   router.get('/trash', requireSession, async (req: Request, res: Response) => {
     const db = database(res)

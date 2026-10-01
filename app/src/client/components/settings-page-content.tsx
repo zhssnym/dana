@@ -30,8 +30,10 @@ What is worth knowing:
   handed on first, which is what `DELETE /me`'s 409 enforces (issue #228).
 */
 import { useEffect, useRef } from 'react'
+import { Link } from 'react-router'
 
 import { SUPPORT_EMAIL } from '../../shared/support.js'
+import { paths } from '../routes.js'
 import { signOut } from '../shell/session.js'
 import { ImagePlus } from '../lib/icons.js'
 import { setTheme, useTheme } from '../lib/theme.js'
@@ -216,6 +218,11 @@ export function SettingsPageContent({
               label="Download my data"
               description="Everything Dana holds about you, as one JSON file"
               control={<Button render={<a href="/api/v1/me/export" download />}>Download</Button>}
+            />
+            <StackingRow
+              label="Archived work"
+              description="Work and pages removed from active views"
+              control={<Button render={<Link to={paths.archivedWork} />}>Manage archived work</Button>}
             />
             {sample ? (
               <StackingRow

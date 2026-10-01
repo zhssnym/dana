@@ -14,7 +14,7 @@ import { useLocation, useNavigate } from 'react-router'
 
 import { useCreateFolder } from '../api/mutations.js'
 import { useAllPages, useBundle, useFolders, useShelves, useTask } from '../api/queries.js'
-import { CheckCircle2, FileText, Folders, Plus, Search, Settings, Trash2, X } from '../lib/icons.js'
+import { Box, CheckCircle2, FileText, Folders, Plus, Search, Settings, Trash2, X } from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
 import { SHORTCUTS_RESULT, useSearchAnswer, type SearchAnswer } from '../lib/search-items.js'
 import { useSortableList } from '../lib/use-sortable-list.js'
@@ -80,6 +80,7 @@ function titleFor(path: string, folders: readonly Folder[], shelves: readonly Sh
 
   if (key.startsWith('/app/tasks/')) return 'Task'
   if (key === paths.settings) return 'Settings'
+  if (key === paths.archivedWork) return 'Archived work'
   if (key === paths.trash) return 'Trash'
   return 'Dana'
 }
@@ -151,6 +152,8 @@ function TabFace({
     identity = { title: task.data?.title ?? 'Task', icon: CheckCircle2 }
   } else if (key === paths.settings || key === paths.people) {
     identity = { title: 'Settings', icon: Settings }
+  } else if (key === paths.archivedWork) {
+    identity = { title: 'Archived work', icon: Box }
   } else if (key === paths.trash) {
     identity = { title: 'Trash', icon: Trash2 }
   } else {

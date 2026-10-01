@@ -48,6 +48,7 @@ import type { ReactNode } from 'react'
 
 import {
   Ban,
+  Box,
   Copy,
   Download,
   Fullscreen,
@@ -107,6 +108,7 @@ export type ActKey =
   /* Download the project as a Dana file (7.16), the one the Library's
      import action reads. */
   | 'export'
+  | 'archive'
   /* Import a Dana file under this page (round 3). No list offers it now:
      the Library's import action is the one way a file comes in. */
   | 'import'
@@ -179,6 +181,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
     { key: 'export', label: 'Export work', icon: Download, group: 3 },
+    { key: 'archive', label: 'Archive work', icon: Box, group: 4 },
     /* Leave and Delete are never offered together: a surface supplies the one
        its viewer's role permits (9.6's matrix), which is the contract's own
        safety property doing the permission work. */
@@ -193,6 +196,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     { key: 'rename', label: 'Rename', icon: Pencil, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
+    { key: 'archive', label: 'Archive work', icon: Box, group: 4 },
     /* Step 8: people belong to the project, so leaving any page of it
        leaves the project. */
     { key: 'leave', label: 'Leave work…', icon: LogOut, group: 4 },
