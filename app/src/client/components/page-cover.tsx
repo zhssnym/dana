@@ -68,11 +68,10 @@ const FULL_BLEED = { marginInline: "calc(50% - 50cqw)" } as const
    `readOnly` draws the picture and nothing that changes it (issue #228): a
    viewer below Can edit, whom `PATCH /folders/:id` answers 403.
 
-   The negative bottom margin is intentional: a cover is the header surface,
-   not a banner above it. The following identity layer occupies that overlap,
-   so the body still begins below the 176px image. 176px also matches the
-   reposition arithmetic below, keeping the gesture and the visible band in
-   one geometry. */
+   The 176px band remains in normal document flow. The identity layer is the
+   thing that moves over its lower portion, so the page body can never inherit
+   a missing slice of cover height. 176px also matches the reposition arithmetic
+   below, keeping the gesture and visible band in one geometry. */
 export function PageCover({
   storageName,
   readOnly = false,
@@ -94,7 +93,7 @@ export function PageCover({
     <div
       /* `w-full` is gone with the bleed above it: an auto width fills the
          containing block minus the margins, which is the whole window. */
-      className={cn("group/cover relative -mb-24 h-44", repositioning && "cursor-ns-resize select-none")}
+      className={cn("group/cover relative h-44", repositioning && "cursor-ns-resize select-none")}
       style={
         repositioning
           ? { ...cover, ...FULL_BLEED, backgroundPosition: `center ${draftPos}%` }
