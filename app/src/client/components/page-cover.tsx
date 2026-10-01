@@ -13,7 +13,7 @@ The controls stay minimal: Change, Remove and (for a photo) Reposition as 28px
 ghost buttons in the band's corner, appearing on hover.
 */
 
-import { useLayoutEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 
 import { Image as ImageIcon } from "../lib/icons.js"
 import {
@@ -38,15 +38,9 @@ import {
   coverPhotoPicker,
   coverUploader,
 } from "../lib/page-identity.js"
-import { clearCoverChrome, setCoverChrome } from "../shell/cover-chrome.js"
 import { cn } from "./ui/utils.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
-/* Page heads use 16px/24px top compensation depending on viewport. A 32px
-   proximity window therefore covers every native page-head geometry, including
-   the phone bar's 6px centering offset, without allowing a cover deeper in the
-   page to leak into global chrome. */
-const COVER_CHROME_PROXIMITY = 32
 
 /* A control over a picture: solid ground so it reads on any photo. */
 const ON_COVER = "bg-background text-foreground hover:bg-hover"
@@ -74,11 +68,9 @@ const FULL_BLEED = { marginInline: "calc(50% - 50cqw)" } as const
    `readOnly` draws the picture and nothing that changes it (issue #228): a
    viewer below Can edit, whom `PATCH /folders/:id` answers 403.
 
-   A visible top-of-page cover publishes its live visual to the shared window
-   bar whenever it sits within the normal page-head spacing range. The shell can
-   then continue that same surface through the breadcrumb/chrome reading zone on
-   desktop and phone. Nothing in the page head moves; only the cover surface
-   extends. */
+   The cover stays inside the page surface. Global work-page chrome above it is
+   deliberately separate, so breadcrumbs and controls always have a stable
+   shell background independent of the chosen cover. */
 export function PageCover({
   storageName,
   readOnly = false,
@@ -92,8 +84,6 @@ export function PageCover({
   const [repositioning, setRepositioning] = useState(false)
   const [draftPos, setDraftPos] = useState(coverPos)
   const dragStart = useRef<{ y: number; pos: number } | null>(null)
-  const coverRef = useRef<HTMLDivElement>(null)
-  const chromeOwner = useRef(Symbol("page-cover")).current
   const visibleCover =
     cover === null
       ? null
@@ -101,39 +91,11 @@ export function PageCover({
         ? { ...cover, backgroundPosition: `center ${draftPos}%` }
         : cover
 
-  /* A native page head can leave a small structural offset between the bar and
-     its cover (16/24px head compensation, plus the phone bar's centering).
-     Treat that as the same continuous top surface instead of requiring a
-     brittle 1.5px physical touch. A hidden cover still has no client rects, and
-     anything more than one spacing step away is not allowed to paint chrome. */
-  useLayoutEffect(() => {
-    const node = coverRef.current
-    const bar = document.querySelector<HTMLElement>("[data-window-bar]")
-    if (
-      visibleCover === null ||
-      node === null ||
-      bar === null ||
-      node.getClientRects().length === 0
-    ) {
-      clearCoverChrome(chromeOwner)
-      return
-    }
-    const gap = node.getBoundingClientRect().top - bar.getBoundingClientRect().bottom
-    if (Math.abs(gap) > COVER_CHROME_PROXIMITY) {
-      clearCoverChrome(chromeOwner)
-      return
-    }
-    setCoverChrome(chromeOwner, visibleCover)
-  })
-
-  useLayoutEffect(() => () => clearCoverChrome(chromeOwner), [chromeOwner])
-
   if (!cover || !visibleCover) return null
   const repositionable = coverRepositions(identity.cover) && coverStoresPosition(storageName)
 
   return (
     <div
-      ref={coverRef}
       data-page-cover
       /* `w-full` is gone with the bleed above it: an auto width fills the
          containing block minus the margins, which is the whole window. */
