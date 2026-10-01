@@ -53,7 +53,8 @@ async function lockedProjectOf(tx: Executor, pageId: string): Promise<ProjectRoo
     tx,
     sql`SELECT r.id, r.kind, r.owner_id, r.tab_position, r.name
           FROM folders p JOIN folders r ON r.id = p.project_id
-         WHERE p.id = ${pageId}::uuid AND r.deleted_at IS NULL
+         WHERE p.id = ${pageId}::uuid AND p.deleted_at IS NULL AND p.archived_at IS NULL
+           AND r.deleted_at IS NULL AND r.archived_at IS NULL
          FOR UPDATE OF r`,
   )
   const row = rows[0]
@@ -120,7 +121,8 @@ export async function liveDiscussionTab(tx: Executor, projectId: string): Promis
   const rows = await rowsOf(
     tx,
     sql`SELECT id FROM folders
-         WHERE project_id = ${projectId}::uuid AND kind = 'discussion' AND deleted_at IS NULL`,
+         WHERE project_id = ${projectId}::uuid AND kind = 'discussion'
+           AND deleted_at IS NULL AND archived_at IS NULL`,
   )
   return rows[0] === undefined ? null : String(rows[0].id)
 }
@@ -192,14 +194,15 @@ export async function pagesTabFor(tx: Executor, actorId: string, workTabId: stri
   const work = await rowsOf(
     tx,
     sql`SELECT tab_position FROM folders
-         WHERE id = ${workTabId}::uuid AND kind = 'work' AND tab_position IS NOT NULL AND deleted_at IS NULL`,
+         WHERE id = ${workTabId}::uuid AND kind = 'work' AND tab_position IS NOT NULL
+           AND deleted_at IS NULL AND archived_at IS NULL`,
   )
   if (work[0] === undefined) return null
   const existing = await rowsOf(
     tx,
     sql`SELECT id FROM folders
          WHERE project_id = ${root.id}::uuid AND tab_position IS NOT NULL AND kind = 'doc'
-           AND name = 'Pages' AND deleted_at IS NULL
+           AND name = 'Pages' AND deleted_at IS NULL AND archived_at IS NULL
          ORDER BY tab_position, id LIMIT 1`,
   )
   if (existing[0] !== undefined) return String(existing[0].id)
@@ -207,7 +210,8 @@ export async function pagesTabFor(tx: Executor, actorId: string, workTabId: stri
   const next = await rowsOf(
     tx,
     sql`SELECT min(tab_position) AS next FROM folders
-         WHERE project_id = ${root.id}::uuid AND tab_position > ${at}`,
+         WHERE project_id = ${root.id}::uuid AND tab_position > ${at}
+           AND deleted_at IS NULL AND archived_at IS NULL`,
   )
   const after = next[0]?.next == null ? null : String(next[0].next)
   return insertTab(tx, actorId, root, 'doc', 'Pages', keyBetween(at, after))
@@ -251,7 +255,7 @@ export async function purposeTabOf(
     sql`SELECT t.id, t.name FROM folders r
           JOIN folders t ON t.project_id = r.id AND t.id <> r.id
          WHERE r.id = ${projectId}::uuid AND r.project_id = r.id
-           AND t.kind = 'doc' AND t.deleted_at IS NULL
+           AND t.kind = 'doc' AND t.deleted_at IS NULL AND t.archived_at IS NULL
            AND t.tab_position < r.tab_position
          ORDER BY t.tab_position, t.id
          LIMIT 1`,
@@ -313,7 +317,7 @@ export async function legacyFacets(executor: Executor, pageId: string): Promise<
                (SELECT m.id FROM folder_facets m WHERE m.folder_id = p.id AND m.kind = 'main') AS main_id
           FROM folders p
           JOIN folders t ON (p.id = p.project_id AND t.project_id = p.id AND t.tab_position IS NOT NULL
-                             AND t.deleted_at IS NULL)
+                             AND t.deleted_at IS NULL AND t.archived_at IS NULL)
                          OR t.id = p.id
           LEFT JOIN folder_facets ff ON ff.id = t.id
          WHERE p.id = ${pageId}::uuid

@@ -284,6 +284,13 @@ export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
 
 export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
   {
+    fk: 'folders_archived_by_fkey',
+    table: 'folders',
+    disposition: 'retained',
+    where: '',
+    why: 'Archive provenance on shared Work outlives the actor, as event provenance does. Account deletion soft-deletes the user; the archive list joins only live users, so it no longer exposes that person’s name, while the Work and its original actor id remain for its other members.',
+  },
+  {
     fk: 'connections_user_a_id_fkey',
     table: 'connections',
     disposition: 'deleted',
@@ -407,7 +414,7 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     table: 'page_document_receipts',
     disposition: 'retained',
     where: '',
-    why: "Retained deliberately, and this is the one of the fifteen that is. The row holds no text: an idempotency key, a SHA-256 of a payload, a revision string and the ids of tasks that survive in the folder. It is read a second way that is not about its actor at all — pages.ts treats any Folder page receipt on a folder (an array-valued created_task_ids; a Task or facet document's receipt holds an object) as the mark that the folder's document is on the document-transaction path, and refuses the legacy whole-page writer against it. Deleting a departed member's receipts could therefore take the last such mark off a folder that other people are still editing and re-open a writer that must stay shut for them. The rows are not orphaned: page_document_receipts_folder_id_fkey is a cascade off a real DELETE, so step 3 takes the receipts of every folder that dies with the account, and what is left belongs to a folder that outlives it.",
+    why: "Retained deliberately. The row holds no text: an idempotency key, a SHA-256 of a payload, a revision string and the ids of tasks that survive in the folder. It is read a second way that is not about its actor at all — pages.ts treats any Folder page receipt on a folder (an array-valued created_task_ids; a Task or facet document's receipt holds an object) as the mark that the folder's document is on the document-transaction path, and refuses the legacy whole-page writer against it. Deleting a departed member's receipts could therefore take the last such mark off a folder that other people are still editing and re-open a writer that must stay shut for them. The rows are not orphaned: page_document_receipts_folder_id_fkey is a cascade off a real DELETE, so step 3 takes the receipts of every folder that dies with the account, and what is left belongs to a folder that outlives it.",
   },
 ]
 

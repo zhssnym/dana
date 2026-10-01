@@ -87,6 +87,7 @@ import {
   useRestoreFolder,
   useTransferOwnership,
 } from '../api/mutations.js'
+import { useArchiveFolder, useRestoreArchivedFolder } from '../api/archive.js'
 import {
   mergeCompletedDays,
   useAllPages,
@@ -378,6 +379,8 @@ function FolderPageBody({
   const confirm = useConfirm()
   const remove = useDeleteFolder()
   const restore = useRestoreFolder()
+  const archive = useArchiveFolder()
+  const restoreArchived = useRestoreArchivedFolder()
   const patch = useRenameFolder()
   const leave = useLeaveFolder()
   const transfer = useTransferOwnership()
@@ -614,6 +617,16 @@ function FolderPageBody({
           restore.mutate(headId)
         })
       },
+      () => {},
+    )
+  }
+
+  function doArchive(): void {
+    const parent = detail?.parent_folder_id
+    setLeftId(id)
+    navigate(parent ? paths.folder(parent) : paths.today)
+    archive.mutateAsync(headId).then(
+      () => pushUndo('Work archived', () => { restoreArchived.mutate(headId) }),
       () => {},
     )
   }
@@ -946,6 +959,10 @@ function FolderPageBody({
        Full control"), and the mutation cache already raises it; copying those
        two strings here would be the second copy this whole change removes. */
     else if (action === 'leave') askLeave()
+    else if (action === 'archive') {
+      if (gates?.trash === true) doArchive()
+      else refuse('folder.trash')
+    }
     else if (action === 'delete') {
       if (gates?.trash === true) doDelete()
       else refuse('folder.trash')
@@ -1014,6 +1031,7 @@ function FolderPageBody({
           },
           /* The project as a Dana file; its one home now (it left Share). */
           export: atProject && !isDefault ? () => void saveAsWorkflow() : undefined,
+          archive: gates?.trash === true ? doArchive : undefined,
           /* Any member's, refused to the owner until they transfer and to the
              last Full-control member; `folderGates` reads both off the roster. */
           leave: gates?.leave === true ? askLeave : undefined,

@@ -321,13 +321,13 @@ describe('account deletion sweeps every inert cascade on users(id)', () => {
     ).toBe(true)
   })
 
-  test('the one retention is deliberate and is the only one', () => {
+  test('the retentions are deliberate', () => {
     const retained = USER_CASCADE_DISPOSALS.filter(
       (entry) => entry.disposition === 'retained',
     )
     expect(
       retained.map((entry) => entry.fk),
-      "page_document_receipts is the only key 8.10 keeps, and it is kept on an argument that is in the section as well as here. A second retention appearing is not a failure of correctness, it is a decision that has to be read: change this line in the same commit that argues for it, and say in the pull request which decision moved.",
-    ).toEqual(['page_document_receipts_actor_id_fkey'])
+      'Every retained key must have an argument in 8.10 and its disposition beside the deletion code.',
+    ).toEqual(['folders_archived_by_fkey', 'page_document_receipts_actor_id_fkey'])
   })
 })

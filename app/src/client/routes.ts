@@ -38,6 +38,7 @@ export const paths = {
   outcome: (id: string) => `/app/outcomes/${id}`,
   trash: '/app/trash',
   settings: '/app/settings',
+  archivedWork: '/app/settings/archived-work',
   people: '/app/people',
 } as const
 

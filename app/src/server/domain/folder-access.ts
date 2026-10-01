@@ -168,9 +168,10 @@ Aliases are code, never input: `alias` refuses anything but a short
 identifier, because it is spliced into SQL raw.
 */
 
-/** Which Folders a read admits: the ordinary surface sees `live` ones only;
- * Trash's own acts see `trashed` or `any`. */
-export type FolderTrash = 'live' | 'trashed' | 'any'
+/** Which Folders a read admits: ordinary reads see `live` ones;
+ * Trash and Archive have their own states. `any` includes live and trashed,
+ * but not archived Work. */
+export type FolderTrash = 'live' | 'trashed' | 'archived' | 'any'
 
 function alias(name: string): SQL {
   if (!/^[a-z_][a-z0-9_]{0,15}$/.test(name)) {
@@ -180,9 +181,10 @@ function alias(name: string): SQL {
 }
 
 function trashClause(folder: SQL, trashed: FolderTrash): SQL {
-  if (trashed === 'live') return sql` AND ${folder}.deleted_at IS NULL`
+  if (trashed === 'live') return sql` AND ${folder}.deleted_at IS NULL AND ${folder}.archived_at IS NULL`
   if (trashed === 'trashed') return sql` AND ${folder}.deleted_at IS NOT NULL`
-  return sql``
+  if (trashed === 'archived') return sql` AND ${folder}.archived_at IS NOT NULL`
+  return sql` AND ${folder}.archived_at IS NULL`
 }
 
 /**
@@ -264,7 +266,7 @@ export async function resolveScoped(
   viewerId: string,
   options: {
     columns?: SQL
-    row?: FolderTrash
+    row?: Exclude<FolderTrash, 'archived'>
     folder?: FolderTrash
     where?: SQL
     lock?: boolean
@@ -283,7 +285,11 @@ export async function resolveScoped(
   const rowTrash =
     kind === 'folder' || !scoped.trash
       ? sql``
-      : trashClause(r, options.row ?? 'live')
+      : options.row === 'trashed'
+        ? sql` AND ${r}.deleted_at IS NOT NULL`
+        : options.row === 'any'
+          ? sql``
+          : sql` AND ${r}.deleted_at IS NULL`
   const columns =
     options.columns === undefined ? sql`` : sql`${options.columns}, `
   const where =
