@@ -103,11 +103,12 @@ function identityStyle(id: string): React.CSSProperties {
   const unsigned = hash >>> 0
   const hue = (unsigned % 36000) / 100
   const tone = (unsigned >>> 8) % 3
-  return {
-    '--calendar-task-hue': String(hue),
-    backgroundColor: `var(--calendar-task-fill-${String(tone)})`,
-    borderColor: `var(--calendar-task-border-${String(tone)})`,
-  } as React.CSSProperties
+  const fillMix = 66 + tone * 4
+const borderMix = 34 + tone * 3
+return {
+  backgroundColor: `color-mix(in oklch, var(--background) ${String(fillMix)}%, oklch(0.68 0.18 ${String(hue)}))`,
+  borderColor: `color-mix(in oklch, var(--background) ${String(borderMix)}%, oklch(0.62 0.2 ${String(hue)}))`,
+}
 }
 
 type CalendarPointerStart = (event: ReactPointerEvent<HTMLElement>, taskId: string, action: CalendarDrag['action'], from: string) => void
