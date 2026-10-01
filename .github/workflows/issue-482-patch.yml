@@ -1,91 +1,45 @@
 name: issue-482 patch
+
 on:
   push:
     branches: [codex/issue-482-calendar-task-hue-resolution]
+
 permissions:
   contents: write
+
 jobs:
   patch:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: codex/issue-482-calendar-task-hue-resolution
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: app/package-lock.json
+          node-version-file: .nvmrc
       - name: Fix per-Task Calendar hue resolution
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          calendar = Path('app/src/client/components/calendar/PlannedCalendar.tsx')
-          text = calendar.read_text()
+          planned = Path('app/src/client/components/calendar/PlannedCalendar.tsx')
+          text = planned.read_text()
           old = '''  return {
-    '--calendar-task-hue': String(hue),
-    backgroundColor: `var(--calendar-task-fill-${String(tone)})`,
-    borderColor: `var(--calendar-task-border-${String(tone)})`,
-  } as React.CSSProperties
-'''
-          new = '''  return {
-    backgroundColor: `oklch(var(--calendar-task-fill-lightness-${String(tone)}) var(--calendar-task-fill-chroma) ${String(hue)})`,
-    borderColor: `oklch(var(--calendar-task-border-lightness-${String(tone)}) var(--calendar-task-border-chroma) ${String(hue)})`,
-  }
-'''
+            '--calendar-task-hue': String(hue),
+            backgroundColor: `var(--calendar-task-fill-${String(tone)})`,
+            borderColor: `var(--calendar-task-border-${String(tone)})`,
+          } as React.CSSProperties'''
+          new = '''  const fillMix = 66 + tone * 4
+            const borderMix = 34 + tone * 3
+            return {
+              backgroundColor: `color-mix(in oklch, var(--background) ${String(fillMix)}%, oklch(0.68 0.18 ${String(hue)}))`,
+              borderColor: `color-mix(in oklch, var(--background) ${String(borderMix)}%, oklch(0.62 0.2 ${String(hue)}))`,
+            }'''
           if old not in text:
-              raise SystemExit('identityStyle target not found')
-          calendar.write_text(text.replace(old, new, 1))
-
-          tokens = Path('app/src/client/styles/tokens.css')
-          css = tokens.read_text()
-          old_css = '''/* ---- i479-calendar-identity: Task id supplies a continuous hue while Dana
-   owns lightness/chroma. Three restrained tones add another perceptual axis
-   without coloring the text or turning Calendar into a dashboard. */
-:root {
-  --calendar-task-fill-0: oklch(0.87 0.1 var(--calendar-task-hue, 220));
-  --calendar-task-fill-1: oklch(0.9 0.1 var(--calendar-task-hue, 220));
-  --calendar-task-fill-2: oklch(0.93 0.1 var(--calendar-task-hue, 220));
-  --calendar-task-border-0: oklch(0.64 0.14 var(--calendar-task-hue, 220));
-  --calendar-task-border-1: oklch(0.68 0.14 var(--calendar-task-hue, 220));
-  --calendar-task-border-2: oklch(0.72 0.14 var(--calendar-task-hue, 220));
-}
-[data-theme="dark"] {
-  --calendar-task-fill-0: oklch(0.28 0.08 var(--calendar-task-hue, 220));
-  --calendar-task-fill-1: oklch(0.33 0.08 var(--calendar-task-hue, 220));
-  --calendar-task-fill-2: oklch(0.38 0.08 var(--calendar-task-hue, 220));
-  --calendar-task-border-0: oklch(0.48 0.13 var(--calendar-task-hue, 220));
-  --calendar-task-border-1: oklch(0.54 0.13 var(--calendar-task-hue, 220));
-  --calendar-task-border-2: oklch(0.6 0.13 var(--calendar-task-hue, 220));
-}'''
-          new_css = '''/* ---- i482-calendar-identity: theme tokens own only tone/chroma. The Task
-   hue is inserted where the actual background/border is computed on each row,
-   so it cannot collapse to a root-level fallback hue. */
-:root {
-  --calendar-task-fill-lightness-0: 0.87;
-  --calendar-task-fill-lightness-1: 0.9;
-  --calendar-task-fill-lightness-2: 0.93;
-  --calendar-task-fill-chroma: 0.1;
-  --calendar-task-border-lightness-0: 0.64;
-  --calendar-task-border-lightness-1: 0.68;
-  --calendar-task-border-lightness-2: 0.72;
-  --calendar-task-border-chroma: 0.14;
-}
-[data-theme="dark"] {
-  --calendar-task-fill-lightness-0: 0.28;
-  --calendar-task-fill-lightness-1: 0.33;
-  --calendar-task-fill-lightness-2: 0.38;
-  --calendar-task-fill-chroma: 0.08;
-  --calendar-task-border-lightness-0: 0.48;
-  --calendar-task-border-lightness-1: 0.54;
-  --calendar-task-border-lightness-2: 0.6;
-  --calendar-task-border-chroma: 0.13;
-}'''
-          if old_css not in css:
-              raise SystemExit('calendar identity token target not found')
-          tokens.write_text(css.replace(old_css, new_css, 1))
+            raise SystemExit('identityStyle return target not found')
+          planned.write_text(text.replace(old, new, 1))
           PY
       - name: Verify frontend
         working-directory: app
@@ -100,6 +54,6 @@ jobs:
           rm .github/workflows/issue-482-patch.yml
           git config user.name "Dana patch runner"
           git config user.email "actions@users.noreply.github.com"
-          git add app/src/client/components/calendar/PlannedCalendar.tsx app/src/client/styles/tokens.css .github/workflows/issue-482-patch.yml
+          git add app/src/client/components/calendar/PlannedCalendar.tsx .github/workflows/issue-482-patch.yml
           git commit -m "fix: resolve per-Task Calendar hues (#482)"
           git push
