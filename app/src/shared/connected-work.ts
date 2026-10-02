@@ -18,6 +18,12 @@ import { BACKLINK_HOMES, BACKLINK_LIMIT, BACKLINK_SURFACES } from './backlinks.j
 
 export const CONNECTED_WORK_TEXT_MAX = 280
 
+export const connectedWorkFile = z.object({
+  id: z.uuid(),
+  name: z.string(),
+})
+export type ConnectedWorkFile = z.infer<typeof connectedWorkFile>
+
 export const connectedWorkSource = z.object({
   /** Page-block id or Discussion-post id. */
   id: z.uuid(),
@@ -26,9 +32,8 @@ export const connectedWorkSource = z.object({
   block_kind: z.string().nullable(),
   /** A short plain-text projection of the exact source object. */
   text: z.string().max(CONNECTED_WORK_TEXT_MAX).nullable(),
-  /** A file carried by the same source block/post when one exists. */
-  file_id: z.uuid().nullable(),
-  file_name: z.string().nullable(),
+  /** Files carried by this exact block/post, never neighbouring files. */
+  files: z.array(connectedWorkFile),
 })
 export type ConnectedWorkSource = z.infer<typeof connectedWorkSource>
 
