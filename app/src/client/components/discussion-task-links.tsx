@@ -8,7 +8,7 @@ entry point and uses the same pattern for Tasks. The relationship itself is
 #497's persisted many-to-many edge; this file never treats either endpoint as
 owned by the other.
 */
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router'
 
@@ -19,7 +19,12 @@ import {
 } from '../../shared/consultation.js'
 import { TASK_TITLE_LIMIT, type TaskLinkedDiscussion } from '../../shared/tasks.js'
 import { getPageResponse } from '../../shared/pages.js'
-import { useCreateDiscussion, useDiscussions } from '../api/consultation.js'
+import {
+  useCreateDiscussion,
+  useDiscussions,
+  useDiscussTask,
+  useUpdateDiscussion,
+} from '../api/consultation.js'
 import { useCreateTask } from '../api/mutations.js'
 import { useFolderOpenTasks, useReferenceSearch, useTask } from '../api/queries.js'
 import { ApiError, getPlain, mutateApi, OfflineError } from '../api/http.js'
@@ -29,6 +34,7 @@ import { showToast } from '../state/toasts.js'
 import { paths } from '../routes.js'
 import { Plus, X } from '../lib/icons.js'
 import { PROPERTY_LABEL, PROPERTY_ROW } from './task-pickers.js'
+import { Button } from './ui/button.js'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover.js'
 import { cn } from './ui/utils.js'
 import { StateMark, STATE_WORD, taskState } from './thread/timeline/state.js'
@@ -96,11 +102,17 @@ function TaskDiscussionPicker({
   const client = useQueryClient()
   const navigate = useNavigate()
   const detail = useTask(taskId)
+  const discuss = useDiscussTask()
   const create = useCreateDiscussion()
+  const update = useUpdateDiscussion()
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [working, setWorking] = useState<string | null>(null)
   const [added, setAdded] = useState<ReadonlySet<string>>(new Set())
+  /* If creating an additional Discussion succeeded but linking it failed,
+     the next Create press retries the same object rather than making a
+     duplicate. This keeps the old two-write retry guarantee. */
+  const retry = useRef<{ discussion: Discussion; tabId: string | null } | null>(null)
   const linked = detail.data?.linked_discussions ?? []
   const linkedIds = useMemo(
     () => new Set([...linked.map((discussion) => discussion.id), ...added]),
@@ -110,8 +122,16 @@ function TaskDiscussionPicker({
   const candidates = (list.data?.pages.flatMap((page) => page.discussions) ?? [])
     .filter((discussion) => !discussion.is_general && !linkedIds.has(discussion.id))
     .slice(0, INITIAL_LIMIT)
-  const busy = create.isPending || working !== null
-  const threadAt = (id: string): string => `${paths.folder(folderId)}?discussion=${id}`
+  const busy = detail.isPending || discuss.isPending || create.isPending || update.isPending || working !== null
+  const threadAt = (id: string, tabId: string | null = null): string =>
+    `${paths.folder(tabId ?? folderId)}?discussion=${id}`
+
+  const settled = (): void => {
+    /* Relation writes change the Discussion, TaskDetail and every list that
+       can project either endpoint. Dana's mutation convention is therefore
+       the unfiltered invalidation from queryClient.ts. */
+    void client.invalidateQueries()
+  }
 
   const linkExisting = async (discussion: Discussion): Promise<void> => {
     if (busy) return
@@ -119,8 +139,7 @@ function TaskDiscussionPicker({
     try {
       await addEdge(discussion.id, taskId)
       setAdded((current) => new Set([...current, discussion.id]))
-      void client.invalidateQueries({ queryKey: queryKeys.task(taskId) })
-      void client.invalidateQueries({ queryKey: queryKeys.discussion(discussion.id) })
+      settled()
     } catch (error) {
       showToast(relationFailure(error, 'The discussion was not linked'))
     } finally {
@@ -138,8 +157,7 @@ function TaskDiscussionPicker({
         next.delete(discussion.id)
         return next
       })
-      await client.invalidateQueries({ queryKey: queryKeys.task(taskId) })
-      void client.invalidateQueries({ queryKey: queryKeys.discussion(discussion.id) })
+      settled()
     } catch (error) {
       showToast(relationFailure(error, 'The discussion was not unlinked'))
     } finally {
@@ -147,26 +165,64 @@ function TaskDiscussionPicker({
     }
   }
 
+  const finishNew = async (discussion: Discussion, tabId: string | null): Promise<void> => {
+    setWorking(discussion.id)
+    try {
+      await addEdge(discussion.id, taskId)
+      retry.current = null
+      setAdded((current) => new Set([...current, discussion.id]))
+      settled()
+      setOpen(false)
+      setQ('')
+      void navigate(threadAt(discussion.id, tabId))
+    } catch (error) {
+      retry.current = { discussion, tabId }
+      showToast(relationFailure(error, 'The discussion was created but was not linked'))
+    } finally {
+      setWorking(null)
+    }
+  }
+
   const startNew = async (): Promise<void> => {
     if (!mayStart || busy) return
+    if (retry.current !== null) {
+      await finishNew(retry.current.discussion, retry.current.tabId)
+      return
+    }
+
     const title = (q.trim() || taskTitle).slice(0, DISCUSSION_TITLE_MAX)
     try {
-      const discussion = await create.mutateAsync({ folderId, body: { title } })
-      setWorking(discussion.id)
-      try {
-        await addEdge(discussion.id, taskId)
-        void client.invalidateQueries({ queryKey: queryKeys.task(taskId) })
-        void client.invalidateQueries({ queryKey: queryKeys.discussion(discussion.id) })
+      /* Preserve the task action's compatibility contract first: this route
+         ensures the project's Discussion tab and atomically creates+links
+         its convenience thread when one does not already exist. */
+      const convenience = await discuss.mutateAsync(taskId)
+      const alreadyLinked = linkedIds.has(convenience.discussion.id)
+
+      if (!alreadyLinked) {
+        let discussion = convenience.discussion
+        if (q.trim() !== '' && discussion.title !== title) {
+          try {
+            discussion = await update.mutateAsync({ id: discussion.id, body: { title } })
+          } catch {
+            /* It is already linked atomically. The normal mutation toast says
+               why only the optional rename failed; still open the thread. */
+          }
+        }
+        setAdded((current) => new Set([...current, discussion.id]))
+        settled()
         setOpen(false)
         setQ('')
-        void navigate(threadAt(discussion.id))
-      } catch (error) {
-        showToast(relationFailure(error, 'The discussion was created but was not linked'))
-      } finally {
-        setWorking(null)
+        void navigate(threadAt(discussion.id, convenience.tabId))
+        return
       }
+
+      /* The convenience relation already exists, so the explicit Create
+         choice means a genuinely additional Discussion. The call above has
+         also ensured/recovered the Discussion tab for this project. */
+      const discussion = await create.mutateAsync({ folderId, body: { title } })
+      await finishNew(discussion, convenience.tabId)
     } catch {
-      /* useCreateDiscussion owns its normal mutation failure toast. */
+      /* The normal mutation cache owns create/refusal toasts. */
     }
   }
 
@@ -281,7 +337,13 @@ function TaskDiscussionPicker({
                 className="flex min-h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
               >
                 <Plus className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                <span className="truncate">{q.trim() ? `Start “${q.trim()}”` : 'Start a new discussion'}</span>
+                <span className="truncate">
+                  {retry.current !== null
+                    ? `Retry linking “${retry.current.discussion.title}”`
+                    : q.trim()
+                      ? `Start “${q.trim()}”`
+                      : 'Start a new discussion'}
+                </span>
               </button>
             </div>
           </>
@@ -324,6 +386,7 @@ function DiscussionTaskPicker({
   const [q, setQ] = useState('')
   const [working, setWorking] = useState<string | null>(null)
   const [added, setAdded] = useState<ReadonlySet<string>>(new Set())
+  const [retry, setRetry] = useState<{ id: string; title: string } | null>(null)
   const searching = q.trim().length >= 2
   const search = useReferenceSearch(q, folderId)
   const linkedIds = useMemo(
@@ -339,15 +402,19 @@ function DiscussionTaskPicker({
     .slice(0, INITIAL_LIMIT)
   const busy = create.isPending || working !== null
 
+  const settled = (): void => {
+    void client.invalidateQueries()
+  }
+
   const link = async (taskId: string): Promise<void> => {
     if (busy) return
     setWorking(taskId)
     try {
       await addEdge(discussion.id, taskId)
       setAdded((current) => new Set([...current, taskId]))
+      if (retry?.id === taskId) setRetry(null)
       setQ('')
-      void client.invalidateQueries({ queryKey: queryKeys.discussion(discussion.id) })
-      void client.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+      settled()
     } catch (error) {
       showToast(relationFailure(error, 'The task was not linked'))
     } finally {
@@ -357,23 +424,31 @@ function DiscussionTaskPicker({
 
   const make = async (): Promise<void> => {
     if (!canCreate || busy) return
-    let madeId: string | null = null
+    if (retry !== null) {
+      await link(retry.id)
+      return
+    }
+
+    let made: { id: string; title: string } | null = null
     try {
       const section = await footSection(client, folderId)
+      const title = (q.trim() || discussion.title).slice(0, TASK_TITLE_LIMIT)
       const task = await create.mutateAsync({
-        title: (q.trim() || discussion.title).slice(0, TASK_TITLE_LIMIT),
+        title,
         folder_id: folderId,
         ...(section === null ? {} : { section_block_id: section }),
       })
-      madeId = task.id
+      made = { id: task.id, title: task.title }
       setWorking(task.id)
       await addEdge(discussion.id, task.id)
       setAdded((current) => new Set([...current, task.id]))
       setQ('')
-      void client.invalidateQueries({ queryKey: queryKeys.discussion(discussion.id) })
-      void client.invalidateQueries({ queryKey: queryKeys.task(task.id) })
+      settled()
     } catch (error) {
-      if (madeId !== null) showToast(relationFailure(error, 'The task was made but was not linked'))
+      if (made !== null) {
+        setRetry(made)
+        showToast(relationFailure(error, 'The task was made but was not linked'))
+      }
       /* Before the Task exists, useCreateTask owns the normal failure toast. */
     } finally {
       setWorking(null)
@@ -388,7 +463,7 @@ function DiscussionTaskPicker({
         if (!next) setQ('')
       }}
     >
-      <PopoverTrigger render={<button type="button" className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow-xs hover:bg-primary/90" />}>
+      <PopoverTrigger render={<Button type="button" />}>
         Turn into a task
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] p-1" aria-label="Task picker">
@@ -428,7 +503,13 @@ function DiscussionTaskPicker({
               className="flex min-h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
             >
               <Plus className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-              <span className="truncate">{q.trim() ? `Create “${q.trim()}”` : 'Create a new task'}</span>
+              <span className="truncate">
+                {retry !== null
+                  ? `Retry linking “${retry.title}”`
+                  : q.trim()
+                    ? `Create “${q.trim()}”`
+                    : 'Create a new task'}
+              </span>
             </button>
           </div>
         ) : null}
@@ -453,8 +534,7 @@ export function DiscussionLinkedTasks({
     setWorking(taskId)
     try {
       await removeEdge(discussion.id, taskId)
-      await client.invalidateQueries({ queryKey: queryKeys.discussion(discussion.id) })
-      void client.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+      void client.invalidateQueries()
     } catch (error) {
       showToast(relationFailure(error, 'The task was not unlinked'))
     } finally {
