@@ -16,6 +16,7 @@ import { sql } from 'drizzle-orm'
 
 import { BACKLINK_LIMIT } from '../../shared/backlinks.js'
 import type { Backlink } from '../../shared/backlinks.js'
+import { postContent, walkPostBlocks } from '../../shared/comments.js'
 import { CONNECTED_WORK_TEXT_MAX } from '../../shared/connected-work.js'
 import type {
   ConnectedWorkFile,
@@ -23,6 +24,7 @@ import type {
   ConnectedWorkSource,
   GetConnectedWorkResponse,
 } from '../../shared/connected-work.js'
+import { parseDanaLink } from '../../shared/references.js'
 import { idSet, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { backlinksOf } from './backlinks.js'
@@ -40,6 +42,48 @@ function clip(value: unknown): string | null {
   return chars.length <= CONNECTED_WORK_TEXT_MAX
     ? text
     : `${chars.slice(0, CONNECTED_WORK_TEXT_MAX - 1).join('').trimEnd()}…`
+}
+
+function isFacetHref(href: unknown, facetId: string, origin?: string): boolean {
+  if (typeof href !== 'string') return false
+  const parsed = parseDanaLink(href, origin)
+  return parsed !== null && parsed.id === facetId && (parsed.kind === 'facet' || parsed.kind === 'folder')
+}
+
+/** The words in one rich-content value except the facet chip itself. */
+function richPreview(content: unknown, facetId: string, origin?: string): string | null {
+  if (content === null || typeof content !== 'object') return null
+  const runs = 'runs' in content ? (content as { runs?: unknown }).runs : undefined
+  if (!Array.isArray(runs)) return null
+  const words = runs.flatMap((run) => {
+    if (run === null || typeof run !== 'object') return []
+    const record = run as { text?: unknown; href?: unknown }
+    if (typeof record.text !== 'string' || isFacetHref(record.href, facetId, origin)) return []
+    return [record.text]
+  }).join('')
+  return clip(words)
+}
+
+/** A Discussion post's words, excluding only the facet chip(s) that created
+ * this Connected work edge. Other links and authored words stay visible. */
+function postPreview(content: unknown, facetId: string, origin?: string): string | null {
+  const parsed = postContent.safeParse(content)
+  if (!parsed.success) return null
+  const lines: string[] = []
+  walkPostBlocks(parsed.data.blocks, (block) => {
+    if (block.rich_content !== undefined) {
+      const words = block.rich_content.runs
+        .filter((run) => !isFacetHref(run.href, facetId, origin))
+        .map((run) => run.text)
+        .join('')
+        .trim()
+      if (words !== '') lines.push(words)
+      return
+    }
+    const words = block.text?.trim() ?? ''
+    if (words !== '') lines.push(words)
+  })
+  return clip(lines.join('\n'))
 }
 
 /** Merge the historical Page spelling and the canonical Facet spelling. */
@@ -75,12 +119,14 @@ async function blockSources(
   executor: Executor,
   viewerId: string,
   ids: readonly string[],
+  facetId: string,
+  origin?: string,
 ): Promise<Map<string, ConnectedWorkSource>> {
   const map = new Map<string, ConnectedWorkSource>()
   if (ids.length === 0) return map
   const rows = await rowsOf(
     executor,
-    sql`SELECT pb.id, pb.kind, pb.text, pb.file_id, f.name AS file_name
+    sql`SELECT pb.id, pb.kind, pb.rich_content, pb.file_id, f.name AS file_name
           FROM page_blocks pb
           LEFT JOIN files f ON f.id = pb.file_id
          WHERE pb.id IN ${idSet(ids)}
@@ -108,7 +154,7 @@ async function blockSources(
       id: String(row.id),
       kind: 'block',
       block_kind: String(row.kind),
-      text: clip(row.text),
+      text: richPreview(row.rich_content, facetId, origin),
       files,
     })
   }
@@ -119,12 +165,14 @@ async function postSources(
   executor: Executor,
   viewerId: string,
   ids: readonly string[],
+  facetId: string,
+  origin?: string,
 ): Promise<Map<string, ConnectedWorkSource>> {
   const map = new Map<string, ConnectedWorkSource>()
   if (ids.length === 0) return map
   const rows = await rowsOf(
     executor,
-    sql`SELECT c.id, c.body
+    sql`SELECT c.id, c.content
           FROM comments c
           JOIN discussions d
             ON d.id = c.discussion_id AND d.trashed_at IS NULL
@@ -156,7 +204,7 @@ async function postSources(
       id,
       kind: 'post',
       block_kind: null,
-      text: clip(row.body),
+      text: postPreview(row.content, facetId, origin),
       files: filesByPost.get(id) ?? [],
     })
   }
@@ -178,8 +226,8 @@ export async function connectedWorkOf(
   const blockIds = [...new Set(shown.filter((row) => row.surface === 'page').flatMap((row) => row.block_ids))]
   const postIds = [...new Set(shown.filter((row) => row.surface === 'post').flatMap((row) => row.block_ids))]
   const [blocks, posts] = await Promise.all([
-    blockSources(executor, viewerId, blockIds),
-    postSources(executor, viewerId, postIds),
+    blockSources(executor, viewerId, blockIds, facetId, origin),
+    postSources(executor, viewerId, postIds, facetId, origin),
   ])
 
   const results: ConnectedWorkItem[] = shown.map((row) => ({
