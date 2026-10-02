@@ -385,8 +385,8 @@
 .dana-block-menu:focus-visible { outline: none !important; }
 
 /* ---- r5-discuss: the post composer's one hint. The composer
-   (`thread/PostEditor.tsx`) says only its own words ("Write a reply…",
-   "Write the first post…", from `--dana-canvas-placeholder`), focused or
+   (`thread/PostEditor.tsx`) says only its own word ("Message", from
+   `--dana-canvas-placeholder`), focused or
    not, and only while it is empty: the page's "Press '/' for commands" and
    its heading/list hints are the page's, not a message box's. A 1px start
    inset keeps the hint's first letter out of the scroller's clip on phones,
