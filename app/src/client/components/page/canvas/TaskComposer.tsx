@@ -199,9 +199,9 @@ function drawTask(b: PageView['blocks'][number], width: number): TaskInput {
     case 'divider': return { id: b.id, type: 'divider' }
     case 'code': return { id: b.id, type: 'codeBlock', content: b.text ?? '' }
     case 'image': return { id: b.id, type: 'image', props: { url: fileUrl(b.file_id), caption: b.text ?? '', previewWidth } }
-    case 'video': return { id: b.id, type: 'video', props: { url: fileUrl(b.file_id), caption: b.text ?? '', previewWidth } }
-    case 'audio': return { id: b.id, type: 'audio', props: { url: fileUrl(b.file_id), caption: b.text ?? '' } }
-    case 'file': return { id: b.id, type: 'file', props: { url: fileUrl(b.file_id), name: b.text || 'File' } }
+    case 'video': return { id: b.id, type: 'video', props: { url: fileUrl(b.file_id), caption: '', previewWidth } }
+    case 'audio': return { id: b.id, type: 'audio', props: { url: fileUrl(b.file_id), caption: '' } }
+    case 'file': return { id: b.id, type: 'file', props: { url: fileUrl(b.file_id), name: b.file_name ?? 'File' } }
     default: return { id: b.id, type: 'paragraph', content }
   }
 }
@@ -240,7 +240,7 @@ export function dehydrateTask(blocks: readonly TaskBlock[], width: number): Canv
         const sized = block.type === 'image' || block.type === 'video'
         record = {
           id: block.id, block_kind: KIND[block.type],
-          text: block.type === 'file' ? (block.props.caption || block.props.name || null) : block.props.caption,
+          text: block.type === 'image' ? block.props.caption : null,
           rich_content: null, file_id: fileId, ref_folder_id: null, checked: null,
           width_pct: sized ? Math.max(25, Math.min(100, Math.round(((block.props as { previewWidth?: number }).previewWidth || width) / width * 100))) : null,
           toggleable: null,
