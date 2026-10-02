@@ -176,6 +176,8 @@ export interface ConceptTask {
   dueTime?: string
   /* The Schedule's start, as 4.11 writes a date ("2026-09-24"); absent when none (#215). */
   start?: string
+  /* The Start endpoint's own wall-clock time ("08:00"), #487; absent for a date-only Start. */
+  startTime?: string
   reminder?: string
   /* When the reminder fires, in minutes from the due day's midnight: 540 is
      9:00 that day, -360 is 18:00 the day before (an offset reaching back past
