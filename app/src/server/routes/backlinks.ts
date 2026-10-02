@@ -9,7 +9,7 @@ converge only in Connected work; an adjacent block is never inferred.
 import type { Request, Response, Router } from 'express'
 
 import type { DbClient } from '../../../db/client.js'
-import { getProjectBlockFacetsResponse, putBlockFacetsBody, putBlockFacetsResponse } from '../../shared/block-facets.js'
+import { getProjectBlockFacetsQuery, getProjectBlockFacetsResponse, putBlockFacetsBody, putBlockFacetsResponse } from '../../shared/block-facets.js'
 import type { ReferenceKind } from '../../shared/references.js'
 import { requireSession } from '../auth/index.js'
 import { backlinksOf } from '../domain/backlinks.js'
@@ -21,9 +21,6 @@ import { routerWithPreamble } from './preamble.js'
 
 export interface BacklinksRouterOptions {
   dbClient?: DbClient
-  /** The application's own origin, so an absolute same-origin Dana Link
-   * counts as a reference exactly as `parseDanaLink` would admit it. Absent,
-   * only the canonical relative form (`/app/tasks/:id`) is matched. */
   appOrigin?: string
 }
 
@@ -65,18 +62,22 @@ export function createBacklinksRouter(
     )
   }
 
-  /* One project-wide read feeds the small chips without one request per
-     block. `:id` may be any live page in the project; membership is checked
-     inside the view read and the response carries no unrelated project. */
+  /* Query/body ids are deliberate: the project relationship has two ids and
+     no resource is naturally subordinate to the other. These paths therefore
+     do not pretend that a block "lives under" a facet. Their authorization is
+     explicit below and measured by #488's acceptance tests. */
   router.get(
-    '/folders/:id/block-facets',
+    '/block-facets',
     requireSession,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const pageId = parsedId(res, req.params.id)
-      if (pageId === null) return
-      const answer = await projectBlockFacets(db, viewer(req), pageId)
+      const parsed = getProjectBlockFacetsQuery.safeParse(req.query)
+      if (!parsed.success) {
+        sendValidationError(res, parsed.error)
+        return
+      }
+      const answer = await projectBlockFacets(db, viewer(req), parsed.data.folder)
       if (answer === null) {
         sendError(res, 404, 'not_found', 'Not found.')
         return
@@ -85,23 +86,18 @@ export function createBacklinksRouter(
     },
   )
 
-  /* Atomic replacement is the explicit link+unlink operation. The view-layer
-     coordinator validates the source block, write authority, target Doc tabs
-     and exact same-project boundary in one transaction. */
   router.put(
-    '/blocks/:id/facets',
+    '/block-facets',
     requireSession,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const blockId = parsedId(res, req.params.id)
-      if (blockId === null) return
       const parsed = putBlockFacetsBody.safeParse(req.body)
       if (!parsed.success) {
         sendValidationError(res, parsed.error)
         return
       }
-      const result = await setBlockFacets(db, viewer(req), blockId, parsed.data.facet_ids)
+      const result = await setBlockFacets(db, viewer(req), parsed.data.block_id, parsed.data.facet_ids)
       if (result.kind === 'not_found') {
         sendError(res, 404, 'not_found', 'Not found.')
         return
