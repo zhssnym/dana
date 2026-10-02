@@ -3,25 +3,32 @@ A task's history (M5): what happened to it (created, assigned, dates moved,
 done, dropped, reopened, dependencies), oldest first. No posts: talk about a
 task lives in its project's Discussion, reached from the task's Discussion
 property.
+
+Issue #500 moves this record out of the task body. The task page's one "…"
+opens it as a dialog instead, so the page ends with the person's writing while
+History remains available without adding another control to the surface.
 */
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 import { useConnections, useFolder, useMe, useSubjectEvents, useTaskDependencies } from '../../api/queries.js'
 import { openTask } from '../task-open.js'
-import { ChevronRight } from '../../lib/icons.js'
 import { EventRow } from './timeline/EventRow.js'
 import { buildTimeline } from './timeline/timeline.js'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog.js'
 
 const NO_EVENTS: never[] = []
 
 export function TaskHistory({
   taskId,
   folderId,
+  open,
+  onOpenChange,
 }: {
   readonly taskId: string
   readonly folderId: string | null
-}): React.JSX.Element | null {
-  const [open, setOpen] = useState(false)
+  readonly open: boolean
+  readonly onOpenChange: (open: boolean) => void
+}): React.JSX.Element {
   const history = useSubjectEvents(`task:${taskId}`).data?.events ?? NO_EVENTS
   const dependencies = useTaskDependencies(taskId).data
   const me = useMe()
@@ -50,23 +57,26 @@ export function TaskHistory({
     nameOf: (id) => personOf(id).name,
   })
 
-  if (entries.length === 0) return null
   return (
-    <section className="flex min-w-0 flex-col gap-1" aria-labelledby={`history-${taskId}`}>
-      <h2 id={`history-${taskId}`}>
-        <button type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)}
-          className="flex items-center gap-2 rounded-sm text-sm text-muted-foreground hover:text-foreground">
-          <ChevronRight className={`size-4 transition-transform duration-[var(--duration-fast)] ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
-          History
-        </button>
-      </h2>
-      {open ? <ol className="-mx-2 min-w-0">
-        {entries.map((entry) => (
-          <li key={entry.key} className="min-w-0 list-none">
-            <EventRow entry={entry} person={personOf} folderId={folderId ?? ''} onOpenTask={(id) => { openTask(id) }} />
-          </li>
-        ))}
-      </ol> : null}
-    </section>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>History</DialogTitle>
+        </DialogHeader>
+        {entries.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            Nothing has happened to this yet.
+          </p>
+        ) : (
+          <ol className="-mx-2 max-h-[52vh] min-w-0 overflow-y-auto">
+            {entries.map((entry) => (
+              <li key={entry.key} className="min-w-0 list-none">
+                <EventRow entry={entry} person={personOf} folderId={folderId ?? ''} onOpenTask={(id) => { openTask(id) }} />
+              </li>
+            ))}
+          </ol>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

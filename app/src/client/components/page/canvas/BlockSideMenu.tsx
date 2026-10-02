@@ -1,44 +1,52 @@
 /*
 The block gutter every Dana canvas shares (Folder Work, Purpose, Results, the
 Shelf, a Task's body): ⋮⋮ on hover, level with the block's first line
-of text; clicking ⋮⋮ selects the block (the tint of `block-selection.ts`) and
-opens its menu: Turn into ›, Duplicate, Copy link to block, Delete. Moving is
-by dragging the handle, or Tab / Shift-Tab. Work also offers a small + to
-insert a line before the hovered block.
+of text; clicking ⋮⋮ selects the block and opens its menu. Moving is by
+dragging the handle, or Tab / Shift-Tab. Work also offers a small + to insert
+a line before the hovered block.
 
-What each surface allows (which kinds, what Delete means for a Task or a
-Shelf's Folder row) comes in through `BlockMenuModel`.
+#488 adds one relationship action without adding a button to the canvas:
+Connect to facet. It changes metadata owned by this exact block; it never
+inserts a neighboring reference block and therefore never depends on visual
+proximity.
 */
 import { createContext, useContext } from 'react'
 import { offset } from '@floating-ui/react'
 import type { BlockNoteEditor } from '@blocknote/core'
 import { SideMenuExtension } from '@blocknote/core/extensions'
 import { useBlockNoteEditor, useComponentsContext, useExtension, useExtensionState } from '@blocknote/react'
+import type { BlockFacetRef } from '../../../../shared/block-facets.js'
+import { useTask } from '../../../api/queries.js'
+import { useBlockFacets } from './BlockFacets.js'
 import { blockLink, blockSelection, setBlockSelection } from './block-selection.js'
 import { conversionOf, isCurrent, withoutIds } from './turn-into.js'
 import type { TreeBlock, TurnTarget } from './turn-into.js'
-import { Check, CheckCircle2, Copy, GripVertical, Link2, Plus, Repeat2, Trash2 } from '../../../lib/icons.js'
+import { Check, CheckCircle2, Copy, GripVertical, Link2, Network, Plus, Repeat2, Trash2 } from '../../../lib/icons.js'
 import type { LucideIcon } from '../../../lib/icons.js'
 import { kindIconOf } from './slash-items.js'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- both canvas schemas pass through here
 export type AnyEditor = BlockNoteEditor<any, any, any>
 
+export interface BlockFacetMenuModel {
+  readonly options: readonly BlockFacetRef[]
+  readonly editable: boolean
+  readonly selected: (blockId: string) => readonly BlockFacetRef[]
+  readonly toggle: (blockId: string, facetId: string) => void
+  readonly busy: boolean
+}
+
 export interface BlockMenuModel {
-  /** The kinds this block may become here, already checked against the surface's rules. */
   readonly targets: (block: TreeBlock) => readonly TurnTarget[]
   readonly turnInto: (ids: readonly string[], target: TurnTarget) => void
-  /** An extra "Turn into" row after the kinds (the Folder canvas's Task). */
   readonly extraTarget?: (block: TreeBlock) => { title: string; run: () => void } | null
   readonly canDuplicate: (block: TreeBlock) => boolean
   readonly duplicate: (ids: readonly string[]) => void
-  /** Work can insert a blank line before even a noneditable Task block. */
   readonly insertBefore?: (id: string) => void
-  /** Delete's row: a label and act, a quiet note instead, or nothing. */
+  readonly facets?: BlockFacetMenuModel
   readonly removal: (block: TreeBlock, ids: readonly string[]) => { label: string; run: () => void } | { note: string } | null
 }
 
-/** The page's theme: `data-theme` (lib/theme.ts), or a `dark` class. */
 export function pageTheme(): 'dark' | 'light' {
   const root = document.documentElement
   return root.getAttribute('data-theme') === 'dark' || root.classList.contains('dark') ? 'dark' : 'light'
@@ -47,19 +55,23 @@ export function pageTheme(): 'dark' | 'light' {
 export const BlockMenuContext = createContext<BlockMenuModel | null>(null)
 
 const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+'
+const NON_PERSISTED_BLOCKS = new Set(['danaTask', 'danaFolder'])
 
-/** The ids a menu act applies to: the whole block selection when this block is in it. */
+function routedId(segment: 'folders' | 'facets' | 'tasks'): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  const match = new RegExp(`^/app/${segment}/([0-9a-f-]{36})(?:/|$)`, 'i').exec(window.location.pathname)
+  return match?.[1]
+}
+
 function actingOn(editor: AnyEditor, id: string): readonly string[] {
   const selected = blockSelection(editor)
   return selected.includes(id) ? selected : [id]
 }
 
-/** A row's icon, drawn as the page "…" menu draws its own (`object-menu.tsx`). */
 function MenuIcon({ icon: Icon }: { readonly icon: LucideIcon }): React.JSX.Element {
   return <Icon className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
 }
 
-/** A Turn into row: the kind's icon and name as the `/` menu shows them, a tick on the current kind. */
 function TurnRow({ icon, title, current }: { readonly icon: LucideIcon | undefined; readonly title: string; readonly current: boolean }): React.JSX.Element {
   return (
     <span className="flex flex-1 items-center gap-2">
@@ -78,6 +90,9 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
   const targets = model.targets(block)
   const extra = model.extraTarget?.(block) ?? null
   const removal = model.removal(block, ids)
+  const facets = model.facets
+  const selected = new Set(facets?.selected(block.id).map((facet) => facet.id) ?? [])
+  const canConnectFacet = facets !== undefined && facets.editable && facets.options.length > 0 && !NON_PERSISTED_BLOCKS.has(block.type)
   const Item = Components.Generic.Menu.Item
   return (
     <Components.Generic.Menu.Dropdown className="bn-menu-dropdown bn-drag-handle-menu dana-block-menu">
@@ -95,6 +110,29 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
               </Item>
             ))}
             {extra === null ? null : <Item className="bn-menu-item" onClick={extra.run}><TurnRow icon={CheckCircle2} title={extra.title} current={false} /></Item>}
+          </Components.Generic.Menu.Dropdown>
+        </Components.Generic.Menu.Root>
+      ) : null}
+      {canConnectFacet ? (
+        <Components.Generic.Menu.Root position="right" sub={true}>
+          <Components.Generic.Menu.Trigger sub={true}>
+            <Item className="bn-menu-item" subTrigger={true}>
+              <span className="flex flex-1 items-center gap-2"><MenuIcon icon={Network} />Connect to facet</span>
+            </Item>
+          </Components.Generic.Menu.Trigger>
+          <Components.Generic.Menu.Dropdown sub={true} className="bn-menu-dropdown dana-block-menu">
+            {facets.options.map((facet) => (
+              <Item
+                key={facet.id}
+                className={facets.busy ? 'bn-menu-item opacity-60' : 'bn-menu-item'}
+                onClick={() => { if (!facets.busy) facets.toggle(block.id, facet.id) }}
+              >
+                <span className="flex flex-1 items-center gap-2">
+                  <span className="flex-1 truncate">{facet.name}</span>
+                  {selected.has(facet.id) ? <Check size={14} /> : null}
+                </span>
+              </Item>
+            ))}
           </Components.Generic.Menu.Dropdown>
         </Components.Generic.Menu.Root>
       ) : null}
@@ -155,22 +193,42 @@ function DragHandle(): React.JSX.Element | null {
   )
 }
 
-export function BlockSideMenu(): React.JSX.Element {
+function BlockSideMenuRoot({ model }: { readonly model: BlockMenuModel }): React.JSX.Element {
   const Components = useComponentsContext()!
-  const model = useContext(BlockMenuContext)!
   return (
-    <Components.SideMenu.Root className={model.insertBefore === undefined ? 'bn-side-menu' : 'bn-side-menu dana-work-side-menu'}>
-      <DragHandle />
-    </Components.SideMenu.Root>
+    <BlockMenuContext.Provider value={model}>
+      <Components.SideMenu.Root className={model.insertBefore === undefined ? 'bn-side-menu' : 'bn-side-menu dana-work-side-menu'}>
+        <DragHandle />
+      </Components.SideMenu.Root>
+    </BlockMenuContext.Provider>
   )
 }
 
-/*
-The gutter sits level with the block's first line of text, whatever the block:
-a text block's first line box, the first character of a custom row (a Task, a
-Folder row, a diagram's caption), or the top of one that has no text (an
-image). Horizontal: clear of a heading's fold arrow.
-*/
+function ProjectScopedBlockSideMenu({ folderId, inherited }: { readonly folderId: string; readonly inherited: BlockMenuModel }): React.JSX.Element {
+  const editor = useBlockNoteEditor() as AnyEditor
+  const automaticFacets = useBlockFacets(editor, folderId, editor.isEditable)
+  const model = automaticFacets === undefined ? inherited : { ...inherited, facets: automaticFacets }
+  return <BlockSideMenuRoot model={model} />
+}
+
+/** A Task's one page has its own URL; its detail names the Work page it lives in. */
+function TaskScopedBlockSideMenu({ taskId, inherited }: { readonly taskId: string; readonly inherited: BlockMenuModel }): React.JSX.Element {
+  const task = useTask(taskId)
+  const folderId = task.data?.folder.id
+  if (folderId === undefined) return <BlockSideMenuRoot model={inherited} />
+  return <ProjectScopedBlockSideMenu folderId={folderId} inherited={inherited} />
+}
+
+export function BlockSideMenu(): React.JSX.Element {
+  const inherited = useContext(BlockMenuContext)!
+  if (inherited.facets !== undefined) return <BlockSideMenuRoot model={inherited} />
+  const folderId = routedId('folders') ?? routedId('facets')
+  if (folderId !== undefined) return <ProjectScopedBlockSideMenu folderId={folderId} inherited={inherited} />
+  const taskId = routedId('tasks')
+  if (taskId !== undefined) return <TaskScopedBlockSideMenu taskId={taskId} inherited={inherited} />
+  return <BlockSideMenuRoot model={inherited} />
+}
+
 function firstLineCentre(content: Element): number {
   const inline = content.querySelector('.bn-inline-content, pre code')
   if (inline !== null) {
@@ -192,7 +250,6 @@ function firstLineCentre(content: Element): number {
     if (rect.height > 0) {
       const style = getComputedStyle(text.parentElement)
       const lineHeight = Number.parseFloat(style.lineHeight) || rect.height
-      // The glyph box sits inside its line box: centre on the line, not the glyph.
       return rect.top - (lineHeight - rect.height) / 2 + lineHeight / 2
     }
   }
@@ -218,10 +275,7 @@ export const blockSidePosition = {
   },
 }
 
-/** Change these blocks' kind, keeping text, and children where the kind holds them. */
-/** `headingToggles` may answer per block: on Work a heading is a Section only where one stands. */
 export function turnBlocksInto(editor: AnyEditor, ids: readonly string[], target: TurnTarget, headingToggles: boolean | undefined | ((block: TreeBlock) => boolean | undefined)): void {
-  // Picked blocks stay picked once turned (Notion); a block turned while writing keeps the caret.
   const picked = blockSelection(editor).length > 0
   editor.transact(() => {
     for (const id of ids) {
@@ -231,7 +285,6 @@ export function turnBlocksInto(editor: AnyEditor, ids: readonly string[], target
       if (lifted.length === 0) {
         editor.updateBlock(id, update as never)
       } else {
-        // Upstream ignores `children: []`, so the lifted children leave first (e3).
         editor.removeBlocks(lifted.map((child) => child.id))
         editor.updateBlock(id, update as never)
         editor.insertBlocks(lifted as never, id, 'after')
@@ -249,7 +302,6 @@ export function turnBlocksInto(editor: AnyEditor, ids: readonly string[], target
   }
 }
 
-/** Put a fresh copy of each block (and its children) right after it. */
 export function duplicateBlocks(editor: AnyEditor, ids: readonly string[]): void {
   const blocks = ids.flatMap((id) => { const block = editor.getBlock(id); return block === undefined ? [] : [block as TreeBlock] })
   if (blocks.length === 0) return
@@ -257,8 +309,6 @@ export function duplicateBlocks(editor: AnyEditor, ids: readonly string[]): void
   let copies: { id: string }[] = []
   editor.transact(() => {
     const last = blocks.at(-1)!
-    // A run of selected blocks copies as one run after the last of them;
-    // one block copies right after itself.
     copies = editor.insertBlocks(blocks.map(withoutIds) as never, last.id, 'after') as { id: string }[]
   })
   if (picked) setBlockSelection(editor, copies.map((copy) => copy.id))

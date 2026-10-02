@@ -52,8 +52,43 @@ const discussionTasks: ExpectedTable = {
   ],
 }
 
+/** Issue #488 adds the explicit whole-block facet relation. Inline facet
+ * references remain rich-content Dana Links; this table is the persisted
+ * source for media/file blocks and whole-block connections. */
+const pageBlockFacets: ExpectedTable = {
+  primaryKey: {
+    name: 'page_block_facets_pkey',
+    columns: ['block_id', 'facet_id'],
+  },
+  uniques: [],
+  checks: [],
+  foreignKeys: [
+    {
+      name: 'page_block_facets_block_id_fkey',
+      columns: ['block_id'],
+      references: { table: 'page_blocks', columns: ['id'] },
+      onDelete: 'cascade',
+    },
+    {
+      name: 'page_block_facets_facet_id_fkey',
+      columns: ['facet_id'],
+      references: { table: 'folders', columns: ['id'] },
+      onDelete: 'cascade',
+    },
+  ],
+  indexes: [
+    {
+      name: 'page_block_facets_facet_id_block_id_idx',
+      unique: false,
+      columns: ['facet_id', 'block_id'],
+      partial: false,
+    },
+  ],
+}
+
 export const constraintCatalog: Record<string, ExpectedTable> = {
   ...baseCatalog,
   discussions,
   discussion_tasks: discussionTasks,
+  page_block_facets: pageBlockFacets,
 }
