@@ -33,3 +33,4 @@ spelling. The client and tests address these strings literally; section 9 names 
 | 7.26 | [`07.26-labels.md`](07.26-labels.md) | 7.26 Labels |
 | 7.28 | [`07.28-consultation.md`](07.28-consultation.md) | 7.28 Consultation |
 | 7.29 | [`07.29-consultation-input-rounds.md`](07.29-consultation-input-rounds.md) | 7.29 Consultation input rounds |
+| 7.30 | [`07.30-desk.md`](07.30-desk.md) | 7.30 Desk |

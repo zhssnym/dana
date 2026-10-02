@@ -38,7 +38,7 @@ import {
   updateDiscussion,
 } from '../domain/consultation.js'
 import type { ConsultationOutcome } from '../domain/consultation.js'
-import { accessOf } from '../domain/folder-access.js'
+import { accessOf, projectOf } from '../domain/folder-access.js'
 import { removeObjects } from '../domain/trash.js'
 import type { ObjectStore } from '../files/store.js'
 import {
@@ -154,13 +154,21 @@ export function createConsultationRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      if ((await accessOf(db, viewer(req), folderId)) === null) {
+      const actorId = viewer(req)
+      const facts = await accessOf(db, actorId, folderId)
+      if (facts === null) {
         notFound(res)
+        return
+      }
+      const projectId = await projectOf(db, folderId)
+      const projectFacts = projectId === null ? null : await accessOf(db, actorId, projectId)
+      if (projectFacts?.isDefault === true) {
+        sendError(res, 409, 'conflict', 'Desk does not have Discussion.')
         return
       }
       const parsed = parseBody(createDiscussionBody, req, res, securityLog)
       if (parsed === null) return
-      answer(res, 201, await createDiscussion(db, viewer(req), folderId, parsed))
+      answer(res, 201, await createDiscussion(db, actorId, folderId, parsed))
     },
   )
 
@@ -335,11 +343,23 @@ export function createConsultationRouter(
       const taskId = parsedId(res, req.params.id)
       if (taskId === null) return
       const folderId = await folderOfTask(db, taskId)
-      if (folderId === null || (await accessOf(db, viewer(req), folderId)) === null) {
+      if (folderId === null) {
         notFound(res)
         return
       }
-      const outcome = await discussTask(db, viewer(req), taskId)
+      const actorId = viewer(req)
+      const facts = await accessOf(db, actorId, folderId)
+      if (facts === null) {
+        notFound(res)
+        return
+      }
+      const projectId = await projectOf(db, folderId)
+      const projectFacts = projectId === null ? null : await accessOf(db, actorId, projectId)
+      if (projectFacts?.isDefault === true) {
+        sendError(res, 409, 'conflict', 'Desk does not have Discussion.')
+        return
+      }
+      const outcome = await discussTask(db, actorId, taskId)
       if (refused(res, outcome)) return
       const { created, discussion, discussionTabId } = (
         outcome as { kind: 'ok'; value: { created: boolean; discussion: unknown; discussionTabId: string | null } }

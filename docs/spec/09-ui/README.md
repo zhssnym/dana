@@ -21,3 +21,4 @@ decision; everywhere else the component named beside the rule holds the words.
 | 9.11 | [`09.11-trash.md`](09.11-trash.md) | 9.11 Trash |
 | 9.12 | [`09.12-notifications.md`](09.12-notifications.md) | 9.12 Notifications |
 | 9.13 | [`09.13-first-run-and-the-starter-workflows.md`](09.13-first-run-and-the-starter-workflows.md) | 9.13 First run and the starter workflows |
+| 9.14 | [`09.14-desk.md`](09.14-desk.md) | 9.14 Desk |

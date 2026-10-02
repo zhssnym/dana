@@ -1,7 +1,8 @@
 /*
-The 7.1 provisioning transaction: insert the user, the default Desk folder
-with its owner membership and its default description, and the settings row,
-atomically, and idempotently under the google_sub unique constraint.
+The 7.1 provisioning transaction: insert the user, the default Desk project
+with Work and Docs, its owner membership and default description, and the
+settings row, atomically, and idempotently under the google_sub unique
+constraint.
 
 Idempotence is under google_sub and nothing else, which leaves one collision
 this transaction cannot absorb and must name: a Google subject Dana has not
@@ -255,13 +256,17 @@ export async function provisionUser(
     const userId = String(winner.id)
     const folders = await rowsOf(
       tx,
-      // Step 7: Desk is a Work project of its own, one tab.
+      // Desk is a private Work project; Docs is its one default supporting tab.
       sql`INSERT INTO folders (id, owner_id, name, is_default, description, project_id, kind, tab_position)
           SELECT g.id, ${userId}, 'Desk', true, ${DESK_DEFAULT_DESCRIPTION}, g.id, 'work', 'a0'
             FROM (SELECT gen_random_uuid() AS id) g
           RETURNING id`,
     )
     const folderId = String(folders[0]?.id)
+    await tx.execute(
+      sql`INSERT INTO folders (id, owner_id, name, project_id, kind, tab_position)
+          VALUES (gen_random_uuid(), ${userId}, 'Docs', ${folderId}::uuid, 'doc', 'a1')`,
+    )
     // INV-3 and INV-10: the owner is a member of their own default folder,
     // or the account cannot see its own Desk.
     /* R8A: the creator of a Folder starts owner *and* Full control, and the
