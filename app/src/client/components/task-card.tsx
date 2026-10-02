@@ -16,7 +16,6 @@ import { Face } from "./person-face.js"
 import { Check, Plus, type LucideIcon } from "../lib/icons.js"
 import { TaskDependencies, isRelatableTask } from "./task-dependencies.js"
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react"
-import { Link, useNavigate } from "react-router"
 
 import {
   PROPERTY_LABEL,
@@ -31,9 +30,7 @@ import { SchedulePanel } from "./task-schedule-picker.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
 import { useAllPages, useMe, useTask } from "../api/queries.js"
 import { useUpdateTask } from "../api/mutations.js"
-import { useDiscussTask } from "../api/consultation.js"
 import { mayDraw } from "../lib/folder-authority.js"
-import { paths } from "../routes.js"
 import { presenterToday } from "../parts/presenters.js"
 import {
   CHIP_ASSIGNEE,
@@ -43,6 +40,7 @@ import {
 } from "./task-card-copy.js"
 import { TaskAssigneeInvite } from "./task-assignee-invite.js"
 import { TaskLabels } from "./task-labels.js"
+import { TaskDiscussionLinks } from "./discussion-task-links.js"
 import { INVITE_BY_EMAIL } from "./task-copy.js"
 import {
   isoDay,
@@ -274,7 +272,6 @@ function useTaskMay(taskId: string, folderId: string | null) {
     applyFolderLabels: facts !== null && (mayDraw(facts, 'label.apply') || facts.access === 'can_contribute'),
     labelScopeName: row?.kind === 'work' ? 'Work' as const : 'Page' as const,
     labels: [...(detail?.labels.personal ?? []), ...(detail?.labels.folder ?? [])],
-    threadId: detail?.linked_discussions[0]?.id ?? null,
   }
 }
 
@@ -359,60 +356,6 @@ function scheduleWords(task: ConceptTask, timeFormat: ReturnType<typeof useTimeF
   if (task.recurrence) parts.push(repeatSummary(task))
   if (task.reminder) parts.push(reminderChipValue(task, timeFormat))
   return parts.join(" · ")
-}
-
-/* Discussion: a link to the task's one thread, or, with none yet, the act
-   that makes it (`POST /tasks/:id/discussion`) and goes there. */
-function DiscussionRow({
-  taskId,
-  folderId,
-  threadId,
-  mayStart,
-}: {
-  taskId: string
-  folderId: string | null
-  threadId: string | null
-  mayStart: boolean
-}) {
-  const discuss = useDiscussTask()
-  const navigate = useNavigate()
-  const threadAt = (id: string): string => `${paths.folder(folderId ?? "")}?discussion=${id}`
-  const label = <span className={PROPERTY_LABEL}>Discussion</span>
-  if (folderId !== null && threadId !== null) {
-    return (
-      <Link to={threadAt(threadId)} className={PROPERTY_ROW}>
-        {label}
-        <span className="truncate text-foreground">Open</span>
-      </Link>
-    )
-  }
-  if (folderId !== null && mayStart) {
-    return (
-      <button
-        type="button"
-        className={PROPERTY_ROW}
-        disabled={discuss.isPending}
-        onClick={() => {
-          /* Step 7: the thread opens on the project's Discussion tab, which
-             Discuss adds when the project has none. */
-          discuss.mutate(taskId, {
-            onSuccess: ({ discussion, tabId }) => {
-              void navigate(tabId === null ? threadAt(discussion.id) : `${paths.folder(tabId)}?discussion=${discussion.id}`)
-            },
-          })
-        }}
-      >
-        {label}
-        <span className="truncate text-muted-foreground">Start a discussion</span>
-      </button>
-    )
-  }
-  return (
-    <div className={cn(PROPERTY_ROW, "hover:bg-transparent")}>
-      {label}
-      <span className="truncate text-muted-foreground">None</span>
-    </div>
-  )
 }
 
 /* ------------------------------------------------------------------- card */
@@ -508,7 +451,7 @@ export function TaskCard({
         <TaskLabels taskId={task.id} folderId={folderId} sharedName={may.labelScopeName} worn={may.labels}
           canManageFolder={may.manageFolderLabels} canApplyFolder={may.applyFolderLabels} />
 
-        <DiscussionRow taskId={task.id} folderId={folderId} threadId={may.threadId} mayStart={may.discuss} />
+        <TaskDiscussionLinks taskId={task.id} taskTitle={task.title} folderId={folderId} mayStart={may.discuss} />
 
         {/* "Blocked by" and "Blocks", drawn only once a relation exists (or
             `/Blocked by` is asking). They are the task's facts, never its

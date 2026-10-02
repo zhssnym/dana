@@ -6,25 +6,18 @@ at the top bar's right end while it is open, "Resolve" (or "Reopen") and
 the "…" menu ("Turn into a task", Rename, Move to Trash). On a phone the top
 bar's left end is back, the title, and "<Page> · Discussion" under it.
 
-"Turn into a task" is an open thread's main act (M4 §4.4): talk that has
-found its task ends there. One press creates the task, titled as the thread,
-at the foot of the page's Work (`POST /tasks` appends a folder's new task to
-its composed page) and links the thread to it (`PATCH` `task_id`, M5). The
-thread stays open: from then on it is the task's conversation, where anyone
-who may comment keeps talking about the task (a resolved thread takes no
-posts). A thread about a task (made by "Discuss" on the task, or linked
-here) shows the task above its posts, one slim row with its state mark,
-name and state, and is not offered the act again. The
-two are separate writes, in that order, because each has its own route: a
-failure of the link leaves the task standing, unlinked, and says so ("The
-task was made. The thread was not linked to it."), never the generic
-"Nothing was saved". The task is filed into the section the foot of
-Work belongs to, so it folds and moves with the heading it sits under. There is no Undo of the
-whole act: the task's own delete undoes it, and a deleted task stops showing
-under the thread. A retry after a failed
-step goes on from that step (the view remembers the task it made), so it
-never makes a second task. The General discussion is never converted: it is the page's
-catch-all, not one subject.
+"Turn into a task" (issue #495) opens a compact create-or-link picker,
+drawn under the "…" menu: the page's open tasks show at once, typing
+searches them, and the last line creates a new task from the same input,
+titled as the thread when nothing is typed, at the end of the Work of the
+thread's own folder. Choosing one links it (`POST
+/discussions/:id/tasks`); a thread may be about several tasks, so the act
+stays offered after the first. The linked tasks sit above the posts, one
+slim row each with its state mark, name and state; Unlink on a row (hover or
+focus) removes only the link. A task made whose link then fails stays
+standing and the picker offers to retry that link, never a second task. The
+General discussion is never linked: it is the page's catch-all, not one
+subject.
 
 The thread fills the window: the posts read from the top, the history
 scrolls in its own region, and the composer stays at the window's foot. "Resolve" puts one optional line, "What was decided?",
@@ -50,9 +43,6 @@ Which acts are drawn is `discussionPowers`; none of it is authorization. The
 General discussion is never offered Move to Trash here (the route decides).
 */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router'
-import type { QueryClient } from '@tanstack/react-query'
 
 import {
   useDiscussionThread,
@@ -65,27 +55,20 @@ import {
   useTrashFromThread,
   useUpdateDiscussion,
 } from '../../api/consultation.js'
-import { useCreateTask } from '../../api/mutations.js'
-import { ApiError, getPlain, mutateApi, OfflineError } from '../../api/http.js'
-import { queryKeys } from '../../api/keys.js'
-import { writeFailureMessage } from '../../api/queryClient.js'
-import { showToast } from '../../state/toasts.js'
+import { ApiError } from '../../api/http.js'
 import { useFolder } from '../../api/queries.js'
 import { folderGates, mayDraw } from '../../lib/folder-authority.js'
 import { ArrowLeft, Check, MoreHorizontal } from '../../lib/icons.js'
 import type { PersonResolver, ThreadAuthority } from '../../lib/thread.js'
 import { pushUndo, undoLabel } from '../../shell/undo.js'
-import { DISCUSSION_TITLE_MAX, discussionSchema, OUTCOME_STATEMENT_MAX } from '../../../shared/consultation.js'
+import { DISCUSSION_TITLE_MAX, OUTCOME_STATEMENT_MAX } from '../../../shared/consultation.js'
 import type { Discussion } from '../../../shared/consultation.js'
-import { paths } from '../../routes.js'
-import { STATE_WORD, StateMark, taskState } from '../thread/timeline/state.js'
-import { getPageResponse } from '../../../shared/pages.js'
-import { TASK_TITLE_LIMIT } from '../../../shared/tasks.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
 import { ThreadPosts } from '../thread/ThreadPosts.js'
 import { Button } from '../ui/button.js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu.js'
 import { WindowBarActions, WindowBarLead } from '../window-bar.js'
+import { DiscussionLinkedTasks, DiscussionTaskPicker } from '../discussion-task-links.js'
 import type { ConsultationViewer } from './authority.js'
 import { discussionPowers } from './authority.js'
 
@@ -149,12 +132,9 @@ function ThreadBody(props: {
   const restore = useRestoreDiscussion()
   const postComment = usePostDiscussionComment()
   const markRead = useMarkDiscussionRead()
-  const createTask = useCreateTask()
-  const client = useQueryClient()
-  const [turning, setTurning] = useState(false)
-  /* What a conversion has already done in this view, so a retry after a
-     failed step goes on from that step instead of making a second task. */
-  const made = useRef<{ taskId: string } | null>(null)
+  /* "Turn into a task" opens its picker under the "…" button. */
+  const [picking, setPicking] = useState(false)
+  const menuRef = useRef<HTMLButtonElement>(null)
   /* "Resolve" put its line in the composer's place. Once it resolves, the
      focus goes to Reopen, which takes Resolve's place in the top bar. */
   const [closing, setClosing] = useState(false)
@@ -214,67 +194,16 @@ function ThreadBody(props: {
   )
 
   const trashed = d.trashed_at !== null
-  /* Issue #497 made the link plural; until #495's picker, the head shows the first. */
-  const linkedTask = d.linked_tasks[0] ?? null
   const trashable = powers.trash && !d.is_general
   const resolvable = powers.resolve && d.state === 'open' && !trashed
-  /* It writes two things, so it is drawn only for someone who may do both:
-     create a task here and link this thread to it. A thread already linked
-     to a task is not offered it, even while that task is in Trash (the link
-     is set once). */
-  const convertible =
-    d.state === 'open' && !trashed && powers.edit && !d.is_general && linkedTask === null && viewer !== null && mayDraw(viewer.facts, 'task.create')
+  /* The picker edits the thread's links, so it follows the thread's edit
+     authority; creating a task there is a second capability, offered inside
+     the picker only to someone who has it. */
+  const relatable = d.state === 'open' && !trashed && powers.edit && !d.is_general
+  const canCreateTask = viewer !== null && mayDraw(viewer.facts, 'task.create')
 
   const refused = (error: unknown): void => {
     if (error instanceof ApiError && (error.status === 403 || error.status === 409)) onRefused()
-  }
-
-  const turnIntoTask = async (): Promise<void> => {
-    if (turning) return
-    setTurning(true)
-    try {
-      if (made.current === null) {
-        /* The thread's own folder (the project), not the page it is drawn
-           on: on a Discussion tab that is the tab, whose page has no Work. */
-        const section = await footSection(client, d.folder_id)
-        const task = await createTask.mutateAsync({
-          title: d.title.slice(0, TASK_TITLE_LIMIT),
-          folder_id: d.folder_id,
-          ...(section === null ? {} : { section_block_id: section }),
-        })
-        made.current = { taskId: task.id }
-      }
-    } catch (error) {
-      /* Nothing was made: the mutation cache's own toast says so, truly. */
-      refused(error)
-      setTurning(false)
-      return
-    }
-    /* A task now exists, so the generic "Nothing was saved" would be false:
-       the link is a plain write that speaks for itself when it fails. The
-       link is the thread's own `task_id`, drawn under its title and on the
-       task page, both ways. The thread stays open: it is now the task's
-       conversation, and a resolved thread takes no posts (M5). */
-    try {
-      await mutateApi(discussionSchema, {
-        method: 'PATCH',
-        path: `/discussions/${d.id}`,
-        body: { task_id: made.current.taskId },
-      })
-      made.current = null
-    } catch (error) {
-      refused(error)
-      showToast(
-        error instanceof ApiError && (error.status === 403 || error.status === 409)
-          ? writeFailureMessage(error)
-          : error instanceof OfflineError
-            ? "The task was made. The thread was not linked to it: you're offline."
-            : 'The task was made. The thread was not linked to it. Try again.',
-      )
-    } finally {
-      void client.invalidateQueries()
-      setTurning(false)
-    }
   }
 
   const moveToTrash = (): void => {
@@ -286,7 +215,7 @@ function ThreadBody(props: {
   }
 
   const resolved = d.state === 'resolved'
-  const hasMenu = convertible || (powers.edit && !frozen) || trashable
+  const hasMenu = relatable || (powers.edit && !frozen) || trashable
   const reopenable = resolved && powers.reopen && !trashed
   useEffect(() => {
     if (!resolved || !landOnReopen.current) return
@@ -301,11 +230,11 @@ function ThreadBody(props: {
     <div data-thread-bar="" className="flex shrink-0 items-center gap-1">
       {resolvable && !closing ? (
         <>
-          <Button type="button" variant="ghost" className="text-muted-foreground hover:text-foreground max-md:hidden" disabled={turning} onClick={() => { setClosing(true) }}>
+          <Button type="button" variant="ghost" className="text-muted-foreground hover:text-foreground max-md:hidden" onClick={() => { setClosing(true) }}>
             <Check className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
             Resolve
           </Button>
-          <Button type="button" variant="ghost" aria-label="Resolve" className="size-11 text-muted-foreground md:hidden" disabled={turning} onClick={() => { setClosing(true) }}>
+          <Button type="button" variant="ghost" aria-label="Resolve" className="size-11 text-muted-foreground md:hidden" onClick={() => { setClosing(true) }}>
             <Check className="!size-5" strokeWidth={1.75} aria-hidden="true" />
           </Button>
         </>
@@ -320,6 +249,7 @@ function ThreadBody(props: {
           <DropdownMenuTrigger
             render={
               <button
+                ref={menuRef}
                 type="button"
                 aria-label="Thread actions"
                 className="flex size-[var(--control-height)] shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground max-md:size-11"
@@ -329,8 +259,8 @@ function ThreadBody(props: {
             <MoreHorizontal className="size-4 max-md:size-5" strokeWidth={1.75} aria-hidden="true" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {convertible ? (
-              <DropdownMenuItem disabled={turning} onClick={() => void turnIntoTask()}>Turn into a task</DropdownMenuItem>
+            {relatable ? (
+              <DropdownMenuItem onClick={() => { setPicking(true) }}>{canCreateTask ? 'Turn into a task' : 'Link a task'}</DropdownMenuItem>
             ) : null}
             {powers.edit && !frozen ? (
               <DropdownMenuItem onClick={() => { setRenaming(true) }}>Rename</DropdownMenuItem>
@@ -357,19 +287,17 @@ function ThreadBody(props: {
           and a screen reader, and draws nothing. */}
       <h1 data-page-title={d.title} className="sr-only">{d.title}</h1>
       {renaming ? <Rename discussion={d} onDone={() => { setRenaming(false) }} /> : null}
-      {linkedTask !== null ? (
-        /* The task it is about: one slim row, its mark, name and state. */
-        <p className="shrink-0 text-sm">
-          <Link
-            to={paths.task(linkedTask.id)}
-            className="-mx-2.5 flex max-w-full min-w-0 items-center gap-2.5 rounded-md px-2.5 py-1.5 outline-none hover:bg-accent"
-          >
-            <StateMark state={taskState(linkedTask)} className="size-4 shrink-0" />
-            <span className="min-w-0 truncate text-foreground">{linkedTask.title}</span>
-            <span className="shrink-0 text-muted-foreground">{STATE_WORD[taskState(linkedTask)]}</span>
-          </Link>
-        </p>
+      {relatable ? (
+        <DiscussionTaskPicker
+          discussion={d}
+          folderId={d.folder_id}
+          canCreate={canCreateTask}
+          open={picking}
+          onOpenChange={setPicking}
+          anchor={menuRef}
+        />
       ) : null}
+      <DiscussionLinkedTasks discussion={d} canUnlink={relatable} />
       {trashed ? <p className="shrink-0 py-1.5 text-sm text-muted-foreground">This thread is in Trash.</p> : null}
       {d.context !== null && d.context !== '' ? (
         <p className="shrink-0 py-1.5 text-sm break-words whitespace-pre-wrap text-muted-foreground">{d.context}</p>
@@ -439,23 +367,6 @@ function ThreadLead({ title, folderId, onBack }: { readonly title: string; reado
       </div>
     </WindowBarLead>
   )
-}
-
-/* The section the foot of Work belongs to, so a task added there is filed
-   into it (as a task typed at the end of a section is) rather than drawn
-   under the last heading while belonging to none: the last item's own
-   section, or the last item itself when it is a section heading. */
-async function footSection(client: QueryClient, folderId: string): Promise<string | null> {
-  const page = await client.fetchQuery({
-    queryKey: queryKeys.folderPage(folderId),
-    queryFn: () => getPlain(getPageResponse, `/folders/${folderId}/page`),
-  })
-  const last = page.items.at(-1)
-  if (last === undefined) return null
-  if (last.kind === 'task') return page.task_placements?.find((t) => t.id === last.id)?.section_block_id ?? null
-  const block = page.blocks.find((b) => b.id === last.id)
-  if (block === undefined) return null
-  return block.kind === 'section' ? block.id : block.section_block_id
 }
 
 /** Escape goes back to the list unless something nearer wants it: a field's
