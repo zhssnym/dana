@@ -1006,9 +1006,9 @@ export function useCardWiring(props: TaskRowProps) {
 
 /*
 The row: one line, 32–36px. Checkbox · title · muted meta on the right (date,
-folder where the page spans folders, assignee face, repeat glyph), then the
-star, which shows on hover and whenever it is set. No subtask count and no
-Labels (M4): the task page says both.
+folder where the page spans folders, assignee face, repeat glyph and labels),
+then the star, which shows on hover and whenever it is set. Labels use the same
+compact pills as the task property and filters; no subtask count is drawn here.
 
 Clicking anywhere on the row opens the task; the checkbox and the star are the
 only controls inside it. No chevron, no row "…", no rename in the row: those
@@ -1086,6 +1086,7 @@ export function TaskRow(props: TaskRowProps) {
           ...(task.folder === undefined ? {} : { folder: task.folder }),
           ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
           ...(task.assignees === undefined ? {} : { assignees: task.assignees }),
+          ...(task.labels === undefined ? {} : { labels: task.labels }),
           ...(task.recurrence ? { recurrence: repeatShort(task) } : {}),
           blockedBy: props.blockedBy ?? 0,
           finished,
