@@ -2,13 +2,14 @@
 The task page's body: everything a task is, in one quiet column (M4: one
 task page, no peek).
 
-Five fixed properties, always shown, in this order: Status, Assignee, Date
-(its start, reminder and repeat live inside the Date picker), Labels and Discussion,
-then "Blocked by" / "Blocks" lines once a relation exists (the editor's
-`/Blocked by` makes one). Then the task's own document, whose checklist items
-are its subtasks and which holds only what the person wrote, and the task's
-quiet history, where every act on the task is recorded. Every edit commits as it is made, so there is no
-Save.
+Four fixed properties are always shown, in this order: Status, Assignee, Date
+(its start, reminder and repeat live inside the Date picker) and Labels. A
+collaborative page adds Discussion after Labels; Desk never does because it has
+no team conversation. Then "Blocked by" / "Blocks" lines appear once a
+relation exists (the editor's `/Blocked by` makes one). Then the task's own
+document, whose checklist items are its subtasks and which holds only what the
+person wrote, and the task's quiet history, where every act on the task is
+recorded. Every edit commits as it is made, so there is no Save.
 
 Files go in the task's document, which takes file and image blocks.
 */
@@ -268,7 +269,9 @@ function useTaskMay(taskId: string, folderId: string | null) {
         : mine && facts.access === "assigned_work"
           ? ("tick" as const)
           : ("read" as const),
-    /* Not on the Desk: it has no Discussion tab and nobody else to talk to. */
+    /* Discussion belongs to collaborative projects. On Desk the whole
+       property disappears, including legacy links and the empty state. */
+    showDiscussion: facts !== null && !facts.isDefault,
     discuss: facts !== null && !facts.isDefault && mayDraw(facts, "discussion.create"),
     manageFolderLabels: facts !== null && mayDraw(facts, 'label.vocabulary.manage'),
     /* A contributor may classify their own Task; only the server's locked
@@ -445,7 +448,7 @@ export function TaskCard({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* The five properties, always in this order. */}
+      {/* The task properties; Discussion is collaborative-only. */}
       <div className="-mx-2 flex flex-col">
         <StatusRow task={task} may={may} onMove={move} />
 
@@ -510,7 +513,9 @@ export function TaskCard({
         <TaskLabels taskId={task.id} folderId={folderId} sharedName={may.labelScopeName} worn={may.labels}
           canManageFolder={may.manageFolderLabels} canApplyFolder={may.applyFolderLabels} />
 
-        <DiscussionRow taskId={task.id} folderId={folderId} threadId={may.threadId} mayStart={may.discuss} />
+        {may.showDiscussion ? (
+          <DiscussionRow taskId={task.id} folderId={folderId} threadId={may.threadId} mayStart={may.discuss} />
+        ) : null}
 
         {/* "Blocked by" and "Blocks", drawn only once a relation exists (or
             `/Blocked by` is asking). They are the task's facts, never its
