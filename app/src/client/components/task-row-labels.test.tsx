@@ -12,11 +12,11 @@ describe('TaskRow labels', () => {
       <TaskRow
         id="task"
         title="Ship labels"
-        labels={[{ id: 'enhancement', name: 'enhancement', color: '#22c55e' }]}
+        labels={[{ id: 'enhancement', scope: 'folder', name: 'enhancement', color: '#22c55e' }]}
       />,
     )
 
     const row = screen.getByRole('listitem')
-    expect(within(row).getByText('enhancement')).toBeTruthy()
+    expect(within(row).getAllByText('enhancement')).not.toHaveLength(0)
   })
 })
