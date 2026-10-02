@@ -2,383 +2,60 @@
   "version": "7",
   "dialect": "postgresql",
   "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1785456000000,
-      "tag": "0000_core_schema",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1785617584951,
-      "tag": "0001_sessions",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1785747842531,
-      "tag": "0002_sessions_token_hash",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1787876400000,
-      "tag": "0003_v2_expand",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1787894000000,
-      "tag": "0004_pinned_views",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1787980000000,
-      "tag": "0005_ruled_schema",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1788100000000,
-      "tag": "0006_folder_cover_tiers",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1788200000000,
-      "tag": "0007_sample_objects",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1788300000000,
-      "tag": "0008_place_descriptions",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1788400000000,
-      "tag": "0009_file_dimensions",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1788500000000,
-      "tag": "0010_task_open_default_dialog",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1788600000000,
-      "tag": "0011_shelves_for_every_group_label",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "7",
-      "when": 1788700000000,
-      "tag": "0012_covers_for_every_page_kind",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "7",
-      "when": 1788800000000,
-      "tag": "0013_calendar_zoom",
-      "breakpoints": true
-    },
-    {
-      "idx": 14,
-      "version": "7",
-      "when": 1788900000000,
-      "tag": "0014_files_unreferenced_since",
-      "breakpoints": true
-    },
-    {
-      "idx": 15,
-      "version": "7",
-      "when": 1789000000000,
-      "tag": "0015_folderless_page_images",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "7",
-      "when": 1789100000000,
-      "tag": "0016_compose_first_canvas",
-      "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "7",
-      "when": 1789200000000,
-      "tag": "0017_folder_document",
-      "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "7",
-      "when": 1789300000000,
-      "tag": "0018_task_start_date",
-      "breakpoints": true
-    },
-    {
-      "idx": 19,
-      "version": "7",
-      "when": 1789400000000,
-      "tag": "0019_task_dependencies",
-      "breakpoints": true
-    },
-    {
-      "idx": 21,
-      "version": "7",
-      "when": 1789600000000,
-      "tag": "0021_structured_text_blocks",
-      "breakpoints": true
-    },
-    {
-      "idx": 22,
-      "version": "7",
-      "when": 1789700000000,
-      "tag": "0022_labels",
-      "breakpoints": true
-    },
-    {
-      "idx": 23,
-      "version": "7",
-      "when": 1789800000000,
-      "tag": "0023_folder_access",
-      "breakpoints": true
-    },
-    {
-      "idx": 24,
-      "version": "7",
-      "when": 1789900000000,
-      "tag": "0024_files_and_media_blocks",
-      "breakpoints": true
-    },
-    {
-      "idx": 25,
-      "version": "7",
-      "when": 1790000000000,
-      "tag": "0025_responsibility_document",
-      "breakpoints": true
-    },
-    {
-      "idx": 26,
-      "version": "7",
-      "when": 1790100000000,
-      "tag": "0026_contract_membership_label",
-      "breakpoints": true
-    },
-    {
-      "idx": 27,
-      "version": "7",
-      "when": 1790200000000,
-      "tag": "0027_folder_facets",
-      "breakpoints": true
-    },
-    {
-      "idx": 28,
-      "version": "7",
-      "when": 1790300000000,
-      "tag": "0028_purpose_document",
-      "breakpoints": true
-    },
-    {
-      "idx": 29,
-      "version": "7",
-      "when": 1790400000000,
-      "tag": "0029_consultation_discussions",
-      "breakpoints": true
-    },
-    {
-      "idx": 30,
-      "version": "7",
-      "when": 1790500000000,
-      "tag": "0030_consultation_input_rounds",
-      "breakpoints": true
-    },
-    {
-      "idx": 31,
-      "version": "7",
-      "when": 1790600000000,
-      "tag": "0031_task_document",
-      "breakpoints": true
-    },
-    {
-      "idx": 32,
-      "version": "7",
-      "when": 1790700000000,
-      "tag": "0032_shelf_document",
-      "breakpoints": true
-    },
-    {
-      "idx": 33,
-      "version": "7",
-      "when": 1790800000000,
-      "tag": "0033_page_block_file_reclaimed",
-      "breakpoints": true
-    },
-    {
-      "idx": 34,
-      "version": "7",
-      "when": 1790900000000,
-      "tag": "0034_diagram_block",
-      "breakpoints": true
-    },
-    {
-      "idx": 36,
-      "version": "7",
-      "when": 1791100000000,
-      "tag": "0036_task_open_side_peek",
-      "breakpoints": true
-    },
-    {
-      "idx": 37,
-      "version": "7",
-      "when": 1791200000000,
-      "tag": "0037_toggle_and_divider_blocks",
-      "breakpoints": true
-    },
-    {
-      "idx": 38,
-      "version": "7",
-      "when": 1791300000000,
-      "tag": "0038_block_nesting",
-      "breakpoints": true
-    },
-    {
-      "idx": 39,
-      "version": "7",
-      "when": 1791400000000,
-      "tag": "0039_page_tree",
-      "breakpoints": true
-    },
-    {
-      "idx": 40,
-      "version": "7",
-      "when": 1791500000000,
-      "tag": "0040_discussion_posts",
-      "breakpoints": true
-    },
-    {
-      "idx": 41,
-      "version": "7",
-      "when": 1791600000000,
-      "tag": "0041_mentions",
-      "breakpoints": true
-    },
-    {
-      "idx": 46,
-      "version": "7",
-      "when": 1792100000000,
-      "tag": "0046_task_open_center_peek",
-      "breakpoints": true
-    },
-    {
-      "idx": 47,
-      "version": "7",
-      "when": 1792200000000,
-      "tag": "0047_reply_survives_parent",
-      "breakpoints": true
-    },
-    {
-      "idx": 48,
-      "version": "7",
-      "when": 1792300000000,
-      "tag": "0048_discussion_reads",
-      "breakpoints": true
-    },
-    {
-      "idx": 49,
-      "version": "7",
-      "when": 1792400000000,
-      "tag": "0049_task_thread_reads",
-      "breakpoints": true
-    },
-    {
-      "idx": 50,
-      "version": "7",
-      "when": 1792500000000,
-      "tag": "0050_focus_lists",
-      "breakpoints": true
-    },
-    {
-      "idx": 57,
-      "version": "7",
-      "when": 1793200000000,
-      "tag": "0057_result_block",
-      "breakpoints": true
-    },
-    {
-      "idx": 58,
-      "version": "7",
-      "when": 1793300000000,
-      "tag": "0058_focus_identity",
-      "breakpoints": true
-    },
-    {
-      "idx": 59,
-      "version": "7",
-      "when": 1793400000000,
-      "tag": "0059_task_threads_to_discussions",
-      "breakpoints": true
-    },
-    {
-      "idx": 60,
-      "version": "7",
-      "when": 1793500000000,
-      "tag": "0060_steps_to_checklists",
-      "breakpoints": true
-    },
-    {
-      "idx": 61,
-      "version": "7",
-      "when": 1793600000000,
-      "tag": "0061_projects_and_tabs",
-      "breakpoints": true
-    },
-    {
-      "idx": 62,
-      "version": "7",
-      "when": 1793700000000,
-      "tag": "0062_members_on_projects",
-      "breakpoints": true
-    },
-    {
-      "idx": 63,
-      "version": "7",
-      "when": 1793800000000,
-      "tag": "0063_multiple_task_assignees",
-      "breakpoints": true
-    },
-    {
-      "idx": 64,
-      "version": "7",
-      "when": 1793900000000,
-      "tag": "0064_archive_work",
-      "breakpoints": true
-    },
-    {
-      "idx": 65,
-      "version": "7",
-      "when": 1794000000000,
-      "tag": "0065_task_start_time",
-      "breakpoints": true
-    }
+    {"idx":0,"version":"7","when":1785456000000,"tag":"0000_core_schema","breakpoints":true},
+    {"idx":1,"version":"7","when":1785617584951,"tag":"0001_sessions","breakpoints":true},
+    {"idx":2,"version":"7","when":1785747842531,"tag":"0002_sessions_token_hash","breakpoints":true},
+    {"idx":3,"version":"7","when":1787876400000,"tag":"0003_v2_expand","breakpoints":true},
+    {"idx":4,"version":"7","when":1787894000000,"tag":"0004_pinned_views","breakpoints":true},
+    {"idx":5,"version":"7","when":1787980000000,"tag":"0005_ruled_schema","breakpoints":true},
+    {"idx":6,"version":"7","when":1788100000000,"tag":"0006_folder_cover_tiers","breakpoints":true},
+    {"idx":7,"version":"7","when":1788200000000,"tag":"0007_sample_objects","breakpoints":true},
+    {"idx":8,"version":"7","when":1788300000000,"tag":"0008_place_descriptions","breakpoints":true},
+    {"idx":9,"version":"7","when":1788400000000,"tag":"0009_file_dimensions","breakpoints":true},
+    {"idx":10,"version":"7","when":1788500000000,"tag":"0010_task_open_default_dialog","breakpoints":true},
+    {"idx":11,"version":"7","when":1788600000000,"tag":"0011_shelves_for_every_group_label","breakpoints":true},
+    {"idx":12,"version":"7","when":1788700000000,"tag":"0012_covers_for_every_page_kind","breakpoints":true},
+    {"idx":13,"version":"7","when":1788800000000,"tag":"0013_calendar_zoom","breakpoints":true},
+    {"idx":14,"version":"7","when":1788900000000,"tag":"0014_files_unreferenced_since","breakpoints":true},
+    {"idx":15,"version":"7","when":1789000000000,"tag":"0015_folderless_page_images","breakpoints":true},
+    {"idx":16,"version":"7","when":1789100000000,"tag":"0016_compose_first_canvas","breakpoints":true},
+    {"idx":17,"version":"7","when":1789200000000,"tag":"0017_folder_document","breakpoints":true},
+    {"idx":18,"version":"7","when":1789300000000,"tag":"0018_task_start_date","breakpoints":true},
+    {"idx":19,"version":"7","when":1789400000000,"tag":"0019_task_dependencies","breakpoints":true},
+    {"idx":21,"version":"7","when":1789600000000,"tag":"0021_structured_text_blocks","breakpoints":true},
+    {"idx":22,"version":"7","when":1789700000000,"tag":"0022_labels","breakpoints":true},
+    {"idx":23,"version":"7","when":1789800000000,"tag":"0023_folder_access","breakpoints":true},
+    {"idx":24,"version":"7","when":1789900000000,"tag":"0024_files_and_media_blocks","breakpoints":true},
+    {"idx":25,"version":"7","when":1790000000000,"tag":"0025_responsibility_document","breakpoints":true},
+    {"idx":26,"version":"7","when":1790100000000,"tag":"0026_contract_membership_label","breakpoints":true},
+    {"idx":27,"version":"7","when":1790200000000,"tag":"0027_folder_facets","breakpoints":true},
+    {"idx":28,"version":"7","when":1790300000000,"tag":"0028_purpose_document","breakpoints":true},
+    {"idx":29,"version":"7","when":1790400000000,"tag":"0029_consultation_discussions","breakpoints":true},
+    {"idx":30,"version":"7","when":1790500000000,"tag":"0030_consultation_input_rounds","breakpoints":true},
+    {"idx":31,"version":"7","when":1790600000000,"tag":"0031_task_document","breakpoints":true},
+    {"idx":32,"version":"7","when":1790700000000,"tag":"0032_shelf_document","breakpoints":true},
+    {"idx":33,"version":"7","when":1790800000000,"tag":"0033_page_block_file_reclaimed","breakpoints":true},
+    {"idx":34,"version":"7","when":1790900000000,"tag":"0034_diagram_block","breakpoints":true},
+    {"idx":36,"version":"7","when":1791100000000,"tag":"0036_task_open_side_peek","breakpoints":true},
+    {"idx":37,"version":"7","when":1791200000000,"tag":"0037_toggle_and_divider_blocks","breakpoints":true},
+    {"idx":38,"version":"7","when":1791300000000,"tag":"0038_block_nesting","breakpoints":true},
+    {"idx":39,"version":"7","when":1791400000000,"tag":"0039_page_tree","breakpoints":true},
+    {"idx":40,"version":"7","when":1791500000000,"tag":"0040_discussion_posts","breakpoints":true},
+    {"idx":41,"version":"7","when":1791600000000,"tag":"0041_mentions","breakpoints":true},
+    {"idx":46,"version":"7","when":1792100000000,"tag":"0046_task_open_center_peek","breakpoints":true},
+    {"idx":47,"version":"7","when":1792200000000,"tag":"0047_reply_survives_parent","breakpoints":true},
+    {"idx":48,"version":"7","when":1792300000000,"tag":"0048_discussion_reads","breakpoints":true},
+    {"idx":49,"version":"7","when":1792400000000,"tag":"0049_task_thread_reads","breakpoints":true},
+    {"idx":50,"version":"7","when":1792500000000,"tag":"0050_focus_lists","breakpoints":true},
+    {"idx":57,"version":"7","when":1793200000000,"tag":"0057_result_block","breakpoints":true},
+    {"idx":58,"version":"7","when":1793300000000,"tag":"0058_focus_identity","breakpoints":true},
+    {"idx":59,"version":"7","when":1793400000000,"tag":"0059_task_threads_to_discussions","breakpoints":true},
+    {"idx":60,"version":"7","when":1793500000000,"tag":"0060_steps_to_checklists","breakpoints":true},
+    {"idx":61,"version":"7","when":1793600000000,"tag":"0061_projects_and_tabs","breakpoints":true},
+    {"idx":62,"version":"7","when":1793700000000,"tag":"0062_members_on_projects","breakpoints":true},
+    {"idx":63,"version":"7","when":1793800000000,"tag":"0063_multiple_task_assignees","breakpoints":true},
+    {"idx":64,"version":"7","when":1793900000000,"tag":"0064_archive_work","breakpoints":true},
+    {"idx":65,"version":"7","when":1794000000000,"tag":"0065_task_start_time","breakpoints":true},
+    {"idx":67,"version":"7","when":1794200000000,"tag":"0067_page_block_facets","breakpoints":true}
   ]
 }
