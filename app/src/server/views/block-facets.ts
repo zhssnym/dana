@@ -155,8 +155,8 @@ export async function setBlockFacets(
     )
     for (const facetId of facetIds) {
       await tx.execute(
-        sql`INSERT INTO page_block_facets (block_id, facet_id, created_by)
-            VALUES (${blockId}::uuid, ${facetId}::uuid, ${actorId}::uuid)
+        sql`INSERT INTO page_block_facets (block_id, facet_id)
+            VALUES (${blockId}::uuid, ${facetId}::uuid)
             ON CONFLICT (block_id, facet_id) DO NOTHING`,
       )
     }
