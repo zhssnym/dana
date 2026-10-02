@@ -151,7 +151,12 @@ describe('AC-875 the Results document and link refuse a stranger', () => {
     const search = `/references/search?q=Results&folder=${folderId}`
     const found = await owner.browser.json(search, 'GET')
     expectStatus(found, 200, 'the picker searches (7.24)')
-    expect(found.body, 'a member finds the Results facet').toContain(facetId)
+    const picked = (found.json() as { results: { kind: string; id: string; path: string }[] }).results
+    expect(picked).toContainEqual(expect.objectContaining({
+      kind: 'facet',
+      id: facetId,
+      path: `/app/facets/${facetId}`,
+    }))
     const hidden = await stranger.browser.json(`/references/search?q=Results`, 'GET')
     expectStatus(hidden, 200, 'a stranger may search their own scope (7.24)')
     expect(hidden.body, 'a stranger never finds it').not.toContain(facetId)
