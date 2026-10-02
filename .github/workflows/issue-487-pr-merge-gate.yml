@@ -1,0 +1,61 @@
+name: Issue 487 latest-main merge gate
+
+on:
+  push:
+    branches: [backend/487-start-time-contract]
+    paths:
+      - '.github/workflows/issue-487-pr-merge-gate.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  merge-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: backend/487-start-time-contract
+          fetch-depth: 0
+      - name: Merge latest main
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin main
+          git merge --no-edit origin/main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install tooling
+        working-directory: app
+        run: npm ci
+      - name: Validate merged backend surface
+        working-directory: app
+        run: |
+          npm run lint
+          npm run typecheck
+          npm run build
+          npx vitest run tests/criteria/ac-423-task-schedule.test.ts tests/criteria/ac-880-task-document.test.ts tests/criteria/focus-identity-353.test.ts tests/guards/guard-document-transaction.test.ts
+      - name: Verify migration catalog introduces no new failure
+        working-directory: app
+        shell: bash
+        run: |
+          set +e
+          npm run db:verify > /tmp/verify.log 2>&1
+          code=$?
+          set -e
+          cat /tmp/verify.log
+          if [ "$code" -eq 0 ]; then exit 0; fi
+          grep -Fq 'catalog verification failed (1)' /tmp/verify.log
+          grep -Fq 'folders_archived_at_idx: descending columns [archived_at]' /tmp/verify.log
+      - name: Diff check
+        run: git diff --check
+      - name: Push merged latest main and remove temporary workflow
+        run: |
+          rm -f .github/workflows/issue-487-pr-merge-gate.yml
+          git add -A
+          git commit -m "chore: sync issue 487 with latest main" || true
+          git push origin HEAD:backend/487-start-time-contract
