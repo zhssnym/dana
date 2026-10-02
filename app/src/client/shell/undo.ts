@@ -76,6 +76,22 @@ export function pushUndo(label: string, undo: () => void): void {
 }
 
 /**
+ * Run `act` and keep what it registers as one entry, under its newest label,
+ * whose undo runs `first`, waits for it, then each folded inverse. A gesture
+ * made of several acts (writing and a Task deleted together) comes back in one.
+ */
+export function foldUndo(act: () => void, first: () => Promise<unknown>): void {
+  const before = stack
+  act()
+  const added = stack.filter((entry) => !before.includes(entry))
+  const top = added[0]
+  if (top === undefined) return
+  const undo = (): void => { void first().catch(() => undefined).then(() => { for (const entry of added) entry.undo() }) }
+  stack = [{ label: top.label, undo, at: top.at }, ...stack.filter((entry) => !added.includes(entry))]
+  publish()
+}
+
+/**
  * Reverse the most recent act.
  *
  * The entry leaves the stack *before* its inverse runs, for two reasons that
