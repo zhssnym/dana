@@ -310,7 +310,8 @@ function postColumns(ctx: SampleContext, value: SampleText): { body: string; con
   return { body: text, content }
 }
 
-/** Writes one post, its likes and its replies into a Discussion. */
+/** Writes one post, its likes (thumbs_up reactions, by the column's
+ * default) and its replies into a Discussion. */
 async function writePost(
   ctx: SampleContext,
   folderId: string,

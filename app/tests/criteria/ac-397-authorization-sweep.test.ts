@@ -1387,6 +1387,23 @@ const TABLE = new Map<string, Row>([
       stranger: { expected: 404, rule: '7.14, as the like above' },
     },
   ],
+  [
+    'PUT /api/v1/comments/:id/reactions/:reaction',
+    {
+      attempt: (fx) => ({ path: `/comments/${fx.commentId}/reactions/heart`, body: {} }),
+      stranger: {
+        expected: 404,
+        rule: '7.14: a reaction needs the thread, so it needs the folder; the key is read only after',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/comments/:id/reactions/:reaction',
+    {
+      attempt: (fx) => ({ path: `/comments/${fx.commentId}/reactions/heart` }),
+      stranger: { expected: 404, rule: '7.14, as the reaction above' },
+    },
+  ],
 
   /* -------------------------------------------------------------- *
    * Files
