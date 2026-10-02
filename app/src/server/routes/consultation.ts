@@ -1,24 +1,10 @@
 /*
 The 7.28 surface: a Folder's Consultation (issue #320) -- Discussions, their
-Outcomes, and the Discussion's Trash pair.
+Outcomes, Trash lifecycle, and issue #497's explicit Discussion ↔ Task links.
 
-Handlers validate with `shared/consultation.ts`, resolve existence, and hand
-every decision that touches rows to `domain/consultation.ts`, which asks
-`mayPerform` under the Discussion's row lock in the transaction that writes.
-
-## The refusal order: 404, then 422, then 403, then 409
-
-The facet surface's order (`routes/facets.ts` says why at length). Existence
-first: a Discussion id is resolved to its Folder and the caller's membership
-before the body is read, so a stranger learns nothing whatever they send.
-
-Comments inside a Discussion are not here (the conversation routes own them),
-and nor are Dana Link kinds (`routes/references.ts`).
-
-## Every route here takes an id
-
-So each one owes an `accessOf` gate and a row in
-`app/tests/criteria/ac-397-authorization-sweep.test.ts`.
+Every id-bearing Discussion mutation resolves the Discussion's Folder and
+membership before reading its body. Domain functions re-resolve authority
+under the row lock. The refusal order remains 404, 422, 403, 409.
 */
 import type { Request, Response, Router } from 'express'
 
@@ -26,6 +12,7 @@ import type { DbClient } from '../../../db/client.js'
 import {
   createDiscussionBody,
   discussionListQuery,
+  linkDiscussionTaskBody,
   reopenDiscussionBody,
   resolveDiscussionBody,
   updateDiscussionBody,
@@ -36,6 +23,7 @@ import {
   discussTask,
   folderOfDiscussion,
   folderOfTask,
+  linkDiscussionTask,
   listDiscussions,
   listOutcomes,
   markDiscussionRead,
@@ -46,6 +34,7 @@ import {
   resolveDiscussion,
   restoreDiscussion,
   trashDiscussion,
+  unlinkDiscussionTask,
   updateDiscussion,
 } from '../domain/consultation.js'
 import type { ConsultationOutcome } from '../domain/consultation.js'
@@ -69,8 +58,6 @@ export interface ConsultationRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
   securityLog?: SecurityLogger
-  /** The store the permanent delete removes comment uploads from, after its
-   * transaction commits. */
   fileStore?: ObjectStore
 }
 
@@ -85,7 +72,6 @@ export function createConsultationRouter(
     sendError(res, 404, 'not_found', 'Not found.')
   }
 
-  /** `true` when the outcome was a refusal and has been answered. */
   const refused = <T>(res: Response, outcome: ConsultationOutcome<T>): boolean => {
     if (outcome.kind === 'not_found') {
       notFound(res)
@@ -117,12 +103,9 @@ export function createConsultationRouter(
     res.status(status).json((outcome as { kind: 'ok'; value: T }).value)
   }
 
-  /**
-   * Step one for `/discussions/:id`: the Discussion exists and the caller is a
-   * member of its live Folder, else 404 -- before any body is read. The
-   * domain re-resolves both under the row lock; this is only the existence
-   * half of the refusal order.
-   */
+  /** Discussion existence/membership gate before a mutation body or a second
+   * endpoint id is interpreted. The domain repeats the authority decision in
+   * the transaction that writes. */
   const visibleDiscussion = async (
     req: Request,
     res: Response,
@@ -138,10 +121,6 @@ export function createConsultationRouter(
     }
     return discussionId
   }
-
-  /* ---------------------------------------------------------------- *
-   * A Folder's Discussions
-   * ---------------------------------------------------------------- */
 
   router.get(
     '/folders/:id/discussions',
@@ -185,10 +164,6 @@ export function createConsultationRouter(
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * One Discussion
-   * ---------------------------------------------------------------- */
-
   router.get(
     '/discussions/:id',
     requireSession,
@@ -218,6 +193,63 @@ export function createConsultationRouter(
         200,
         await updateDiscussion(db, viewer(req), discussionId, parsed),
       )
+    },
+  )
+
+  /** Issue #497 canonical add-link operation. Duplicate pairs are idempotent:
+   * 201 when this call made the edge, 200 when it was already present. */
+  router.post(
+    '/discussions/:id/tasks',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const discussionId = await visibleDiscussion(req, res)
+      if (discussionId === null) return
+      const parsed = parseBody(linkDiscussionTaskBody, req, res, securityLog)
+      if (parsed === null) return
+      const outcome = await linkDiscussionTask(
+        db,
+        viewer(req),
+        discussionId,
+        parsed.task_id,
+      )
+      if (refused(res, outcome)) return
+      const value = (
+        outcome as {
+          kind: 'ok'
+          value: { created: boolean; discussion: unknown }
+        }
+      ).value
+      res.status(value.created ? 201 : 200).json(value)
+    },
+  )
+
+  /** Issue #497 canonical unlink. It is deliberately idempotent and carries
+   * no body, so an authorized Discussion editor can remove a durable edge
+   * after the Task moved or entered Trash without probing the Task. */
+  router.delete(
+    '/discussions/:id/tasks/:taskId',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const discussionId = await visibleDiscussion(req, res)
+      if (discussionId === null) return
+      const taskId = parsedId(res, req.params.taskId)
+      if (taskId === null) return
+      const outcome = await unlinkDiscussionTask(
+        db,
+        viewer(req),
+        discussionId,
+        taskId,
+      )
+      if (refused(res, outcome)) return
+      res.status(204).end()
     },
   )
 
@@ -273,9 +305,6 @@ export function createConsultationRouter(
     },
   )
 
-  /** The viewer opened the thread (round 5): their read marker, and their
-   * notifications about its posts marked read. Idempotent, so PUT. Under
-   * `mutationLimit` like the notification read routes in routes/events.ts. */
   router.put(
     '/discussions/:id/read',
     requireSession,
@@ -292,12 +321,9 @@ export function createConsultationRouter(
     },
   )
 
-  /** "Discuss" on a task (M5): the task's one live Discussion, made on first
-   * use. 201 when this call made it, 200 when it already existed, so the call
-   * is safe to repeat. The task is resolved to its live Folder and `accessOf`
-   * decides first, so a stranger, a trashed task or a trashed Folder is 404
-   * like on every other `/tasks/:id` route; the domain re-resolves both under
-   * the task row's lock. No body. */
+  /** Current task UI compatibility: create/reuse the Discussion this route
+   * made in the Task's current Folder. It no longer means a Task can have only
+   * one linked Discussion. */
   router.post(
     '/tasks/:id/discussion',
     requireSession,
@@ -318,7 +344,6 @@ export function createConsultationRouter(
       const { created, discussion, discussionTabId } = (
         outcome as { kind: 'ok'; value: { created: boolean; discussion: unknown; discussionTabId: string | null } }
       ).value
-      // Step 7: the project's Discussion tab, where the thread is listed.
       res.status(created ? 201 : 200).json({ discussion, discussion_tab_id: discussionTabId })
     },
   )
@@ -336,7 +361,6 @@ export function createConsultationRouter(
     },
   )
 
-  /** An Outcome's stable direct route (#320): it and its parent Discussion. */
   router.get(
     '/outcomes/:id',
     requireSession,
@@ -348,10 +372,6 @@ export function createConsultationRouter(
       answer(res, 200, await readOutcome(db, viewer(req), outcomeId))
     },
   )
-
-  /* ---------------------------------------------------------------- *
-   * Trash (7.13): 7.13's shape, as the facet pair is
-   * ---------------------------------------------------------------- */
 
   router.post(
     '/discussions/:id/restore',
@@ -379,7 +399,6 @@ export function createConsultationRouter(
       if (discussionId === null) return
       const outcome = await purgeDiscussion(db, viewer(req), discussionId)
       if (refused(res, outcome)) return
-      // After the commit, 7.15's order.
       await removeObjects(
         options.fileStore,
         (outcome as { kind: 'ok'; value: { fileIds: string[] } }).value.fileIds,
