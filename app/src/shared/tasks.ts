@@ -100,6 +100,9 @@ The read side of the same value. Postgres renders TIME as HH:MM:SS, so a
 response tolerates the seconds field the write side pins to zero; it is the
 same value, which is the acceptance harness's reading of 4.11 too.
 */
+// Issue #487: Start and Due endpoint times share 4.11's floating, minute-precision write form.
+export const startTime = dueTime
+
 export const wallClockTime = z.iso.time({
   error: 'must be a wall-clock time',
 })
@@ -312,6 +315,7 @@ export const postTasksBody = z
     notes: taskNotes.nullable().optional(),
     important: z.boolean({ error: 'must be a boolean' }).optional(),
     start_date: dueDate.nullable().optional(),
+    start_time: startTime.nullable().optional(),
     due_date: dueDate.nullable().optional(),
     due_time: dueTime.nullable().optional(),
     recurrence_rule: recurrenceRule.nullable().optional(),
@@ -343,6 +347,10 @@ export const postTasksBody = z
   .refine((body) => !isSet(body.due_time) || isSet(body.due_date), {
     error: 'requires a due_date',
     path: ['due_time'],
+  })
+  .refine((body) => !isSet(body.start_time) || isSet(body.start_date), {
+    error: 'requires a start_date',
+    path: ['start_time'],
   })
   /*
   The same check on the other dependent field 7.6 names, and a create body
@@ -434,6 +442,21 @@ export const postTasksBody = z
       path: ['start_date'],
     },
   )
+  /* Issue #487: on a same-day Schedule, two explicit endpoint times are ordered.
+     Missing times stay missing; they are never inferred for comparison. */
+  .refine(
+    (body) =>
+      !isSet(body.start_date) ||
+      !isSet(body.due_date) ||
+      body.start_date !== body.due_date ||
+      !isSet(body.start_time) ||
+      !isSet(body.due_time) ||
+      body.start_time.slice(0, 5) <= body.due_time.slice(0, 5),
+    {
+      error: 'must not be later than due_time when start_date and due_date are the same day',
+      path: ['start_time'],
+    },
+  )
 export type PostTasksBody = z.infer<typeof postTasksBody>
 
 /*
@@ -507,6 +530,7 @@ export const patchTaskBody = z
     notes: taskNotes.nullable().optional(),
     important: z.boolean({ error: 'must be a boolean' }).optional(),
     start_date: dueDate.nullable().optional(),
+    start_time: startTime.nullable().optional(),
     due_date: dueDate.nullable().optional(),
     due_time: dueTime.nullable().optional(),
     recurrence_rule: recurrenceRule.nullable().optional(),
@@ -533,6 +557,10 @@ export const patchTaskBody = z
   .refine((body) => !(body.due_date === null && isSet(body.due_time)), {
     error: 'cannot be set in a body that clears due_date',
     path: ['due_time'],
+  })
+  .refine((body) => !(body.start_date === null && isSet(body.start_time)), {
+    error: 'cannot be set in a body that clears start_date',
+    path: ['start_time'],
   })
   /*
   And its twin, for the third field 8.4's cascade nulls. The cascade is what
@@ -877,6 +905,7 @@ export const taskCard = z.object({
      start_date reads through the same primitive due_date does because it is
      the same floating calendar date in the same column type. */
   start_date: dueDate.nullable(),
+  start_time: wallClockTime.nullable(),
   due_date: dueDate.nullable(),
   due_time: wallClockTime.nullable(),
   folder: taskCardFolder,

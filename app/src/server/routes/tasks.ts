@@ -318,6 +318,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         case 'time_without_date':
           fieldError(res, 'due_time', 'requires a due_date')
           return
+        case 'start_time_without_date':
+          fieldError(res, 'start_time', 'requires a start_date')
+          return
         case 'rule_without_date':
           // 7.6's dependency check on the arm only the row can answer: the
           // body-level half is in the shared schema, which refuses a rule
@@ -336,6 +339,15 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
             result.field === 'start_date'
               ? 'must not be later than due_date'
               : 'must not be earlier than start_date',
+          )
+          return
+        case 'start_after_due_time':
+          fieldError(
+            res,
+            result.field,
+            result.field === 'start_time' || result.field === 'start_date'
+              ? 'must not be later than the Due endpoint when both endpoints are timed on the same day'
+              : 'must not be earlier than the Start endpoint when both endpoints are timed on the same day',
           )
           return
         case 'reminder_refused':

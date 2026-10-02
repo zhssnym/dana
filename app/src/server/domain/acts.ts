@@ -476,6 +476,7 @@ export async function duplicateFolder(
         tx,
         sql`SELECT id, title, notes, important,
                    to_char(start_date, 'YYYY-MM-DD') AS start_date,
+                   to_char(start_time, 'HH24:MI') AS start_time,
                    to_char(due_date, 'YYYY-MM-DD') AS due_date,
                    recurrence_rule, section_block_id, position, page_position
             FROM tasks
@@ -506,12 +507,13 @@ export async function duplicateFolder(
              copy came out in creation order, which is not the order the
              person had arranged. */
           sql`INSERT INTO tasks
-                (folder_id, title, notes, important, start_date, due_date, recurrence_rule,
+                (folder_id, title, notes, important, start_date, start_time, due_date, recurrence_rule,
                  series_id, assignee_id, created_by, section_block_id, position, page_position)
               VALUES (${copyId}::uuid, ${String(task.title)},
                       ${task.notes === null ? null : String(task.notes)},
                       ${task.important === true},
                       ${task.start_date === null || task.start_date === undefined ? null : String(task.start_date)}::date,
+                      ${task.start_time === null || task.start_time === undefined ? null : String(task.start_time)}::time,
                       ${task.due_date === null ? null : String(task.due_date)}::date,
                       ${rule},
                       ${rule === null ? sql`NULL` : sql`gen_random_uuid()`},
@@ -778,6 +780,7 @@ export async function duplicateTask(
         tx,
         sql`SELECT title, notes, important,
                    to_char(start_date, 'YYYY-MM-DD') AS start_date,
+                   to_char(start_time, 'HH24:MI') AS start_time,
                    to_char(due_date, 'YYYY-MM-DD') AS due_date,
                    recurrence_rule, section_block_id
             FROM tasks WHERE id = ${source.id}::uuid`,
@@ -832,12 +835,13 @@ export async function duplicateTask(
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO tasks
-            (folder_id, title, notes, important, start_date, due_date, recurrence_rule,
+            (folder_id, title, notes, important, start_date, start_time, due_date, recurrence_rule,
              series_id, assignee_id, created_by, section_block_id,page_position)
           VALUES (${source.folderId}::uuid, ${title},
                   ${row?.notes === null ? null : String(row?.notes ?? '')},
                   ${row?.important === true},
                   ${startForCopy}::date,
+                  ${row?.start_time === null || row?.start_time === undefined ? null : String(row.start_time)}::time,
                   ${dueForCopy}::date,
                   ${rule},
                   ${rule === null ? sql`NULL` : sql`gen_random_uuid()`},
