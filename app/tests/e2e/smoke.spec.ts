@@ -3,13 +3,12 @@ The browser smoke test: the whole of the Playwright leg since the owner cut it
 from eight spec files to one (2026-09-23), trading exhaustive browser coverage
 for a leg that is short and dependable.
 
-It answers one question the vitest suite cannot: does the built client, served
-by the real server against the seed, let a person sign in, capture a task and
-open a folder. Anything finer belongs in a vitest criterion.
+It checks the built client against the real server and seed: sign in, capture a
+task, open a folder, and edit a Task's Labels. Finer cases belong in vitest.
 
 The runner seeds once per run (playwright.config.ts), so a task this spec
 creates carries a per-run suffix and never collides with a previous run's rows
-if the database was not reseeded. Seed rows are only read, never changed.
+if the database was not reseeded. The Label case removes its assignment again.
 */
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -120,4 +119,22 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
       })
       .toEqual({ stored: true, section: true })
   })
+})
+
+test('smoke: assign and remove a Personal label on the Task page', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/app')
+  await page.getByRole('navigation').getByRole('link', { name: /Groceries/ }).first().click()
+  await taskRow(page, 'Buy milk').first().click()
+  const label = `Browser label ${Date.now()}`
+  await page.getByRole('button', { name: 'Labels: Add labels' }).click()
+  await page.getByRole('button', { name: 'Create personal label' }).click()
+  await page.getByRole('textbox', { name: 'Label name' }).fill(label)
+  await page.getByRole('button', { name: 'Save label' }).click()
+  await expect(page.getByRole('button', { name: `Labels: ${label}` })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('button', { name: `Labels: ${label}` })).toBeVisible()
+  await page.getByRole('button', { name: `Labels: ${label}` }).click()
+  await page.getByRole('button', { name: `Remove Personal label ${label}` }).click()
+  await expect(page.getByRole('button', { name: 'Labels: Add labels' })).toBeVisible()
 })
