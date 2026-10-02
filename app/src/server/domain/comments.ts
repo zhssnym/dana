@@ -320,7 +320,7 @@ export async function createComment(
         author_id: viewerId,
         body: words,
         content: body.content ?? null,
-        reactions: [],
+        reactions: [] as CommentReaction[],
         files: attached,
         created_at: toIso(inserted[0]?.created_at),
         edited_at: null,
