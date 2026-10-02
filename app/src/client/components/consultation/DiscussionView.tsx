@@ -202,6 +202,8 @@ function ThreadBody(props: {
   const closedBy = outcome?.actor_id ?? d.resolved_by
   const closedAt = outcome?.created_at ?? d.resolved_at
   const trashed = d.trashed_at !== null
+  /* Issue #497 made the link plural; until #495's picker, the head shows the first. */
+  const linkedTask = d.linked_tasks[0] ?? null
   const trashable = powers.trash && !d.is_general
   const resolvable = powers.resolve && d.state === 'open' && !trashed
   /* It writes two things, so it is drawn only for someone who may do both:
@@ -209,7 +211,7 @@ function ThreadBody(props: {
      to a task is not offered it, even while that task is in Trash (the link
      is set once). */
   const convertible =
-    d.state === 'open' && !trashed && powers.edit && !d.is_general && d.task_id === null && viewer !== null && mayDraw(viewer.facts, 'task.create')
+    d.state === 'open' && !trashed && powers.edit && !d.is_general && linkedTask === null && viewer !== null && mayDraw(viewer.facts, 'task.create')
 
   const refused = (error: unknown): void => {
     if (error instanceof ApiError && (error.status === 403 || error.status === 409)) onRefused()
@@ -346,16 +348,16 @@ function ThreadBody(props: {
           ) : null}
         </div>
       </header>
-      {d.task !== null ? (
+      {linkedTask !== null ? (
         /* The task it is about: one plain row, its mark, name and state. */
         <p className="mt-3.5 shrink-0 text-sm">
           <Link
-            to={paths.task(d.task.id)}
+            to={paths.task(linkedTask.id)}
             className="-mx-2.5 flex max-w-full min-w-0 items-center gap-2.5 rounded-md px-2.5 py-2 outline-none hover:bg-accent"
           >
-            <StateMark state={taskState(d.task)} className="size-4 shrink-0" />
-            <span className="min-w-0 truncate font-medium text-foreground">{d.task.title}</span>
-            <span className="shrink-0 text-muted-foreground">{STATE_WORD[taskState(d.task)]}</span>
+            <StateMark state={taskState(linkedTask)} className="size-4 shrink-0" />
+            <span className="min-w-0 truncate font-medium text-foreground">{linkedTask.title}</span>
+            <span className="shrink-0 text-muted-foreground">{STATE_WORD[taskState(linkedTask)]}</span>
           </Link>
         </p>
       ) : null}
@@ -379,7 +381,7 @@ function ThreadBody(props: {
         focusOnLand={pointer}
         openAt={justStarted ? undefined : openAt}
         onRefused={refused}
-        post={(body) => postComment.mutateAsync({ discussionId: d.id, body, taskId: d.task_id })}
+        post={(body) => postComment.mutateAsync({ discussionId: d.id, body, taskIds: d.linked_tasks.map((task) => task.id) })}
         {...(frozen
           ? { closed: null }
           : closing
