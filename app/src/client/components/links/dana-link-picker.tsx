@@ -11,7 +11,7 @@ import { SuggestionMenu } from '@blocknote/core/extensions'
 
 import { Link2 } from '../../lib/icons.js'
 import type { CanvasEditor } from '../page/canvas/schema.js'
-import { danaLinkOf, kindNoun, searchReferences } from './dana-link.js'
+import { danaLinkOf, kindNoun, referenceDisplayLabel, searchReferences } from './dana-link.js'
 import type { LooseSummary } from './dana-link.js'
 import { DanaLinkKindIcon } from './kind-icon.js'
 
@@ -20,7 +20,10 @@ type Transaction = Parameters<NonNullable<ComponentProps<typeof SuggestionMenuCo
 
 export function insertDanaLink(editor: CanvasEditor, summary: LooseSummary): void {
   const target = danaLinkOf(summary.path)
-  const label = summary.label === '' ? kindNoun(summary.kind) : summary.label
+  const resolved = summary.label === '' ? kindNoun(summary.kind) : summary.label
+  /* The picker keeps the full "Project · Facet" label for disambiguation;
+     the inserted facet chip is intentionally compact. */
+  const label = referenceDisplayLabel(summary.kind, resolved)
   editor.insertInlineContent([
     // A kind this client cannot resolve yet still links, as a plain link.
     target === null

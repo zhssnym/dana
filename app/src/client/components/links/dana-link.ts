@@ -85,6 +85,15 @@ export function resolveReference(kind: string, id: string): Promise<LooseSummary
   return getPlain(looseSummary, `/references/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`)
 }
 
+/** The picker needs `Project · Results` to disambiguate repeated facet names;
+ * once inserted, the chip itself should be the compact facet name. */
+export function referenceDisplayLabel(kind: string, label: string): string {
+  if (kind !== 'facet') return label
+  const marker = ' · '
+  const at = label.lastIndexOf(marker)
+  return at < 0 ? label : label.slice(at + marker.length)
+}
+
 const looseBacklink = z.object({
   surface: z.string(),
   home: z.string(),
@@ -129,7 +138,7 @@ export function backlinkPath(row: LooseBacklink): string | null {
 }
 
 const KIND_NOUN: Readonly<Record<string, string>> = {
-  task: 'Task', folder: 'Page', shelf: 'Collection', facet: 'Tab', discussion: 'Discussion', outcome: 'Outcome', result: 'Result',
+  task: 'Task', folder: 'Page', shelf: 'Collection', facet: 'Facet', discussion: 'Discussion', outcome: 'Outcome', result: 'Result',
 }
 export function kindNoun(kind: string): string {
   return KIND_NOUN[kind] ?? 'Link'
