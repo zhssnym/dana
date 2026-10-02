@@ -136,7 +136,7 @@ export function syncFacetDecorations(
     const block = [...host.querySelectorAll<HTMLElement>('.bn-block[data-id]')]
       .find((element) => element.dataset.id === blockId)
     const outer = block?.parentElement
-    if (block === undefined || block === null || outer === null || !outer.classList.contains('bn-block-outer')) continue
+    if (block === undefined || outer === undefined || outer === null || !outer.classList.contains('bn-block-outer')) continue
 
     let rail = outer.querySelector<HTMLElement>(`:scope > [data-dana-block-facets="${blockId}"]`)
     const signature = facets.map((facet) => `${facet.id}:${facet.name}`).join('|')
@@ -145,20 +145,20 @@ export function syncFacetDecorations(
       rail = document.createElement('div')
       rail.dataset.danaBlockFacets = blockId
       rail.className = 'dana-block-facet-rail mt-0.5 flex min-w-0 items-center gap-1 overflow-visible'
-      rail.contentEditable = 'false'
+      rail.setAttribute('contenteditable', 'false')
       rail.setAttribute('role', 'group')
       rail.setAttribute('aria-label', 'Connected facets')
       block.insertAdjacentElement('afterend', rail)
     }
     rail.dataset.signature = signature
-    const visible = facets.slice(0, VISIBLE_FACETS).map(facetChip)
+    const visible: HTMLElement[] = facets.slice(0, VISIBLE_FACETS).map(facetChip)
     const hidden = facets.length - visible.length
     if (hidden > 0) {
       const more = document.createElement('span')
       more.textContent = `+${hidden}`
       more.title = `${hidden} more connected ${hidden === 1 ? 'facet' : 'facets'}`
       more.className = 'inline-flex h-5 shrink-0 items-center px-1 text-[11px] font-medium leading-none text-muted-foreground'
-      visible.push(more as unknown as HTMLAnchorElement)
+      visible.push(more)
     }
     rail.replaceChildren(...visible)
   }
