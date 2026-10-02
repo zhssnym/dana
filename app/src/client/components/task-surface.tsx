@@ -154,7 +154,10 @@ export function TaskView({
 }) {
   const { task, patch, cardHandlers } = useCardWiring(props)
   const state = stateOf(task)
-  const [historyOpen, setHistoryOpen] = useState(false)
+  /* Tie the dialog to the task that opened it. Task routes can replace this
+     view in place (including from a dependency inside History), and a plain
+     boolean would otherwise leave the next task's History open. */
+  const [historyFor, setHistoryFor] = useState<string | null>(null)
 
   return (
     <div className="flex flex-col gap-4 pt-2 pb-24">
@@ -175,7 +178,7 @@ export function TaskView({
           <TaskMenu
             id={props.id}
             title={task.title}
-            onHistory={() => setHistoryOpen(true)}
+            onHistory={() => setHistoryFor(task.id)}
             {...(props.onDelete === undefined ? {} : { onDelete: props.onDelete })}
           />
           {onClose ? (
@@ -190,8 +193,8 @@ export function TaskView({
         key={task.id}
         taskId={task.id}
         folderId={task.folder?.id ?? null}
-        open={historyOpen}
-        onOpenChange={setHistoryOpen}
+        open={historyFor === task.id}
+        onOpenChange={(open) => setHistoryFor(open ? task.id : null)}
       />
     </div>
   )
