@@ -121,14 +121,6 @@ function sendCreateOutcome(
         'parent_id: must name a comment of this thread.',
       )
       return
-    case 'too_deep':
-      sendError(
-        res,
-        422,
-        'validation_failed',
-        'parent_id: threads hold one level of replies.',
-      )
-      return
     case 'file_not_here':
       // The message names the field the caller actually sent: 7.14 takes
       // `file_id` for one file and `file_ids` for up to 10.3's ten, and a
