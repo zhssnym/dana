@@ -2,8 +2,8 @@
 The task page's body: everything a task is, in one quiet column (M4: one
 task page, no peek).
 
-Four fixed properties, always shown, in this order: Status, Assignee, Date
-(its start, reminder and repeat live inside the Date picker) and Discussion,
+Five fixed properties, always shown, in this order: Status, Assignee, Date
+(its start, reminder and repeat live inside the Date picker), Labels and Discussion,
 then "Blocked by" / "Blocks" lines once a relation exists (the editor's
 `/Blocked by` makes one). Then the task's own document, whose checklist items
 are its subtasks and which holds only what the person wrote, and the task's
@@ -51,6 +51,7 @@ import {
   UNASSIGNED,
 } from "./task-card-copy.js"
 import { TaskAssigneeInvite } from "./task-assignee-invite.js"
+import { TaskLabels } from "./task-labels.js"
 import { INVITE_BY_EMAIL } from "./task-copy.js"
 import {
   isoDay,
@@ -269,6 +270,12 @@ function useTaskMay(taskId: string, folderId: string | null) {
           : ("read" as const),
     /* Not on the Desk: it has no Discussion tab and nobody else to talk to. */
     discuss: facts !== null && !facts.isDefault && mayDraw(facts, "discussion.create"),
+    manageFolderLabels: facts !== null && mayDraw(facts, 'label.vocabulary.manage'),
+    /* A contributor may classify their own Task; only the server's locked
+       assignment read can decide which one is theirs. */
+    applyFolderLabels: facts !== null && (mayDraw(facts, 'label.apply') || facts.access === 'can_contribute'),
+    labelScopeName: row?.kind === 'work' ? 'Work' as const : 'Page' as const,
+    labels: [...(detail?.labels.personal ?? []), ...(detail?.labels.folder ?? [])],
     threadId: detail?.discussion_id ?? null,
   }
 }
@@ -438,7 +445,7 @@ export function TaskCard({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* The four properties, always in this order. */}
+      {/* The five properties, always in this order. */}
       <div className="-mx-2 flex flex-col">
         <StatusRow task={task} may={may} onMove={move} />
 
@@ -499,6 +506,9 @@ export function TaskCard({
         >
           <DatePanel task={task} patch={patch} />
         </PropertyPicker>
+
+        <TaskLabels taskId={task.id} folderId={folderId} sharedName={may.labelScopeName} worn={may.labels}
+          canManageFolder={may.manageFolderLabels} canApplyFolder={may.applyFolderLabels} />
 
         <DiscussionRow taskId={task.id} folderId={folderId} threadId={may.threadId} mayStart={may.discuss} />
 

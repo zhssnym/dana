@@ -3,7 +3,7 @@ The Label reads and writes (#208), over the twelve routes #226, #227 and #274
 put on the server. A request and a shape each, like `mutations.ts`: the query
 client invalidates on every success and raises the toasts.
 */
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query'
 
 import {
@@ -29,9 +29,11 @@ import { queryKeys } from './keys.js'
 export function useLabels(
   folderId: string | null,
   state: 'active' | 'all' = 'active',
+  enabled = true,
 ): UseQueryResult<GetLabelsResponse> {
   return useQuery({
     queryKey: queryKeys.labels(folderId, state),
+    enabled,
     queryFn: () =>
       getPlain(getLabelsResponse, '/labels', {
         state,
@@ -117,11 +119,20 @@ export function useSetTaskLabel(): UseMutationResult<TaskDetail, Error, TaskLabe
  * label nobody chose in this act.
  */
 export function useWearFilterLabel(folderId: string | null): (taskId: string, labelId: string | null) => void {
-  const labels = useLabels(folderId)
+  const client = useQueryClient()
   const set = useSetTaskLabel()
   return (taskId, labelId) => {
     if (labelId === null) return
-    if (!(labels.data?.rows ?? []).some((label) => label.id === labelId && !label.archived)) return
-    set.mutate({ taskId, labelId, on: true })
+    void client.fetchQuery({
+      queryKey: queryKeys.labels(folderId, 'active'),
+      queryFn: () => getPlain(getLabelsResponse, '/labels', {
+        state: 'active', scope: folderId === null ? 'personal' : 'all',
+        ...(folderId === null ? {} : { folder_id: folderId }),
+      }),
+    }).then((labels) => {
+      if (labels.rows.some((label) => label.id === labelId && !label.archived)) {
+        set.mutate({ taskId, labelId, on: true })
+      }
+    }).catch(() => { /* The query cache reports the read failure. */ })
   }
 }

@@ -218,7 +218,7 @@ function taskQuery(viewerId: string, pattern: string, scope: SQL): SQL {
 }
 
 /** A project's Doc tabs other than the project's own (Purpose, Results and
- * the like, step 7), labelled with the project's name. */
+ * custom facets), labelled with the project's name. */
 function purposeQuery(viewerId: string, pattern: string, scope: SQL): SQL {
   return sql`
     SELECT tf.id, ${tabLabel} AS label
@@ -353,7 +353,7 @@ export async function searchReferences(
       summary('task', String(row.id), String(row.title)),
     ),
     ...contextPurposeRows.map((row) =>
-      summary('folder', String(row.id), String(row.label)),
+      summary('facet', String(row.id), String(row.label)),
     ),
     ...resultRows.filter(isContextResult).map(resultSummary),
     ...otherRows.map((row) =>
@@ -363,7 +363,7 @@ export async function searchReferences(
       summary('folder', String(row.id), String(row.name)),
     ),
     ...otherPurposeRows.map((row) =>
-      summary('folder', String(row.id), String(row.label)),
+      summary('facet', String(row.id), String(row.label)),
     ),
     ...discussionRows.map((row) =>
       summary('discussion', String(row.id), String(row.title)),

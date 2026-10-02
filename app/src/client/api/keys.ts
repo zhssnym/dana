@@ -82,8 +82,9 @@ export const queryKeys = {
   discussionThread: (id: string) => ['discussions', id, 'thread'] as const,
   outcome: (id: string) => ['outcomes', id] as const,
 
-  /** A Dana Link chip's live label (#223), and a target's "Referenced from"
-   * list (#214). Read by `components/links/`. */
+  /** A Dana Link chip's live label (#223), a target's "Referenced from"
+   * list (#214), and #488's richer facet-only source projection. */
   reference: (kind: string, id: string) => ['references', kind, id] as const,
   backlinks: (kind: string, id: string) => ['backlinks', kind, id] as const,
+  connectedWork: (facetId: string) => ['facets', facetId, 'connected-work'] as const,
 } as const
