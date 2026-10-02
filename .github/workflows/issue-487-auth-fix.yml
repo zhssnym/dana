@@ -1,0 +1,59 @@
+name: Issue 487 start-time auth fix
+
+on:
+  push:
+    branches: [backend/487-start-time-contract]
+    paths:
+      - '.github/workflows/issue-487-auth-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: backend/487-start-time-contract
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Include start_time in task.edit authorization
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/server/domain/tasks.ts')
+          text = p.read_text()
+          old = "      patch.start_date !== undefined ||\n      patch.due_date !== undefined ||"
+          new = "      patch.start_date !== undefined ||\n      patch.start_time !== undefined ||\n      patch.due_date !== undefined ||"
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one auth match, found {text.count(old)}')
+          p.write_text(text.replace(old, new, 1))
+          PY
+      - name: Install
+        working-directory: app
+        run: npm ci
+      - name: Lint
+        working-directory: app
+        run: npm run lint
+      - name: Typecheck
+        working-directory: app
+        run: npm run typecheck
+      - name: Focused backend test
+        working-directory: app
+        run: npm test -- tests/criteria/ac-423-task-schedule.test.ts
+      - name: Diff check
+        run: git diff --check
+      - name: Commit fix and remove temporary workflow
+        run: |
+          rm -f .github/workflows/issue-487-auth-fix.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "fix: authorize start-time-only task edits (#487)"
+          git push origin HEAD:backend/487-start-time-contract
