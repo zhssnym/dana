@@ -4,7 +4,9 @@ A project's tabs (step 7, migration 0061).
 A project is its root `folders` row (`id = project_id`), and a tab is a
 root-level page of the project with a `tab_position`; the root is always one.
 This module adds tabs: `POST /folders/:id/tabs` (the picker and the "+"), and
-the Discussion tab that "Discuss" on a task needs.
+the Discussion tab that "Discuss" on a task needs. Desk is the one exception:
+its root stays Work and every additional tab is Doc; it never gains a
+Discussion tab.
 
 Every write takes the project root's row lock first, so two adds, a pick and
 a Discuss on the same project queue rather than race, and "one live
@@ -45,13 +47,14 @@ interface ProjectRoot {
   ownerId: string
   tabPosition: string
   name: string
+  isDefault: boolean
 }
 
 /** The live project root of `pageId`, under its row lock, or null. */
 async function lockedProjectOf(tx: Executor, pageId: string): Promise<ProjectRoot | null> {
   const rows = await rowsOf(
     tx,
-    sql`SELECT r.id, r.kind, r.owner_id, r.tab_position, r.name
+    sql`SELECT r.id, r.kind, r.owner_id, r.tab_position, r.name, r.is_default
           FROM folders p JOIN folders r ON r.id = p.project_id
          WHERE p.id = ${pageId}::uuid AND p.deleted_at IS NULL AND p.archived_at IS NULL
            AND r.deleted_at IS NULL AND r.archived_at IS NULL
@@ -66,6 +69,7 @@ async function lockedProjectOf(tx: Executor, pageId: string): Promise<ProjectRoo
     ownerId: String(row.owner_id),
     tabPosition: String(row.tab_position),
     name: String(row.name),
+    isDefault: row.is_default === true,
   }
 }
 
@@ -132,7 +136,8 @@ export async function liveDiscussionTab(tx: Executor, projectId: string): Promis
  * needs `folder.page.edit` on the project root. While the root's kind is
  * unpicked, `kind` picks it (`usual`: the root is Work, with Purpose before
  * it and Results and Discussion after). Once picked, `kind` adds one tab
- * after the last.
+ * after the last. Desk is always Work plus Docs, so its endpoint accepts Doc
+ * only and never changes the root's kind.
  */
 export async function addTab(
   db: Db,
@@ -148,6 +153,24 @@ export async function addTab(
     if (facts === null) return { kind: 'not_found' }
     const decision = mayPerform(facts, PAGE_TREE_EDIT_ACTION)
     if (!decision.allowed) return { kind: 'forbidden', reason: decision.reason }
+
+    if (root.isDefault) {
+      if (kind !== 'doc') {
+        return { kind: 'invalid', reason: 'kind: Desk can add documentation pages only.' }
+      }
+      if (root.kind === null) {
+        await tx.execute(sql`UPDATE folders SET kind = 'work' WHERE id = ${root.id}::uuid`)
+      }
+      await insertTab(
+        tx,
+        actorId,
+        root,
+        'doc',
+        DEFAULT_TAB_NAMES.doc,
+        keyBetween(await lastTabPosition(tx, root.id), null),
+      )
+      return { kind: 'ok', projectId: root.id }
+    }
 
     if (root.kind === null) {
       if (kind === 'usual') {
@@ -222,13 +245,12 @@ export { projectOf } from './folder-access.js'
 
 /**
  * The live Discussion tab of `pageId`'s project, added after the last tab
- * when there is none ("Discuss" on a task, spec 7.28). The caller has gated
- * the actor on the task's page; the tab is structure the project needs for
- * the thread to be listed, not an edit of anybody's page.
+ * when there is none ("Discuss" on a task, spec 7.28). Desk deliberately
+ * answers null: its one member has no Discussion surface.
  */
 export async function ensureDiscussionTab(tx: Executor, actorId: string, pageId: string): Promise<string | null> {
   const root = await lockedProjectOf(tx, pageId)
-  if (root === null) return null
+  if (root === null || root.isDefault) return null
   const existing = await liveDiscussionTab(tx, root.id)
   if (existing !== null) return existing
   return insertTab(

@@ -502,9 +502,9 @@ function FolderPageBody({
   const filteredLabel = labelDefinitions.data?.rows.find((label) => label.id === taskFilter.label)
   const canCreateInFilter = taskFilter.label === null ||
     (filteredLabel?.archived === false && (filteredLabel.scope === 'personal' || gates?.applyLabel === true))
-  /* The Desk draws its tab row only when migration 0061 gave it Doc tabs
-     (writing its Purpose, Results or Notes facets held); nothing adds one. */
-  const shownTabs = onTab && (!isDefault || tabs.length > 1) ? tabs : []
+  /* The Desk's row is drawn even with Work alone, so its "+" can add a Doc
+     back after the last one went to Trash (spec 9.14). */
+  const shownTabs = onTab ? tabs : []
   const discussionTab = tabs.find((tab) => tab.kind === 'discussion')
   /* A thread's address: `?discussion=` (ConsultationLinkPage, Discuss, an
      old link) or a notification's `?conversation=open` about the page's own

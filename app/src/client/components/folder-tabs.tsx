@@ -9,16 +9,20 @@ drew. The project root is one of them, labelled by its kind ("Work", "Doc",
 for its controls and "+"; other pages keep "+" in the header (`AddTabMenu`).
 
 **The "+"** offers Doc and Work, and Discussion only while the project has
-none (one per project; the server answers a second 409).
+none (one per project; the server answers a second 409). Desk is the deliberate
+exception: it is private Work plus documentation, so its "+" offers Doc only,
+its Work root stays first, and any legacy Discussion tab is not drawn.
 
 **A tab's own acts are on the tab**: right-click it (or Shift+F10 / the menu
 key) for Rename and Delete. The root's tab has neither: its name is the
 project's, and deleting it is deleting the project, which the header's "…"
-does. Drag, or Alt+←/→, reorders. Arrow keys move between tabs.
+does. Drag, or Alt+←/→, reorders. Arrow keys move between tabs. On Desk the
+Work root is fixed and its Doc tabs keep those acts.
 
 Every act is offered only to a viewer who may edit the project's pages
-(`editable`, from `shared/folder-actions.ts`), so the row offers nothing a
-403 would answer.
+(`editable`, from `shared/folder-actions.ts`). Desk is the one-person default
+project, so its Doc tabs remain editable even though the page historically
+passed `editable=false` to keep the old facet row fixed.
 */
 import { useEffect, useRef, useState } from 'react'
 
@@ -37,7 +41,12 @@ import { Tab, TabList } from './ui/tabs.js'
 import { cn } from './ui/utils.js'
 import { DiscussionTabName } from './consultation/DiscussionTabName.js'
 
-type TabPage = Pick<Folder, 'id' | 'project_id' | 'kind' | 'name' | 'tab_position'>
+type TabPage = Pick<Folder, 'id' | 'project_id' | 'kind' | 'name' | 'tab_position'> &
+  Partial<Pick<Folder, 'is_default'>>
+
+function isDeskRow(tabs: readonly TabPage[]): boolean {
+  return tabs.some((tab) => tab.id === tab.project_id && tab.is_default === true)
+}
 
 /** What a tab says: the root's kind, any other tab's own name. */
 export function tabLabel(tab: TabPage): string {
@@ -45,8 +54,9 @@ export function tabLabel(tab: TabPage): string {
   return tab.name
 }
 
-/** The kinds the "+" offers: Doc and Work, and Discussion while there is none. */
+/** The kinds the "+" offers. Desk can add documentation only. */
 export function addableKinds(tabs: readonly TabPage[]): PageKind[] {
+  if (isDeskRow(tabs)) return ['doc']
   return tabs.some((tab) => tab.kind === 'discussion') ? ['doc', 'work'] : ['doc', 'work', 'discussion']
 }
 
@@ -127,6 +137,21 @@ export function FolderTabs<T extends TabPage>({
   readonly onDelete: (tab: T) => void
   readonly tools?: React.ReactNode
 }): React.JSX.Element | null {
+  const desk = isDeskRow(tabs)
+  const deskRoot = desk ? tabs.find((tab) => tab.id === tab.project_id) : undefined
+  /* 0071 preserves old Discussion rows because deleting shared history would
+     be data loss. The row simply has no Discussion surface in Desk. Keep the
+     Work root first even while a pre-0071 client cache still carries its old
+     position. */
+  const rowTabs: readonly T[] = desk
+    ? [
+        ...(deskRoot === undefined ? [] : [deskRoot]),
+        ...tabs.filter((tab) => tab.id !== deskRoot?.id && tab.kind !== 'discussion'),
+      ]
+    : tabs
+  const rowEditable = editable || desk
+  const mayMove = (tab: T): boolean => rowEditable && (!desk || tab.id !== deskRoot?.id)
+
   const [drag, setDrag] = useState<TabDrag | null>(null)
   const dragRef = useRef<TabDrag | null>(null)
   const rowRef = useRef<HTMLDivElement | null>(null)
@@ -165,11 +190,13 @@ export function FolderTabs<T extends TabPage>({
   }
 
   const reorderTo = (tab: T, gap: number): void => {
-    const from = tabs.findIndex((candidate) => candidate.id === tab.id)
+    if (!mayMove(tab)) return
+    const from = rowTabs.findIndex((candidate) => candidate.id === tab.id)
     if (from < 0) return
-    const to = gap > from ? gap - 1 : gap
-    if (to === from || to < 0 || to >= tabs.length) return
-    onReorder(tab, moved(tabs, from, to))
+    const landing = desk ? Math.max(1, gap) : gap
+    const to = landing > from ? landing - 1 : landing
+    if (to === from || to < 0 || to >= rowTabs.length) return
+    onReorder(tab, moved(rowTabs, from, to))
   }
 
   /* Esc cancels a lifted tab; a touch-drag must not scroll the row. */
@@ -209,17 +236,17 @@ export function FolderTabs<T extends TabPage>({
   }, [activeId])
 
   /* One tab is not a choice. Work still needs its controls on the hairline. */
-  if (tabs.length < 2) return tools === undefined ? null : (
+  if (rowTabs.length < 2) return tools === undefined ? null : (
     <div className="flex min-w-0 items-end justify-end gap-2 border-b border-border">
-      {editable && tabs.length === 1 ? <AddTabMenu tabs={tabs} onAdd={onAdd} /> : null}
+      {rowEditable && rowTabs.length === 1 ? <AddTabMenu tabs={rowTabs} onAdd={onAdd} /> : null}
       <div className="flex shrink-0 items-center border-l border-border pl-2 pb-0.5">{tools}</div>
     </div>
   )
-  const active = tabs.find((tab) => tab.id === activeId)
+  const active = rowTabs.find((tab) => tab.id === activeId)
 
   function moveFocus(tab: T, direction: -1 | 1): void {
-    const index = tabs.findIndex((candidate) => candidate.id === tab.id)
-    const next = tabs[(index + direction + tabs.length) % tabs.length]
+    const index = rowTabs.findIndex((candidate) => candidate.id === tab.id)
+    const next = rowTabs[(index + direction + rowTabs.length) % rowTabs.length]
     if (next === undefined) return
     onSelect(next)
     globalThis.requestAnimationFrame(() => {
@@ -228,7 +255,7 @@ export function FolderTabs<T extends TabPage>({
   }
 
   /* The root's tab is the project: no rename, no delete here. */
-  const hasMenu = (tab: T): boolean => editable && tab.id !== tab.project_id
+  const hasMenu = (tab: T): boolean => rowEditable && tab.id !== tab.project_id
 
   const openMenu = (tab: T, x: number, y: number): void => {
     menuFor.current = tab.id
@@ -258,12 +285,12 @@ export function FolderTabs<T extends TabPage>({
            overhang the tabs, and a scroller clips whatever overhangs it. */
         className="-my-1 -ms-1 min-w-0 flex-[0_1_auto] border-b-0 py-1 ps-1 pe-3"
       >
-        {tabs.map((tab, index) => {
+        {rowTabs.map((tab, index) => {
           const current = tab.id === active?.id
           const lifted = drag?.lifted === true && drag.id === tab.id
           /* The accent line sits in the gap before this tab, or after the last. */
           const lineBefore = drag?.lifted === true && drag.gap === index
-          const lineAfter = drag?.lifted === true && drag.gap === tabs.length && index === tabs.length - 1
+          const lineAfter = drag?.lifted === true && drag.gap === rowTabs.length && index === rowTabs.length - 1
           const label = tabLabel(tab)
           if (renamingId === tab.id) {
             return (
@@ -293,7 +320,7 @@ export function FolderTabs<T extends TabPage>({
               selected={current}
               aria-label={label}
               aria-haspopup={hasMenu(tab) ? 'menu' : undefined}
-              aria-keyshortcuts={editable ? 'Alt+ArrowLeft Alt+ArrowRight' : undefined}
+              aria-keyshortcuts={mayMove(tab) ? 'Alt+ArrowLeft Alt+ArrowRight' : undefined}
               onClick={() => {
                 if (swallowClick.current) {
                   swallowClick.current = false
@@ -313,7 +340,7 @@ export function FolderTabs<T extends TabPage>({
                 event.preventDefault()
                 const direction = event.key === 'ArrowLeft' ? -1 : 1
                 if (event.altKey) {
-                  if (!editable) return
+                  if (!mayMove(tab)) return
                   /* Alt+←/→ moves the tab one place and keeps it focused. */
                   reorderTo(tab, direction < 0 ? index - 1 : index + 2)
                   globalThis.requestAnimationFrame(() => {
@@ -324,7 +351,7 @@ export function FolderTabs<T extends TabPage>({
                 moveFocus(tab, direction)
               }}
               onPointerDown={(event) => {
-                if (!editable || event.button !== 0) return
+                if (!mayMove(tab) || event.button !== 0) return
                 put({ id: tab.id, pointerId: event.pointerId, startX: event.clientX, x: event.clientX, lifted: false, gap: index })
                 if (event.pointerType === 'touch') {
                   const element = event.currentTarget
@@ -390,7 +417,7 @@ export function FolderTabs<T extends TabPage>({
               }}
               style={{
                 ...(lifted && drag !== null ? { transform: `translateX(${String(drag.x - drag.startX)}px)` } : {}),
-                ...(editable ? { WebkitTouchCallout: 'none' } : {}),
+                ...(mayMove(tab) ? { WebkitTouchCallout: 'none' } : {}),
               }}
               className={cn(
                 'relative focus-visible:rounded-sm focus-visible:text-foreground',
@@ -409,7 +436,7 @@ export function FolderTabs<T extends TabPage>({
         })}
       </TabList>
       {/* The "+" sits outside the scroller, so a narrow screen never clips it. */}
-      {editable ? <AddTabMenu tabs={tabs} onAdd={onAdd} /> : null}
+      {rowEditable ? <AddTabMenu tabs={rowTabs} onAdd={onAdd} /> : null}
       <div className="min-w-0 flex-1" aria-hidden="true" />
       {tools === undefined ? null : (
         <div className="flex shrink-0 items-center border-l border-border pl-2 pb-0.5">{tools}</div>
