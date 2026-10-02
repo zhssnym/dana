@@ -732,6 +732,7 @@ export const Server = icon(Lu.Server, Anim.ServerIcon)
 export const ShoppingBasket = icon(Lu.ShoppingBasket, Anim.ShoppingBasketIcon)
 export const Signpost = icon(Lu.Signpost, Anim.SignpostIcon)
 export const Smartphone = icon(Lu.Smartphone, Anim.SmartphoneIcon)
+export const SmilePlus = icon(Lu.SmilePlus, null) // animated: no smile-plus
 export const Snowflake = icon(Lu.Snowflake, Anim.SnowflakeIcon)
 export const Sparkles = icon(Lu.Sparkles, Anim.SparklesIcon)
 export const Speaker = icon(Lu.Speaker, Anim.SpeakerIcon)
