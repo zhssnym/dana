@@ -31,7 +31,8 @@ import { CanvasWriter } from './saving.js'
 import { isSectionHeading } from './outline.js'
 import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
 import { pasteIntoCanvas } from './paste.js'
-import { lineTitles } from './commands.js'
+import { lineTitles, removeCanvasBlocks } from './commands.js'
+import { RECONCILED } from './guard.js'
 import type { TaskRows } from '../../../pages/task-rows.js'
 import type { TaskFilter } from '../../../views/filter.js'
 import { useCurrentWorkView } from '../../../views/work-view.js'
@@ -133,6 +134,20 @@ function scrollerOf(element: Element | null): Element | null {
 }
 
 const CHANGED_ELSEWHERE = 'This page changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
+
+/** The trashed Tasks `page` no longer holds, when that is all that differs from `held`; otherwise null. */
+function trashedOnly(held: PageView, page: PageView, trashing: ReadonlySet<string>): ReadonlySet<string> | null {
+  const gone = new Set(held.items.filter((item) => item.kind === 'task' && trashing.has(item.id) && !page.items.some((kept) => kept.id === item.id)).map((item) => item.id))
+  if (gone.size === 0) return null
+  const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
+  return same(page.blocks, held.blocks)
+    && same(page.items, held.items.filter((item) => !gone.has(item.id)))
+    && same(page.task_placements ?? [], (held.task_placements ?? []).filter((task) => !gone.has(task.id)))
+    ? gone : null
+}
+function taskBlocks(blocks: readonly CanvasBlock[], taskIds: ReadonlySet<string>): CanvasBlock[] {
+  return blocks.flatMap((block) => [...(block.type === 'danaTask' && taskIds.has(String(block.props.taskId)) ? [block] : []), ...taskBlocks(block.children, taskIds)])
+}
 
 function PersistedCanvas({ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen }: Props & {
   readonly opening: string
@@ -322,6 +337,11 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
       ? empty
       : mergeWorkDocument(initialPage, workRootId, empty)
   const queryClient = useQueryClient()
+  /* The page as the writer's revision holds it, and the Tasks this editor sent
+     to Trash with writing (`settle`): the page coming back with only those
+     gone is this editor's own act, not a change from elsewhere (below). */
+  const held = useRef(initialPage)
+  const trashing = useRef(new Set<string>())
   // This is a recoverable draft, never a cached page or an automatic offline queue.
   // One key per document: Work and each tab keep their own. A tab that was a
   // facet kept the facet's id, so a draft stored under it is still found.
@@ -336,6 +356,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
       } catch { /* recoverable in memory; storage is optional */ }
     },
     (next, checkpoint, operations) => {
+      held.current = next
       onSaved(next)
       if (checkpoint) onCheckpoint(next)
       // A sub-page trashed or restored, or a Task made, changes the folder list.
@@ -373,6 +394,21 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
   useEffect(() => () => { void writer.drain() }, [writer])
   useEffect(() => {
     if (!page.revision || page.revision === writer.revision || writer.state === 'saving') return
+    /* Writing and a Task deleted together (#512): the writing is saved, then
+       the Task goes to Trash, which moves the revision. Remounting for that
+       would take the writing's removal out of the editor's history, and
+       nothing else could bring it back. So when the page differs from the one
+       the writer holds only by those Tasks being gone, their rows leave here,
+       outside history, and the writer takes the new revision. */
+    const gone = writer.state === 'saved' ? trashedOnly(held.current, page, trashing.current) : null
+    if (gone !== null) {
+      const rows = taskBlocks(editor.document, gone)
+      if (rows.length > 0) editor.transact((tr) => { tr.setMeta('addToHistory', false); tr.setMeta(RECONCILED, true); removeCanvasBlocks(editor, rows) })
+      for (const id of gone) trashing.current.delete(id)
+      held.current = page
+      writer.adopt(page, projection(editor.document))
+      return
+    }
     if (writer.state === 'saved') onCheckpoint(page)
     else setError(CHANGED_ELSEWHERE)
   }, [page, writer, onCheckpoint])
@@ -684,7 +720,12 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
         headingMode={presentationHeadings === true ? 'document' : 'section'}
         editable={arrangeable && !creating && !pendingTask}
         onNotice={setNotice}
-        settle={async () => { changed(editor); await writer.drain(); return writer.state === 'saved' }}
+        settle={async (taskIds) => {
+          changed(editor); await writer.drain()
+          if (writer.state !== 'saved') return false
+          for (const id of taskIds) trashing.current.add(id)
+          return true
+        }}
         footer={workView === 'freeform' && presentationHeadings !== true ? <FreeformCompleted editor={editor} container={completedContainer} completed={completed ?? noCompleted} context={context} {...(taskFilter === undefined ? {} : { filter: taskFilter })} /> : undefined}
       />
       </div>

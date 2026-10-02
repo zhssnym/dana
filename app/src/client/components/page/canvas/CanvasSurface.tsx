@@ -21,7 +21,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../ui/dropdown-menu.js'
 import { installCanvasGuard, removingPages } from './guard.js'
 import { publishedFolders } from '../../../lib/folder-library.js'
-import { pushUndo, undoLabel } from '../../../shell/undo.js'
+import { foldUndo, pushUndo, undoLabel } from '../../../shell/undo.js'
 import { bindTaskCommand, dropEmptyLine, moveBlocksBy, removeCanvasBlocks } from './commands.js'
 import { CanvasSlashMenu, blockMenuTargets, headingTogglesFor } from './slash-items.js'
 import { isSectionHeading, shelfOutlineFailure, validateCanvasOutline } from './outline.js'
@@ -52,6 +52,32 @@ function flatShelfFailure(blocks: readonly TreeBlock[]): boolean {
 /** A folder reference is drawn as text but stored as `folder_ref`, which holds nothing. */
 function referenceHolds(blocks: readonly TreeBlock[], folderRefs: ReadonlyMap<string, string>): boolean {
   return blocks.some((block) => (block.children.length > 0 && folderRefs.has(block.id)) || referenceHolds(block.children, folderRefs))
+}
+
+/** Where a block stands: its parent and its siblings on each side, nearest first. */
+interface Place { readonly block: CanvasBlock; readonly parent: string | undefined; readonly before: readonly string[]; readonly after: readonly string[] }
+function placeOf(editor: CanvasEditor, block: CanvasBlock): Place {
+  const parent = editor.getParentBlock(block.id)
+  const siblings = (parent?.children ?? editor.document).map((sibling) => sibling.id)
+  const at = siblings.indexOf(block.id)
+  return { block, parent: parent?.id, before: siblings.slice(0, at).reverse(), after: siblings.slice(at + 1) }
+}
+/** Puts removed blocks back beside whatever of their neighbours is still there; one already back stays as it is. */
+function restorePlaces(editor: CanvasEditor, places: readonly Place[]): void {
+  try {
+    editor.transact(() => {
+      for (const { block, parent, before, after } of places) {
+        if (editor.getBlock(block.id) !== undefined) continue
+        const previous = before.find((id) => editor.getBlock(id) !== undefined)
+        const next = after.find((id) => editor.getBlock(id) !== undefined)
+        const home = parent === undefined ? undefined : editor.getBlock(parent)
+        if (previous !== undefined) editor.insertBlocks([block], previous, 'after')
+        else if (next !== undefined) editor.insertBlocks([block], next, 'before')
+        else if (home !== undefined) editor.updateBlock(home.id, { children: [block, ...home.children] })
+        else { const last = editor.document.at(-1); if (last !== undefined) editor.insertBlocks([block], last, 'after') }
+      }
+    })
+  } catch { /* the editor has gone (the page was left); the Tasks still come back */ }
 }
 
 /** Visual editor host. The caller owns hydration, uploads, Task actions and durable saving. */
@@ -104,8 +130,8 @@ export function CanvasSurface({
   readonly results?: boolean
   /** Terminal view-only content after the editor's writing tail. */
   readonly footer?: ReactNode
-  /** Sends the writing now; true once the page holds it (a Task is trashed after it). */
-  readonly settle?: () => Promise<boolean>
+  /** Sends the writing now; true once the page holds it (the Tasks named are trashed after it). */
+  readonly settle?: (taskIds: readonly string[]) => Promise<boolean>
 }): React.JSX.Element {
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
   const [insertMenu, setInsertMenu] = useState<{ readonly id: string; readonly x: number; readonly y: number } | null>(null)
@@ -157,9 +183,20 @@ export function CanvasSurface({
     const rest = blocks.filter((block) => block.type !== 'danaTask')
     const pages = (list: readonly TreeBlock[]): string[] => list.flatMap((block) => [
       ...(block.type === 'danaPage' ? [String(block.props.folderId)] : []), ...pages(block.children)])
+    const places = rest.map((block) => placeOf(editor, block))
     if (rest.length > 0) removingPages(pages(rest as unknown as TreeBlock[]), () => { removeCanvasBlocks(editor, rest) })
     if (trash.length === 0 || rest.some((block) => editor.getBlock(block.id) !== undefined)) return
-    void (settleRef.current?.() ?? Promise.resolve(true)).then((saved) => { if (saved) for (const run of trash) run?.() })
+    const settled = (taskIds: readonly string[]): Promise<boolean> => settleRef.current?.(taskIds) ?? Promise.resolve(true)
+    /* The writing's removal stays in the editor's history (the page keeps this
+       editor when only these Tasks leave it, `FolderCanvas`), and the Tasks'
+       Undo puts the writing back too, saved before the Tasks return, so one
+       Undo restores the whole deletion. */
+    void settled(tasks.map((block) => String(block.props.taskId))).then((saved) => {
+      if (!saved) return
+      const run = (): void => { for (const go of trash) go?.() }
+      if (places.length === 0) { run(); return }
+      foldUndo(run, () => { restorePlaces(editor, places); return settled([]) })
+    })
   }, [editor, deleteTask])
   /* A sub-page's own act: the block leaves (the next save sends its
      `delete_block` with `trash_page`), and Undo puts the same block back where

@@ -96,6 +96,13 @@ export class CanvasWriter {
     await this.flush()
     if (this.state === 'changed') await this.flush()
   }
+  /** A newer revision this editor already shows (its own Task went to Trash): based on it, nothing to send. */
+  adopt(page: PageView, document: CanvasDocument): void {
+    if (!page.revision) return
+    this.revision = page.revision
+    this.acknowledged = baselineOf(page, document)
+    this.change(document)
+  }
   async retry(): Promise<void> {
     if (this.state !== 'failed' || !this.pending) return
     this.state = 'changed'
