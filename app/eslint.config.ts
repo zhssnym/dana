@@ -34,7 +34,7 @@ const BRICKS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['kernel', ['fractional-index', 'document-hash', 'document-outline']],
   ['activity', ['events', 'mentions']],
   ['access', ['folder-access', 'responsibility', 'invites', 'connections']],
-  ['files', ['files']],
+  ['files', ['files', 'files-core']],
   // Labels are Folder-scoped, and folders.ts seeds them, so they sit here
   // rather than with tasks.
   ['projects', ['folders', 'page-tree', 'project-tabs', 'page-order', 'shelves', 'labels']],

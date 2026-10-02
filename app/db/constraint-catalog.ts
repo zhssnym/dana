@@ -7,12 +7,16 @@ import type { ExpectedTable } from './constraint-catalog-core.js'
  * discussion_tasks. Keep the catalog mechanically derived from the preceding
  * catalog while replacing exactly the constraints/indexes that migration
  * 0066 removes and adding the new relation table. */
+const baseDiscussions = baseCatalog.discussions
+if (baseDiscussions === undefined) {
+  throw new Error('constraint-catalog-core.ts no longer lists discussions')
+}
 const discussions: ExpectedTable = {
-  ...baseCatalog.discussions,
-  foreignKeys: baseCatalog.discussions.foreignKeys.filter(
+  ...baseDiscussions,
+  foreignKeys: baseDiscussions.foreignKeys.filter(
     (entry) => entry.name !== 'discussions_task_id_fkey',
   ),
-  indexes: baseCatalog.discussions.indexes.filter(
+  indexes: baseDiscussions.indexes.filter(
     (entry) => entry.name !== 'discussions_one_live_per_task_key',
   ),
 }

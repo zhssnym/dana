@@ -330,7 +330,7 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     table: 'comment_likes',
     disposition: 'deleted',
     where: 'step 6c, in this file',
-    why: "A like carries no text and names nobody on the wire: commentSelect answers a count and the viewer's own bit, and 4.15 calls it the whole reaction set. It is therefore not one of 8.10's three surviving references, and it is the same shape as my_day_entries and connections, which this transaction already deletes — a per-person marker on a shared object. What a remaining member sees change is one number on a comment.",
+    why: "A reaction (4.15, one row per person per reaction key) carries no text: it is a per-person marker on a shared object, the same shape as my_day_entries and connections, which this transaction already deletes, and not one of 8.10's three surviving references. What a remaining member sees change is the departed person leaving each reaction's `by` list, and a reaction only they held disappearing.",
   },
   {
     fk: 'discussion_reads_user_id_fkey',

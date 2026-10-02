@@ -253,6 +253,8 @@ function ThreadRow({
 }): React.JSX.Element {
   const isOpen = state === 'open'
   const fresh = isUnread(d, viewerId)
+  /* Issue #497 made the link plural; until #495's picker, the row leads with the first. */
+  const linkedTask = d.linked_tasks[0] ?? null
   const last = d.last_post ?? null
   /* "Lucía Ortega · 4 days ago", or "Resolved · Sep 18". */
   const meta = isOpen
@@ -292,15 +294,15 @@ function ThreadRow({
         }
       }}
     >
-      {d.task !== null ? (
+      {linkedTask !== null ? (
         /* A thread about a task leads with the task's state, linking to it. */
         <Link
-          to={paths.task(d.task.id)}
-          title={`Task: ${d.task.title}`}
-          aria-label={`Task: ${d.task.title}`}
+          to={paths.task(linkedTask.id)}
+          title={`Task: ${linkedTask.title}`}
+          aria-label={`Task: ${linkedTask.title}`}
           className={cn(MARK, 'text-muted-foreground outline-none hover:text-foreground')}
         >
-          <StateMark state={taskState(d.task)} className="size-3.5" />
+          <StateMark state={taskState(linkedTask)} className="size-3.5" />
         </Link>
       ) : may ? (
         <button

@@ -51,10 +51,6 @@ async function discussion(actor: Actor, folderId: string, title: string): Promis
   return String((made.json() as { id?: unknown }).id)
 }
 
-async function edges(): Promise<Array<{ discussion_id: string; task_id: string; created_via_task: boolean }>> {
-  return rows(app.db, sql`SELECT discussion_id, task_id, created_via_task FROM discussion_tasks ORDER BY discussion_id, task_id`) as Promise<Array<{ discussion_id: string; task_id: string; created_via_task: boolean }>>
-}
-
 describe('AC-1511 / #497 plural Discussion ↔ Task relation', () => {
   test('one Discussion links many Tasks and one Task links many Discussions; duplicate link is idempotent', async () => {
     const folderId = await folder(owner, 'ac1511 plural')
