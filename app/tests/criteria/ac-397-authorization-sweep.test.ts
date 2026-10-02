@@ -1387,6 +1387,23 @@ const TABLE = new Map<string, Row>([
       stranger: { expected: 404, rule: '7.14, as the like above' },
     },
   ],
+  [
+    'PUT /api/v1/comments/:id/reactions/:reaction',
+    {
+      attempt: (fx) => ({ path: `/comments/${fx.commentId}/reactions/heart`, body: {} }),
+      stranger: {
+        expected: 404,
+        rule: '7.14: a reaction needs the thread, so it needs the folder; the key is read only after',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/comments/:id/reactions/:reaction',
+    {
+      attempt: (fx) => ({ path: `/comments/${fx.commentId}/reactions/heart` }),
+      stranger: { expected: 404, rule: '7.14, as the reaction above' },
+    },
+  ],
 
   /* -------------------------------------------------------------- *
    * Files
@@ -1967,6 +1984,29 @@ const TABLE = new Map<string, Row>([
       stranger: {
         expected: 404,
         rule: '7.28: reopening is a Discussion act, 404 to a non-member',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/discussions/:id/tasks',
+    {
+      attempt: (fx) => ({
+        path: `/discussions/${fx.discussionId}/tasks`,
+        body: { task_id: fx.taskId },
+      }),
+      stranger: {
+        expected: 404,
+        rule: "7.28 (issue #497): linking a task is a Discussion edit, gated on the Discussion's Folder before the body's task_id is read, so a non-member is 404 and no edge is written",
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/discussions/:id/tasks/:taskId',
+    {
+      attempt: (fx) => ({ path: `/discussions/${fx.discussionId}/tasks/${fx.taskId}` }),
+      stranger: {
+        expected: 404,
+        rule: '7.28 (issue #497): unlinking is a Discussion edit, so a non-member is 404 on the Discussion before the task id is looked at',
       },
     },
   ],

@@ -15,7 +15,7 @@ requirement whether or not a test runs it: only a small core is executable, and
 
 ## The next number
 
-**The next number to take from the tail is 1543.**
+**The next number to take from the tail is 1546.**
 
 ## The files
 
@@ -34,7 +34,7 @@ requirement whether or not a test runs it: only a small core is executable, and
 | [`12.11-recurrence.md`](12.11-recurrence.md) | Recurrence |
 | [`12.12-reminders.md`](12.12-reminders.md) | Reminders |
 | [`12.13-events-history-and-notifications.md`](12.13-events-history-and-notifications.md) | Events, history and notifications |
-| [`12.14-comments-and-likes.md`](12.14-comments-and-likes.md) | Comments and likes |
+| [`12.14-comments-and-likes.md`](12.14-comments-and-likes.md) | Comments and reactions |
 | [`12.15-files-images-and-avatars.md`](12.15-files-images-and-avatars.md) | Files, images and avatars |
 | [`12.16-duplicating-and-importing.md`](12.16-duplicating-and-importing.md) | Duplicating, importing and workflow files |
 | [`12.17-first-run-and-the-sample-workspace.md`](12.17-first-run-and-the-sample-workspace.md) | First run and the sample workspace |

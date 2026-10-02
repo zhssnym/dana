@@ -684,6 +684,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
         headingMode={presentationHeadings === true ? 'document' : 'section'}
         editable={arrangeable && !creating && !pendingTask}
         onNotice={setNotice}
+        settle={async () => { changed(editor); await writer.drain(); return writer.state === 'saved' }}
         footer={workView === 'freeform' && presentationHeadings !== true ? <FreeformCompleted editor={editor} container={completedContainer} completed={completed ?? noCompleted} context={context} {...(taskFilter === undefined ? {} : { filter: taskFilter })} /> : undefined}
       />
       </div>

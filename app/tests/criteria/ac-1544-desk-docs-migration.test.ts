@@ -1,5 +1,5 @@
 /*
-AC-1541: migration 0067 establishes Desk's Work + Docs shape without deleting
+AC-1544: migration 0069 establishes Desk's Work + Docs shape without deleting
 legacy content. An untouched Purpose page becomes Docs in place, an existing
 Discussion row is retained for history but ordered out of the normal Desk
 surface, and a Desk with no documentation receives Docs (spec 9.14, 7.30).
@@ -50,7 +50,7 @@ async function openScratch(): Promise<Scratch> {
     }
   }
 
-  const name = `${new URL(base).pathname.replace(/^\//, '')}_m67_${process.pid}`
+  const name = `${new URL(base).pathname.replace(/^\//, '')}_m69_${process.pid}`
   const admin = new pg.Client({ connectionString: base })
   admin.on('error', () => undefined)
   await admin.connect()
@@ -104,14 +104,14 @@ let db: Scratch
 let scratch: string
 
 beforeAll(async () => {
-  scratch = mkdtempSync(path.join(tmpdir(), 'dana-0067-'))
-  const through0066 = path.join(scratch, 'a')
-  const through0067 = path.join(scratch, 'b')
-  cutThrough('0066_', through0066)
-  cutThrough('0067_', through0067)
+  scratch = mkdtempSync(path.join(tmpdir(), 'dana-0069-'))
+  const through0068 = path.join(scratch, 'a')
+  const through0069 = path.join(scratch, 'b')
+  cutThrough('0068_', through0068)
+  cutThrough('0069_', through0069)
 
   db = await openScratch()
-  await db.migrate(through0066)
+  await db.migrate(through0068)
 
   await db.exec(sql`INSERT INTO users (id, display_name) VALUES
     (${user}::uuid, 'Desk owner'), (${userTwo}::uuid, 'Second Desk owner')`)
@@ -129,7 +129,7 @@ beforeAll(async () => {
   await db.exec(sql`INSERT INTO page_blocks (id, folder_id, kind, position, page_position, text)
     VALUES (${block}::uuid, ${purpose}::uuid, 'paragraph', 1, 'a0', 'kept writing')`)
 
-  await db.migrate(through0067)
+  await db.migrate(through0069)
 }, 60_000)
 
 afterAll(async () => {
@@ -137,8 +137,8 @@ afterAll(async () => {
   if (scratch !== undefined) rmSync(scratch, { recursive: true, force: true })
 })
 
-describe('AC-1541 Desk Docs migration', () => {
-  test('AC-1541: Work is first, Purpose becomes Docs in place, and legacy Discussion survives', async () => {
+describe('AC-1544 Desk Docs migration', () => {
+  test('AC-1544: Work is first, Purpose becomes Docs in place, and legacy Discussion survives', async () => {
     const tabs = await db.exec(sql`SELECT id, name, kind
       FROM folders
       WHERE project_id = ${desk}::uuid AND tab_position IS NOT NULL
@@ -159,7 +159,7 @@ describe('AC-1541 Desk Docs migration', () => {
     ).toEqual([{ folder_id: purpose }])
   })
 
-  test('AC-1541: a Desk without documentation receives one Docs page', async () => {
+  test('AC-1544: a Desk without documentation receives one Docs page', async () => {
     const tabs = await db.exec(sql`SELECT name, kind, (id = project_id) AS root
       FROM folders
       WHERE project_id = ${emptyDesk}::uuid AND tab_position IS NOT NULL

@@ -139,9 +139,9 @@ export function FolderTabs<T extends TabPage>({
 }): React.JSX.Element | null {
   const desk = isDeskRow(tabs)
   const deskRoot = desk ? tabs.find((tab) => tab.id === tab.project_id) : undefined
-  /* 0067 preserves old Discussion rows because deleting shared history would
+  /* 0069 preserves old Discussion rows because deleting shared history would
      be data loss. The row simply has no Discussion surface in Desk. Keep the
-     Work root first even while a pre-0067 client cache still carries its old
+     Work root first even while a pre-0069 client cache still carries its old
      position. */
   const rowTabs: readonly T[] = desk
     ? [

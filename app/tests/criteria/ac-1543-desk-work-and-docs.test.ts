@@ -1,5 +1,5 @@
 /*
-AC-1540: Desk is the private Work project. It starts with Work and Docs,
+AC-1543: Desk is the private Work project. It starts with Work and Docs,
 accepts additional Doc tabs only, and refuses both Discussion entry points
 from the root and its documentation pages (spec 7.30, 9.14).
 */
@@ -48,8 +48,8 @@ async function tabsOf(deskId: string): Promise<Record<string, unknown>[]> {
   )
 }
 
-describe('AC-1540 Desk is Work plus documentation', () => {
-  test('AC-1540: Docs is default, plus adds Docs only, and Discussion cannot be created', async () => {
+describe('AC-1543 Desk is Work plus documentation', () => {
+  test('AC-1543: Docs is default, plus adds Docs only, and Discussion cannot be created', async () => {
     const [owner] = (await cast.of(app)) as [Actor]
     const deskId = await deskOf(owner)
 

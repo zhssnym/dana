@@ -1,6 +1,7 @@
 /*
 The 7.14 surface: the thread on a folder or a Discussion, member-only
-throughout, one reply level enforced, likes as one idempotent bit.
+throughout, one reply level enforced, reactions as idempotent per-person
+marks from a fixed set.
 
 Status grammar (7.0, 10.2, DES-225): a folder or comment out of the
 viewer's membership 404, never 403; a member touching another author's
@@ -20,7 +21,7 @@ something the caller cannot compute from what it sent.
 
 Since issue #320 a Folder-level comment belongs to a Discussion.
 `/discussions/:id/comments` is that Discussion's conversation, the same
-comment in every other respect (body, files, replies, likes, fan-out).
+comment in every other respect (body, files, replies, reactions, fan-out).
 `/folders/:id/comments` stays exactly as the deployed client uses it and is
 the Folder's "General discussion": the read answers it, and a write lands in
 the open one, made if missing.
@@ -41,17 +42,19 @@ import {
   DISCUSSION_FROZEN,
   patchCommentBody,
   postCommentBody,
+  reactionKey,
 } from '../../shared/comments.js'
+import type { ReactionKey } from '../../shared/comments.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
 import {
   accessibleComment,
+  addReaction,
   createComment,
   deleteComment,
   discussionScope,
   editComment,
-  likeComment,
+  removeReaction,
   threadView,
-  unlikeComment,
 } from '../domain/comments.js'
 import type { CommentThread, CreateCommentResult } from '../domain/comments.js'
 import { accessOf, mayPerform } from '../domain/folder-access.js'
@@ -89,6 +92,8 @@ function sentTaskThread(res: Response, task: string | undefined): boolean {
 const FROZEN_MESSAGE =
   'This discussion is resolved or in Trash, so its conversation takes no changes. Reopen or restore it first.'
 
+const reactionParam = z.object({ reaction: reactionKey })
+
 function sendFrozen(res: Response): void {
   sendError(res, 409, DISCUSSION_FROZEN, FROZEN_MESSAGE)
 }
@@ -114,14 +119,6 @@ function sendCreateOutcome(
         422,
         'validation_failed',
         'parent_id: must name a comment of this thread.',
-      )
-      return
-    case 'too_deep':
-      sendError(
-        res,
-        422,
-        'validation_failed',
-        'parent_id: threads hold one level of replies.',
       )
       return
     case 'file_not_here':
@@ -207,7 +204,7 @@ export function createConversationRouter(
       if (sentTaskThread(res, query.data.task)) return
       res
         .status(200)
-        .json(await threadView(db, viewer(req), folderId, FOLDER_THREAD))
+        .json(await threadView(db, folderId, FOLDER_THREAD))
     },
   )
 
@@ -286,7 +283,7 @@ export function createConversationRouter(
         return
       }
       res.status(200).json(
-        await threadView(db, viewer(req), scope.folderId, {
+        await threadView(db, scope.folderId, {
           kind: 'discussion',
           discussionId: scope.id,
         }),
@@ -459,62 +456,80 @@ export function createConversationRouter(
     },
   )
 
+  /*
+  One handler for leaving and taking back a reaction. Strangers 404 before
+  anything else is read, so an unknown key from them still says nothing; a
+  Can-view member 403s (#228's Can-comment list puts reacting with
+  commenting); only then is the key checked, 422 naming `reaction`.
+  `fixed` is the old like's route, kept as thumbs_up so a cached client
+  keeps working across the deploy that retired it.
+  */
+  const reactionRoute =
+    (mode: 'add' | 'remove', fixed?: ReactionKey) =>
+    async (req: Request, res: Response): Promise<void> => {
+      const db = database(res)
+      if (db === null) return
+      const commentId = parsedId(res, req.params.id)
+      if (commentId === null) return
+      const access = await accessibleComment(db, viewer(req), commentId)
+      if (access === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const may = mayPerform(access.facts, 'comment.like')
+      if (!may.allowed) {
+        sendError(res, 403, 'forbidden', may.reason)
+        return
+      }
+      let reaction: ReactionKey
+      if (fixed === undefined) {
+        const parsed = reactionParam.safeParse({ reaction: req.params.reaction })
+        if (!parsed.success) {
+          sendValidationError(res, parsed.error)
+          return
+        }
+        reaction = parsed.data.reaction
+      } else {
+        reaction = fixed
+      }
+      const outcome =
+        mode === 'add'
+          ? await addReaction(db, viewer(req), commentId, reaction)
+          : await removeReaction(db, viewer(req), commentId, reaction)
+      if (outcome === 'frozen') {
+        sendFrozen(res)
+        return
+      }
+      res.status(204).end()
+    }
+
+  router.put(
+    '/comments/:id/reactions/:reaction',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    reactionRoute('add'),
+  )
+  router.delete(
+    '/comments/:id/reactions/:reaction',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    reactionRoute('remove'),
+  )
   router.put(
     '/comments/:id/like',
     requireSession,
     requireCsrf,
     mutationLimit,
-    async (req: Request, res: Response) => {
-      const db = database(res)
-      if (db === null) return
-      const commentId = parsedId(res, req.params.id)
-      if (commentId === null) return
-      const liked = await accessibleComment(db, viewer(req), commentId)
-      if (liked === null) {
-        sendError(res, 404, 'not_found', 'Not found.')
-        return
-      }
-      // #228's Can-comment list puts liking with commenting: Can view reads
-      // the thread and leaves no mark on it.
-      const mayLike = mayPerform(liked.facts, 'comment.like')
-      if (!mayLike.allowed) {
-        sendError(res, 403, 'forbidden', mayLike.reason)
-        return
-      }
-      if ((await likeComment(db, viewer(req), commentId)) === 'frozen') {
-        sendFrozen(res)
-        return
-      }
-      res.status(204).end()
-    },
+    reactionRoute('add', 'thumbs_up'),
   )
-
   router.delete(
     '/comments/:id/like',
     requireSession,
     requireCsrf,
     mutationLimit,
-    async (req: Request, res: Response) => {
-      const db = database(res)
-      if (db === null) return
-      const commentId = parsedId(res, req.params.id)
-      if (commentId === null) return
-      const unliked = await accessibleComment(db, viewer(req), commentId)
-      if (unliked === null) {
-        sendError(res, 404, 'not_found', 'Not found.')
-        return
-      }
-      const mayUnlike = mayPerform(unliked.facts, 'comment.like')
-      if (!mayUnlike.allowed) {
-        sendError(res, 403, 'forbidden', mayUnlike.reason)
-        return
-      }
-      if ((await unlikeComment(db, viewer(req), commentId)) === 'frozen') {
-        sendFrozen(res)
-        return
-      }
-      res.status(204).end()
-    },
+    reactionRoute('remove', 'thumbs_up'),
   )
 
   return router
