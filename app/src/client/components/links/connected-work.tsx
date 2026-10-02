@@ -2,10 +2,10 @@
 Connected work (#488): the reciprocal side of a facet reference.
 
 The facet chip is persisted as a Dana Link, but its reciprocal presentation is
-source-aware: the server answers the exact containing block/post and a small
-preview of that source. The UI groups sources under their parent Task/Page/
-Discussion so a facet reads as connected work rather than as a list of pages
-that happen to contain links.
+source-aware: the existing facet backlink read answers the exact containing
+block/post and a small preview of that source. The UI groups sources under
+their parent Task/Page/Discussion so a facet reads as connected work rather
+than as a list of pages that happen to contain links.
 */
 import { useQuery } from '@tanstack/react-query'
 import { Link as RouterLink } from 'react-router'
@@ -34,7 +34,7 @@ export function ConnectedWork({ id, className = '' }: {
 }): React.JSX.Element | null {
   const connected = useQuery({
     queryKey: queryKeys.connectedWork(id),
-    queryFn: () => getPlain(getConnectedWorkResponse, `/facets/${encodeURIComponent(id)}/connected-work`),
+    queryFn: () => getPlain(getConnectedWorkResponse, `/facets/${encodeURIComponent(id)}/backlinks`),
     retry: false,
     staleTime: 0,
   })
