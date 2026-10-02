@@ -41,8 +41,22 @@ jobs:
         working-directory: app
         run: npm run build
       - name: Verify migrations
+        id: verify
+        continue-on-error: true
         working-directory: app
-        run: npm run db:verify
+        run: |
+          set -o pipefail
+          npm run db:verify 2>&1 | tee ../issue-487-verify.log
+      - name: Upload migration verification diagnostics
+        if: steps.verify.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-487-migration-verify
+          path: issue-487-verify.log
+          retention-days: 1
+      - name: Stop on migration verification failure
+        if: steps.verify.outcome == 'failure'
+        run: exit 1
       - name: Focused backend tests
         working-directory: app
         run: npm test -- tests/criteria/ac-423-task-schedule.test.ts
