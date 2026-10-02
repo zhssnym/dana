@@ -121,20 +121,20 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
   })
 })
 
-test('smoke: assign and remove a Personal label on the Task page', async ({ page }) => {
+test('smoke: assign and remove a label on the Task page', async ({ page }) => {
   await signIn(page)
   await page.goto('/app')
   await page.getByRole('navigation').getByRole('link', { name: /Groceries/ }).first().click()
   await taskRow(page, 'Buy milk').first().click()
   const label = `Browser label ${Date.now()}`
   await page.getByRole('button', { name: 'Labels: Add labels' }).click()
-  await page.getByRole('button', { name: 'Create personal label' }).click()
+  await page.getByRole('button', { name: 'Create label' }).click()
   await page.getByRole('textbox', { name: 'Label name' }).fill(label)
   await page.getByRole('button', { name: 'Save label' }).click()
   await expect(page.getByRole('button', { name: `Labels: ${label}` })).toBeVisible()
   await page.reload()
   await expect(page.getByRole('button', { name: `Labels: ${label}` })).toBeVisible()
   await page.getByRole('button', { name: `Labels: ${label}` }).click()
-  await page.getByRole('button', { name: `Remove Personal label ${label}` }).click()
+  await page.getByRole('button', { name: `Remove label ${label}` }).click()
   await expect(page.getByRole('button', { name: 'Labels: Add labels' })).toBeVisible()
 })
