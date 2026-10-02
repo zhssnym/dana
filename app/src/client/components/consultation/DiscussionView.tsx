@@ -68,6 +68,7 @@ import { ThreadPosts } from '../thread/ThreadPosts.js'
 import { Button } from '../ui/button.js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu.js'
 import { WindowBarActions, WindowBarLead } from '../window-bar.js'
+import { cn } from '../ui/utils.js'
 import { DiscussionLinkedTasks, DiscussionTaskPicker } from '../discussion-task-links.js'
 import type { ConsultationViewer } from './authority.js'
 import { discussionPowers } from './authority.js'
@@ -283,9 +284,18 @@ function ThreadBody(props: {
       style={height === null ? undefined : { height }}
     >
       <WindowBarActions order={2}>{acts}</WindowBarActions>
-      {/* The top bar names the thread; this names it for the window's title
-          and a screen reader, and draws nothing. */}
-      <h1 data-page-title={d.title} className="sr-only">{d.title}</h1>
+      {/* The topic heads the thread, so it reads as a discussion of one thing.
+          On a phone the top bar already names it, so it is drawn only for a
+          screen reader there; Rename takes its place while open. */}
+      <h1
+        data-page-title={d.title}
+        className={cn(
+          'line-clamp-2 min-w-0 pt-4 pb-2 font-title text-[length:var(--text-h1-size)] leading-[var(--text-h1-line)] wrap-anywhere text-foreground max-md:sr-only',
+          renaming && 'sr-only',
+        )}
+      >
+        {d.title}
+      </h1>
       {renaming ? <Rename discussion={d} onDone={() => { setRenaming(false) }} /> : null}
       {relatable ? (
         <DiscussionTaskPicker
