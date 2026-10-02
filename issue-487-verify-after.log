@@ -1,6 +1,0 @@
-
-> dana@3.0.0 db:verify
-> tsx db/verify.ts
-
-catalog verification failed (1):
-  folders_archived_at_idx: descending columns [archived_at]
