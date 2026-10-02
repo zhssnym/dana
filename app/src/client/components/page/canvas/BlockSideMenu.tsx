@@ -56,13 +56,7 @@ export const BlockMenuContext = createContext<BlockMenuModel | null>(null)
 const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+'
 const NON_PERSISTED_BLOCKS = new Set(['danaTask', 'danaFolder'])
 
-/**
- * The Work directory already has an address. A Work root or any of its Doc
- * tabs is enough for the server to resolve the project-local facet set. Shelf
- * routes deliberately answer no scope. A direct Task route is resolved by its
- * surrounding Work page when opened from Work; a future standalone Task route
- * can pass an explicit scope without changing the relationship primitive.
- */
+/** A Work root or Doc tab resolves the exact project-local facet directory. */
 function routedWorkPage(): string | undefined {
   if (typeof window === 'undefined') return undefined
   const match = /^\/app\/(?:folders|facets)\/([0-9a-f-]{36})(?:\/|$)/i.exec(window.location.pathname)
@@ -130,9 +124,8 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
             {facets.options.map((facet) => (
               <Item
                 key={facet.id}
-                className="bn-menu-item"
-                disabled={facets.busy}
-                onClick={() => { facets.toggle(block.id, facet.id) }}
+                className={facets.busy ? 'bn-menu-item opacity-60' : 'bn-menu-item'}
+                onClick={() => { if (!facets.busy) facets.toggle(block.id, facet.id) }}
               >
                 <span className="flex flex-1 items-center gap-2">
                   <span className="flex-1 truncate">{facet.name}</span>
@@ -200,14 +193,8 @@ function DragHandle(): React.JSX.Element | null {
   )
 }
 
-export function BlockSideMenu(): React.JSX.Element {
+function BlockSideMenuRoot({ model }: { readonly model: BlockMenuModel }): React.JSX.Element {
   const Components = useComponentsContext()!
-  const editor = useBlockNoteEditor() as AnyEditor
-  const inherited = useContext(BlockMenuContext)!
-  const automaticFacets = useBlockFacets(editor, routedWorkPage(), editor.isEditable)
-  const model = inherited.facets === undefined && automaticFacets !== undefined
-    ? { ...inherited, facets: automaticFacets }
-    : inherited
   return (
     <BlockMenuContext.Provider value={model}>
       <Components.SideMenu.Root className={model.insertBefore === undefined ? 'bn-side-menu' : 'bn-side-menu dana-work-side-menu'}>
@@ -215,6 +202,21 @@ export function BlockSideMenu(): React.JSX.Element {
       </Components.SideMenu.Root>
     </BlockMenuContext.Provider>
   )
+}
+
+/** Hooks that need React Query only mount when the route has a Work scope. */
+function ProjectScopedBlockSideMenu({ folderId, inherited }: { readonly folderId: string; readonly inherited: BlockMenuModel }): React.JSX.Element {
+  const editor = useBlockNoteEditor() as AnyEditor
+  const automaticFacets = useBlockFacets(editor, folderId, editor.isEditable)
+  const model = automaticFacets === undefined ? inherited : { ...inherited, facets: automaticFacets }
+  return <BlockSideMenuRoot model={model} />
+}
+
+export function BlockSideMenu(): React.JSX.Element {
+  const inherited = useContext(BlockMenuContext)!
+  const scope = routedWorkPage()
+  if (scope === undefined || inherited.facets !== undefined) return <BlockSideMenuRoot model={inherited} />
+  return <ProjectScopedBlockSideMenu folderId={scope} inherited={inherited} />
 }
 
 function firstLineCentre(content: Element): number {
