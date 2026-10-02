@@ -172,4 +172,41 @@ describe('AC-1252 whole-block facet references', () => {
     expectStatus(removed, 200, 'empty replacement explicitly unlinks the whole block')
     expect(removed.json()).toEqual({ block_id: imageId, facets: [] })
   })
+
+  test('moving a Task to another Work severs its old block facet edges', async () => {
+    const [owner] = (await cast.of(app)) as [Actor, Actor]
+    const a = await makeUsualProject(owner, 'ac1252 move A')
+    const b = await makeUsualProject(owner, 'ac1252 move B')
+    const made = await owner.browser.json('/tasks', 'POST', {
+      title: 'Move this task',
+      folder_id: a.projectId,
+    })
+    expectStatus(made, 201, 'the source task is created')
+    const taskId = (made.json() as { id: string }).id
+    const blockId = randomUUID()
+    await app.db.execute(sql`
+      INSERT INTO page_blocks (id, task_id, kind, position, page_position, text)
+      VALUES (${blockId}::uuid, ${taskId}::uuid, 'paragraph', 0, 'a0', 'Task attachment context')
+    `)
+
+    const linked = await owner.browser.json('/block-facets', 'PUT', {
+      block_id: blockId,
+      facet_ids: [a.resultsId],
+    })
+    expectStatus(linked, 200, 'the Task body block is connected inside Work A')
+
+    const moved = await owner.browser.json(`/tasks/${taskId}`, 'PATCH', {
+      folder_id: b.projectId,
+    })
+    expectStatus(moved, 200, 'the Task moves to Work B')
+
+    const edges = await app.db.execute(sql`
+      SELECT facet_id FROM page_block_facets WHERE block_id = ${blockId}::uuid
+    `)
+    expect(edges.rows).toHaveLength(0)
+
+    const oldResults = await owner.browser.json(`/facets/${a.resultsId}/backlinks`, 'GET')
+    expectStatus(oldResults, 200, 'Work A Results remains readable')
+    expect(connectedSource(oldResults.json() as GetConnectedWorkResponse, blockId)).toBeUndefined()
+  })
 })
