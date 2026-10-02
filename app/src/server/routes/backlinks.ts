@@ -10,6 +10,14 @@ writes, no table:
     GET /api/v1/outcomes/:id/backlinks        (#320)
     GET /api/v1/results/:id/backlinks         (#213)
 
+#488 adds one richer facet-only projection:
+
+    GET /api/v1/facets/:id/connected-work
+
+It uses the same backlink scan, but answers the exact source blocks/posts and
+their small previews so a facet can show the work rather than only the owning
+document.
+
 **Why a path id per kind rather than `?target=<link>`.** The ac-397 sweep sees
 path parameters only; a target on the query string would be the one id no
 structural check notices. Each route therefore names its target in the path
@@ -19,7 +27,8 @@ and has its own sweep row.
 chip resolver uses, so a target the reader cannot open and a target that does
 not exist are the same bare 404 here as there — and nothing is scanned for a
 target the reader could not have named. Every source answered is then scoped
-by the reader's access to *it* (`domain/backlinks.ts`).
+by the reader's access to *it* (`domain/backlinks.ts` and
+`domain/connected-work.ts`).
 */
 import type { Request, Response, Router } from 'express'
 
@@ -27,6 +36,7 @@ import type { DbClient } from '../../../db/client.js'
 import type { ReferenceKind } from '../../shared/references.js'
 import { requireSession } from '../auth/index.js'
 import { backlinksOf } from '../domain/backlinks.js'
+import { connectedWorkOf } from '../domain/connected-work.js'
 import { resolveReference } from '../domain/references.js'
 import { sendError } from '../http/errors.js'
 import { routerWithPreamble } from './preamble.js'
@@ -78,6 +88,23 @@ export function createBacklinksRouter(
       },
     )
   }
+
+  router.get(
+    '/facets/:id/connected-work',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const id = parsedId(res, req.params.id)
+      if (id === null) return
+      const viewerId = viewer(req)
+      if ((await resolveReference(db, viewerId, { kind: 'facet', id })) === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      res.status(200).json(await connectedWorkOf(db, viewerId, id, options.appOrigin))
+    },
+  )
 
   return router
 }
