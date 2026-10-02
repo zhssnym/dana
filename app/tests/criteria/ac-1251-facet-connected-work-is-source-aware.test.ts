@@ -1,9 +1,9 @@
 /*
 AC-1251 (#488): a facet reference belongs to the exact object that contains
-its chip. Connected work answers that source's authored words (not the chip's
-own label), keeps the exact block id for navigation, accepts the historical
-Page spelling beside the canonical Facet spelling, and leaks neither target nor
-source to a stranger.
+its chip. The facet backlink read answers that source's authored words (not
+the chip's own label), keeps the exact block id for navigation, accepts the
+historical Page spelling beside the canonical Facet spelling, and leaks neither
+target nor source to a stranger.
 
 No relationship row is seeded here: the only durable relation is the href in
 the task document, as in #214/#223.
@@ -99,8 +99,8 @@ describe('AC-1251 facet Connected work keeps the exact source object', () => {
     })
     const blockId = await writeTaskReference(owner, taskId, `/app/facets/${resultsId}`)
 
-    const answer = await owner.browser.json(`/facets/${resultsId}/connected-work`, 'GET')
-    expectStatus(answer, 200, 'a member reads source-aware Connected work')
+    const answer = await owner.browser.json(`/facets/${resultsId}/backlinks`, 'GET')
+    expectStatus(answer, 200, 'a member reads source-aware facet backlinks')
     const connected = answer.json() as GetConnectedWorkResponse
     expect(connected.truncated).toBe(false)
     expect(connected.results).toHaveLength(1)
@@ -110,6 +110,7 @@ describe('AC-1251 facet Connected work keeps the exact source object', () => {
       home_id: taskId,
       folder_id: projectId,
       label: 'Prepare structural drawings',
+      block_ids: [blockId],
     }))
     expect(connected.results[0]?.sources).toEqual([
       {
@@ -121,7 +122,7 @@ describe('AC-1251 facet Connected work keeps the exact source object', () => {
       },
     ])
 
-    const refused = await stranger.browser.json(`/facets/${resultsId}/connected-work`, 'GET')
+    const refused = await stranger.browser.json(`/facets/${resultsId}/backlinks`, 'GET')
     expectStatus(refused, 404, 'a stranger cannot learn the facet or its connected sources')
     expect(refused.body).not.toContain('Prepare structural drawings')
     expect(refused.body).not.toContain(blockId)
@@ -137,10 +138,11 @@ describe('AC-1251 facet Connected work keeps the exact source object', () => {
     })
     const blockId = await writeTaskReference(owner, taskId, `/app/folders/${resultsId}`)
 
-    const answer = await owner.browser.json(`/facets/${resultsId}/connected-work`, 'GET')
+    const answer = await owner.browser.json(`/facets/${resultsId}/backlinks`, 'GET')
     expectStatus(answer, 200, 'old Page links still project as facet Connected work')
     const connected = answer.json() as GetConnectedWorkResponse
     const row = connected.results.find((item) => item.home_id === taskId)
+    expect(row?.block_ids).toEqual([blockId])
     expect(row?.sources.map((source) => source.id)).toEqual([blockId])
     expect(row?.sources[0]?.text).toBe('Final drawings approved')
   })
