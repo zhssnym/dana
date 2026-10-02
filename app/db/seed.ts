@@ -340,11 +340,15 @@ export async function seed(): Promise<void> {
        'Sits under a section, so 4.15 has a row too.', 'pending', false,
        ${tomorrow}, ${seedIds.nadia}, ${seedIds.nadia}, ${seedIds.blockNadiaSection})
   `)
-  // Talk about a task lives in its Discussion (M5), not on the task.
+  // Talk about a task lives in its Discussion through the persisted M:N relation.
   await db.execute(sql`
-    INSERT INTO discussions (id, folder_id, task_id, title, created_by) VALUES
-      (${seedIds.discussionNadiaDraft}, ${seedIds.nadiaStudio}, ${seedIds.taskNadiaDraft},
+    INSERT INTO discussions (id, folder_id, title, created_by) VALUES
+      (${seedIds.discussionNadiaDraft}, ${seedIds.nadiaStudio},
        'Draft the opening', ${seedIds.nadia})
+  `)
+  await db.execute(sql`
+    INSERT INTO discussion_tasks (discussion_id, task_id, created_via_task) VALUES
+      (${seedIds.discussionNadiaDraft}, ${seedIds.taskNadiaDraft}, true)
   `)
   await db.execute(sql`
     INSERT INTO comments (id, folder_id, discussion_id, parent_id, author_id, body) VALUES
