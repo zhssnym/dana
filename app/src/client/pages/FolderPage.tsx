@@ -154,7 +154,8 @@ import { PersonFace } from '../components/person-face.js'
 import { cn } from '../components/ui/utils.js'
 import { ConfirmDialog, useConfirm, useRowBasis } from './task-rows.js'
 import { TaskFilterChips, TaskFilterControl } from '../views/TaskFilterControl.js'
-import { labelsWorn, taskFilterActive } from '../views/filter.js'
+import { taskFilterActive } from '../views/filter.js'
+import { useLabels } from '../api/labels.js'
 import { useTaskFilter } from '../views/filter-store.js'
 import { useCurrentWorkView } from '../views/work-view.js'
 import { BoardGroupControl, WorkBoard } from '../views/WorkBoard.js'
@@ -372,6 +373,7 @@ function FolderPageBody({
   const cache = useQueryClient()
   const basis = useRowBasis()
   const [taskFilter, setTaskFilter] = useTaskFilter(id)
+  const labelDefinitions = useLabels(id, 'all', folderOk && kind === 'work')
   const [workView] = useCurrentWorkView()
   const [boardGroup, setBoardGroup] = useState<WorkGroup>('section')
   const actions = useRowActions()
@@ -473,7 +475,9 @@ function FolderPageBody({
     }
     return [...people].map(([personId, name]) => ({ id: personId, name }))
   }, [members, filterRows])
-  const filterLabels = useMemo(() => labelsWorn(filterRows), [filterRows])
+  const filterLabels = labelDefinitions.data?.rows.map((label) => ({
+    id: label.id, name: label.name, color: label.color, archived: label.archived,
+  })) ?? []
   const filteringTasks = kind === 'work' && taskFilterActive(taskFilter)
   /*
   **What this page may offer, from the server's own table** (issue #228).
@@ -492,6 +496,9 @@ function FolderPageBody({
   */
   const facts = viewerFacts(detail, members, basis.viewerId)
   const gates = facts === null ? null : folderGates(facts)
+  const filteredLabel = labelDefinitions.data?.rows.find((label) => label.id === taskFilter.label)
+  const canCreateInFilter = taskFilter.label === null ||
+    (filteredLabel?.archived === false && (filteredLabel.scope === 'personal' || gates?.applyLabel === true))
   /* The Desk draws its tab row only when migration 0061 gave it Doc tabs
      (writing its Purpose, Results or Notes facets held); nothing adds one. */
   const shownTabs = onTab && (!isDefault || tabs.length > 1) ? tabs : []
@@ -1142,7 +1149,7 @@ function FolderPageBody({
                     tasks={[...openRows, ...completedRows]}
                     filter={taskFilter}
                     context={context}
-                    canCreate={facts !== null && mayDraw(facts, 'task.create')}
+                    canCreate={facts !== null && mayDraw(facts, 'task.create') && canCreateInFilter}
                   /> : page.data && completedReady && kind === 'work' && workView === 'board' ? <WorkBoard
                     page={page.data}
                     tasks={openRows}
@@ -1151,7 +1158,7 @@ function FolderPageBody({
                     filter={taskFilter}
                     context={context}
                     actions={actions}
-                    canCreate={facts !== null && mayDraw(facts, 'task.create')}
+                    canCreate={facts !== null && mayDraw(facts, 'task.create') && canCreateInFilter}
                     canEdit={sharedPageEditable}
                     group={boardGroup}
                   /> : page.data && completedReady ? <FolderCanvas

@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 
 import type { TaskCard } from '../../shared/tasks.js'
 import { useCreateTask, useUpdateTask } from '../api/mutations.js'
+import { useWearFilterLabel } from '../api/labels.js'
 import { useFolderPage } from '../api/queries.js'
 import { PlannedCalendar } from '../components/calendar/index.js'
 import { ConfirmDialog, TaskRows, useConfirm } from '../pages/task-rows.js'
@@ -21,6 +22,7 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
   readonly canCreate: boolean
 }): React.JSX.Element {
   const create = useCreateTask()
+  const wearFilterLabel = useWearFilterLabel(folderId)
   const update = useUpdateTask()
   const page = useFolderPage(folderId)
   const actions = useRowActions()
@@ -126,7 +128,9 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
       onExternalOver={undatedProposal}
       onDragStateChange={onScheduledDragState}
       {...(canCreate ? { onCreate: (title: string, date: string) => {
-        create.mutate({ title, folder_id: folderId, due_date: date })
+        create.mutate({ title, folder_id: folderId, due_date: date }, {
+          onSuccess: (task) => wearFilterLabel(task.id, filter.label),
+        })
       } } : {})}
     />
     {undated.length === 0 && !draggingScheduled ? null : <div

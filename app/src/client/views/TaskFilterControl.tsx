@@ -46,6 +46,7 @@ export interface TaskFilterLabel {
   readonly id: string
   readonly name: string
   readonly color: string
+  readonly archived?: boolean
 }
 
 const STATUS: readonly { readonly value: TaskStatus; readonly label: string }[] = [
@@ -332,7 +333,7 @@ export function TaskFilterControl({
                   active={filter.label === null}
                   onClick={() => onChange({ ...filter, label: null })}
                 />
-                {labels.map((label) => (
+                {labels.filter((label) => !label.archived).map((label) => (
                   <ChoiceRow
                     key={label.id}
                     label={label.name}
