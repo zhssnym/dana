@@ -4,7 +4,10 @@ which both sides import: a Folder's Consultation is a list of Discussions, and
 a Discussion is resolved by recording an Outcome.
 
 Storage is migration 0029: `discussions`, `discussion_outcomes`, and
-`comments.discussion_id`. The rules this file restates rather than invents:
+`comments.discussion_id`. Discussion ↔ Task links are a separate many-to-many
+relation since issue #497; neither endpoint owns or contains the other.
+
+The rules this file restates rather than invents:
 
 - **State is exactly `open | resolved`.** There are no Discussion types.
 - **Resolving always creates a new Outcome**, and it becomes current in the
@@ -63,6 +66,15 @@ export const outcomeSchema = z.object({
 })
 export type Outcome = z.infer<typeof outcomeSchema>
 
+/** Compact live/readable Task reference carried by a Discussion. The durable
+ * edge can outlive either endpoint being visible; projection never does. */
+export const linkedTaskSchema = z.object({
+  id: z.uuid(),
+  title: z.string(),
+  status: taskStatus,
+})
+export type LinkedTask = z.infer<typeof linkedTaskSchema>
+
 /** One `discussions` row as the API answers it. */
 export const discussionSchema = z.object({
   id: z.uuid(),
@@ -97,17 +109,12 @@ export const discussionSchema = z.object({
   /** The Folder's General discussion: the thread the pre-Consultation client
    * reads and writes as the Folder conversation (4.31). A flag, not the
    * title, so renaming it changes nothing. Resolving or trashing it needs
-   * Full control. */
+   * Full control. General Discussions can never have Task links. */
   is_general: z.boolean(),
-  /** The task this Discussion is linked to (M5, 4.31), whatever that task's
-   * state: set once, so "Turn into a task" is not offered again. */
-  task_id: z.uuid().nullable(),
-  /** The task this Discussion is about (M5, 4.31): its live title and
-   * status, for the small link under the title. Null when it is about no
-   * task, or its task is trashed, purged, or no longer in this Folder. */
-  task: z
-    .object({ id: z.uuid(), title: z.string(), status: taskStatus })
-    .nullable(),
+  /** Issue #497: every live Task linked to this Discussion that the viewer
+   * can currently read. Durable edges to trashed, purged or inaccessible
+   * endpoints are omitted rather than leaked. */
+  linked_tasks: z.array(linkedTaskSchema),
 })
 export type Discussion = z.infer<typeof discussionSchema>
 
@@ -137,15 +144,17 @@ export const createDiscussionBody = z.object({
 })
 export type CreateDiscussionBody = z.infer<typeof createDiscussionBody>
 
-/** PATCH a Discussion's metadata. Only while open (#320). */
+/** PATCH a Discussion's metadata. Only while open (#320).
+ *
+ * `task_id` remains as a compatibility/create convenience while #495 moves
+ * the frontend to the explicit relationship route. It means **add this link**,
+ * never replace a singular link, and the relation table is the only source of
+ * truth. New code should use POST /discussions/:id/tasks. */
 export const updateDiscussionBody = z
   .object({
     title: title.optional(),
     /** null or '' clears the context. */
     context: context.nullable().optional(),
-    /** Links the Discussion to a live task of its own Folder ("Turn into a
-     * task", M5). Set once: a Discussion already linked, or a task that
-     * already has a live Discussion, is 409. Nothing unlinks. */
     task_id: z.uuid().optional(),
   })
   .refine(
@@ -153,9 +162,20 @@ export const updateDiscussionBody = z
       body.title !== undefined ||
       body.context !== undefined ||
       body.task_id !== undefined,
-    { error: 'must change title, context or task_id' },
+    { error: 'must change title, context or add a task link' },
   )
 export type UpdateDiscussionBody = z.infer<typeof updateDiscussionBody>
+
+/** Issue #497's explicit add-link operation. Duplicate pairs are idempotent:
+ * the route returns 200 with `created: false`; a new edge is 201/true. */
+export const linkDiscussionTaskBody = z.object({ task_id: z.uuid() })
+export type LinkDiscussionTaskBody = z.infer<typeof linkDiscussionTaskBody>
+
+export const linkDiscussionTaskResponse = z.object({
+  created: z.boolean(),
+  discussion: discussionSchema,
+})
+export type LinkDiscussionTaskResponse = z.infer<typeof linkDiscussionTaskResponse>
 
 /**
  * Resolve ("Close thread"). Records a new current Outcome when a statement

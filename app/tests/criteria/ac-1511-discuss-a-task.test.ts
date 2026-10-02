@@ -1,56 +1,34 @@
 /*
-AC-1511 to AC-1513 (M5): a task's conversation is one Discussion of its
-Folder, linked both ways.
-
-- AC-1511: `POST /tasks/:id/discussion` finds or makes the task's one live
-  Discussion (201 once, 200 after, one stored row); a stranger is 404 and a
-  Can view member 403, neither storing a row; the task reads `discussion_id`;
-  a post there reaches the task's creator; a post or an input round there
-  starts it, so the list shows it and the task links it.
-- AC-1512: `PATCH /discussions/:id {task_id}` ("Turn into a task") stores the
-  link; a task outside the Discussion's Folder is 422 and a task that already
-  has a live Discussion is 409, the row unchanged either way.
-- AC-1513: moving the task carries its Discussion and that Discussion's
-  comments to the new Folder.
-
-Asserted on stored rows. Spec: 4.31, 7.28.
+Issue #497 replaces M5's singular task-thread ownership with a persisted
+many-to-many Discussion ↔ Task reference. These acceptance checks keep the
+old create-new convenience while proving the new relation, lifecycle and
+move semantics through the HTTP contract and stored rows.
 */
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
-import {
-  Cast,
-  addMemberOk,
-  connect,
-  createFolder,
-  expectStatus,
-} from '../support/folders-harness.js'
+import { Cast, addMemberOk, connect, createFolder, expectStatus } from '../support/folders-harness.js'
 import type { Actor } from '../support/folders-harness.js'
 import { rows } from '../support/helpers.js'
 
 let app: AuthTestApp
-const cast = new Cast(['owner', 'talker', 'viewer', 'stranger'], 'ac1511')
+const cast = new Cast(['owner', 'editor', 'stranger'], 'ac1511')
 const folders: string[] = []
 let owner: Actor
-let talker: Actor
-let viewer: Actor
+let editor: Actor
 let stranger: Actor
 
 beforeAll(async () => {
   app = await startAuthTestApp()
-  ;[owner, talker, viewer, stranger] = (await cast.of(app)) as [Actor, Actor, Actor, Actor]
-  await connect(app.db, owner.id, talker.id)
-  await connect(app.db, owner.id, viewer.id)
+  ;[owner, editor, stranger] = (await cast.of(app)) as [Actor, Actor, Actor]
+  await connect(app.db, owner.id, editor.id)
 }, 60_000)
 
 afterAll(async () => {
   if ((app as AuthTestApp | undefined) === undefined) return
-  for (const folderId of folders) {
-    await app.db.execute(sql`DELETE FROM discussions WHERE folder_id = ${folderId}::uuid`)
-    await app.db.execute(sql`DELETE FROM folders WHERE id = ${folderId}::uuid`)
-  }
+  for (const folderId of folders) await app.db.execute(sql`DELETE FROM folders WHERE id = ${folderId}::uuid`)
   await cast.cleanup(app.db)
   await app.close()
 })
@@ -67,213 +45,130 @@ async function task(actor: Actor, folderId: string, title: string): Promise<stri
   return String((made.json() as { id?: unknown }).id)
 }
 
-async function linked(taskId: string): Promise<Record<string, unknown>[]> {
-  return rows(
-    app.db,
-    sql`SELECT id, folder_id, created_by, title FROM discussions WHERE task_id = ${taskId}::uuid`,
-  )
+async function discussion(actor: Actor, folderId: string, title: string): Promise<string> {
+  const made = await actor.browser.json(`/folders/${folderId}/discussions`, 'POST', { title })
+  expectStatus(made, 201, 'POST Discussion')
+  return String((made.json() as { id?: unknown }).id)
 }
 
-describe('AC-1511 Discuss finds or makes the task\'s one Discussion', () => {
-  test('201 then 200 with one stored row; strangers 404 and Can view 403 store nothing', async () => {
-    const folderId = await folder(owner, 'ac1511 trip')
-    await addMemberOk(owner, folderId, talker.id, 'can_comment')
-    await addMemberOk(owner, folderId, viewer.id, 'can_view')
-    const taskId = await task(owner, folderId, 'ac1511 book the van')
+async function edges(): Promise<Array<{ discussion_id: string; task_id: string; created_via_task: boolean }>> {
+  return rows(app.db, sql`SELECT discussion_id, task_id, created_via_task FROM discussion_tasks ORDER BY discussion_id, task_id`) as Promise<Array<{ discussion_id: string; task_id: string; created_via_task: boolean }>>
+}
 
-    expectStatus(
-      await stranger.browser.json(`/tasks/${taskId}/discussion`, 'POST'),
-      404,
-      'a stranger',
-    )
-    expectStatus(
-      await viewer.browser.json(`/tasks/${taskId}/discussion`, 'POST'),
-      403,
-      'Can view may not open one',
-    )
-    expect(await linked(taskId), 'neither stored a Discussion').toEqual([])
+describe('AC-1511 / #497 plural Discussion ↔ Task relation', () => {
+  test('one Discussion links many Tasks and one Task links many Discussions; duplicate link is idempotent', async () => {
+    const folderId = await folder(owner, 'ac1511 plural')
+    await addMemberOk(owner, folderId, editor.id, 'can_edit')
+    const firstTask = await task(owner, folderId, 'first linked task')
+    const secondTask = await task(owner, folderId, 'second linked task')
+    const firstDiscussion = await discussion(owner, folderId, 'first discussion')
+    const secondDiscussion = await discussion(owner, folderId, 'second discussion')
 
-    const first = await talker.browser.json(`/tasks/${taskId}/discussion`, 'POST')
-    expectStatus(first, 201, 'the first Discuss makes it')
-    const made = (first.json() as { discussion: { id: string; task: unknown } }).discussion
-    expect(made.task).toEqual({ id: taskId, title: 'ac1511 book the van', status: 'pending' })
-    expect(await linked(taskId)).toEqual([
-      { id: made.id, folder_id: folderId, created_by: talker.id, title: 'ac1511 book the van' },
-    ])
+    const a = await owner.browser.json(`/discussions/${firstDiscussion}/tasks`, 'POST', { task_id: firstTask })
+    expectStatus(a, 201, 'new edge')
+    expect((a.json() as { created?: unknown }).created).toBe(true)
+    const duplicate = await owner.browser.json(`/discussions/${firstDiscussion}/tasks`, 'POST', { task_id: firstTask })
+    expectStatus(duplicate, 200, 'duplicate edge')
+    expect((duplicate.json() as { created?: unknown }).created).toBe(false)
+    expectStatus(await owner.browser.json(`/discussions/${firstDiscussion}/tasks`, 'POST', { task_id: secondTask }), 201, 'one Discussion to another Task')
+    expectStatus(await owner.browser.json(`/discussions/${secondDiscussion}/tasks`, 'POST', { task_id: firstTask }), 201, 'another Discussion to same Task')
 
+    expect((await rows(app.db, sql`SELECT count(*)::int AS n FROM discussion_tasks WHERE discussion_id = ${firstDiscussion}::uuid AND task_id = ${firstTask}::uuid`))[0]?.n).toBe(1)
+
+    const readDiscussion = await owner.browser.json(`/discussions/${firstDiscussion}`, 'GET')
+    expectStatus(readDiscussion, 200, 'Discussion detail')
+    expect((readDiscussion.json() as { linked_tasks: Array<{ id: string }> }).linked_tasks.map((item) => item.id).sort()).toEqual([firstTask, secondTask].sort())
+
+    const readTask = await owner.browser.json(`/tasks/${firstTask}`, 'GET')
+    expectStatus(readTask, 200, 'Task detail')
+    expect((readTask.json() as { linked_discussions: Array<{ id: string }> }).linked_discussions.map((item) => item.id).sort()).toEqual([firstDiscussion, secondDiscussion].sort())
+  })
+
+  test('explicit unlink removes only the edge and is idempotent', async () => {
+    const folderId = await folder(owner, 'ac1511 unlink')
+    const taskId = await task(owner, folderId, 'unlink task')
+    const discussionId = await discussion(owner, folderId, 'unlink discussion')
+    expectStatus(await owner.browser.json(`/discussions/${discussionId}/tasks`, 'POST', { task_id: taskId }), 201, 'link')
+
+    expectStatus(await owner.browser.json(`/discussions/${discussionId}/tasks/${taskId}`, 'DELETE'), 204, 'unlink')
+    expectStatus(await owner.browser.json(`/discussions/${discussionId}/tasks/${taskId}`, 'DELETE'), 204, 'repeat unlink')
+    expect(await rows(app.db, sql`SELECT 1 FROM discussion_tasks WHERE discussion_id = ${discussionId}::uuid AND task_id = ${taskId}::uuid`)).toEqual([])
+    expect(await rows(app.db, sql`SELECT 1 FROM discussions WHERE id = ${discussionId}::uuid`)).toHaveLength(1)
+    expect(await rows(app.db, sql`SELECT 1 FROM tasks WHERE id = ${taskId}::uuid`)).toHaveLength(1)
+  })
+
+  test('authorization hides inaccessible Discussions and resolved Discussions refuse relation edits', async () => {
+    const folderId = await folder(owner, 'ac1511 permissions')
+    const taskId = await task(owner, folderId, 'permission task')
+    const discussionId = await discussion(owner, folderId, 'permission discussion')
+    expectStatus(await stranger.browser.json(`/discussions/${discussionId}/tasks`, 'POST', { task_id: taskId }), 404, 'stranger link')
+    expectStatus(await stranger.browser.json(`/discussions/${discussionId}/tasks/${taskId}`, 'DELETE'), 404, 'stranger unlink')
+
+    expectStatus(await owner.browser.json(`/discussions/${discussionId}/resolve`, 'POST', { statement: 'decided' }), 200, 'resolve')
+    expectStatus(await owner.browser.json(`/discussions/${discussionId}/tasks`, 'POST', { task_id: taskId }), 409, 'resolved link')
+  })
+
+  test('soft Trash preserves relation rows; restore re-exposes readable live endpoints; purge cascades the edge only', async () => {
+    const folderId = await folder(owner, 'ac1511 lifecycle')
+    const taskId = await task(owner, folderId, 'lifecycle task')
+    const discussionId = await discussion(owner, folderId, 'lifecycle discussion')
+    expectStatus(await owner.browser.json(`/discussions/${discussionId}/tasks`, 'POST', { task_id: taskId }), 201, 'link')
+
+    expectStatus(await owner.browser.json(`/tasks/${taskId}`, 'DELETE'), 204, 'trash task')
+    expect(await rows(app.db, sql`SELECT 1 FROM discussion_tasks WHERE discussion_id = ${discussionId}::uuid AND task_id = ${taskId}::uuid`)).toHaveLength(1)
+    const hidden = await owner.browser.json(`/discussions/${discussionId}`, 'GET')
+    expect((hidden.json() as { linked_tasks: unknown[] }).linked_tasks).toEqual([])
+
+    expectStatus(await owner.browser.json(`/tasks/${taskId}/restore`, 'POST'), 200, 'restore task')
+    const restored = await owner.browser.json(`/discussions/${discussionId}`, 'GET')
+    expect((restored.json() as { linked_tasks: Array<{ id: string }> }).linked_tasks.map((item) => item.id)).toContain(taskId)
+
+    expectStatus(await owner.browser.json(`/tasks/${taskId}`, 'DELETE'), 204, 'trash task for purge')
+    expectStatus(await owner.browser.json(`/trash/tasks/${taskId}`, 'DELETE'), 204, 'purge task')
+    expect(await rows(app.db, sql`SELECT 1 FROM discussion_tasks WHERE discussion_id = ${discussionId}::uuid AND task_id = ${taskId}::uuid`)).toEqual([])
+    expect(await rows(app.db, sql`SELECT 1 FROM discussions WHERE id = ${discussionId}::uuid`)).toHaveLength(1)
+  })
+
+  test('moving a Task keeps the Discussion in its original Folder and leaves a removable durable edge', async () => {
+    const from = await folder(owner, 'ac1511 move from')
+    const to = await folder(owner, 'ac1511 move to')
+    const taskId = await task(owner, from, 'moving task')
+    const discussionId = await discussion(owner, from, 'stationary discussion')
+    expectStatus(await owner.browser.json(`/discussions/${discussionId}/tasks`, 'POST', { task_id: taskId }), 201, 'link')
+    expectStatus(await owner.browser.json(`/tasks/${taskId}`, 'PATCH', { folder_id: to }), 200, 'move task')
+
+    expect((await rows(app.db, sql`SELECT folder_id FROM discussions WHERE id = ${discussionId}::uuid`))[0]?.folder_id).toBe(from)
+    expect(await rows(app.db, sql`SELECT 1 FROM discussion_tasks WHERE discussion_id = ${discussionId}::uuid AND task_id = ${taskId}::uuid`)).toHaveLength(1)
+    expectStatus(await owner.browser.json(`/discussions/${discussionId}/tasks/${taskId}`, 'DELETE'), 204, 'unlink moved task')
+  })
+})
+
+describe('AC-1512 / #497 create-new compatibility', () => {
+  test('Start a discussion creates/reuses only its task-origin Discussion and stores a relation edge', async () => {
+    const folderId = await folder(owner, 'ac1512 task origin')
+    const taskId = await task(owner, folderId, 'origin task')
+    const unrelated = await discussion(owner, folderId, 'unrelated')
+    expectStatus(await owner.browser.json(`/discussions/${unrelated}/tasks`, 'POST', { task_id: taskId }), 201, 'ordinary link does not claim the helper')
+
+    const first = await owner.browser.json(`/tasks/${taskId}/discussion`, 'POST')
+    expectStatus(first, 201, 'create task-origin Discussion')
+    const madeId = (first.json() as { discussion: { id: string } }).discussion.id
     const again = await owner.browser.json(`/tasks/${taskId}/discussion`, 'POST')
-    expectStatus(again, 200, 'the second Discuss finds it')
-    expect((again.json() as { discussion: { id: string } }).discussion.id).toBe(made.id)
-    const seen = await viewer.browser.json(`/tasks/${taskId}/discussion`, 'POST')
-    expectStatus(seen, 200, 'Can view is shown the one that exists')
-    expect(await linked(taskId), 'still one row').toHaveLength(1)
+    expectStatus(again, 200, 'reuse task-origin Discussion')
+    expect((again.json() as { discussion: { id: string } }).discussion.id).toBe(madeId)
 
-    // Nobody has written in it yet: the task links nothing and the list
-    // skips it, so opening and leaving leaves no empty thread behind.
-    const listed = async (): Promise<string[]> => {
-      const list = await owner.browser.json(`/folders/${folderId}/discussions?state=all`, 'GET')
-      expectStatus(list, 200, 'the list')
-      return (list.json() as { discussions: { id: string }[] }).discussions.map((d) => d.id)
-    }
-    const linkOf = async (): Promise<unknown> => {
-      const read = await owner.browser.json(`/tasks/${taskId}`, 'GET')
-      expectStatus(read, 200, 'GET /tasks/:id')
-      return (read.json() as { discussion_id?: unknown }).discussion_id
-    }
-    expect(await linkOf()).toBeNull()
-    expect(await listed()).not.toContain(made.id)
-
-    // A post there reaches the task's creator, who has not spoken yet.
-    const posted = await talker.browser.json(`/discussions/${made.id}/comments`, 'POST', {
-      body: 'ac1511 I can drive',
-    })
-    expectStatus(posted, 201, 'a post in the task Discussion')
-    const postId = String((posted.json() as { id?: unknown }).id)
-    expect(
-      await rows(
-        app.db,
-        sql`SELECT n.user_id FROM notifications n JOIN events e ON e.id = n.event_id
-             WHERE e.subject_kind = 'comment' AND e.subject_id = ${postId}::uuid`,
-      ),
-    ).toEqual([{ user_id: owner.id }])
-    expect(await linkOf()).toBe(made.id)
-    expect(await listed()).toContain(made.id)
-
-    // Its task in Trash, the thread still says it is linked, so "Turn into
-    // a task" is not offered; only the task itself is withheld.
-    expectStatus(await owner.browser.json(`/tasks/${taskId}`, 'DELETE'), 204, 'trash the linked task')
-    const orphan = await owner.browser.json(`/discussions/${made.id}`, 'GET')
-    expectStatus(orphan, 200, 'GET the thread')
-    expect(orphan.json()).toMatchObject({ task_id: taskId, task: null })
-
-    // A trashed task is 404, and makes nothing.
-    const other = await task(owner, folderId, 'ac1511 gone')
-    expectStatus(await owner.browser.json(`/tasks/${other}`, 'DELETE'), 204, 'trash the task')
-    expectStatus(
-      await owner.browser.json(`/tasks/${other}/discussion`, 'POST'),
-      404,
-      'a trashed task',
-    )
-    expect(await linked(other)).toEqual([])
+    expect((await rows(app.db, sql`SELECT created_via_task FROM discussion_tasks WHERE discussion_id = ${madeId}::uuid AND task_id = ${taskId}::uuid`))[0]?.created_via_task).toBe(true)
   })
-})
 
-describe('AC-1511 an input round starts a task thread', () => {
-  test('a thread whose only activity is a round is listed and linked', async () => {
-    const folderId = await folder(owner, 'ac1511 rounds')
-    const taskId = await task(owner, folderId, 'ac1511 pick a date')
-    const made = await owner.browser.json(`/tasks/${taskId}/discussion`, 'POST')
-    expectStatus(made, 201, 'Discuss')
-    const discussionId = (made.json() as { discussion: { id: string } }).discussion.id
-    expectStatus(
-      await owner.browser.json(`/discussions/${discussionId}/input-rounds`, 'POST', {
-        mode: 'choose',
-        prompt: 'ac1511 which weekend?',
-        options: ['first', 'second'],
-      }),
-      201,
-      'open a round',
-    )
-    expect(
-      await rows(
-        app.db,
-        sql`SELECT count(*)::int AS n FROM discussion_input_rounds
-             WHERE discussion_id = ${discussionId}::uuid`,
-      ),
-    ).toEqual([{ n: 1 }])
-    const read = await owner.browser.json(`/tasks/${taskId}`, 'GET')
-    expectStatus(read, 200, 'GET /tasks/:id')
-    expect((read.json() as { discussion_id?: unknown }).discussion_id).toBe(discussionId)
-    const list = await owner.browser.json(`/folders/${folderId}/discussions?state=all`, 'GET')
-    expectStatus(list, 200, 'the list')
-    expect(
-      (list.json() as { discussions: { id: string }[] }).discussions.map((d) => d.id),
-    ).toContain(discussionId)
-  })
-})
+  test('creating a task from a Discussion stays compatible through PATCH task_id, which adds rather than replaces', async () => {
+    const folderId = await folder(owner, 'ac1512 discussion origin')
+    const discussionId = await discussion(owner, folderId, 'turn into task')
+    const firstTask = await task(owner, folderId, 'created from discussion')
+    const secondTask = await task(owner, folderId, 'also linked')
 
-describe('AC-1512 Turn into a task links the Discussion to the task', () => {
-  test('stores task_id; another Folder\'s task is 422 and a second link 409, unchanged', async () => {
-    const folderId = await folder(owner, 'ac1512 plans')
-    const elsewhere = await folder(owner, 'ac1512 elsewhere')
-    const strangersFolder = await folder(stranger, 'ac1512 strangers')
-    const started = await owner.browser.json(`/folders/${folderId}/discussions`, 'POST', {
-      title: 'ac1512 where do we sleep',
-    })
-    expectStatus(started, 201, 'a Discussion')
-    const discussionId = String((started.json() as { id?: unknown }).id)
-    const taskId = await task(owner, folderId, 'ac1512 book the hut')
-    const foreign = await task(owner, elsewhere, 'ac1512 not here')
-    const strangers = await task(stranger, strangersFolder, 'ac1512 private')
-
-    for (const [other, why] of [
-      [foreign, "a task of the owner's other Folder"],
-      [strangers, "a stranger's task"],
-    ] as const) {
-      expectStatus(
-        await owner.browser.json(`/discussions/${discussionId}`, 'PATCH', { task_id: other }),
-        422,
-        why,
-      )
-    }
-    const stored = async (): Promise<unknown> =>
-      (
-        await rows(app.db, sql`SELECT task_id FROM discussions WHERE id = ${discussionId}::uuid`)
-      )[0]?.task_id
-    expect(await stored(), 'refusals left the row unlinked').toBeNull()
-
-    const patched = await owner.browser.json(`/discussions/${discussionId}`, 'PATCH', {
-      task_id: taskId,
-    })
-    expectStatus(patched, 200, 'the link')
-    expect((patched.json() as { task?: { id?: unknown } }).task?.id).toBe(taskId)
-    expect(await stored()).toBe(taskId)
-    const read = await owner.browser.json(`/tasks/${taskId}`, 'GET')
-    expect((read.json() as { discussion_id?: unknown }).discussion_id).toBe(discussionId)
-
-    const second = await owner.browser.json(`/folders/${folderId}/discussions`, 'POST', {
-      title: 'ac1512 second',
-    })
-    const secondId = String((second.json() as { id?: unknown }).id)
-    expectStatus(
-      await owner.browser.json(`/discussions/${secondId}`, 'PATCH', { task_id: taskId }),
-      409,
-      'the task already has a live Discussion',
-    )
-    expect(
-      (await rows(app.db, sql`SELECT task_id FROM discussions WHERE id = ${secondId}::uuid`))[0]
-        ?.task_id,
-    ).toBeNull()
-  })
-})
-
-describe('AC-1513 a moved task takes its Discussion along', () => {
-  test('the Discussion and its comments land in the new Folder', async () => {
-    const from = await folder(owner, 'ac1513 from')
-    const to = await folder(owner, 'ac1513 to')
-    const taskId = await task(owner, from, 'ac1513 moving')
-    const made = await owner.browser.json(`/tasks/${taskId}/discussion`, 'POST')
-    const discussionId = (made.json() as { discussion: { id: string } }).discussion.id
-    expectStatus(
-      await owner.browser.json(`/discussions/${discussionId}/comments`, 'POST', {
-        body: 'ac1513 before the move',
-      }),
-      201,
-      'a post',
-    )
-    expectStatus(
-      await owner.browser.json(`/tasks/${taskId}`, 'PATCH', { folder_id: to }),
-      200,
-      'the move',
-    )
-    expect(
-      await rows(app.db, sql`SELECT folder_id FROM discussions WHERE id = ${discussionId}::uuid`),
-    ).toEqual([{ folder_id: to }])
-    expect(
-      await rows(
-        app.db,
-        sql`SELECT DISTINCT folder_id FROM comments WHERE discussion_id = ${discussionId}::uuid`,
-      ),
-    ).toEqual([{ folder_id: to }])
+    expectStatus(await owner.browser.json(`/discussions/${discussionId}`, 'PATCH', { task_id: firstTask }), 200, 'legacy create-new link')
+    expectStatus(await owner.browser.json(`/discussions/${discussionId}`, 'PATCH', { task_id: secondTask }), 200, 'second compatibility link')
+    const read = await owner.browser.json(`/discussions/${discussionId}`, 'GET')
+    expect((read.json() as { linked_tasks: Array<{ id: string }> }).linked_tasks.map((item) => item.id).sort()).toEqual([firstTask, secondTask].sort())
   })
 })

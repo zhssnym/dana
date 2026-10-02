@@ -370,13 +370,6 @@ export async function exportForViewer(
   const accountRow = accountRows[0]
   if (accountRow === undefined) return null
 
-  /* ---------------------------------------------------------------- *
-   * Settings (4.10), the two per-person page tables (4.20, 4.22), and
-   * the saved views (4.19). Every one of these already exists as a
-   * viewer-scoped domain read, so this calls them rather than writing a
-   * fifth and sixth copy of their SQL.
-   * ---------------------------------------------------------------- */
-
   const bundle = await readBundle(db, viewerId)
   const flagRows = await rowsOf(
     db,
@@ -387,21 +380,6 @@ export async function exportForViewer(
   const covers = await listPlaceCovers(db, viewerId)
   const descriptions = await listPlaceDescriptions(db, viewerId)
   const views = truncation.apply('views', await listViews(db, viewerId))
-
-  /* ---------------------------------------------------------------- *
-   * Owned folders and everything hanging off them.
-   *
-   * `owner_id = viewer` is the scope on all four statements, written into
-   * each FROM clause rather than resolved once and passed down: a statement
-   * that lost it returns nothing rather than another person's rows. The
-   * three child statements are additionally restricted to the folder ids
-   * that survived the folder cap, so none of them reads a row the document
-   * is going to throw away.
-   *
-   * Trashed folders are carried with their flag. 7.13 has not deleted them
-   * yet, so an export that dropped them would be wrong on the day their
-   * owner restores one.
-   * ---------------------------------------------------------------- */
 
   const folderRows = await rowsOf(
     db,
@@ -423,7 +401,6 @@ export async function exportForViewer(
   const memberRows = await rowsOf(
     db,
     cappedPerParent(
-      /* Step 8: a page's people are its project's. */
       sql`f.id AS folder_id, u.display_name`,
       sql`FROM folders f
           JOIN folder_members fm ON fm.folder_id = f.project_id
@@ -461,23 +438,10 @@ export async function exportForViewer(
     ),
   )
 
-  /* The per-folder task cap is taken here rather than during assembly,
-     because the step statement below is handed these ids and must not read
-     the steps of a task the document has already cut. */
   const tasksByFolder = new Map<string, Record<string, unknown>[]>()
   for (const [id, list] of groupBy(folderTaskRows, 'folder_id')) {
     tasksByFolder.set(id, truncation.apply('folders.tasks', list))
   }
-
-  /* ---------------------------------------------------------------- *
-   * Tasks in folders the person belongs to and does not own, kept only
-   * where the task is still their own work: they wrote it, or it is theirs
-   * to do. Everything else in such a folder is the owner's, and their
-   * export is where it belongs.
-   *
-   * A trashed *folder* here is its owner's trash rather than the viewer's,
-   * so those are out; a trashed *task* is carried with its flag, as above.
-   * ---------------------------------------------------------------- */
 
   const foreignTaskRows = await rowsOf(
     db,
@@ -494,22 +458,6 @@ export async function exportForViewer(
   )
   const foreignTasks = truncation.apply('tasks_elsewhere', foreignTaskRows)
 
-  /*
-  Steps for both task sets in one statement, restricted to the tasks that
-  actually reached the document.
-
-  **The membership join is LEFT here and it used to be INNER, which was a
-  latent way to lose every step of an owned folder (corrected 2026-09-04).**
-  The two arms of the scope are not the same shape: a folder the viewer owns
-  is theirs by `folders.owner_id` and by nothing else, while a folder they
-  merely belong to is theirs by `folder_members`. An INNER join asked for a
-  membership row on both arms, so an owner whose own membership row had gone
-  missing would have exported their folders, their tasks and *no steps at
-  all*, silently and with nothing in the document saying so. INV-2 makes that
-  row exist, which is exactly why the bug would have been invisible until the
-  day it did not. `folderRows` above already has this shape; the two now
-  match.
-  */
   const cappedTaskIds = [
     ...[...tasksByFolder.values()].flat().map((row) => String(row.id)),
     ...foreignTasks.map((row) => String(row.id)),
@@ -517,9 +465,6 @@ export async function exportForViewer(
   const stepRows = await rowsOf(
     db,
     cappedPerParent(
-      /* Since 0060 a task's steps are the checklist items of its body; this
-         is their projection, in document order, `position` the index and
-         `created_at` the item's last write (a block keeps no creation time). */
       sql`s.id, s.task_id, s.text AS title, s.checked AS done,
           (row_number() OVER (PARTITION BY s.task_id
                               ORDER BY s.page_position ASC NULLS LAST, s.position, s.updated_at, s.id) - 1)::int
@@ -542,9 +487,6 @@ export async function exportForViewer(
   )
   const stepsByTask = groupBy(stepRows, 'task_id')
 
-  /* #221: each exported Task's document, scoped exactly as its steps are,
-     over the same capped ids. A document holds at most 500 blocks (7.16), so
-     the per-parent cap never cuts one. */
   const taskBlockRows = await rowsOf(
     db,
     cappedPerParent(
@@ -569,48 +511,6 @@ export async function exportForViewer(
   const documentByTask = groupBy(taskBlockRows, 'task_id')
   const documentOf = (taskId: string): ExportBlock[] =>
     (documentByTask.get(taskId) ?? []).map(blockFrom)
-
-  /* ---------------------------------------------------------------- *
-   * Labels (#208's M1 model, #227 area 5)
-   *
-   * Six statements, and the privacy boundary is the whole design rather
-   * than a filter applied afterwards:
-   *
-   * - the viewer's **own** Personal definitions, complete with their
-   *   archived state, scoped by `owner_user_id`;
-   * - the **complete** Folder Label vocabulary of each owned folder,
-   *   scoped by `folders.owner_id`;
-   * - the viewer's Personal assignments to those folders and to every
-   *   exported task, scoped by `owner_user_id` again;
-   * - the Folder Label assignments of every exported task;
-   * - and, for a task in a folder the viewer does **not** own, exactly
-   *   the definitions that task wears and no others.
-   *
-   * **The last one is the line #227 draws and it is the only place in
-   * this module where a definition is resolved per row rather than per
-   * parent.** A colleague's folder may hold forty categories; what
-   * belongs in this person's export is the two that are on the one task
-   * that is their own work. A statement scoped by folder rather than by
-   * task would hand them the other thirty-eight, which is exactly the
-   * widening the issue forbids.
-   *
-   * **No statement here reads another account's Personal Label.** Both
-   * Personal statements carry `owner_user_id = <viewer>`, so deleting
-   * that clause returns nothing rather than somebody else's
-   * classification of shared work — 10.2's own test, applied to the
-   * second kind of privacy this model has.
-   *
-   * **Two of the six carry no cap, and that is a decision rather than an
-   * omission.** The assignment statements are bounded below 10.3's
-   * export cap by 10.3's own Label caps: 100 Folder and 100 Personal
-   * Labels on one Task, 100 Personal on one Folder, all of them a tenth
-   * of `EXPORT_ROW_CAP`, so a `cappedPerParent` over them could never
-   * fire and would only add a window function to every export. The two
-   * definition statements keep their caps anyway — 500 per account and
-   * 250 per folder are equally unreachable — because they are named
-   * collections in `truncated` and a collection that can be named
-   * should be counted the same way as its neighbours.
-   * ---------------------------------------------------------------- */
 
   const personalLabelRows = await rowsOf(
     db,
@@ -652,10 +552,6 @@ export async function exportForViewer(
          ORDER BY tpl.task_id ASC, ${LABEL_ORDER}`,
   )
 
-  /* The scope repeats the step statement's, which is the two arms an
-     exported task can have: a folder the viewer owns, or a live folder they
-     belong to where the task is their own work. The id list already came
-     from a scoped read; the predicate stays anyway, on this module's rule. */
   const exportedTaskScope = sql`JOIN tasks t ON t.id = tfl.task_id
       JOIN folders f ON f.id = t.folder_id
       LEFT JOIN folder_members m
@@ -708,43 +604,22 @@ export async function exportForViewer(
   ): ExportStep[] =>
     truncation.apply(collection, stepsByTask.get(taskId) ?? []).map(stepFrom)
 
-  /* ---------------------------------------------------------------- *
-   * Comments the person wrote, wherever they wrote them. Authorship is
-   * the scope; a comment in a folder they have since left is still a
-   * thing they said.
-   * ---------------------------------------------------------------- */
-
+  /* Discussion links are many-to-many (#497), so a Discussion comment has no
+     singular Task to infer. The legacy comments.task_id field is exported only
+     when the comment itself carries one; discussion_id is the durable thread
+     reference and relation edges remain relationship data rather than a fake
+     one-task attribution. */
   const commentRows = await rowsOf(
     db,
-    /* Since M5 a task's comments live in its Discussion; `task_id` keeps
-       naming the task a comment is about, through the Discussion's link. */
-    sql`SELECT c.id, c.folder_id, COALESCE(c.task_id, d.task_id) AS task_id,
-               c.discussion_id, c.parent_id,
+    sql`SELECT c.id, c.folder_id, c.task_id, c.discussion_id, c.parent_id,
                c.body, c.content,
                c.created_at, c.edited_at
         FROM comments c
-        LEFT JOIN discussions d ON d.id = c.discussion_id
         WHERE c.author_id = ${viewerId}
         ORDER BY c.created_at ASC, c.id ASC
         LIMIT ${FETCH}`,
   )
   const comments = truncation.apply('comments', commentRows)
-
-  /* ---------------------------------------------------------------- *
-   * The exporter's own Responsibility documents (issue #230, #209 R10).
-   *
-   * **Read the two joins rather than the columns.** `member_id = viewerId`
-   * is what keeps this the exporter's own and nobody else's, and the join to
-   * `folder_members` is what keeps it to folders they are *currently* in --
-   * which is #230's "do not expose inaccessible former-Folder data merely
-   * because a historical row exists", written as a predicate rather than as
-   * an intention. `ended_at IS NULL` is the third: a document belonging to a
-   * membership that ended is not an active Responsibility even while the
-   * membership that replaced it exists.
-   *
-   * Delete any one of the three and the statement leaks something different,
-   * which is 10.2's own test applied to a read that has no id to substitute.
-   * ---------------------------------------------------------------- */
 
   const responsibilityRows = await rowsOf(
     db,
@@ -809,10 +684,6 @@ export async function exportForViewer(
   )
   const filesByComment = groupBy(commentFileRows, 'comment_id')
 
-  /* ---------------------------------------------------------------- *
-   * Shelves (4.18) with their pages, and the person's own files (4.16)
-   * ---------------------------------------------------------------- */
-
   const shelfRows = await rowsOf(
     db,
     sql`SELECT id, name, icon, color, description, cover_file_id,
@@ -841,10 +712,6 @@ export async function exportForViewer(
   )
   const blocksByShelf = groupBy(shelfBlockRows, 'shelf_id')
 
-  /* Issue #210's facets are tabs since step 7 (migration 0061): pages the
-     person owns, exported with `folders` above. `facets` stays, empty, so a
-     version-6 reader still finds the key. */
-
   const fileRows = await rowsOf(
     db,
     sql`SELECT id, kind, name, mime, bytes, width, height, duration_ms,
@@ -855,14 +722,8 @@ export async function exportForViewer(
         LIMIT ${FETCH}`,
   )
 
-  /* ---------------------------------------------------------------- *
-   * Assembly
-   * ---------------------------------------------------------------- */
-
   const membersByFolder = groupBy(memberRows, 'folder_id')
   const blocksByFolder = groupBy(folderBlockRows, 'folder_id')
-  // tasksByFolder was built above, the per-folder cap already taken, because
-  // the step statement had to be handed the surviving ids.
 
   const exportedFolderIds = new Set(folderIds)
   const exportedFolders: ExportFolder[] = folders.map((row) => {
@@ -872,15 +733,8 @@ export async function exportForViewer(
       id,
       name: String(row.name),
       is_default: row.is_default === true,
-      /* Version 8 (wave 2): the page tree, as far as this document reaches.
-         A parent that is not in it (somebody else's page, or cut by the row
-         cap) is null, so the export never names a page it does not carry. */
       parent_folder_id:
         parentId !== null && exportedFolderIds.has(parentId) ? parentId : null,
-      /* Version 10 (step 7): the project, the page's kind and its place in
-         the tab row. A project this document does not carry is not named:
-         the page reads as a project of its own, as a missing parent reads
-         as none. */
       project_id: exportedFolderIds.has(String(row.project_id)) ? String(row.project_id) : id,
       kind: nullableString(row.kind) as ExportFolder['kind'],
       tab_position: exportedFolderIds.has(String(row.project_id))
@@ -896,10 +750,6 @@ export async function exportForViewer(
       my_color: nullableString(row.my_color),
       created_at: toIso(row.created_at),
       trashed: present(row.deleted_at),
-      /* Display names and nothing else. 4.1 makes the column nullable and
-         8.10's scrub empties it, so a member whose account is gone reads as
-         an empty string rather than dropping out of the list and changing
-         the count somebody's folder actually had. */
       members: truncation
         .apply('folders.members', membersByFolder.get(id) ?? [])
         .map((member) =>
@@ -907,10 +757,6 @@ export async function exportForViewer(
             ? ''
             : String(member.display_name),
         ),
-      // Already capped, above, so no second `apply` here: calling it twice
-      // would be harmless (the second call sees a list at the cap and cuts
-      // nothing) and would read as though the cap were taken here, which is
-      // the thing the step statement above depends on it not being.
       tasks: (tasksByFolder.get(id) ?? []).map((task) =>
         taskFrom(
           task,
@@ -922,8 +768,6 @@ export async function exportForViewer(
       blocks: truncation
         .apply('folders.blocks', blocksByFolder.get(id) ?? [])
         .map(blockFrom)
-        /* A `page` block names a sub-page, and like `parent_folder_id` it
-           names one this document carries or nothing (version 8). */
         .map((block) =>
           block.kind === 'page' &&
           block.ref_folder_id !== null &&
