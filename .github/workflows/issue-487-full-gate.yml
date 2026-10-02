@@ -30,9 +30,21 @@ jobs:
         working-directory: app
         run: npx playwright install --with-deps chromium
       - name: Full repository gate
+        id: gate
+        continue-on-error: true
         working-directory: app
-        run: npm run gate
+        run: |
+          set -o pipefail
+          npm run gate 2>&1 | tee ../issue-487-gate.log
+      - name: Upload gate diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-487-full-gate-log
+          path: issue-487-gate.log
+          retention-days: 1
       - name: Remove temporary validation workflow
+        if: always()
         run: |
           rm -f .github/workflows/issue-487-full-gate.yml
           git config user.name github-actions[bot]
@@ -40,3 +52,6 @@ jobs:
           git add -A
           git commit -m "chore: remove issue 487 validation workflow"
           git push origin HEAD:backend/487-start-time-contract
+      - name: Fail on gate failure
+        if: steps.gate.outcome == 'failure'
+        run: exit 1
