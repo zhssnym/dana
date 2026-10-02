@@ -154,8 +154,13 @@ export function createConsultationRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      if ((await accessOf(db, viewer(req), folderId)) === null) {
+      const facts = await accessOf(db, viewer(req), folderId)
+      if (facts === null) {
         notFound(res)
+        return
+      }
+      if (facts.isDefault) {
+        sendError(res, 409, 'conflict', 'Desk does not have Discussion.')
         return
       }
       const parsed = parseBody(createDiscussionBody, req, res, securityLog)
@@ -335,8 +340,17 @@ export function createConsultationRouter(
       const taskId = parsedId(res, req.params.id)
       if (taskId === null) return
       const folderId = await folderOfTask(db, taskId)
-      if (folderId === null || (await accessOf(db, viewer(req), folderId)) === null) {
+      if (folderId === null) {
         notFound(res)
+        return
+      }
+      const facts = await accessOf(db, viewer(req), folderId)
+      if (facts === null) {
+        notFound(res)
+        return
+      }
+      if (facts.isDefault) {
+        sendError(res, 409, 'conflict', 'Desk does not have Discussion.')
         return
       }
       const outcome = await discussTask(db, viewer(req), taskId)
