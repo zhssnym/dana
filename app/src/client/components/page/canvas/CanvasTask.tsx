@@ -9,6 +9,7 @@ import { formatDay } from '../../../lib/dates.js'
 import { isWaiting } from './thread/thread-model.js'
 import { cn } from '../../ui/utils.js'
 import { PersonFace } from '../../person-face.js'
+import { RowLabels } from '../../label-chip.js'
 import { TaskStar } from '../../task-meta.js'
 import { taskMatchesFilter } from '../../../views/filter.js'
 import type { TaskFilter } from '../../../views/filter.js'
@@ -275,7 +276,10 @@ const GLYPH_LABEL: Record<NodeState, string> = {
 
 function ThreadRow({ task, state, bridge, thread, expanded, onExpand }: { readonly task: TaskCard; readonly state: NodeState; readonly bridge: TaskBridge; readonly thread: ThreadFacts; readonly expanded?: boolean; readonly onExpand?: () => void }): React.JSX.Element {
   const finished = state === 'done' || state === 'dropped'
-  const display = finished ? null : taskRowDisplay(task, bridge.context)
+  /* Work has its own row renderer rather than `TaskRow`, so it must consume
+     the same presenter here instead of silently dropping Label metadata. */
+  const rowDisplay = taskRowDisplay(task, bridge.context)
+  const display = finished ? null : rowDisplay
   const blockers = useTaskDependencies(state === 'waiting' && (task.blocked_by_count ?? 0) > 0 ? task.id : null)
   const waitsOn = blockers.data?.depends_on.find((edge) => edge.task !== null && edge.task.status !== 'completed')?.task?.title
   const doneOn = state === 'done' ? thread.completedOn.get(task.id) : undefined
@@ -285,6 +289,8 @@ function ThreadRow({ task, state, bridge, thread, expanded, onExpand }: { readon
      names nobody: the assignee is not always who finished it. A dropped one
      says nothing. */
   const when = state === 'dropped' ? undefined : day
+  const labels = rowDisplay.labels ?? []
+  const labelCrowded = waitsOn !== undefined || when !== undefined || face !== null
   const glyph = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (state !== 'next' || performance.now() > focusFollowsRingUntil) return
@@ -345,6 +351,7 @@ function ThreadRow({ task, state, bridge, thread, expanded, onExpand }: { readon
         {state === 'next' ? <span className="sr-only"> (next)</span> : null}
         {state === 'dropped' ? <span className="sr-only"> (dropped)</span> : null}
       </span>
+      <RowLabels labels={labels} crowded={labelCrowded} />
       {waitsOn !== undefined || when !== undefined || face !== null ? (
         <span className="dana-thread-meta flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
           {waitsOn !== undefined ? <span className="truncate">waits on {waitsOn}</span> : null}
