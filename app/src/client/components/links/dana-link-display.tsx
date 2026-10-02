@@ -6,10 +6,11 @@ import { useNavigate } from 'react-router'
 import { OfflineError } from '../../api/http.js'
 import { queryKeys } from '../../api/keys.js'
 import { Link2 } from '../../lib/icons.js'
-import { danaLinkOf, resolveReference } from './dana-link.js'
+import { danaLinkOf, referenceDisplayLabel, resolveReference } from './dana-link.js'
 import { DanaLinkKindIcon } from './kind-icon.js'
 
 const CHIP = 'dana-link-chip mx-px inline-flex max-w-full items-baseline gap-1 rounded-sm border border-border bg-muted px-1.5 align-baseline text-[length:inherit] leading-[inherit] font-section text-foreground! no-underline!'
+const FACET = 'border-primary/30 bg-primary/10'
 
 export function DanaLinkChip({ href, stored }: { readonly href: string; readonly stored: string }): React.JSX.Element {
   const target = danaLinkOf(href)
@@ -31,13 +32,17 @@ export function DanaLinkChip({ href, stored }: { readonly href: string; readonly
   }
   // Offline, the document's own words are the best we have; they are the
   // author's text, which this reader can already read in the page.
-  const label = query.data?.label ?? (offline ? stored : '')
+  const resolved = query.data?.label ?? (offline ? stored : '')
+  const label = referenceDisplayLabel(target.kind, resolved)
+  const classes = target.kind === 'facet' ? `${CHIP} ${FACET}` : CHIP
   return (
     <a
       href={target.path}
-      className={`${CHIP} cursor-pointer hover:bg-accent hover:text-accent-foreground! focus-visible:outline-2 focus-visible:outline-ring`}
+      className={`${classes} cursor-pointer hover:bg-accent hover:text-accent-foreground! focus-visible:outline-2 focus-visible:outline-ring`}
       contentEditable={false}
       data-dana-link={target.kind}
+      data-facet-reference={target.kind === 'facet' ? '' : undefined}
+      title={target.kind === 'facet' ? 'Facet reference' : undefined}
       onClick={(event) => {
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return
         event.preventDefault()
