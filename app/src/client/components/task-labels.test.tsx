@@ -35,6 +35,16 @@ describe('Task Labels', () => {
     expect(screen.queryByRole('button', { name: 'Assign label Shared' })).toBeNull()
   })
 
+  it('keeps an already-worn shared label visible but read-only without apply permission', () => {
+    const worn = [definitions[1]!] as LabelRef[]
+    render(<TaskLabels taskId="task" folderId="folder" sharedName="Work" worn={worn} canManageFolder={false} canApplyFolder={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Labels: Shared' }))
+    const shared = screen.getByRole('button', { name: 'Remove label Shared' })
+    expect(shared.hasAttribute('disabled')).toBe(true)
+    fireEvent.click(shared)
+    expect(mocks.assign).not.toHaveBeenCalled()
+  })
+
   it('creates a contextual shared label without asking for a scope', async () => {
     render(<TaskLabels taskId="task" folderId="folder" sharedName="Work" worn={[]} canManageFolder canApplyFolder />)
     fireEvent.click(screen.getByRole('button', { name: 'Labels: Add labels' }))
