@@ -11,7 +11,7 @@ import type { Request, Response, Router } from 'express'
 import type { DbClient } from '../../../db/client.js'
 import { getProjectBlockFacetsQuery, getProjectBlockFacetsResponse, putBlockFacetsBody, putBlockFacetsResponse } from '../../shared/block-facets.js'
 import type { ReferenceKind } from '../../shared/references.js'
-import { requireSession } from '../auth/index.js'
+import { requireCsrf, requireSession } from '../auth/index.js'
 import { backlinksOf } from '../domain/backlinks.js'
 import { resolveReference } from '../domain/references.js'
 import { sendError, sendValidationError } from '../http/errors.js'
@@ -89,6 +89,7 @@ export function createBacklinksRouter(
   router.put(
     '/block-facets',
     requireSession,
+    requireCsrf,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
