@@ -57,6 +57,7 @@ import { cn } from '../ui/utils.js'
 import { localClock, localDay, placePosts } from './grouping.js'
 import type { PlacedPost } from './grouping.js'
 import { PostView } from './PostView.js'
+import { Composer } from './Composer.js'
 
 const PostEditor = lazy(() => import('./PostEditor.js'))
 
@@ -106,18 +107,6 @@ function quoteOf(line: CommentLine): string {
   const text = (line.body ?? '').trim()
   if (text !== '') return text
   return line.files.length > 0 ? 'An attachment' : ''
-}
-
-/** The composer's words: "Reply to Sam and Lucía…", the one or two others
- * who wrote here, latest first, by first name; else "Write a reply…". */
-function replyPrompt(posts: readonly CommentLine[], viewerId: string | null, personOf: PersonResolver): string {
-  if (posts.length === 0) return 'Write the first post…'
-  const others: string[] = []
-  for (const line of [...posts].reverse()) {
-    if (line.author_id !== viewerId && !others.includes(line.author_id)) others.push(line.author_id)
-  }
-  if (others.length === 0 || others.length > 2) return 'Write a reply…'
-  return `Reply to ${others.map((id) => personOf(id).name.split(' ')[0] ?? '').join(' and ')}…`
 }
 
 /** What a screen reader says for each glyph. */
@@ -675,47 +664,28 @@ export function ThreadPosts({
         {closed !== undefined ? (
           closed
         ) : may.createComment && folderId !== null ? (
-          <div className="space-y-1">
-            {replyTarget !== undefined ? (
-              <p className="flex min-w-0 items-center gap-2 px-1 text-xs text-muted-foreground">
-                <Reply className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                <span className="min-w-0 truncate">
-                  Replying to {personOf(replyTarget.author_id).name}: {gist(replyTarget)}
-                </span>
-                <button
-                  type="button"
-                  className="shrink-0 rounded-sm underline-offset-2 outline-none hover:text-foreground hover:underline"
-                  onClick={() => { setReplyTo(null) }}
-                >
-                  Cancel
-                </button>
-              </p>
-            ) : null}
-            <Suspense fallback={<EditorFallback />}>
-              <PostEditor
-                folderId={folderId}
-                placeholder={replyPrompt(posts, viewerId, personOf)}
-                submitLabel="Send"
-                autoFocus={autoFocus}
-                focusSignal={focus}
-                onSubmit={(content) => {
-                  /* The reply line goes with the words that leave the composer;
-                     a refusal brings both back. */
-                  const target = replyTarget
-                  setReplyTo(null)
-                  return send({
-                    content,
-                    ...(target === undefined ? {} : { parent_id: target.parent_id ?? target.id }),
-                    ...(postFileIds(content).length > 0 ? { file_ids: [...new Set(postFileIds(content))] } : {}),
-                  }).catch((error: unknown) => {
-                    if (target !== undefined) setReplyTo(target.id)
-                    onRefused?.(error)
-                    throw error
-                  })
-                }}
-              />
-            </Suspense>
-          </div>
+          <Composer
+            folderId={folderId}
+            autoFocus={autoFocus}
+            focusSignal={focus}
+            replyingTo={replyTarget === undefined ? null : { name: personOf(replyTarget.author_id).name, text: gist(replyTarget) }}
+            onCancelReply={() => { setReplyTo(null) }}
+            onSubmit={(content) => {
+              /* The reply line goes with the words that leave the composer;
+                 a refusal brings both back. */
+              const target = replyTarget
+              setReplyTo(null)
+              return send({
+                content,
+                ...(target === undefined ? {} : { parent_id: target.parent_id ?? target.id }),
+                ...(postFileIds(content).length > 0 ? { file_ids: [...new Set(postFileIds(content))] } : {}),
+              }).catch((error: unknown) => {
+                if (target !== undefined) setReplyTo(target.id)
+                onRefused?.(error)
+                throw error
+              })
+            }}
+          />
         ) : posts.length === 0 ? (
           <p className="text-sm text-muted-foreground">No posts yet.</p>
         ) : null}
