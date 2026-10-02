@@ -56,6 +56,7 @@
     {"idx":63,"version":"7","when":1793800000000,"tag":"0063_multiple_task_assignees","breakpoints":true},
     {"idx":64,"version":"7","when":1793900000000,"tag":"0064_archive_work","breakpoints":true},
     {"idx":65,"version":"7","when":1794000000000,"tag":"0065_task_start_time","breakpoints":true},
+    {"idx":66,"version":"7","when":1794100000000,"tag":"0066_discussion_task_links","breakpoints":true},
     {"idx":67,"version":"7","when":1794200000000,"tag":"0067_page_block_facets","breakpoints":true}
   ]
 }
