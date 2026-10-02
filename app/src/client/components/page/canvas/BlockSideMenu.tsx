@@ -16,6 +16,7 @@ import type { BlockNoteEditor } from '@blocknote/core'
 import { SideMenuExtension } from '@blocknote/core/extensions'
 import { useBlockNoteEditor, useComponentsContext, useExtension, useExtensionState } from '@blocknote/react'
 import type { BlockFacetRef } from '../../../../shared/block-facets.js'
+import { useBlockFacets } from './BlockFacets.js'
 import { blockLink, blockSelection, setBlockSelection } from './block-selection.js'
 import { conversionOf, isCurrent, withoutIds } from './turn-into.js'
 import type { TreeBlock, TurnTarget } from './turn-into.js'
@@ -28,6 +29,7 @@ export type AnyEditor = BlockNoteEditor<any, any, any>
 
 export interface BlockFacetMenuModel {
   readonly options: readonly BlockFacetRef[]
+  readonly editable: boolean
   readonly selected: (blockId: string) => readonly BlockFacetRef[]
   readonly toggle: (blockId: string, facetId: string) => void
   readonly busy: boolean
@@ -44,7 +46,6 @@ export interface BlockMenuModel {
   readonly removal: (block: TreeBlock, ids: readonly string[]) => { label: string; run: () => void } | { note: string } | null
 }
 
-/** The page's theme: `data-theme` (lib/theme.ts), or a `dark` class. */
 export function pageTheme(): 'dark' | 'light' {
   const root = document.documentElement
   return root.getAttribute('data-theme') === 'dark' || root.classList.contains('dark') ? 'dark' : 'light'
@@ -54,6 +55,19 @@ export const BlockMenuContext = createContext<BlockMenuModel | null>(null)
 
 const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+'
 const NON_PERSISTED_BLOCKS = new Set(['danaTask', 'danaFolder'])
+
+/**
+ * The Work directory already has an address. A Work root or any of its Doc
+ * tabs is enough for the server to resolve the project-local facet set. Shelf
+ * routes deliberately answer no scope. A direct Task route is resolved by its
+ * surrounding Work page when opened from Work; a future standalone Task route
+ * can pass an explicit scope without changing the relationship primitive.
+ */
+function routedWorkPage(): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  const match = /^\/app\/(?:folders|facets)\/([0-9a-f-]{36})(?:\/|$)/i.exec(window.location.pathname)
+  return match?.[1]
+}
 
 function actingOn(editor: AnyEditor, id: string): readonly string[] {
   const selected = blockSelection(editor)
@@ -84,7 +98,7 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
   const removal = model.removal(block, ids)
   const facets = model.facets
   const selected = new Set(facets?.selected(block.id).map((facet) => facet.id) ?? [])
-  const canConnectFacet = facets !== undefined && facets.options.length > 0 && !NON_PERSISTED_BLOCKS.has(block.type)
+  const canConnectFacet = facets !== undefined && facets.editable && facets.options.length > 0 && !NON_PERSISTED_BLOCKS.has(block.type)
   const Item = Components.Generic.Menu.Item
   return (
     <Components.Generic.Menu.Dropdown className="bn-menu-dropdown bn-drag-handle-menu dana-block-menu">
@@ -188,11 +202,18 @@ function DragHandle(): React.JSX.Element | null {
 
 export function BlockSideMenu(): React.JSX.Element {
   const Components = useComponentsContext()!
-  const model = useContext(BlockMenuContext)!
+  const editor = useBlockNoteEditor() as AnyEditor
+  const inherited = useContext(BlockMenuContext)!
+  const automaticFacets = useBlockFacets(editor, routedWorkPage(), editor.isEditable)
+  const model = inherited.facets === undefined && automaticFacets !== undefined
+    ? { ...inherited, facets: automaticFacets }
+    : inherited
   return (
-    <Components.SideMenu.Root className={model.insertBefore === undefined ? 'bn-side-menu' : 'bn-side-menu dana-work-side-menu'}>
-      <DragHandle />
-    </Components.SideMenu.Root>
+    <BlockMenuContext.Provider value={model}>
+      <Components.SideMenu.Root className={model.insertBefore === undefined ? 'bn-side-menu' : 'bn-side-menu dana-work-side-menu'}>
+        <DragHandle />
+      </Components.SideMenu.Root>
+    </BlockMenuContext.Provider>
   )
 }
 
