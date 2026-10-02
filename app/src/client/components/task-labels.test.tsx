@@ -25,26 +25,36 @@ import { TaskLabels } from './task-labels.js'
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
 describe('Task Labels', () => {
-  it('offers Personal assignment to a viewer who cannot edit Work labels', async () => {
+  it('shows one label vocabulary and hides choices the viewer cannot apply', async () => {
     render(<TaskLabels taskId="task" folderId="folder" sharedName="Work" worn={[]} canManageFolder={false} canApplyFolder={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Labels: Add labels' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Assign Personal label Private' }))
+    expect(screen.queryByText('Personal')).toBeNull()
+    expect(screen.queryByText('Work')).toBeNull()
+    fireEvent.click(await screen.findByRole('button', { name: 'Assign label Private' }))
     expect(mocks.assign).toHaveBeenCalledWith({ taskId: 'task', labelId: 'personal', on: true })
-    expect(screen.getByRole('button', { name: 'Assign Work label Shared' }).hasAttribute('disabled')).toBe(true)
-    expect(screen.queryByRole('button', { name: 'Create work label' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Assign label Shared' })).toBeNull()
   })
 
-  it('removes an assigned label and keeps an archived label visible but out of normal choices', async () => {
+  it('creates a contextual shared label without asking for a scope', async () => {
+    render(<TaskLabels taskId="task" folderId="folder" sharedName="Work" worn={[]} canManageFolder canApplyFolder />)
+    fireEvent.click(screen.getByRole('button', { name: 'Labels: Add labels' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search labels' }), { target: { value: 'Roadmap' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create “Roadmap”' }))
+    expect(screen.getByText('New label')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Save label' }))
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ folderId: 'folder', name: 'Roadmap' }), expect.anything())
+  })
+
+  it('keeps archived labels on the task and manages them behind Manage labels', async () => {
     const worn = [definitions[1]!, definitions[2]!] as LabelRef[]
     render(<TaskLabels taskId="task" folderId="folder" sharedName="Work" worn={worn} canManageFolder canApplyFolder />)
     expect(screen.getByText('Old')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Labels: Shared, Old' }))
-    expect(screen.queryByRole('button', { name: 'Assign Work label Old' })).toBeNull()
-    fireEvent.click(await screen.findByRole('button', { name: 'Remove Work label Shared' }))
+    expect(screen.queryByRole('button', { name: 'Assign label Old' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove label Shared' }))
     expect(mocks.assign).toHaveBeenCalledWith({ taskId: 'task', labelId: 'work', on: false })
-    fireEvent.click(screen.getByRole('button', { name: 'Show archived' }))
-    expect(screen.getByRole('button', { name: 'Remove Work label Old' }).hasAttribute('disabled')).toBe(false)
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Work label Old' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Manage labels' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit label Old' }))
     fireEvent.click(screen.getByRole('button', { name: 'Restore' }))
     expect(mocks.archive).toHaveBeenCalledWith({ label: definitions[2], archived: false }, expect.anything())
   })
