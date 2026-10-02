@@ -10,6 +10,11 @@ writes, no table:
     GET /api/v1/outcomes/:id/backlinks        (#320)
     GET /api/v1/results/:id/backlinks         (#213)
 
+#488 enriches the existing facet answer rather than opening a parallel route:
+facet backlinks remain a structural superset of #214's response, but each row
+also carries previews for the exact source blocks/posts. The target and source
+access rules therefore stay on the same reciprocal read.
+
 **Why a path id per kind rather than `?target=<link>`.** The ac-397 sweep sees
 path parameters only; a target on the query string would be the one id no
 structural check notices. Each route therefore names its target in the path
@@ -19,7 +24,8 @@ and has its own sweep row.
 chip resolver uses, so a target the reader cannot open and a target that does
 not exist are the same bare 404 here as there — and nothing is scanned for a
 target the reader could not have named. Every source answered is then scoped
-by the reader's access to *it* (`domain/backlinks.ts`).
+by the reader's access to *it* (`domain/backlinks.ts`; #488's richer facet
+projection is `views/connected-work.ts`).
 */
 import type { Request, Response, Router } from 'express'
 
@@ -29,6 +35,7 @@ import { requireSession } from '../auth/index.js'
 import { backlinksOf } from '../domain/backlinks.js'
 import { resolveReference } from '../domain/references.js'
 import { sendError } from '../http/errors.js'
+import { connectedWorkOf } from '../views/connected-work.js'
 import { routerWithPreamble } from './preamble.js'
 
 export interface BacklinksRouterOptions {
@@ -72,9 +79,10 @@ export function createBacklinksRouter(
           sendError(res, 404, 'not_found', 'Not found.')
           return
         }
-        res
-          .status(200)
-          .json(await backlinksOf(db, viewerId, target, options.appOrigin))
+        const answer = kind === 'facet'
+          ? await connectedWorkOf(db, viewerId, id, options.appOrigin)
+          : await backlinksOf(db, viewerId, target, options.appOrigin)
+        res.status(200).json(answer)
       },
     )
   }
