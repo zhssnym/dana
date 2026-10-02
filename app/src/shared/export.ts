@@ -139,7 +139,12 @@ person owns, exported with the others, so `facets` is always empty. A
 version-9 reader would drop the three keys and read tabs as unrelated
 top-level pages.
 */
-export const EXPORT_VERSION = 10
+/*
+**10 to 11 on 2026-10-02, issue #487.** Every exported task gains
+`start_time`, the Start endpoint's floating wall-clock time. A version-10
+reader would otherwise silently discard part of the authored Schedule.
+*/
+export const EXPORT_VERSION = 11
 
 /**
  * 10.3's "List responses capped at 1000 rows with truncated flag", applied
@@ -290,6 +295,7 @@ export const exportTask = z.object({
   status: z.string(),
   important: z.boolean(),
   start_date: z.string().nullable(),
+  start_time: z.string().nullable(),
   due_date: z.string().nullable(),
   due_time: z.string().nullable(),
   recurrence_rule: z.string().nullable(),
