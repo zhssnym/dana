@@ -20,7 +20,14 @@ in a list item or a code block, when the key came from outside this editor
 (a portaled popover such as the file panel's URL field), and on a touch-first
 device, where Enter is a newline and the Send button sends. Editing a post
 (`initial` given) keeps the editor's keys: Enter makes a new block and Esc
-cancels. Ctrl/Cmd+Enter always sends or saves.
+cancels. Ctrl/Cmd+Enter always sends or saves. In a new post, Esc calls
+`onCancel` (the thread's "cancel the reply") only while the post is empty.
+
+**A new post is a chat field** (`Composer.tsx` puts it in a thread): one
+pill-round box that grows with the writing up to a cap and then scrolls,
+Attach at its start and a round Send at its end that is there only while
+there is something to send. Both stay at the box's foot as it grows. The
+`@` menu opens by typing `@`; there is no separate button for it.
 A new post with its own button row (`renderActions`, the issue page) keeps
 GitHub's keys instead: Enter is a new line and Ctrl/Cmd+Enter comments.
 
@@ -28,7 +35,6 @@ Default export: `React.lazy` keeps BlockNote out of the page's own chunk.
 */
 import { useEffect, useRef, useState } from 'react'
 import { BlockNoteSchema } from '@blocknote/core'
-import { SuggestionMenu } from '@blocknote/core/extensions'
 import { en } from '@blocknote/core/locales'
 import { BlockNoteView } from '@blocknote/shadcn'
 import { FilePanelController, FormattingToolbarController, useCreateBlockNote } from '@blocknote/react'
@@ -36,7 +42,7 @@ import '@blocknote/shadcn/style.css'
 
 import type { CommentFile, PostContent } from '../../../shared/comments.js'
 import { uploadFile } from '../../api/http.js'
-import { Paperclip } from '../../lib/icons.js'
+import { ArrowUp, Paperclip } from '../../lib/icons.js'
 import { Button } from '../ui/button.js'
 import { cn } from '../ui/utils.js'
 import { MentionSuggestions } from '../page/canvas/mentions.js'
@@ -94,7 +100,7 @@ export interface PostEditorProps {
 export default function PostEditor({
   folderId,
   initial,
-  placeholder = 'Write a reply…',
+  placeholder = 'Message',
   submitLabel = 'Post',
   autoFocus = false,
   focusSignal = 0,
@@ -210,9 +216,24 @@ export default function PostEditor({
     }
   }
 
-  const sendTitle = editing ? 'Ctrl+Enter' : coarse ? undefined : 'Enter to send'
+  const sendTitle = editing ? 'Ctrl+Enter' : undefined
   const chat = !editing && renderActions === undefined
   const picker = useRef<HTMLInputElement>(null)
+
+  /* The chat field is a pill while it holds one line; grown taller, its
+     corners drop to the card radius so the writing is not clipped. */
+  const scroller = useRef<HTMLDivElement>(null)
+  const [tall, setTall] = useState(false)
+  useEffect(() => {
+    const el = scroller.current
+    if (!chat || el === null || typeof ResizeObserver === 'undefined') return
+    const watch = new ResizeObserver(() => {
+      /* One line of body text is 20px; BlockNote adds a few px around it. */
+      setTall(el.offsetHeight > 32)
+    })
+    watch.observe(el)
+    return () => { watch.disconnect() }
+  }, [chat])
 
   /** The composer's Attach: each picked file uploads and joins the post as its own block. */
   async function attach(list: FileList | null): Promise<void> {
@@ -232,32 +253,59 @@ export default function PostEditor({
 
   /* Attach, in the new-post row and the edit row alike: an edited post can
      gain a file without paste or drop (a phone has neither handy). */
+  const pickerInput = (
+    <input
+      ref={picker}
+      type="file"
+      multiple
+      hidden
+      tabIndex={-1}
+      onChange={(event) => {
+        const files = event.target.files
+        void attach(files).finally(() => { event.target.value = '' })
+      }}
+    />
+  )
   const attachButton = (
     <>
-      <input
-        ref={picker}
-        type="file"
-        multiple
-        hidden
-        tabIndex={-1}
-        onChange={(event) => {
-          const files = event.target.files
-          void attach(files).finally(() => { event.target.value = '' })
-        }}
-      />
+      {pickerInput}
       <Button type="button" variant="ghost" size="icon-sm" aria-label="Attach a file" title="Attach a file" className="text-muted-foreground" onClick={() => picker.current?.click()}>
         <Paperclip strokeWidth={1.75} aria-hidden="true" />
       </Button>
     </>
   )
 
-  /** The composer's @: the canvas's own mention menu, at the end of the writing. */
-  function mention(): void {
-    const last = editor.document.at(-1)
-    editor.focus()
-    if (last !== undefined && !editor.isFocused()) editor.setTextCursorPosition(last, 'end')
-    editor.getExtension(SuggestionMenu)?.openSuggestionMenu('@')
-  }
+  /** The writing itself, the same in the chat field and the edit box. */
+  const writing = (height: string): React.JSX.Element => (
+    <div
+      ref={scroller}
+      className={cn('dana-writing-canvas dana-post-editor min-w-0 overflow-y-auto', height)}
+      /* BlockNote's placeholder never reaches the canvas paragraph; canvas.css draws this one. */
+      style={{ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties}
+    >
+      <BlockNoteView
+        editor={editor}
+        theme={pageTheme()}
+        formattingToolbar={false}
+        slashMenu={false}
+        sideMenu={false}
+        filePanel={false}
+        aria-label={label}
+        onChange={() => {
+          try {
+            setEmpty(postContentOf(editor.document as unknown as LooseBlock[]) === null)
+          } catch {
+            setEmpty(false)
+          }
+        }}
+      >
+        <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
+        <FilePanelController filePanel={(props) => <CanvasFilePanel {...props} onUpload={upload} />} />
+        <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={SLASH} />
+        <MentionSuggestions editor={editor as unknown as CanvasEditor} folderId={folderId} />
+      </BlockNoteView>
+    </div>
+  )
 
   return (
     <div
@@ -277,20 +325,60 @@ export default function PostEditor({
         } else if (event.key === 'Escape' && onCancel !== undefined && !event.defaultPrevented) {
           /* BlockNote's own menus close on their Escape first. */
           const menu = document.querySelector('.bn-suggestion-menu, .bn-formatting-toolbar')
-          if (menu === null) onCancel()
+          if (menu !== null) return
+          if (editing) onCancel()
+          else if (empty) {
+            /* Spent here: the thread's own Escape (leave) waits for the next one. */
+            event.preventDefault()
+            event.stopPropagation()
+            onCancel()
+          }
         }
       }}
     >
-      <div
-        className={cn(
-          'min-w-0 border border-border bg-background',
-          /* A new post: a letter's box, the writing, then one row of Attach, @ and Send. */
-          chat ? 'rounded-md focus-within:border-ring' : 'rounded-lg focus-within:border-quiet-foreground',
-        )}
-      >
+      {chat ? (
+        /* A chat field: Attach, the writing, and Send once there is something
+           to send, the two buttons at the foot as the writing grows. */
+        <div
+          className={cn(
+            'flex min-h-11 min-w-0 items-end border border-border bg-background focus-within:border-ring md:gap-1 md:p-1',
+            tall ? 'rounded-[var(--radius-card)]' : 'rounded-full',
+          )}
+        >
+          {pickerInput}
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label="Attach a file"
+            title="Attach a file"
+            className="size-11 rounded-full text-muted-foreground md:size-8"
+            onClick={() => picker.current?.click()}
+          >
+            <Paperclip className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          </Button>
+          <div className={cn('min-w-0 flex-1 self-center py-1.5', empty && 'pe-3')}>{writing('max-h-40 overflow-x-hidden md:max-h-55')}</div>
+          {empty ? null : (
+            <Button
+              type="button"
+              variant="commit"
+              aria-label={submitLabel}
+              title={submitLabel}
+              className="size-11 rounded-full md:size-8"
+              /* The cursor stays in the writing; on a phone the keyboard stays up. */
+              onMouseDown={(event) => { event.preventDefault() }}
+              onClick={() => {
+                void submit()
+              }}
+            >
+              <ArrowUp className="size-4" strokeWidth={2} aria-hidden="true" />
+            </Button>
+          )}
+        </div>
+      ) : (
+      <div className="min-w-0 rounded-lg border border-border bg-background focus-within:border-quiet-foreground">
         {/* The padding lives here: canvas.css zeroes the canvas's own left padding on phones. */}
         <div
-          className={cn('min-w-0 px-3', editing ? 'pt-2' : renderActions === undefined ? 'min-h-13 pt-3' : 'min-h-24 cursor-text py-2')}
+          className={cn('min-w-0 px-3', editing ? 'pt-2' : 'min-h-24 cursor-text py-2')}
           /* The issue composer's box is taller than its one line: a click anywhere in it writes. */
           onMouseDown={
             renderActions === undefined
@@ -302,33 +390,7 @@ export default function PostEditor({
                 }
           }
         >
-          <div
-            className="dana-writing-canvas dana-post-editor max-h-[60vh] min-w-0 overflow-y-auto"
-            /* BlockNote's placeholder never reaches the canvas paragraph; canvas.css draws this one. */
-            style={{ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties}
-          >
-            <BlockNoteView
-              editor={editor}
-              theme={pageTheme()}
-              formattingToolbar={false}
-              slashMenu={false}
-              sideMenu={false}
-              filePanel={false}
-              aria-label={label}
-              onChange={() => {
-                try {
-                  setEmpty(postContentOf(editor.document as unknown as LooseBlock[]) === null)
-                } catch {
-                  setEmpty(false)
-                }
-              }}
-            >
-              <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
-              <FilePanelController filePanel={(props) => <CanvasFilePanel {...props} onUpload={upload} />} />
-              <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={SLASH} />
-              <MentionSuggestions editor={editor as unknown as CanvasEditor} folderId={folderId} />
-            </BlockNoteView>
-          </div>
+          {writing('max-h-[60vh]')}
         </div>
         {editing ? (
           <div className="flex items-center justify-end gap-2 px-2 pb-2">
@@ -352,41 +414,9 @@ export default function PostEditor({
               {submitLabel}
             </Button>
           </div>
-        ) : !chat ? null : (
-          <div className="flex items-center gap-0.5 px-3 pb-2">
-            <input
-              ref={picker}
-              type="file"
-              multiple
-              hidden
-              tabIndex={-1}
-              onChange={(event) => {
-                const files = event.target.files
-                void attach(files).finally(() => { event.target.value = '' })
-              }}
-            />
-            <Button type="button" variant="ghost" size="icon" aria-label="Attach a file" title="Attach a file" className="text-muted-foreground" onClick={() => picker.current?.click()}>
-              <Paperclip className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            </Button>
-            <Button type="button" variant="ghost" size="icon" aria-label="Mention someone" title="Mention someone" className="text-sm text-muted-foreground" onMouseDown={(event) => { event.preventDefault() }} onClick={mention}>
-              @
-            </Button>
-            {sendTitle === undefined ? null : <span className="mr-2.5 ml-auto text-xs text-quiet-foreground">{sendTitle}</span>}
-            <Button
-              type="button"
-              variant={empty ? 'ghost' : 'commit'}
-              disabled={empty}
-              title={sendTitle}
-              className={cn('px-3 font-medium', sendTitle === undefined && 'ml-auto', empty && 'bg-muted text-muted-foreground')}
-              onClick={() => {
-                void submit()
-              }}
-            >
-              {submitLabel}
-            </Button>
-          </div>
-        )}
+        ) : null}
       </div>
+      )}
       {!editing && error !== '' ? <p role="alert" className="mt-1 px-1 text-xs text-destructive">{error}</p> : null}
       {!editing && renderActions !== undefined ? renderActions({ submit, empty, busy }) : null}
     </div>

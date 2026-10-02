@@ -145,9 +145,11 @@ function discussionFromRow(row: Record<string, unknown>): Discussion {
         id: String(task.id),
         title: String(task.title),
         status:
-          task.status === 'completed' || task.status === 'abandoned'
-            ? task.status
-            : ('pending' as const),
+          task.status === 'completed'
+            ? ('completed' as const)
+            : task.status === 'abandoned'
+              ? ('abandoned' as const)
+              : ('pending' as const),
       },
     ]
   })
