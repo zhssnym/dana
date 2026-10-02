@@ -1,0 +1,58 @@
+name: Issue 487 backend patch
+
+on:
+  push:
+    branches: [backend/487-start-time-contract]
+    paths:
+      - '.github/workflows/issue-487-backend-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: contains(github.event.head_commit.message, 'run issue 487 backend patch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: backend/487-start-time-contract
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Apply backend contract patch
+        run: |
+          python .github/issue-487-patch-fix.py
+          python .github/issue-487-backend-patch.py
+      - name: Install
+        working-directory: app
+        run: npm ci
+      - name: Lint
+        working-directory: app
+        run: npm run lint
+      - name: Typecheck
+        working-directory: app
+        run: npm run typecheck
+      - name: Build
+        working-directory: app
+        run: npm run build
+      - name: Verify migrations
+        working-directory: app
+        run: npm run db:verify
+      - name: Focused backend tests
+        working-directory: app
+        run: npm test -- tests/criteria/ac-423-task-schedule.test.ts
+      - name: Diff check
+        run: git diff --check
+      - name: Commit implementation and remove staging helpers
+        run: |
+          rm -f .github/issue-487-backend-patch.py .github/issue-487-patch-fix.py .github/workflows/issue-487-backend-patch.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "feat: persist task start time contract (#487)"
+          git push origin HEAD:backend/487-start-time-contract
