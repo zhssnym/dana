@@ -1,5 +1,6 @@
 name: Issue 487 backend patch
 
+# Temporary branch-local implementation/validation runner for issue #487.
 on:
   push:
     branches: [backend/487-start-time-contract]
