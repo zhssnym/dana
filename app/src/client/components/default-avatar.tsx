@@ -41,6 +41,12 @@ export function RosterTints({ ids, children }: { readonly ids: readonly string[]
   return <RosterTintContext.Provider value={tints}>{children}</RosterTintContext.Provider>
 }
 
+/** A person's tint as their face wears it here: the page roster's, else their own. */
+export function usePersonTint(id: string): string {
+  const roster = useContext(RosterTintContext)
+  return personFacePaint(id, roster?.get(id)).ink
+}
+
 /** Hair drawn behind the head (long hair falls behind the shoulders' line). */
 function HairBehind({ style, fill }: { style: number; fill: string }): React.JSX.Element | null {
   if (style === 3) return <path d="M8 15a8 8 0 0 1 16 0v9H8z" fill={fill} />

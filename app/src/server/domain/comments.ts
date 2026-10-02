@@ -138,7 +138,6 @@ export type CreateCommentResult =
   | { kind: 'discussion_not_here' }
   | { kind: 'frozen' }
   | { kind: 'parent_not_here' }
-  | { kind: 'too_deep' }
   | { kind: 'file_not_here' }
   | { kind: 'content_file_not_attached' }
   | { kind: 'empty' }
@@ -216,8 +215,7 @@ export async function createComment(
     if (body.parent_id !== undefined) {
       const parent = await rowsOf(
         tx,
-        sql`SELECT parent_id,
-                   (discussion_id IS NOT DISTINCT FROM ${discussionId}::uuid)
+        sql`SELECT (discussion_id IS NOT DISTINCT FROM ${discussionId}::uuid)
                      AS same_thread
             FROM comments
             WHERE id = ${body.parent_id} AND folder_id = ${folderId}`,
@@ -226,7 +224,6 @@ export async function createComment(
       if (row === undefined || row.same_thread !== true) {
         return { kind: 'parent_not_here' } as const
       }
-      if (row.parent_id !== null) return { kind: 'too_deep' } as const
     }
 
     const fileIds = attachedFileIds(body)
