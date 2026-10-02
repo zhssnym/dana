@@ -346,7 +346,6 @@ function skipTo(region: HTMLElement | null): void {
 
 export function AppShell(): React.JSX.Element {
   const location = useLocation()
-  const threadOpen = useThreadOpen()
   const [content, setContent] = useState<HTMLDivElement | null>(null)
   usePageTitle(content)
   const me = useMe()
@@ -607,7 +606,7 @@ export function AppShell(): React.JSX.Element {
               className="min-h-0 flex-1 overflow-y-auto"
             >
               {/* An open thread reads across the full width, as a chat does. */}
-              <div className={`mx-auto w-full px-4 py-4 md:px-10 md:py-6 ${threadOpen ? '' : 'max-w-[var(--shell-content-max)]'}`}>
+              <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-4 py-4 md:px-10 md:py-6">
                 {/* 9.8: pending invites sit above every /app page; a read in
                     flight, a failed read and an empty answer all draw nothing. */}
                 {(invites.data?.length ?? 0) > 0 ? (
