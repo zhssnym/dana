@@ -28,7 +28,10 @@ CREATE INDEX page_block_facets_facet_id_block_id_idx
 -- source folder's project_id, so old edges are removed rather than hidden and
 -- allowed to reappear if the page later moves back. The second delete covers
 -- the inverse: if a Doc tab itself changes project, it keeps no sources from
--- the old Work.
+-- the old Work. Listen to parent_folder_id as well as project_id because the
+-- step-8 compatibility trigger may derive project_id from a parent move; an
+-- UPDATE OF project_id trigger alone does not fire for a column changed only
+-- by another BEFORE trigger.
 CREATE FUNCTION page_block_facets_prune_folder_move() RETURNS trigger LANGUAGE plpgsql AS $fn$
 BEGIN
   IF NEW.project_id IS NOT DISTINCT FROM OLD.project_id THEN
@@ -58,11 +61,16 @@ END
 $fn$;
 --> statement-breakpoint
 CREATE TRIGGER page_block_facets_prune_folder_move_after_update
-  AFTER UPDATE OF project_id ON folders
+  AFTER UPDATE OF project_id, parent_folder_id ON folders
   FOR EACH ROW EXECUTE FUNCTION page_block_facets_prune_folder_move();
 --> statement-breakpoint
 -- Task-document blocks travel with the Task. A cross-project task move must
 -- therefore sever its old facet edges in the same transaction as the move.
+-- The canonical move writes folder_id; tasks_project_from_folder derives the
+-- new project_id in a BEFORE trigger. Postgres chooses UPDATE OF triggers from
+-- the statement's target columns, so this trigger must listen to folder_id
+-- too rather than waiting for a project_id assignment the statement did not
+-- spell itself.
 CREATE FUNCTION page_block_facets_prune_task_move() RETURNS trigger LANGUAGE plpgsql AS $fn$
 BEGIN
   IF NEW.project_id IS NOT DISTINCT FROM OLD.project_id THEN
@@ -80,5 +88,5 @@ END
 $fn$;
 --> statement-breakpoint
 CREATE TRIGGER page_block_facets_prune_task_move_after_update
-  AFTER UPDATE OF project_id ON tasks
+  AFTER UPDATE OF folder_id, project_id ON tasks
   FOR EACH ROW EXECUTE FUNCTION page_block_facets_prune_task_move();
