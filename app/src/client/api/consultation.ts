@@ -250,16 +250,16 @@ export function useDestroyTrashedDiscussion(): UseMutationResult<void, Error, st
 export function usePostDiscussionComment(): UseMutationResult<
   CommentLine,
   Error,
-  { readonly discussionId: string; readonly body: PostCommentBody; readonly taskId?: string | null }
+  { readonly discussionId: string; readonly body: PostCommentBody; readonly taskIds?: readonly string[] }
 > {
   const client = useQueryClient()
   return useMutation({
     meta: CHAT_WRITE,
-    onSuccess: (line, { discussionId, taskId }) => {
+    onSuccess: (line, { discussionId, taskIds }) => {
       client.setQueryData<GetThreadResponse>(queryKeys.discussionThread(discussionId), (thread) => withPost(thread, line))
       /* A task's thread is linked from the task page once someone has
          written in it (M5), so its first post changes that page. */
-      if (taskId != null) void client.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+      for (const taskId of taskIds ?? []) void client.invalidateQueries({ queryKey: queryKeys.task(taskId) })
     },
     mutationFn: ({ discussionId, body }) =>
       mutateApi(commentLine, {
