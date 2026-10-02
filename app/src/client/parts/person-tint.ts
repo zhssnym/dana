@@ -132,6 +132,16 @@ export function personFacePaint(key: string, tint?: string): PersonFacePaint {
 }
 
 /**
+ * A person's name in their tint, for a surface that draws the name without
+ * the face (a thread's chat feed). The swatch is held only to 3:1, too faint
+ * for 12-14px text, so it is mixed into the page's own ink, which is dark in
+ * light and light in dark: the hue stays, the text reads (4.5:1 or better).
+ */
+export function personNameInk(tint: string): string {
+  return `color-mix(in oklab, ${tint} 60%, var(--foreground))`
+}
+
+/**
  * A second, independent spread over the name, for the face's shape (hair,
  * expression, glasses), so two people sharing a colour still differ in form.
  * FNV-1a, because the tint's hash is too small to split into more choices.
