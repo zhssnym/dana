@@ -227,7 +227,9 @@ function TopTrail(): React.JSX.Element {
   /* A top-level place (Today, Settings, Trash, a collection) has no crumb:
      its title already says where you are, and saying it twice is noise. */
   /* With the sidebar hidden on a laptop, the control that brings it back sits
-     exactly where the footer's collapse was, so the toggle never moves. */
+     in the window's bottom-left corner, at the edge the sidebar opens from.
+     Left where the footer's collapse was, it floated in the middle of the
+     page, as if stuck there (issue #504). */
   const { isMobile, state } = useSidebar()
   return (
     <>
@@ -237,7 +239,7 @@ function TopTrail(): React.JSX.Element {
         <Tooltip>
           <TooltipTrigger
             render={
-              <SidebarTrigger className={`${FOOT_BUTTON} fixed bottom-2 left-[calc(var(--sidebar-width)_-_var(--spacing)*2_-_var(--control-height)_-_1px)] z-10`} />
+              <SidebarTrigger className={`${FOOT_BUTTON} fixed bottom-2 left-2 z-10`} />
             }
           />
           <TooltipContent side="top">Expand sidebar</TooltipContent>
