@@ -150,7 +150,9 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     */
     { key: 'open', label: 'Open in…', icon: Fullscreen, group: 1 },
     { key: 'open-tab', label: 'Open in new tab', icon: OpenInNewTab, group: 1 },
-    /* No History: the task page's one timeline is its history (M4). */
+    /* Issue #500: the task page stays visually quiet; its full record is
+       reached from the page's one overflow menu instead of an inline footer. */
+    { key: 'history', label: 'History', icon: History, group: 1 },
     /* Today membership from the row's own menu, the pair of 7.8's pull and its
        DELETE, offered one at a time the way abandon and restore are. */
     { key: 'pull', label: 'Add to Today', icon: SunMedium, group: 2 },
@@ -232,8 +234,8 @@ How a surface supplies an act: a function, or a submenu to choose from.
 Most acts are a press. "Move to group" is a choice, and the groups are few
 enough that naming them inline is a press shorter than a dialog, which is why
 the sidebar already drew it that way. The *act* is still declared above, with
-its name, glyph and place in the order; only the picker is the surface's, in
-the same way a handler is.
+its name, glyph and place in the order; only the picker is the surface's, in the
+same way a handler is.
 */
 export type ActHandler = (() => void) | { readonly choose: ReactNode }
 
