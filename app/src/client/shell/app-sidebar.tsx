@@ -69,6 +69,7 @@ import {
   useRestoreFolder,
 } from '../api/mutations.js'
 import { useCreateShelf } from '../api/shelf-mutations.js'
+import { useArchiveFolder, useRestoreArchivedFolder } from '../api/archive.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
 import { copyLink, leaveFolderConfirm } from '../lib/object-acts.js'
 import { pushUndo, undoLabel } from './undo.js'
@@ -381,6 +382,7 @@ interface PageTreeValue {
   readonly startRename: (id: string) => void
   readonly rename: (folder: Folder, name: string | null) => void
   readonly trash: (folder: Folder) => void
+  readonly archive: (folder: Folder) => void
   readonly leave: (folder: Folder) => void
   /** The page whose leave is being confirmed. */
   readonly leaving: Folder | null
@@ -426,6 +428,8 @@ function usePageTreeValue({
   const addPageInside = useAddPageInside()
   const remove = useDeleteFolder()
   const restore = useRestoreFolder()
+  const archive = useArchiveFolder()
+  const restoreArchived = useRestoreArchivedFolder()
   const leaveFolder = useLeaveFolder()
   const renameFolder = useRenameFolder()
   const [renaming, setRenaming] = useState<string | null>(null)
@@ -563,6 +567,13 @@ function usePageTreeValue({
             restore.mutate(folder.id)
           })
         },
+        () => {},
+      )
+    },
+    archive: (folder) => {
+      leaveIfShowing(folder.id)
+      archive.mutateAsync(folder.id).then(
+        () => pushUndo('Work archived', () => { restoreArchived.mutate(folder.id) }),
         () => {},
       )
     },
@@ -732,6 +743,7 @@ function SidebarFolderRow({
                     pages.leave(folder)
                   }
                 : undefined,
+              archive: gates.trash ? () => { pages.archive(folder) } : undefined,
               delete: gates.trash
                 ? () => {
                     pages.trash(folder)

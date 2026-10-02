@@ -144,6 +144,9 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'folders_parent_not_self_check', columns: ['id', 'parent_folder_id'] },
       { name: 'folders_default_is_root_check', columns: ['is_default', 'parent_folder_id'] },
       { name: 'folders_trashed_with_check', columns: ['deleted_at', 'trashed_with_folder_id'] },
+      { name: 'folders_archive_state_check', columns: ['archived_at', 'archived_by'] },
+      { name: 'folders_archived_with_check', columns: ['archived_at', 'archived_with_folder_id'] },
+      { name: 'folders_archive_trash_check', columns: ['archived_at', 'deleted_at'] },
       /* Migration 0061 (step 7): a project is its root row (id = project_id),
          a tab is a root-level row with a tab_position, and kind says what the
          page is for. Only a root nobody has picked a kind for has none. */
@@ -191,10 +194,24 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         references: { table: 'folders', columns: ['id'] },
         onDelete: 'set null',
       },
+      {
+        name: 'folders_archived_by_fkey',
+        columns: ['archived_by'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'set null',
+      },
+      {
+        name: 'folders_archived_with_folder_id_fkey',
+        columns: ['archived_with_folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'set null',
+      },
     ],
     indexes: [
       { name: 'folders_one_default_per_owner_idx', unique: true, columns: ['owner_id'], partial: true },
       { name: 'folders_deleted_at_idx', unique: false, columns: ['deleted_at'], partial: true },
+      { name: 'folders_archived_at_idx', unique: false, columns: ['archived_at'], partial: true },
+      { name: 'folders_archived_with_folder_id_idx', unique: false, columns: ['archived_with_folder_id'], partial: true },
       /* Migration 0039: one parent's children in sibling order, and one
          trash initiator's trashed-with set. */
       {

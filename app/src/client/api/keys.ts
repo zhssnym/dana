@@ -35,6 +35,7 @@ export const queryKeys = {
   savedViews: () => ['settings', 'views'] as const,
   shelves: () => ['shelves'] as const,
   trash: () => ['trash'] as const,
+  archivedWork: () => ['archive', 'folders'] as const,
   /** 4.13's `kind:id` reference, so two subjects never share a key. */
   events: (subject: string) => ['events', subject] as const,
 
@@ -81,8 +82,9 @@ export const queryKeys = {
   discussionThread: (id: string) => ['discussions', id, 'thread'] as const,
   outcome: (id: string) => ['outcomes', id] as const,
 
-  /** A Dana Link chip's live label (#223), and a target's "Referenced from"
-   * list (#214). Read by `components/links/`. */
+  /** A Dana Link chip's live label (#223), a target's "Referenced from"
+   * list (#214), and #488's richer facet-only source projection. */
   reference: (kind: string, id: string) => ['references', kind, id] as const,
   backlinks: (kind: string, id: string) => ['backlinks', kind, id] as const,
+  connectedWork: (facetId: string) => ['facets', facetId, 'connected-work'] as const,
 } as const
