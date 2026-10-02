@@ -132,6 +132,7 @@ the timezone the floating format exists to remove. One SQL cast makes the
 wire identical on both.
 */
 const START_DATE = sql`to_char(t.start_date, 'YYYY-MM-DD')`
+const START_TIME = sql`to_char(t.start_time, 'HH24:MI')`
 const DUE_DATE = sql`to_char(t.due_date, 'YYYY-MM-DD')`
 const DUE_TIME = sql`to_char(t.due_time, 'HH24:MI')`
 
@@ -160,6 +161,7 @@ export interface TaskAccess {
      two columns, so a PATCH setting one of them has to be checked against
      whichever the row already holds (issue #215). */
   startDate: string | null
+  startTime: string | null
   /**
    * The actor's durable Folder facts, carried by the same membership join
    * that scoped this read (issue #228).
@@ -180,6 +182,7 @@ export interface TaskAccess {
    from a different snapshot than the assignee. */
 const TASK_ACCESS_COLUMNS = sql`t.id, t.folder_id, t.title, t.status,
        t.assignee_id, t.assignee_ids, ${START_DATE} AS start_date,
+       ${START_TIME} AS start_time,
        ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
        t.recurrence_rule, t.section_block_id`
 
@@ -198,6 +201,7 @@ function taskAccessFrom(scoped: Scoped | null): TaskAccess | null {
     recurrenceRule: nullableString(row.recurrence_rule),
     sectionBlockId: nullableString(row.section_block_id),
     startDate: nullableString(row.start_date),
+    startTime: nullableString(row.start_time),
     facts,
   }
 }
@@ -358,7 +362,7 @@ export async function taskView(
   const found = await rowsOf(
     executor,
     sql`SELECT t.id, t.title, t.status, t.important, t.notes,
-               ${START_DATE} AS start_date,
+               ${START_DATE} AS start_date, ${START_TIME} AS start_time,
                ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
                t.recurrence_rule, t.series_id,
                t.completed_at, t.completed_by,
@@ -413,6 +417,7 @@ export async function taskView(
     status: String(row.status) as TaskStatus,
     important: row.important === true,
     start_date: nullableString(row.start_date),
+    start_time: nullableString(row.start_time),
     due_date: nullableString(row.due_date),
     due_time: nullableString(row.due_time),
     folder: {
@@ -784,13 +789,14 @@ export async function createTaskIn(
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO tasks (id, folder_id, title, notes, important,
-                             start_date, due_date,
+                             start_date, start_time, due_date,
                              due_time, recurrence_rule, series_id,
                              assignee_id, assignee_ids, created_by, section_block_id,
                              page_position)
           VALUES (${options.id === undefined ? sql`gen_random_uuid()` : sql`${options.id}::uuid`}, ${folderId}::uuid, ${body.title}, ${body.notes ?? null},
                   ${body.important ?? false},
                   ${body.start_date ?? null}::date,
+                  ${body.start_time ?? null}::time,
                   ${body.due_date ?? null}::date,
                   ${body.due_time ?? null}::time, ${rule}, ${seriesId},
                   ${assigneeId}::uuid, ${assigneeArray(assigneeIds)}, ${viewerId}::uuid, ${sectionId},
@@ -861,8 +867,10 @@ export type PatchTaskResult =
   | { kind: 'assignee_not_member' }
   | { kind: 'unassign_single_member' }
   | { kind: 'time_without_date' }
+  | { kind: 'start_time_without_date' }
   | { kind: 'rule_without_date' }
   | { kind: 'start_after_due'; field: 'start_date' | 'due_date' }
+  | { kind: 'start_after_due_time'; field: 'start_date' | 'start_time' | 'due_date' | 'due_time' }
   | { kind: 'section_not_here' }
   | { kind: 'reminder_refused'; refusal: ReminderRefusal }
   | { kind: 'forbidden'; reason: string }
@@ -1215,8 +1223,22 @@ async function patchTaskIn(
     the person just moved; where it sent both, it names start_date, which is
     what the shared schema's refinement on the create body also names.
     */
+    const clearingStart = patch.start_date === null
     const finalStartDate =
       patch.start_date !== undefined ? patch.start_date : current.startDate
+    if (
+      !clearingStart &&
+      patch.start_time !== undefined &&
+      patch.start_time !== null &&
+      finalStartDate === null
+    ) {
+      return { kind: 'start_time_without_date' }
+    }
+    const finalStartTime = clearingStart
+      ? null
+      : patch.start_time !== undefined
+        ? minuteOf(patch.start_time)
+        : current.startTime
     if (
       finalStartDate !== null &&
       finalDueDate !== null &&
@@ -1241,6 +1263,27 @@ async function patchTaskIn(
       : patch.due_time !== undefined
         ? minuteOf(patch.due_time)
         : current.dueTime
+
+    if (
+      finalStartDate !== null &&
+      finalDueDate !== null &&
+      finalStartDate === finalDueDate &&
+      finalStartTime !== null &&
+      finalDueTime !== null &&
+      finalStartTime > finalDueTime
+    ) {
+      return {
+        kind: 'start_after_due_time',
+        field:
+          patch.start_time !== undefined
+            ? 'start_time'
+            : patch.due_time !== undefined
+              ? 'due_time'
+              : patch.start_date !== undefined
+                ? 'start_date'
+                : 'due_date',
+      }
+    }
 
     // 4.8's mode rule and INV-6, in the direction only the row can answer.
     // Refused before the first write, like every other refusal here: a
@@ -1282,8 +1325,16 @@ async function patchTaskIn(
     start leaves a start-only task, which the issue lists among the four valid
     states; taking the start with it would make the two dates one field.
     */
-    if (patch.start_date !== undefined) {
-      sets.push(sql`start_date = ${patch.start_date}::date`)
+    if (clearingStart) {
+      sets.push(sql`start_date = NULL`)
+      sets.push(sql`start_time = NULL`)
+    } else {
+      if (patch.start_date !== undefined) {
+        sets.push(sql`start_date = ${patch.start_date}::date`)
+      }
+      if (patch.start_time !== undefined) {
+        sets.push(sql`start_time = ${patch.start_time}::time`)
+      }
     }
     if (clearing) {
       sets.push(sql`due_date = NULL`)

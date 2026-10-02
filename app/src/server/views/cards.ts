@@ -61,6 +61,7 @@ serialize as an instant and reintroduce the timezone 4.11's floating format
 exists to remove.
 */
 export const START_DATE = sql`to_char(t.start_date, 'YYYY-MM-DD')`
+export const START_TIME = sql`to_char(t.start_time, 'HH24:MI')`
 export const DUE_DATE = sql`to_char(t.due_date, 'YYYY-MM-DD')`
 export const DUE_TIME = sql`to_char(t.due_time, 'HH24:MI')`
 
@@ -224,7 +225,7 @@ never a missing column.
 */
 const CARD_COLUMNS = sql`
     t.id, t.title, t.status, t.important,
-    ${START_DATE} AS start_date,
+    ${START_DATE} AS start_date, ${START_TIME} AS start_time,
     ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
     /* A tab is labelled with its project (step 7). */
     f.id AS folder_id,
@@ -316,6 +317,7 @@ function cardFromRow(
     status: String(row.status) as TaskCard['status'],
     important: row.important === true,
     start_date: nullableString(row.start_date),
+    start_time: nullableString(row.start_time),
     due_date: nullableString(row.due_date),
     due_time: nullableString(row.due_time),
     folder: {
