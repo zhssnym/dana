@@ -1,48 +1,26 @@
 /*
-"Referenced from" (issue #214). One GET per Dana Link target kind, no
-writes, no table:
+"Referenced from" (issue #214) and #488's two facet-reference forms.
 
-    GET /api/v1/tasks/:id/backlinks
-    GET /api/v1/folders/:id/backlinks
-    GET /api/v1/shelves/:id/backlinks
-    GET /api/v1/facets/:id/backlinks
-    GET /api/v1/discussions/:id/backlinks     (#320)
-    GET /api/v1/outcomes/:id/backlinks        (#320)
-    GET /api/v1/results/:id/backlinks         (#213)
-
-#488 enriches the existing facet answer rather than opening a parallel route:
-facet backlinks remain a structural superset of #214's response, but each row
-also carries previews for the exact source blocks/posts. The target and source
-access rules therefore stay on the same reciprocal read.
-
-**Why a path id per kind rather than `?target=<link>`.** The ac-397 sweep sees
-path parameters only; a target on the query string would be the one id no
-structural check notices. Each route therefore names its target in the path
-and has its own sweep row.
-
-**The target is gated first, through `resolveReference`**, the same gate the
-chip resolver uses, so a target the reader cannot open and a target that does
-not exist are the same bare 404 here as there — and nothing is scanned for a
-target the reader could not have named. Every source answered is then scoped
-by the reader's access to *it* (`domain/backlinks.ts`; #488's richer facet
-projection is `views/connected-work.ts`).
+Dana Links keep the reciprocal backlink reads below. #488 additionally gives a
+whole persisted block an explicit, project-local facet relation, which is what
+media/file blocks need because they cannot hold an inline chip. The two forms
+converge only in Connected work; an adjacent block is never inferred.
 */
 import type { Request, Response, Router } from 'express'
 
 import type { DbClient } from '../../../db/client.js'
+import { getProjectBlockFacetsQuery, getProjectBlockFacetsResponse, putBlockFacetsBody, putBlockFacetsResponse } from '../../shared/block-facets.js'
 import type { ReferenceKind } from '../../shared/references.js'
-import { requireSession } from '../auth/index.js'
+import { requireCsrf, requireSession } from '../auth/index.js'
 import { backlinksOf } from '../domain/backlinks.js'
 import { resolveReference } from '../domain/references.js'
-import { sendError } from '../http/errors.js'
+import { sendError, sendValidationError } from '../http/errors.js'
+import { projectBlockFacets, setBlockFacets } from '../views/block-facets.js'
 import { connectedWorkOf } from '../views/connected-work.js'
 import { routerWithPreamble } from './preamble.js'
 
 export interface BacklinksRouterOptions {
   dbClient?: DbClient
-  /** The application's own origin, so an absolute same-origin Dana Link
-   * counts as a reference exactly as `parseDanaLink` would admit it. Absent,
-   * only the canonical relative form (`/app/tasks/:id`) is matched. */
   appOrigin?: string
 }
 
@@ -51,11 +29,8 @@ const SEGMENTS: readonly (readonly [string, ReferenceKind])[] = [
   ['folders', 'folder'],
   ['shelves', 'shelf'],
   ['facets', 'facet'],
-  /* #320. Targets only: a Discussion's opening context and an Outcome's
-     statement are plain text, which holds no `href`, so neither is a source. */
   ['discussions', 'discussion'],
   ['outcomes', 'outcome'],
-  /* #213: a native Result. Its statement is a source too, as any facet block. */
   ['results', 'result'],
 ]
 
@@ -86,6 +61,59 @@ export function createBacklinksRouter(
       },
     )
   }
+
+  /* Query/body ids are deliberate: the project relationship has two ids and
+     no resource is naturally subordinate to the other. These paths therefore
+     do not pretend that a block "lives under" a facet. Their authorization is
+     explicit below and measured by #488's acceptance tests. */
+  router.get(
+    '/block-facets',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const parsed = getProjectBlockFacetsQuery.safeParse(req.query)
+      if (!parsed.success) {
+        sendValidationError(res, parsed.error)
+        return
+      }
+      const answer = await projectBlockFacets(db, viewer(req), parsed.data.folder)
+      if (answer === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      res.status(200).json(getProjectBlockFacetsResponse.parse(answer))
+    },
+  )
+
+  router.put(
+    '/block-facets',
+    requireSession,
+    requireCsrf,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const parsed = putBlockFacetsBody.safeParse(req.body)
+      if (!parsed.success) {
+        sendValidationError(res, parsed.error)
+        return
+      }
+      const result = await setBlockFacets(db, viewer(req), parsed.data.block_id, parsed.data.facet_ids)
+      if (result.kind === 'not_found') {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      if (result.kind === 'forbidden') {
+        sendError(res, 403, 'forbidden', result.reason)
+        return
+      }
+      if (result.kind === 'invalid') {
+        sendError(res, 422, 'validation_error', result.reason)
+        return
+      }
+      res.status(200).json(putBlockFacetsResponse.parse(result.value))
+    },
+  )
 
   return router
 }

@@ -1,16 +1,15 @@
 /*
-Connected work (#488) is a richer projection over #214's backlinks, not
-another relationship store.
+Connected work (#488) normalizes two ways a block can reference a facet:
 
-The backlink scan decides which documents the viewer may know about and which
-exact block/post ids contain a facet link. This view then projects those ids
-into small source previews. The projection re-checks source visibility while
-reading content so the richer response never weakens #214's access rule.
+- an inline Dana Link inside authored rich text; and
+- an explicit whole-block edge in `page_block_facets`.
 
-Both target spellings are read for compatibility: before #489 a project Doc
-tab could be inserted as `/app/folders/:id`; current facet chips persist
-`/app/facets/:id`. They mean the same facet here and de-duplicate by source
-document and source id.
+The exact source object is the unit in both cases. They de-duplicate by source
+document + block id, so connecting a paragraph that already contains an
+inline facet chip never makes two Connected work rows. No adjacent/proximity
+inference exists. Facet relationships are project-local: an inline Dana Link
+to another project's facet may still navigate there, but it is not projected
+as a facet relationship here.
 */
 import { sql } from 'drizzle-orm'
 
@@ -50,7 +49,6 @@ function isFacetHref(href: unknown, facetId: string, origin?: string): boolean {
   return parsed !== null && parsed.id === facetId && (parsed.kind === 'facet' || parsed.kind === 'folder')
 }
 
-/** The words in one rich-content value except the facet chip itself. */
 function richPreview(content: unknown, facetId: string, origin?: string): string | null {
   if (content === null || typeof content !== 'object') return null
   const runs = 'runs' in content ? (content as { runs?: unknown }).runs : undefined
@@ -64,8 +62,6 @@ function richPreview(content: unknown, facetId: string, origin?: string): string
   return clip(words)
 }
 
-/** A Discussion post's words, excluding only the facet chip(s) that created
- * this Connected work edge. Other links and authored words stay visible. */
 function postPreview(content: unknown, facetId: string, origin?: string): string | null {
   const parsed = postContent.safeParse(content)
   if (!parsed.success) return null
@@ -86,13 +82,10 @@ function postPreview(content: unknown, facetId: string, origin?: string): string
   return clip(lines.join('\n'))
 }
 
-/** Merge the historical Page spelling and the canonical Facet spelling. */
-export function mergeFacetBacklinks(
-  pageRows: readonly Backlink[],
-  facetRows: readonly Backlink[],
-): Backlink[] {
+/** Merge rows by source document, then exact source ids inside the row. */
+export function mergeFacetBacklinks(...groups: readonly (readonly Backlink[])[]): Backlink[] {
   const merged = new Map<string, Backlink>()
-  for (const row of [...pageRows, ...facetRows]) {
+  for (const row of groups.flat()) {
     const key = documentKey(row)
     const existing = merged.get(key)
     if (existing === undefined) {
@@ -115,6 +108,52 @@ export function mergeFacetBacklinks(
   )
 }
 
+/** Exact persisted whole-block sources for this facet, already project-local. */
+async function persistedBlockBacklinks(
+  executor: Executor,
+  viewerId: string,
+  facetId: string,
+  projectId: string,
+): Promise<Backlink[]> {
+  const rows = await rowsOf(
+    executor,
+    sql`SELECT b.id AS block_id,
+               CASE WHEN b.task_id IS NULL THEN 'folder' ELSE 'task' END AS home,
+               COALESCE(t.id, sf.id) AS home_id,
+               COALESCE(t.folder_id, sf.id) AS folder_id,
+               COALESCE(t.title, sf.name) AS label
+          FROM page_block_facets pbf
+          JOIN page_blocks b ON b.id = pbf.block_id
+          LEFT JOIN folders sf ON sf.id = b.folder_id
+          LEFT JOIN tasks t ON t.id = b.task_id AND t.deleted_at IS NULL
+         WHERE pbf.facet_id = ${facetId}::uuid
+           AND COALESCE(sf.project_id, t.project_id) = ${projectId}::uuid
+           AND COALESCE(t.folder_id, sf.id) IS NOT NULL
+           AND ${visibleFolder(sql`COALESCE(t.folder_id, sf.id)`, viewerId)}
+         ORDER BY lower(COALESCE(t.title, sf.name)), COALESCE(t.id, sf.id), b.id`,
+  )
+  const byDocument = new Map<string, Backlink>()
+  for (const row of rows) {
+    const home = String(row.home) as Backlink['home']
+    const homeId = String(row.home_id)
+    const folderId = String(row.folder_id)
+    const key = `${home}:${homeId}`
+    const found = byDocument.get(key)
+    if (found === undefined) {
+      byDocument.set(key, {
+        surface: 'page',
+        home,
+        home_id: homeId,
+        folder_id: folderId,
+        member_id: null,
+        label: String(row.label),
+        block_ids: [String(row.block_id)],
+      })
+    } else found.block_ids.push(String(row.block_id))
+  }
+  return [...byDocument.values()]
+}
+
 async function blockSources(
   executor: Executor,
   viewerId: string,
@@ -133,11 +172,6 @@ async function blockSources(
            AND (
              (pb.folder_id IS NOT NULL AND ${visibleFolder(sql`pb.folder_id`, viewerId)})
              OR
-             (pb.shelf_id IS NOT NULL AND EXISTS (
-               SELECT 1 FROM shelves s
-                WHERE s.id = pb.shelf_id AND s.user_id = ${viewerId}
-             ))
-             OR
              (pb.task_id IS NOT NULL AND EXISTS (
                SELECT 1 FROM tasks t
                 WHERE t.id = pb.task_id AND t.deleted_at IS NULL
@@ -154,7 +188,7 @@ async function blockSources(
       id: String(row.id),
       kind: 'block',
       block_kind: String(row.kind),
-      text: richPreview(row.rich_content, facetId, origin),
+      text: richPreview(row.rich_content, facetId, origin) ?? clip(row.file_name),
       files,
     })
   }
@@ -174,8 +208,7 @@ async function postSources(
     executor,
     sql`SELECT c.id, c.content
           FROM comments c
-          JOIN discussions d
-            ON d.id = c.discussion_id AND d.trashed_at IS NULL
+          JOIN discussions d ON d.id = c.discussion_id AND d.trashed_at IS NULL
          WHERE c.id IN ${idSet(ids)}
            AND ${visibleFolder(sql`c.folder_id`, viewerId)}`,
   )
@@ -185,8 +218,7 @@ async function postSources(
           FROM comment_files cf
           JOIN files f ON f.id = cf.file_id
           JOIN comments c ON c.id = cf.comment_id
-          JOIN discussions d
-            ON d.id = c.discussion_id AND d.trashed_at IS NULL
+          JOIN discussions d ON d.id = c.discussion_id AND d.trashed_at IS NULL
          WHERE cf.comment_id IN ${idSet(ids)}
            AND ${visibleFolder(sql`c.folder_id`, viewerId)}
          ORDER BY cf.created_at ASC, cf.file_id ASC`,
@@ -217,11 +249,30 @@ export async function connectedWorkOf(
   facetId: string,
   origin?: string,
 ): Promise<GetConnectedWorkResponse> {
-  const [page, facet] = await Promise.all([
+  const target = await rowsOf(
+    executor,
+    sql`SELECT project_id FROM folders
+         WHERE id = ${facetId}::uuid AND kind = 'doc' AND tab_position IS NOT NULL
+           AND id <> project_id AND deleted_at IS NULL AND archived_at IS NULL`,
+  )
+  const projectId = target[0]?.project_id == null ? null : String(target[0].project_id)
+  if (projectId === null) return { results: [], truncated: false }
+  const localFolders = await rowsOf(
+    executor,
+    sql`SELECT id FROM folders WHERE project_id = ${projectId}::uuid`,
+  )
+  const local = new Set(localFolders.map((row) => String(row.id)))
+
+  const [page, facet, explicit] = await Promise.all([
     backlinksOf(executor, viewerId, { kind: 'folder', id: facetId }, origin),
     backlinksOf(executor, viewerId, { kind: 'facet', id: facetId }, origin),
+    persistedBlockBacklinks(executor, viewerId, facetId, projectId),
   ])
-  const merged = mergeFacetBacklinks(page.results, facet.results)
+  /* A cross-project facet href remains a Dana Link/navigation primitive, but
+     does not become a relationship. Shelves likewise have no Work directory. */
+  const inlinePage = page.results.filter((row) => row.folder_id !== null && local.has(row.folder_id))
+  const inlineFacet = facet.results.filter((row) => row.folder_id !== null && local.has(row.folder_id))
+  const merged = mergeFacetBacklinks(inlinePage, inlineFacet, explicit)
   const shown = merged.slice(0, BACKLINK_LIMIT)
   const blockIds = [...new Set(shown.filter((row) => row.surface === 'page').flatMap((row) => row.block_ids))]
   const postIds = [...new Set(shown.filter((row) => row.surface === 'post').flatMap((row) => row.block_ids))]
