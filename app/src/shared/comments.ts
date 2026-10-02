@@ -1,6 +1,6 @@
 /*
 The 7.14 contract: a comment on a task or on the folder's own
-thread, one level of replies (4.15), reactions from a fixed set, files by
+thread, replies that name the post they answer (4.15), reactions from a fixed set, files by
 reference to 7.15's rows. The thread read returns whole and ordered; there
 is no pagination, a conversation being read as a conversation.
 

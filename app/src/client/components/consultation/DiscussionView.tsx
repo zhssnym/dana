@@ -391,6 +391,15 @@ function ThreadBody(props: {
         openAt={justStarted ? undefined : openAt}
         onRefused={refused}
         post={(body) => postComment.mutateAsync({ discussionId: d.id, body, taskIds: d.linked_tasks.map((task) => task.id) })}
+        resolution={
+          d.state === 'resolved'
+            ? {
+                by: d.current_outcome?.actor_id ?? d.resolved_by,
+                at: d.current_outcome?.created_at ?? d.resolved_at,
+                statement: d.current_outcome?.statement ?? null,
+              }
+            : null
+        }
         {...(frozen
           ? { closed: null }
           : closing

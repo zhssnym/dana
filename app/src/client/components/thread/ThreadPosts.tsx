@@ -677,7 +677,7 @@ export function ThreadPosts({
               setReplyTo(null)
               return send({
                 content,
-                ...(target === undefined ? {} : { parent_id: target.parent_id ?? target.id }),
+                ...(target === undefined ? {} : { parent_id: target.id }),
                 ...(postFileIds(content).length > 0 ? { file_ids: [...new Set(postFileIds(content))] } : {}),
               }).catch((error: unknown) => {
                 if (target !== undefined) setReplyTo(target.id)
