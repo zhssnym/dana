@@ -72,6 +72,7 @@ export function CanvasSurface({
   onNotice,
   results = false,
   footer,
+  settle,
 }: {
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
@@ -103,6 +104,8 @@ export function CanvasSurface({
   readonly results?: boolean
   /** Terminal view-only content after the editor's writing tail. */
   readonly footer?: ReactNode
+  /** Sends the writing now; true once the page holds it (a Task is trashed after it). */
+  readonly settle?: () => Promise<boolean>
 }): React.JSX.Element {
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
   const [insertMenu, setInsertMenu] = useState<{ readonly id: string; readonly x: number; readonly y: number } | null>(null)
@@ -137,9 +140,27 @@ export function CanvasSurface({
   const admits = useCallback((document: readonly TreeBlock[]): boolean =>
     validateCanvasOutline(document) === null && !(flatGroups && flatShelfFailure(document)) && !referenceHolds(document, folderRefs), [flatGroups, folderRefs])
   const deleteTask = useCanvasTaskDelete()
+  // Read at the key, so a new callback each render does not re-arm the keys.
+  const settleRef = useRef(settle)
+  settleRef.current = settle
+  /* Picked blocks leave together (#505): a sub-page among them goes to Trash
+     with its block (the save sends `trash_page`; Undo puts the block back and
+     restores it), and a picked Task by its own act, to Trash with Undo, once
+     the writing's save has landed so the two never race for the page's
+     revision. A Task the page holds no act for, or one nested in a removed
+     block, is still refused by the guard, and then nothing goes. */
   const remove = useCallback((ids: readonly string[]): void => {
-    removeCanvasBlocks(editor, ids.flatMap((id) => { const block = editor.getBlock(id); return block === undefined ? [] : [block] }))
-  }, [editor])
+    const blocks = ids.flatMap((id) => { const block = editor.getBlock(id); return block === undefined ? [] : [block] })
+    const tasks = blocks.filter((block) => block.type === 'danaTask')
+    const trash = tasks.map((block) => deleteTask?.(String(block.props.taskId)) ?? null)
+    if (trash.some((run) => run === null)) { removeCanvasBlocks(editor, blocks); return }
+    const rest = blocks.filter((block) => block.type !== 'danaTask')
+    const pages = (list: readonly TreeBlock[]): string[] => list.flatMap((block) => [
+      ...(block.type === 'danaPage' ? [String(block.props.folderId)] : []), ...pages(block.children)])
+    if (rest.length > 0) removingPages(pages(rest as unknown as TreeBlock[]), () => { removeCanvasBlocks(editor, rest) })
+    if (trash.length === 0 || rest.some((block) => editor.getBlock(block.id) !== undefined)) return
+    void (settleRef.current?.() ?? Promise.resolve(true)).then((saved) => { if (saved) for (const run of trash) run?.() })
+  }, [editor, deleteTask])
   /* A sub-page's own act: the block leaves (the next save sends its
      `delete_block` with `trash_page`), and Undo puts the same block back where
      it was (the save then sends it as a `put_block`, which restores the page). */
