@@ -1059,6 +1059,7 @@ async function patchTaskIn(
       patch.notes !== undefined ||
       patch.important !== undefined ||
       patch.start_date !== undefined ||
+      patch.start_time !== undefined ||
       patch.due_date !== undefined ||
       patch.due_time !== undefined ||
       patch.recurrence_rule !== undefined
