@@ -97,6 +97,9 @@ export function PostView({
         ref={inner}
         className={cn(
           'min-w-0 space-y-1.5 text-sm wrap-anywhere whitespace-pre-wrap text-foreground',
+          // Each line takes its direction from its own first letter, so Arabic
+          // reads right to left and English left to right in the same post.
+          '[&_:is(p,li,h1,h2,h3,h4,blockquote)]:[unicode-bidi:plaintext] [&_:is(p,li,h1,h2,h3,h4,blockquote)]:text-start',
           footer !== undefined && 'flow-root',
           !open && (files.length > 0 ? FOLD_FILES : FOLD),
           !open && 'overflow-hidden',
