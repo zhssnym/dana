@@ -15,7 +15,7 @@ requirement whether or not a test runs it: only a small core is executable, and
 
 ## The next number
 
-**The next number to take from the tail is 1540.**
+**The next number to take from the tail is 1543.**
 
 ## The files
 
@@ -45,3 +45,4 @@ requirement whether or not a test runs it: only a small core is executable, and
 | [`12.22-the-public-surface.md`](12.22-the-public-surface.md) | The public surface: landing, legal, install, offline |
 | [`12.23-security-limits-and-rate-limits.md`](12.23-security-limits-and-rate-limits.md) | Security, limits and rate limits |
 | [`12.24-labels.md`](12.24-labels.md) | Labels |
+| [`12.25-desk.md`](12.25-desk.md) | Desk |
