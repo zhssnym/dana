@@ -134,7 +134,8 @@ function SidebarProvider({
   vanishes and focus would fall to the body. When it has (or sits in an inert
   subtree the browser has not blurred yet), it moves to whichever toggle is now
   showing. Focus anywhere else, an editor under Ctrl+B, is left alone. A phone's
-  sidebar is a sheet, which returns focus itself.
+  sidebar is a sheet, which returns focus itself. The toggles are found by
+  data-sidebar: the tooltip wrapping each one overwrites its data-slot.
   */
   const wasOpen = React.useRef(open)
   React.useEffect(() => {
@@ -149,7 +150,7 @@ function SidebarProvider({
       active.closest("[inert]") !== null
     if (!lost) return
     const toggle = [
-      ...document.querySelectorAll<HTMLElement>('[data-slot="sidebar-trigger"]'),
+      ...document.querySelectorAll<HTMLElement>('[data-sidebar="trigger"]'),
     ].find((element) => element.closest("[inert]") === null)
     toggle?.focus()
   }, [open, isMobile])

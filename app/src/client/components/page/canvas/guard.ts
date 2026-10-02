@@ -15,10 +15,13 @@ export function removingPages(folderIds: readonly string[], run: () => void): vo
   try { run() } finally { removable = new Set() }
 }
 
+/** Transaction meta: the page already holds this change (a Task trashed by its own act), so no gesture is judged. */
+export const RECONCILED = 'danaReconciled'
+
 /** One supported transaction hook refuses the whole gesture, before onChange/save. */
 export function installCanvasGuard(editor: CanvasEditor, explain: (message: string) => void): () => void {
   return editor.onBeforeChange(({ tr }) => {
-    if (!tr.docChanged) return
+    if (!tr.docChanged || tr.getMeta(RECONCILED) === true) return
     const after = fragmentToBlocks<
       typeof canvasSchema.blockSchema,
       typeof canvasSchema.inlineContentSchema,

@@ -392,6 +392,10 @@
    inset keeps the hint's first letter out of the scroller's clip on phones,
    where the canvas's own left padding is zeroed. */
 .dana-writing-canvas.dana-post-editor { padding-inline-start: 1px; }
+/* Each line of a post takes its direction from its own first letter: Arabic
+   writes right to left, English left to right, both in one post. */
+.dana-writing-canvas.dana-post-editor .bn-inline-content,
+.dana-writing-canvas.dana-post-editor .bn-inline-content > div { unicode-bidi: plaintext; text-align: start; }
 .dana-writing-canvas.dana-post-editor .bn-editor.ProseMirror-focused [data-is-empty-and-focused] > .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child),
 .dana-writing-canvas.dana-post-editor .bn-editor.ProseMirror-focused .bn-block-content[data-content-type][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) {
   --dana-hint: none;

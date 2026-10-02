@@ -43,7 +43,7 @@ import { REACTIONS, REACTION_KEYS, postFileIds, postPlainText } from '../../../s
 import type { CommentFile, CommentLine, PostCommentBody, PostContent, ReactionKey } from '../../../shared/comments.js'
 import { useDeleteComment, usePatchComment, useSetCommentReaction } from '../../api/mutations.js'
 import { formatDay } from '../../lib/dates.js'
-import { ArrowDown, MoreHorizontal, Reply, SmilePlus } from '../../lib/icons.js'
+import { ArrowDown, CheckCircle2, MoreHorizontal, Reply, SmilePlus } from '../../lib/icons.js'
 import type { PersonResolver, ThreadAuthority } from '../../lib/thread.js'
 import { formatTime, useTimeFormat } from '../../lib/time-format.js'
 import { personNameInk } from '../../parts/person-tint.js'
@@ -99,6 +99,13 @@ function gist(line: CommentLine): string {
   const text = (line.body ?? '').replace(/\s+/g, ' ').trim()
   if (text !== '') return text
   return line.files.length > 0 ? 'an attachment' : ''
+}
+
+/** A post written to be read rather than glanced at: a few lines of words,
+ * or more than a couple of blocks. It takes the thread's whole width, as a
+ * letter would, instead of a chat bubble's. */
+function isLong(line: CommentLine): boolean {
+  return (line.body ?? '').length > 280 || (line.content?.blocks.length ?? 0) > 2
 }
 
 /** What a reply's quote shows of the post it answers: its words with their
@@ -452,7 +459,8 @@ export function ThreadPosts({
         {head && !mine ? <AuthorName id={line.author_id} name={author.name} className="mb-0.5 max-w-full px-1 text-xs" /> : null}
         <div
           className={cn(
-            'relative flex max-w-[82%] min-w-0 flex-col md:max-w-[min(65%,var(--container-2xl))]',
+            'relative flex min-w-0 flex-col',
+            isLong(line) ? 'w-full' : 'max-w-[82%] md:max-w-[min(65%,var(--container-2xl))]',
             mine ? 'items-end' : 'items-start',
             editing === line.id && 'w-full',
           )}
@@ -462,7 +470,7 @@ export function ThreadPosts({
               'max-w-full min-w-0 rounded-[var(--radius-card)] px-3 py-1.5 transition-colors duration-[var(--duration-base)]',
               mine ? 'bg-secondary' : 'border border-border bg-background',
               head && (mine ? 'rounded-tr-xs' : 'rounded-tl-xs'),
-              editing === line.id && 'w-full',
+              (editing === line.id || isLong(line)) && 'w-full',
               flash === line.id && 'bg-selected',
             )}
           >
@@ -585,20 +593,25 @@ export function ThreadPosts({
         {resolution.at !== null && (lastPost === undefined || localDay(lastPost.created_at) !== localDay(resolution.at))
           ? dayLine(resolution.at)
           : null}
-        <div className="my-4 flex flex-col items-center gap-1 px-4 text-center">
-          <p className="text-xs text-muted-foreground">
-            {resolution.by === null ? 'This discussion was resolved' : `${nameOf(resolution.by)} resolved this discussion`}
-            {resolution.at === null ? null : (
-              <>
-                {' · '}
-                <time dateTime={resolution.at} title={new Date(resolution.at).toLocaleString()}>{timeOf(resolution.at)}</time>
-              </>
-            )}
+        {/* What the discussion came to is what a reader opens it for, so it
+            ends the thread as its one bordered block, not a passing line. */}
+        <section aria-label="Decision" className="my-4 flex min-w-0 flex-col gap-1 rounded-[var(--radius-card)] border border-border px-4 py-3">
+          <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <CheckCircle2 className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+            <span className="min-w-0">
+              {resolution.by === null ? 'Resolved' : `Resolved by ${nameOf(resolution.by)}`}
+              {resolution.at === null ? null : (
+                <>
+                  {' · '}
+                  <time dateTime={resolution.at} title={new Date(resolution.at).toLocaleString()}>{timeOf(resolution.at)}</time>
+                </>
+              )}
+            </span>
           </p>
           {resolution.statement !== null && resolution.statement !== '' ? (
-            <p className="max-w-prose text-sm wrap-anywhere whitespace-pre-wrap text-foreground">{resolution.statement}</p>
+            <p className="text-sm wrap-anywhere whitespace-pre-wrap text-foreground [unicode-bidi:plaintext] text-start">{resolution.statement}</p>
           ) : null}
-        </div>
+        </section>
       </>
     )
 
