@@ -58,14 +58,20 @@ export function byName<T extends { readonly name: string }>(labels: readonly T[]
 
 /**
  * Dense rows keep the Task title first. Desktop shows at most two pills and
- * then +N; narrow rows show one and count everything else. The same component
- * feeds Work rows and Board cards, so neither surface invents another Label
- * language.
+ * then +N; a metadata-heavy row or narrow screen shows one and counts the
+ * rest. The same component feeds Work rows and Board cards, so neither surface
+ * invents another Label language.
  */
-export function RowLabels({ labels }: { readonly labels: readonly LabelLook[]; readonly crowded?: boolean }) {
+export function RowLabels({
+  labels,
+  crowded = false,
+}: {
+  readonly labels: readonly LabelLook[]
+  readonly crowded?: boolean
+}) {
   if (labels.length === 0) return null
   const sorted = byName(labels)
-  const desktop = sorted.slice(0, 2)
+  const desktop = sorted.slice(0, crowded ? 1 : 2)
   const desktopMore = sorted.length - desktop.length
   const mobileMore = sorted.length - 1
   return (
