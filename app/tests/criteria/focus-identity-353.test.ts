@@ -105,8 +105,8 @@ describe('#353 durable Focus identity', () => {
     const exported = await owner.browser.json('/me/export', 'GET')
     expectStatus(exported, 200, 'account export')
     const document = exportDocument.parse(exported.json())
-    expect(EXPORT_VERSION).toBe(10)
-    expect(document.version).toBe(10)
+    expect(EXPORT_VERSION).toBe(11)
+    expect(document.version).toBe(11)
     expect(document.settings.focus_appearance).toEqual({
       important: { icon: 'star', color: '#123ABC' },
     })
