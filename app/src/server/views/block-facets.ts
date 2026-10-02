@@ -81,33 +81,61 @@ export async function projectBlockFacets(
   }
 }
 
-async function sourceOf(tx: Executor, blockId: string): Promise<{
+interface BlockFacetSource {
   folderId: string
   projectId: string
   taskId: string | null
   actorAssigned: (actorId: string) => boolean
-} | null> {
-  const rows = await rowsOf(
+}
+
+/**
+ * Lock the page_block alone, then resolve its owner separately. Keeping the
+ * row lock off the nullable joins matters on Postgres and also makes the two
+ * source shapes explicit: a page block or a Task-document block, never Shelf.
+ */
+async function sourceOf(tx: Executor, blockId: string): Promise<BlockFacetSource | null> {
+  const blocks = await rowsOf(
     tx,
-    sql`SELECT b.id, b.task_id,
-               COALESCE(b.folder_id, t.folder_id) AS folder_id,
-               COALESCE(sf.project_id, t.project_id) AS project_id,
-               t.assignee_ids
-          FROM page_blocks b
-          LEFT JOIN folders sf ON sf.id = b.folder_id
-          LEFT JOIN tasks t ON t.id = b.task_id AND t.deleted_at IS NULL
-         WHERE b.id = ${blockId}::uuid
-           AND b.shelf_id IS NULL
-           AND (b.folder_id IS NOT NULL OR b.task_id IS NOT NULL)
-         FOR UPDATE OF b`,
+    sql`SELECT folder_id, task_id, shelf_id
+          FROM page_blocks
+         WHERE id = ${blockId}::uuid
+         FOR UPDATE`,
   )
-  const row = rows[0]
-  if (row === undefined || row.folder_id == null || row.project_id == null) return null
-  const assigned = Array.isArray(row.assignee_ids) ? row.assignee_ids.map(String) : []
+  const block = blocks[0]
+  if (block === undefined || block.shelf_id != null) return null
+
+  if (block.folder_id != null) {
+    const folders = await rowsOf(
+      tx,
+      sql`SELECT id, project_id FROM folders
+           WHERE id = ${String(block.folder_id)}::uuid
+             AND deleted_at IS NULL AND archived_at IS NULL`,
+    )
+    const folder = folders[0]
+    if (folder === undefined || folder.project_id == null) return null
+    return {
+      folderId: String(folder.id),
+      projectId: String(folder.project_id),
+      taskId: null,
+      actorAssigned: () => false,
+    }
+  }
+
+  if (block.task_id == null) return null
+  const tasks = await rowsOf(
+    tx,
+    sql`SELECT id, folder_id, project_id, assignee_ids
+          FROM tasks
+         WHERE id = ${String(block.task_id)}::uuid
+           AND deleted_at IS NULL`,
+  )
+  const task = tasks[0]
+  if (task === undefined || task.folder_id == null || task.project_id == null) return null
+  const assigned = Array.isArray(task.assignee_ids) ? task.assignee_ids.map(String) : []
   return {
-    folderId: String(row.folder_id),
-    projectId: String(row.project_id),
-    taskId: row.task_id == null ? null : String(row.task_id),
+    folderId: String(task.folder_id),
+    projectId: String(task.project_id),
+    taskId: String(task.id),
     actorAssigned: (actorId) => assigned.includes(actorId),
   }
 }
