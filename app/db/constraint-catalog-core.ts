@@ -1300,9 +1300,9 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     ],
   },
   comment_likes: {
-    primaryKey: { name: 'comment_likes_pkey', columns: ['comment_id', 'user_id'] },
+    primaryKey: { name: 'comment_likes_pkey', columns: ['comment_id', 'user_id', 'reaction'] },
     uniques: [],
-    checks: [],
+    checks: [{ name: 'comment_likes_reaction_check', columns: ['reaction'] }],
     foreignKeys: [
       {
         name: 'comment_likes_comment_id_fkey',

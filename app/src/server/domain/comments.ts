@@ -7,10 +7,12 @@ import {
   postFileIds,
   postPlainText,
 } from '../../shared/comments.js'
+import type { ReactionKey } from '../../shared/comments.js'
 import { GENERAL_DISCUSSION_TITLE } from '../../shared/consultation.js'
 import type {
   CommentFile,
   CommentLine,
+  CommentReaction,
   PatchCommentBody,
   PostCommentBody,
   PostContent,
@@ -318,9 +320,7 @@ export async function createComment(
         author_id: viewerId,
         body: words,
         content: body.content ?? null,
-        likes: 0,
-        liked: false,
-        liked_by: [] as string[],
+        reactions: [],
         files: attached,
         created_at: toIso(inserted[0]?.created_at),
         edited_at: null,
@@ -332,18 +332,20 @@ export async function createComment(
   })
 }
 
-function commentSelect(viewerId: string): ReturnType<typeof sql> {
+/* Reactions live in comment_likes (0068): one row per person per reaction.
+Grouped per reaction, ordered by when each was first left, and `by` earliest
+first. A reaction nobody holds has no row and so no entry. */
+function commentSelect(): ReturnType<typeof sql> {
   return sql`SELECT c.id, c.folder_id, c.task_id, c.discussion_id,
                c.parent_id, c.author_id,
                c.body, c.content, c.created_at, c.edited_at,
-               (SELECT count(*)::int FROM comment_likes l
-                 WHERE l.comment_id = c.id) AS likes,
-               EXISTS (SELECT 1 FROM comment_likes l
-                        WHERE l.comment_id = c.id
-                          AND l.user_id = ${viewerId}) AS liked,
-               (SELECT coalesce(json_agg(l.user_id ORDER BY l.created_at, l.user_id), '[]'::json)
-                  FROM comment_likes l
-                  WHERE l.comment_id = c.id) AS liked_by,
+               (SELECT coalesce(json_agg(json_build_object('reaction', r.reaction, 'by', r.by)
+                          ORDER BY r.first_at, r.reaction), '[]'::json)
+                  FROM (SELECT l.reaction, min(l.created_at) AS first_at,
+                               json_agg(l.user_id ORDER BY l.created_at, l.user_id) AS by
+                          FROM comment_likes l
+                         WHERE l.comment_id = c.id
+                         GROUP BY l.reaction) r) AS reactions,
                (SELECT coalesce(json_agg(json_build_object(
                           'id', f.id, 'name', f.name, 'mime', f.mime,
                           'bytes', f.bytes, 'width', f.width, 'height', f.height)
@@ -363,9 +365,7 @@ function lineFrom(row: Record<string, unknown>): CommentLine {
     author_id: String(row.author_id),
     body: nullableString(row.body),
     content: postContentOrNull(row.content),
-    likes: Number(row.likes),
-    liked: row.liked === true,
-    liked_by: likersFrom(row.liked_by),
+    reactions: reactionsFrom(row.reactions),
     files: filesFrom(row.files),
     created_at: toIso(row.created_at),
     edited_at: row.edited_at === null ? null : toIso(row.edited_at),
@@ -374,7 +374,6 @@ function lineFrom(row: Record<string, unknown>): CommentLine {
 
 export async function threadView(
   db: Db,
-  viewerId: string,
   folderId: string,
   thread: CommentThread,
 ): Promise<ThreadView> {
@@ -384,7 +383,7 @@ export async function threadView(
       : inLegacyThread(folderId)
   const rows = await rowsOf(
     db,
-    sql`${commentSelect(viewerId)}
+    sql`${commentSelect()}
         WHERE c.folder_id = ${folderId} AND ${scope}
         ORDER BY c.created_at ASC, c.id ASC`,
   )
@@ -393,20 +392,23 @@ export async function threadView(
 
 async function commentLineById(
   executor: Executor,
-  viewerId: string,
   commentId: string,
 ): Promise<CommentLine | null> {
   const found = await rowsOf(
     executor,
-    sql`${commentSelect(viewerId)} WHERE c.id = ${commentId}`,
+    sql`${commentSelect()} WHERE c.id = ${commentId}`,
   )
   const row = found[0]
   return row === undefined ? null : lineFrom(row)
 }
 
-function likersFrom(value: unknown): string[] {
+function reactionsFrom(value: unknown): CommentReaction[] {
   const parsed: unknown = typeof value === 'string' ? JSON.parse(value) : value
-  return Array.isArray(parsed) ? parsed.map(String) : []
+  if (!Array.isArray(parsed)) return []
+  return parsed.map((entry: Record<string, unknown>) => ({
+    reaction: String(entry.reaction) as ReactionKey,
+    by: Array.isArray(entry.by) ? entry.by.map(String) : [],
+  }))
 }
 
 function filesFrom(value: unknown): CommentFile[] {
@@ -575,7 +577,7 @@ export async function editComment(
       folderId: access.folderId,
       detail: 'edited a comment',
     })
-    const comment = await commentLineById(tx, viewerId, access.id)
+    const comment = await commentLineById(tx, access.id)
     return comment === null
       ? ({ kind: 'gone' } as const)
       : ({ kind: 'edited', comment } as const)
@@ -606,32 +608,38 @@ export async function deleteComment(
   })
 }
 
-export async function likeComment(
+/** Leaves one reaction for the viewer; idempotent, so leaving it twice
+ * keeps one row. */
+export async function addReaction(
   db: Db,
   viewerId: string,
   commentId: string,
+  reaction: ReactionKey,
 ): Promise<'done' | 'frozen'> {
   return inTransaction(db, async (tx) => {
     if (await discussionFrozen(tx, commentId)) return 'frozen' as const
     await tx.execute(
-      sql`INSERT INTO comment_likes (comment_id, user_id)
-          VALUES (${commentId}::uuid, ${viewerId}::uuid)
-          ON CONFLICT (comment_id, user_id) DO NOTHING`,
+      sql`INSERT INTO comment_likes (comment_id, user_id, reaction)
+          VALUES (${commentId}::uuid, ${viewerId}::uuid, ${reaction})
+          ON CONFLICT (comment_id, user_id, reaction) DO NOTHING`,
     )
     return 'done' as const
   })
 }
 
-export async function unlikeComment(
+/** Takes back one of the viewer's reactions, leaving their others. */
+export async function removeReaction(
   db: Db,
   viewerId: string,
   commentId: string,
+  reaction: ReactionKey,
 ): Promise<'done' | 'frozen'> {
   return inTransaction(db, async (tx) => {
     if (await discussionFrozen(tx, commentId)) return 'frozen' as const
     await tx.execute(
       sql`DELETE FROM comment_likes
-          WHERE comment_id = ${commentId} AND user_id = ${viewerId}`,
+          WHERE comment_id = ${commentId} AND user_id = ${viewerId}
+            AND reaction = ${reaction}`,
     )
     return 'done' as const
   })
