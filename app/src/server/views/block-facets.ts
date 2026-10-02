@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { BlockFacetRef, GetProjectBlockFacetsResponse, PutBlockFacetsResponse } from '../../shared/block-facets.js'
-import { inTransaction, rowsOf } from '../database.js'
+import { idSet, inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { accessOf, folderActorFacts, mayPerform } from '../domain/folder-access.js'
 
@@ -163,7 +163,7 @@ export async function setBlockFacets(
       const found = await rowsOf(
         tx,
         sql`SELECT id FROM folders
-             WHERE id = ANY(${facetIds}::uuid[])
+             WHERE id IN ${idSet(facetIds)}
                AND project_id = ${source.projectId}::uuid
                AND kind = 'doc' AND tab_position IS NOT NULL
                AND id <> project_id
@@ -179,7 +179,7 @@ export async function setBlockFacets(
         ? sql`DELETE FROM page_block_facets WHERE block_id = ${blockId}::uuid`
         : sql`DELETE FROM page_block_facets
                WHERE block_id = ${blockId}::uuid
-                 AND NOT (facet_id = ANY(${facetIds}::uuid[]))`,
+                 AND facet_id NOT IN ${idSet(facetIds)}`,
     )
     for (const facetId of facetIds) {
       await tx.execute(
