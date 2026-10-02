@@ -20,14 +20,6 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from "react"
 import { Link, useNavigate } from "react-router"
 
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "./ui/dropdown-menu.js"
-import {
-  DuePanel,
   PROPERTY_LABEL,
   PROPERTY_ROW,
   PROPERTY_VALUE_OFFSET,
@@ -36,6 +28,7 @@ import {
   ReminderPanel,
   RepeatPanel,
 } from "./task-pickers.js"
+import { SchedulePanel } from "./task-schedule-picker.js"
 import { TaskHistory } from "./thread/TaskHistory.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
 import { useAllPages, useMe, useTask } from "../api/queries.js"
@@ -64,6 +57,13 @@ import { useTimeFormat } from "../lib/time-format.js"
 import { formatDate, formatDay, formatDayInline } from "../lib/dates.js"
 import { cn } from "./ui/utils.js"
 import { StateMark, STATE_WORD, type TaskState } from "./thread/timeline/state.js"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu.js"
 
 const TaskComposer = lazy(() => import("./page/canvas/TaskComposer.js"))
 
@@ -349,7 +349,7 @@ function DatePanel({ task, patch }: { task: ConceptTask; patch: (id: string, fie
       ) : shown === "repeat" ? (
         <RepeatPanel task={task} patch={patch} />
       ) : (
-        <DuePanel task={task} patch={patch} />
+        <SchedulePanel task={task} patch={patch} />
       )}
     </div>
   )
