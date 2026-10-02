@@ -239,6 +239,7 @@ describe('AC-922 a resolved or trashed Discussion is frozen', () => {
         body: 'ac922 rewritten',
       }),
       await owner.browser.json(`/comments/${commentId}/like`, 'PUT', {}),
+      await owner.browser.json(`/comments/${commentId}/reactions/heart`, 'PUT', {}),
       await owner.browser.json(`/comments/${commentId}`, 'DELETE'),
     ]
     for (const attempt of attempts) {

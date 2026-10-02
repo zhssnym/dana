@@ -19,20 +19,23 @@ composer instead, and nothing moves on its own.
 
 What each post offers is `ThreadAuthority` (lib/thread.ts), which the caller
 has already multiplied by the thread's own state (a closed Discussion offers
-nothing): Like, Reply and "…" (Edit, Delete) sit in a small bar at the right
-of the post's own row, shown on hover or focus, never over the post above. A
-liked post keeps one small chip under its text naming who liked it ("You",
-"Lucía and You"), never a count; pressing it likes or unlikes. Edit opens the
+nothing): React, Reply and "…" (Edit, Delete) sit in a small bar at the right
+of the post's own row, shown on hover or focus, never over the post above.
+React opens the six emoji in one row; picking one leaves or takes back the
+reader's own. Under the text, one small chip per reaction left, in the order
+each was first left, naming who left it ("You", "Lucía and You"), never a
+count; the reader's own is tinted, and pressing a chip leaves or takes back
+the reader's reaction of that kind. Edit opens the
 editor in place; Delete asks first. The composer is one box right under the last
 post, pinned at the bottom once the thread is longer than the window; Reply moves the cursor there and names the post above it.
 */
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 
-import { postFileIds, postPlainText } from '../../../shared/comments.js'
-import type { CommentFile, CommentLine, PostCommentBody, PostContent } from '../../../shared/comments.js'
-import { useDeleteComment, usePatchComment, useSetCommentLike } from '../../api/mutations.js'
+import { REACTIONS, REACTION_KEYS, postFileIds, postPlainText } from '../../../shared/comments.js'
+import type { CommentFile, CommentLine, PostCommentBody, PostContent, ReactionKey } from '../../../shared/comments.js'
+import { useDeleteComment, usePatchComment, useSetCommentReaction } from '../../api/mutations.js'
 import { formatDay } from '../../lib/dates.js'
-import { ArrowDown, MoreHorizontal, Reply, ThumbsUp } from '../../lib/icons.js'
+import { ArrowDown, MoreHorizontal, Reply, SmilePlus } from '../../lib/icons.js'
 import type { PersonResolver, ThreadAuthority } from '../../lib/thread.js'
 import { formatTime, useTimeFormat } from '../../lib/time-format.js'
 import { initialsOf } from '../../parts/presenters.js'
@@ -40,6 +43,7 @@ import { Face } from '../person-face.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
 import { ConfirmDialog } from '../ui/ConfirmDialog.js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu.js'
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.js'
 import { TRY_AGAIN } from '../ui/copy.js'
 import { cn } from '../ui/utils.js'
 import { localClock, localDay, placePosts } from './grouping.js'
@@ -92,6 +96,16 @@ function replyPrompt(posts: readonly CommentLine[], viewerId: string | null, per
   return `Reply to ${others.map((id) => personOf(id).name.split(' ')[0] ?? '').join(' and ')}…`
 }
 
+/** What a screen reader says for each glyph. */
+const REACTION_NAMES: Record<ReactionKey, string> = {
+  thumbs_up: 'Thumbs up',
+  heart: 'Heart',
+  laugh: 'Laugh',
+  party: 'Party',
+  surprised: 'Surprised',
+  thanks: 'Thanks',
+}
+
 /** "You", "Lucía and You", "Sam, Lucía and You": everyone, by name. */
 function namesOf(names: readonly string[]): string {
   if (names.length <= 1) return names[0] ?? ''
@@ -138,9 +152,11 @@ export function ThreadPosts({
 }): React.JSX.Element {
   const patch = usePatchComment()
   const remove = useDeleteComment()
-  const like = useSetCommentLike()
+  const react = useSetCommentReaction()
   const clock = useTimeFormat()
   const [replyTo, setReplyTo] = useState<string | null>(null)
+  /* The post whose emoji row is open. */
+  const [picking, setPicking] = useState<string | null>(null)
   const [focus, setFocus] = useState(0)
   const [editing, setEditing] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -267,9 +283,7 @@ export function ThreadPosts({
             author_id: viewerId,
             body: body.content === undefined ? null : postPlainText(body.content),
             content: body.content,
-            likes: 0,
-            liked: false,
-            liked_by: [],
+            reactions: [],
             files: [],
             created_at: new Date().toISOString(),
             edited_at: null,
@@ -307,14 +321,14 @@ export function ThreadPosts({
     const editable = mine && may.mutateOwnComment
     const deletable = (mine && may.mutateOwnComment) || may.moderate
     const fullDate = new Date(line.created_at).toLocaleString()
-    const hasBar = !sent && (may.likeComment || may.createComment || editable || deletable)
-    const likers = (line.liked_by ?? (line.liked && viewerId !== null ? [viewerId] : []))
-    /* The reader last, as "… and You". */
-    const likerNames = [
-      ...likers.filter((id) => id !== viewerId).map((id) => personOf(id).name),
-      ...(line.liked ? ['You'] : []),
-    ]
-    const likedBy = namesOf(likerNames)
+    const hasBar = !sent && ((may.likeComment && viewerId !== null) || may.createComment || editable || deletable)
+    const mayReact = may.likeComment && viewerId !== null
+    const isMine = (key: ReactionKey): boolean =>
+      viewerId !== null && line.reactions.some((r) => r.reaction === key && r.by.includes(viewerId))
+    const toggle = (key: ReactionKey): void => {
+      if (viewerId === null) return
+      react.mutate({ id: line.id, reaction: key, on: !isMine(key), viewerId })
+    }
     return (
       <article
         id={sent ? undefined : `post-${line.id}`}
@@ -380,39 +394,77 @@ export function ThreadPosts({
               <PostView content={line.content} body={line.body} files={line.files} edited={line.edited_at !== null} />
             )}
           </div>
-          {line.likes > 0 ? (
-            <button
-              type="button"
-              aria-pressed={line.liked}
-              aria-label={`${likedBy === '' ? 'Liked' : `Liked by ${likedBy}`}. ${line.liked ? 'Remove like' : 'Like'}`}
-              title={likedBy === '' ? undefined : `Liked by ${likedBy}`}
-              disabled={!may.likeComment}
-              className={cn(
-                'mt-2 inline-flex h-6 max-w-full min-w-0 items-center gap-1.5 rounded-full px-2 text-xs font-medium outline-none transition-colors duration-[var(--duration-fast)]',
-                line.liked
-                  ? 'bg-selected text-primary'
-                  : 'border border-border text-muted-foreground hover:text-foreground',
-              )}
-              onClick={() => { like.mutate({ id: line.id, liked: !line.liked }) }}
-            >
-              <ThumbsUp className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-              {likedBy === '' ? null : <span className="min-w-0 truncate">{likedBy}</span>}
-            </button>
+          {line.reactions.length > 0 ? (
+            <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
+              {line.reactions.map(({ reaction, by }) => {
+                const own = viewerId !== null && by.includes(viewerId)
+                /* The reader last, as "… and You". */
+                const names = namesOf([
+                  ...by.filter((id) => id !== viewerId).map((id) => personOf(id).name),
+                  ...(own ? ['You'] : []),
+                ])
+                return (
+                  <button
+                    key={reaction}
+                    type="button"
+                    aria-pressed={own}
+                    aria-label={`${REACTION_NAMES[reaction]} from ${names}. ${own ? 'Remove your reaction' : `React with ${REACTION_NAMES[reaction]}`}`}
+                    title={names}
+                    disabled={!mayReact}
+                    className={cn(
+                      'inline-flex h-6 max-w-full min-w-0 items-center gap-1.5 rounded-full border px-2 text-xs font-medium outline-none transition-colors duration-[var(--duration-fast)]',
+                      own
+                        ? 'border-transparent bg-selected text-primary'
+                        : 'border-border text-muted-foreground hover:text-foreground',
+                    )}
+                    onClick={() => { toggle(reaction) }}
+                  >
+                    <span className="shrink-0" aria-hidden="true">{REACTIONS[reaction]}</span>
+                    <span className="min-w-0 truncate">{names}</span>
+                  </button>
+                )
+              })}
+            </div>
           ) : null}
 
           {hasBar && editing !== line.id ? (
-            <div className={cn('flex items-center rounded-md border border-border bg-background', ON_POST, BAR_PLACE, !head ? '-top-0.5' : reply ? 'top-2' : 'top-3')}>
-              {may.likeComment ? (
-                <button
-                  type="button"
-                  aria-pressed={line.liked}
-                  aria-label={line.liked ? 'Remove like' : 'Like'}
-                  title={line.liked ? 'Remove like' : 'Like'}
-                  className={cn(BAR_BUTTON, line.liked && 'text-foreground')}
-                  onClick={() => { like.mutate({ id: line.id, liked: !line.liked }) }}
-                >
-                  <ThumbsUp className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                </button>
+            <div
+              className={cn(
+                'flex items-center rounded-md border border-border bg-background',
+                ON_POST,
+                BAR_PLACE,
+                !head ? '-top-0.5' : reply ? 'top-2' : 'top-3',
+                /* The emoji row hangs from the bar: it stays while the row is open. */
+                picking === line.id && 'opacity-100 pointer-coarse:flex',
+              )}
+            >
+              {mayReact ? (
+                <Popover open={picking === line.id} onOpenChange={(open) => { setPicking(open ? line.id : null) }}>
+                  <PopoverTrigger render={<button type="button" aria-label="Add reaction" title="Add reaction" className={BAR_BUTTON} />}>
+                    <SmilePlus className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="flex w-auto gap-0.5 p-1" aria-label="Reactions">
+                    {REACTION_KEYS.map((key) => (
+                      <button
+                        key={key}
+                        type="button"
+                        aria-pressed={isMine(key)}
+                        aria-label={REACTION_NAMES[key]}
+                        title={REACTION_NAMES[key]}
+                        className={cn(
+                          'flex size-8 items-center justify-center rounded-sm text-base outline-none hover:bg-accent focus-visible:bg-accent',
+                          isMine(key) && 'bg-selected',
+                        )}
+                        onClick={() => {
+                          toggle(key)
+                          setPicking(null)
+                        }}
+                      >
+                        <span aria-hidden="true">{REACTIONS[key]}</span>
+                      </button>
+                    ))}
+                  </PopoverContent>
+                </Popover>
               ) : null}
               {may.createComment ? (
                 <button
