@@ -361,12 +361,20 @@ async function writeThread(
   const last = Math.min(...all.map(hoursAgo))
   const made = await rowsOf(
     tx,
-    sql`INSERT INTO discussions (folder_id, task_id, title, created_by, last_activity_at, created_at, updated_at)
-        VALUES (${folderId}::uuid, ${taskId}::uuid, ${thread.title}, ${personId(ctx, thread.by)}::uuid,
+    sql`INSERT INTO discussions (folder_id, title, created_by, last_activity_at, created_at, updated_at)
+        VALUES (${folderId}::uuid, ${thread.title}, ${personId(ctx, thread.by)}::uuid,
                 ${ago(0, last)}, ${ago(0, first)}, ${ago(0, last)})
         RETURNING id`,
   )
   const discussionId = String(made[0]?.id)
+  /* Issue #497: the link is a discussion_tasks edge; a sample task's thread
+     is the one Discuss would have made, so it carries that provenance. */
+  if (taskId !== null) {
+    await tx.execute(
+      sql`INSERT INTO discussion_tasks (discussion_id, task_id, created_via_task, created_at)
+          VALUES (${discussionId}::uuid, ${taskId}::uuid, true, ${ago(0, first)})`,
+    )
+  }
   for (const post of thread.posts) await writePost(ctx, folderId, discussionId, post)
   if (thread.resolved !== undefined) {
     const { by, daysAgo, decision } = thread.resolved
@@ -946,7 +954,8 @@ export async function removeSampleWorkspace(
       WHERE s.user_id = ${userId}::uuid AND s.kind = 'task'
         AND ((f.is_default AND f.owner_id = ${userId}::uuid
               AND NOT EXISTS (SELECT 1 FROM discussions d
-                               WHERE d.task_id = t.id
+                                JOIN discussion_tasks dt ON dt.discussion_id = d.id
+                               WHERE dt.task_id = t.id
                                  AND ((d.created_by = ${userId}::uuid AND d.created_at > s.created_at)
                                       OR EXISTS (SELECT 1 FROM comments c
                                                   WHERE c.discussion_id = d.id
