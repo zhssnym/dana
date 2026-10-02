@@ -1,33 +1,10 @@
 /*
-The Consultation domain (issue #320, spec 7.28): a Folder's Discussions, their
-append-only Outcomes, and the Discussion's place in Trash.
+The Consultation domain (issue #320, spec 7.28).
 
-Storage is migration 0029 and the contract is `shared/consultation.ts`; the
-action rules are `shared/folder-actions.ts`'s `discussion.*` rows. This file
-decides everything that touches rows, and `routes/consultation.ts` only maps
-outcomes to statuses.
-
-## Every writing act has the same shape
-
-1. Lock the Discussion row `FOR UPDATE` in the transaction that writes.
-2. Resolve the actor's Folder facts **in that same transaction**, after the
-   lock, so a membership removed or lowered a moment earlier is the one the
-   decision sees. A creator lowered below Can comment is refused here at once:
-   `creatorId` authorizes only through `whenCreatorAtLeast` (#228: authorship
-   is provenance, never standing authority).
-3. `mayPerform` with `creatorId` read from the locked row.
-4. The state rule ("only while open", "only while resolved"), 409.
-5. Write, bump `last_activity_at`, record the event.
-
-The route has already answered 404 for a Discussion the caller cannot see and
-422 for a malformed body before any of this runs, which is the facet surface's
-refusal order: 404, 422, 403, 409.
-
-## Events
-
-Recorded against the Folder (`subject_kind = 'folder'`), as facet acts are:
-the deployed client parses `subject_kind` through a closed enum, so a new
-subject kind would break its history screens.
+Issue #497 moves Discussion ↔ Task out of `discussions.task_id` and into the
+`discussion_tasks` relation. The relation is a reference, not containment:
+soft Trash preserves it, task moves do not move Discussions, and projections
+show only live endpoints the viewer can currently read.
 */
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
@@ -43,6 +20,7 @@ import type {
   Discussion,
   DiscussionListQuery,
   DiscussionListResponse,
+  LinkDiscussionTaskResponse,
   Outcome,
   ResolveDiscussionBody,
   UpdateDiscussionBody,
@@ -60,6 +38,7 @@ import {
   joinVisibleFolder,
   mayPerform,
   presetFromRow,
+  visibleFolder,
 } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import { PAGE_TREE_EDIT_ACTION } from './page-tree.js'
@@ -94,34 +73,55 @@ function stringOrNull(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
 }
 
+function arrayValue(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string') return []
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * Reading rows
  * ------------------------------------------------------------------ */
 
 /**
- * The columns every Discussion read selects: the row, its current Outcome
- * inline, and `activity_key`, the database's own microsecond rendering of
- * `last_activity_at` that the list cursor is built from (never a JS Date,
- * which holds milliseconds -- `shared/consultation.ts` says why).
+ * Discussion projections are viewer-relative only for `linked_tasks`.
+ * Durable relation rows may point to a task in Trash or to a task that moved
+ * into a Folder this viewer cannot read; neither endpoint leaks through the
+ * other one. The edge itself remains in `discussion_tasks`.
  */
-const DISCUSSION_COLUMNS = sql`
-  d.id, d.folder_id, d.title, d.context, d.created_by, d.state,
-  d.resolved_at, d.resolved_by, d.current_outcome_id, d.last_activity_at,
-  d.created_at, d.updated_at, d.trashed_at, d.is_general,
-  to_char(d.last_activity_at AT TIME ZONE 'UTC',
-          'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS activity_key,
-  o.id AS o_id, o.statement AS o_statement, o.actor_id AS o_actor_id,
-  o.source_comment_id AS o_source_comment_id, o.created_at AS o_created_at,
-  d.task_id, lt.id AS lt_id, lt.title AS lt_title, lt.status AS lt_status`
+function discussionColumns(viewerId: string): SQL {
+  return sql`
+    d.id, d.folder_id, d.title, d.context, d.created_by, d.state,
+    d.resolved_at, d.resolved_by, d.current_outcome_id, d.last_activity_at,
+    d.created_at, d.updated_at, d.trashed_at, d.is_general,
+    to_char(d.last_activity_at AT TIME ZONE 'UTC',
+            'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS activity_key,
+    o.id AS o_id, o.statement AS o_statement, o.actor_id AS o_actor_id,
+    o.source_comment_id AS o_source_comment_id, o.created_at AS o_created_at,
+    COALESCE((
+      SELECT json_agg(
+               json_build_object(
+                 'id', lt.id,
+                 'title', lt.title,
+                 'status', lt.status
+               )
+               ORDER BY lt.title, lt.id)
+        FROM discussion_tasks dt
+        JOIN tasks lt ON lt.id = dt.task_id
+       WHERE dt.discussion_id = d.id
+         AND lt.deleted_at IS NULL
+         AND ${visibleFolder(sql`lt.folder_id`, viewerId)}
+    ), '[]'::json) AS linked_tasks`
+}
 
-/* The linked task (M5) is shown only while it is live and in the
-   Discussion's own Folder, so the link never names a task its readers
-   cannot open. */
 const DISCUSSION_FROM = sql`
   discussions d
-  LEFT JOIN discussion_outcomes o ON o.id = d.current_outcome_id
-  LEFT JOIN tasks lt
-    ON lt.id = d.task_id AND lt.folder_id = d.folder_id AND lt.deleted_at IS NULL`
+  LEFT JOIN discussion_outcomes o ON o.id = d.current_outcome_id`
 
 function discussionFromRow(row: Record<string, unknown>): Discussion {
   const currentOutcome: Outcome | null =
@@ -136,6 +136,21 @@ function discussionFromRow(row: Record<string, unknown>): Discussion {
           created_at: toIso(row.o_created_at),
           current: true,
         }
+  const linkedTasks = arrayValue(row.linked_tasks).flatMap((value) => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return []
+    const task = value as Record<string, unknown>
+    if (task.id === undefined || task.title === undefined) return []
+    return [
+      {
+        id: String(task.id),
+        title: String(task.title),
+        status:
+          task.status === 'completed' || task.status === 'abandoned'
+            ? task.status
+            : ('pending' as const),
+      },
+    ]
+  })
   return {
     id: String(row.id),
     folder_id: String(row.folder_id),
@@ -152,30 +167,14 @@ function discussionFromRow(row: Record<string, unknown>): Discussion {
     updated_at: toIso(row.updated_at),
     trashed_at: isoOrNull(row.trashed_at),
     is_general: row.is_general === true,
-    task_id: stringOrNull(row.task_id),
-    task:
-      row.lt_id === null || row.lt_id === undefined
-        ? null
-        : {
-            id: String(row.lt_id),
-            title: String(row.lt_title),
-            status:
-              row.lt_status === 'completed' || row.lt_status === 'abandoned'
-                ? row.lt_status
-                : 'pending',
-          },
+    linked_tasks: linkedTasks,
   }
 }
 
-/** The list row's thread summary (W-C): how many posts, the newest one, and
- * its distinct authors, most recent first, at most five. */
 function threadSummaryFromRow(
   row: Record<string, unknown>,
 ): Pick<Discussion, 'post_count' | 'last_post' | 'participant_ids'> {
-  const ids: unknown =
-    typeof row.participant_ids === 'string'
-      ? JSON.parse(row.participant_ids)
-      : row.participant_ids
+  const ids = arrayValue(row.participant_ids)
   return {
     post_count: Number(row.post_count ?? 0),
     last_post:
@@ -186,7 +185,7 @@ function threadSummaryFromRow(
             preview: String(row.lp_preview ?? ''),
             created_at: toIso(row.lp_created_at),
           },
-    participant_ids: Array.isArray(ids) ? ids.map(String) : [],
+    participant_ids: ids.map(String),
   }
 }
 
@@ -208,11 +207,12 @@ function outcomeFromRow(
 
 async function discussionById(
   executor: Executor,
+  viewerId: string,
   discussionId: string,
 ): Promise<Discussion | null> {
   const rows = await rowsOf(
     executor,
-    sql`SELECT ${DISCUSSION_COLUMNS} FROM ${DISCUSSION_FROM}
+    sql`SELECT ${discussionColumns(viewerId)} FROM ${DISCUSSION_FROM}
          WHERE d.id = ${discussionId}::uuid`,
   )
   const row = rows[0]
@@ -226,25 +226,16 @@ interface LockedDiscussion {
   createdBy: string
   state: 'open' | 'resolved'
   trashed: boolean
-  /** The Folder's General discussion: the deployed client's Folder thread. */
   isGeneral: boolean
-  /** The task it is about (M5), live or not; null when none. */
-  taskId: string | null
 }
 
-/**
- * The Discussion row under `FOR UPDATE`, in the transaction that writes. The
- * `created_by` it answers is the `creatorId` every creator-stewardship
- * decision reads, so the decision and the write see one row.
- */
 async function lockedDiscussion(
   tx: Executor,
   discussionId: string,
 ): Promise<LockedDiscussion | null> {
   const rows = await rowsOf(
     tx,
-    sql`SELECT id, folder_id, title, created_by, state, trashed_at, is_general,
-               task_id
+    sql`SELECT id, folder_id, title, created_by, state, trashed_at, is_general
           FROM discussions WHERE id = ${discussionId}::uuid
          FOR UPDATE`,
   )
@@ -258,18 +249,9 @@ async function lockedDiscussion(
     state: row.state === 'resolved' ? 'resolved' : 'open',
     trashed: row.trashed_at !== null && row.trashed_at !== undefined,
     isGeneral: row.is_general === true,
-    taskId: stringOrNull(row.task_id),
   }
 }
 
-/**
- * The General discussion is the currently deployed client's whole Folder
- * thread (4.31): resolving it freezes that thread's replies and trashing it
- * hides the thread (and the scheduler purges it after 30 days). Until the
- * Consultation UI ships, both are Full control's, the bar of
- * `discussion.purge` and every other act that can take a shared history
- * away from people who cannot see why. Ordinary Discussions are unaffected.
- */
 function generalDecision(
   facts: FolderActorFacts,
   discussion: LockedDiscussion,
@@ -284,12 +266,6 @@ function generalDecision(
   }
 }
 
-/**
- * Reopening or restoring a General discussion would make it open beside the
- * one a legacy post has since opened, which `discussions_one_open_general_key`
- * forbids. Checked under the Folder row's lock, the lock the legacy post takes
- * before it creates one, so the check and the write see one answer.
- */
 async function anotherOpenGeneral(
   tx: Executor,
   discussion: LockedDiscussion,
@@ -312,11 +288,6 @@ async function anotherOpenGeneral(
 const ANOTHER_GENERAL =
   'This Folder already has an open General discussion. Resolve it first.'
 
-/**
- * The Folder a Discussion belongs to, for the route's 404 before it reads a
- * body. Null when the id names nothing. It says nothing about access: the
- * caller asks `accessOf` next, and both nulls are one 404.
- */
 export async function folderOfDiscussion(
   executor: Executor,
   discussionId: string,
@@ -329,11 +300,6 @@ export async function folderOfDiscussion(
   return row === undefined ? null : String(row.folder_id)
 }
 
-/**
- * The Folder a live task belongs to, for `POST /tasks/:id/discussion`'s 404
- * before anything else. Null when the id names no task, or a deleted one.
- * Like `folderOfDiscussion` it says nothing about access.
- */
 export async function folderOfTask(
   executor: Executor,
   taskId: string,
@@ -347,10 +313,6 @@ export async function folderOfTask(
   return row === undefined ? null : String(row.folder_id)
 }
 
-/**
- * The locked Discussion and the actor's facts over its live Folder, both read
- * in `tx`. Null is 404: no such row, a trashed Folder, or no membership.
- */
 async function lockedWithFacts(
   tx: Executor,
   viewerId: string,
@@ -367,9 +329,6 @@ async function lockedWithFacts(
  * The list
  * ------------------------------------------------------------------ */
 
-/** `YYYY-MM-DDTHH:MI:SS[.ffffff]Z`, the only rendering this file mints, and a
- * real instant: a cursor naming 30 February is refused here rather than
- * reaching a `::timestamptz` cast as a 500. */
 function cursorInstantIsReal(value: string): boolean {
   const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d{1,6})?Z$/.exec(value)
   if (match === null) return false
@@ -384,15 +343,6 @@ function likePattern(needle: string): string {
   return `%${needle.replace(/[\\%_]/g, (char) => `\\${char}`)}%`
 }
 
-/**
- * `GET /folders/:id/discussions`. The caller has already been resolved to
- * `facts`; `discussion.read` is Can view, so every member passes it.
- *
- * Keyset order `last_activity_at DESC, id DESC`, which is
- * `discussions_folder_activity_idx` exactly, bounded by `limit`, with one row
- * over-read to know whether a next page exists. Trashed Discussions are
- * never listed here; they are in `GET /trash`.
- */
 export async function listDiscussions(
   db: Db,
   facts: FolderActorFacts,
@@ -417,14 +367,10 @@ export async function listDiscussions(
       ? sql``
       : sql` AND (d.title ILIKE ${likePattern(query.q)}
                   OR d.context ILIKE ${likePattern(query.q)})`
-  /* The page is cut first, then each of its rows gains the thread summary
-     (W-C) through three LATERAL reads over `comments_discussion_thread_idx`,
-     so the summary costs one query for the page and nothing per Discussion
-     outside it. Comments are hard-deleted, so every row counted is live. */
   const rows = await rowsOf(
     db,
     sql`WITH page AS (
-          SELECT ${DISCUSSION_COLUMNS}, r.read_at AS viewer_read_at
+          SELECT ${discussionColumns(facts.actorId)}, r.read_at AS viewer_read_at
             FROM ${DISCUSSION_FROM}
             JOIN folders df ON df.id = d.folder_id
             ${joinVisibleFolder(facts.actorId, { folder: 'df', member: 'dm' })}
@@ -517,26 +463,24 @@ export async function createDiscussion(
       folderId,
       detail: 'started a discussion',
     })
-    const made = await discussionById(tx, id)
+    const made = await discussionById(tx, viewerId, id)
     return made === null ? notFound : ok(made)
   })
 }
 
-/**
- * `GET /discussions/:id`. A trashed Discussion is 404 on this surface, as a
- * trashed facet is; it is read from `GET /trash`.
- */
 export async function readDiscussion(
   db: Db,
   viewerId: string,
   discussionId: string,
 ): Promise<ConsultationOutcome<Discussion>> {
-  const discussion = await discussionById(db, discussionId)
-  if (discussion === null || discussion.trashed_at !== null) return notFound
-  const facts = await folderActorFacts(db, viewerId, discussion.folder_id)
+  const folderId = await folderOfDiscussion(db, discussionId)
+  if (folderId === null) return notFound
+  const facts = await folderActorFacts(db, viewerId, folderId)
   if (facts === null) return notFound
   const decision = mayPerform(facts, 'discussion.read')
   if (!decision.allowed) return forbidden(decision.reason)
+  const discussion = await discussionById(db, viewerId, discussionId)
+  if (discussion === null || discussion.trashed_at !== null) return notFound
   const read = await rowsOf(
     db,
     sql`SELECT read_at FROM discussion_reads
@@ -546,14 +490,6 @@ export async function readDiscussion(
   return ok({ ...discussion, read_at: isoOrNull(read[0]?.read_at) })
 }
 
-/**
- * `PUT /discussions/:id/read`: the viewer has opened the thread now. Upserts
- * their `discussion_reads` row and, in the same transaction, marks read their
- * unread notifications about posts in this Discussion, so opening the thread
- * clears the bell for it. No event: reading is not an act the history keeps.
- * The route has already resolved existence and membership; a trashed
- * Discussion, or one gone since, is `not_found`.
- */
 export async function markDiscussionRead(
   db: Db,
   viewerId: string,
@@ -591,8 +527,6 @@ export async function markDiscussionRead(
   })
 }
 
-/** `GET /discussions/:id/outcomes`: every Outcome, newest first, current or
- * not. Nothing here is ever edited, so each id reads what it always said. */
 export async function listOutcomes(
   db: Db,
   viewerId: string,
@@ -615,12 +549,6 @@ export async function listOutcomes(
   })
 }
 
-/**
- * `GET /outcomes/:id`, the Outcome's stable direct route (#320): the Outcome
- * and its parent Discussion, so a client opens the Discussion focused on it.
- * Readable exactly when the Discussion is, and 404 otherwise, whether or not
- * it exists.
- */
 export async function readOutcome(
   db: Db,
   viewerId: string,
@@ -643,8 +571,70 @@ export async function readOutcome(
 }
 
 /* ------------------------------------------------------------------ *
- * Edit, resolve, reopen
+ * Discussion ↔ Task relation and metadata edits (#497)
  * ------------------------------------------------------------------ */
+
+/**
+ * Add one edge while both endpoint rows are stable. A new link can name only
+ * a live Task in the Discussion's current Folder; this preserves the old
+ * authorization/refusal boundary without making the relation itself a
+ * containment rule. A moved link may later span Folders and remains durable.
+ */
+async function addTaskLink(
+  tx: Executor,
+  discussion: LockedDiscussion,
+  taskId: string,
+  createdViaTask: boolean,
+): Promise<ConsultationOutcome<boolean>> {
+  if (discussion.isGeneral) {
+    return invalid('task_id', 'the General discussion is about the whole page')
+  }
+  const task = await rowsOf(
+    tx,
+    sql`SELECT 1 FROM tasks
+         WHERE id = ${taskId}::uuid
+           AND folder_id = ${discussion.folderId}::uuid
+           AND deleted_at IS NULL
+         FOR NO KEY UPDATE`,
+  )
+  if (task.length === 0) {
+    return invalid('task_id', 'must name a task of this folder')
+  }
+  const inserted = await rowsOf(
+    tx,
+    sql`INSERT INTO discussion_tasks
+          (discussion_id, task_id, created_via_task)
+        VALUES (${discussion.id}::uuid, ${taskId}::uuid, ${createdViaTask})
+        ON CONFLICT (discussion_id, task_id) DO NOTHING
+        RETURNING discussion_id`,
+  )
+  return ok(inserted.length > 0)
+}
+
+async function touchDiscussion(tx: Executor, discussionId: string): Promise<void> {
+  await tx.execute(
+    sql`UPDATE discussions
+           SET updated_at = now(), last_activity_at = now()
+         WHERE id = ${discussionId}::uuid`,
+  )
+}
+
+async function recordRelationEdit(
+  tx: Executor,
+  viewerId: string,
+  facts: FolderActorFacts,
+  detail: string,
+): Promise<void> {
+  await recordEvent(tx, {
+    actorId: viewerId,
+    verb: 'edited',
+    subjectKind: 'folder',
+    subjectId: facts.folderId,
+    subjectName: facts.name,
+    folderId: facts.folderId,
+    detail,
+  })
+}
 
 export async function updateDiscussion(
   db: Db,
@@ -663,99 +653,122 @@ export async function updateDiscussion(
     if (discussion.state !== 'open') {
       return conflict('A resolved Discussion is reopened before it is edited.')
     }
-    let taskId = discussion.taskId
-    if (body.task_id !== undefined && body.task_id !== discussion.taskId) {
-      const link = await linkableTask(tx, discussion, body.task_id)
-      if (link.kind !== 'ok') return link
-      taskId = body.task_id
+
+    let linkCreated = false
+    if (body.task_id !== undefined) {
+      const linked = await addTaskLink(tx, discussion, body.task_id, false)
+      if (linked.kind !== 'ok') return linked
+      linkCreated = linked.value
     }
-    const title = body.title === undefined ? sql`title` : sql`${body.title}`
-    const context =
-      body.context === undefined
-        ? sql`context`
-        : sql`${contextValue(body.context)}`
-    await tx.execute(
-      sql`UPDATE discussions
-             SET title = ${title}, context = ${context},
-                 task_id = ${taskId}::uuid,
-                 updated_at = now(), last_activity_at = now()
-           WHERE id = ${discussionId}::uuid`,
-    )
-    await recordEvent(tx, {
-      actorId: viewerId,
-      verb: 'edited',
-      subjectKind: 'folder',
-      subjectId: facts.folderId,
-      subjectName: facts.name,
-      folderId: facts.folderId,
-      detail: 'edited a discussion',
-    })
-    const updated = await discussionById(tx, discussionId)
+
+    const metadataChanged = body.title !== undefined || body.context !== undefined
+    if (metadataChanged) {
+      const title = body.title === undefined ? sql`title` : sql`${body.title}`
+      const context =
+        body.context === undefined
+          ? sql`context`
+          : sql`${contextValue(body.context)}`
+      await tx.execute(
+        sql`UPDATE discussions
+               SET title = ${title}, context = ${context},
+                   updated_at = now(), last_activity_at = now()
+             WHERE id = ${discussionId}::uuid`,
+      )
+    } else if (linkCreated) {
+      await touchDiscussion(tx, discussionId)
+    }
+
+    if (metadataChanged || linkCreated) {
+      await recordRelationEdit(
+        tx,
+        viewerId,
+        facts,
+        metadataChanged ? 'edited a discussion' : 'linked a task to a discussion',
+      )
+    }
+    const updated = await discussionById(tx, viewerId, discussionId)
     return updated === null ? notFound : ok(updated)
   })
 }
 
-/**
- * Whether `discussion` may be linked to `taskId` (PATCH `task_id`, M5): the
- * link is set once, never on the General discussion, only to a live task of
- * the Discussion's own Folder (the id arrives in the body, so this check is
- * its authorization gate: a task elsewhere is one 422 whether or not it
- * exists), and only when that task has no other live Discussion. The task
- * row is locked as `discussTask` locks it, so the two cannot both link.
- */
-async function linkableTask(
-  tx: Executor,
-  discussion: LockedDiscussion,
+/** Explicit #497 add-link route. Duplicate links are deliberate idempotent
+ * success (`created: false`), never a surfaced unique-constraint error. */
+export async function linkDiscussionTask(
+  db: Db,
+  viewerId: string,
+  discussionId: string,
+  taskId: string,
+): Promise<ConsultationOutcome<LinkDiscussionTaskResponse>> {
+  return inTransaction(db, async (tx) => {
+    const found = await lockedWithFacts(tx, viewerId, discussionId)
+    if (found === null || found.discussion.trashed) return notFound
+    const { discussion, facts } = found
+    const decision = mayPerform(facts, 'discussion.edit', {
+      creatorId: discussion.createdBy,
+    })
+    if (!decision.allowed) return forbidden(decision.reason)
+    if (discussion.state !== 'open') {
+      return conflict('A resolved Discussion is reopened before it is edited.')
+    }
+    const linked = await addTaskLink(tx, discussion, taskId, false)
+    if (linked.kind !== 'ok') return linked
+    if (linked.value) {
+      await touchDiscussion(tx, discussionId)
+      await recordRelationEdit(tx, viewerId, facts, 'linked a task to a discussion')
+    }
+    const projection = await discussionById(tx, viewerId, discussionId)
+    return projection === null
+      ? notFound
+      : ok({ created: linked.value, discussion: projection })
+  })
+}
+
+/** Explicit #497 unlink. The Task is intentionally not re-resolved: an edge
+ * can outlive a move or soft Trash, and a user allowed to edit the Discussion
+ * must be able to remove that stale reference without learning anything new
+ * about the Task. Missing pairs are idempotent 204 at the route. */
+export async function unlinkDiscussionTask(
+  db: Db,
+  viewerId: string,
+  discussionId: string,
   taskId: string,
 ): Promise<ConsultationOutcome<null>> {
-  if (discussion.taskId !== null) {
-    return conflict('This discussion is already about a task.')
-  }
-  if (discussion.isGeneral) {
-    return invalid('task_id', 'the General discussion is about the whole page')
-  }
-  const task = await rowsOf(
-    tx,
-    sql`SELECT 1 FROM tasks
-         WHERE id = ${taskId}::uuid AND folder_id = ${discussion.folderId}::uuid
-           AND deleted_at IS NULL
-         FOR NO KEY UPDATE`,
-  )
-  if (task.length === 0) {
-    return invalid('task_id', 'must name a task of this folder')
-  }
-  if ((await liveDiscussionOfTask(tx, taskId)) !== null) {
-    return conflict(TASK_HAS_DISCUSSION)
-  }
-  return ok(null)
-}
-
-const TASK_HAS_DISCUSSION = 'This task already has a discussion.'
-
-async function liveDiscussionOfTask(
-  tx: Executor,
-  taskId: string,
-  except: string | null = null,
-): Promise<string | null> {
-  const rows = await rowsOf(
-    tx,
-    sql`SELECT id FROM discussions
-         WHERE task_id = ${taskId}::uuid AND trashed_at IS NULL
-           AND id IS DISTINCT FROM ${except}::uuid`,
-  )
-  return rows[0] === undefined ? null : String(rows[0].id)
+  return inTransaction(db, async (tx) => {
+    const found = await lockedWithFacts(tx, viewerId, discussionId)
+    if (found === null || found.discussion.trashed) return notFound
+    const { discussion, facts } = found
+    const decision = mayPerform(facts, 'discussion.edit', {
+      creatorId: discussion.createdBy,
+    })
+    if (!decision.allowed) return forbidden(decision.reason)
+    if (discussion.state !== 'open') {
+      return conflict('A resolved Discussion is reopened before it is edited.')
+    }
+    if (discussion.isGeneral) {
+      return invalid('task_id', 'the General discussion is about the whole page')
+    }
+    const removed = await rowsOf(
+      tx,
+      sql`DELETE FROM discussion_tasks
+           WHERE discussion_id = ${discussionId}::uuid
+             AND task_id = ${taskId}::uuid
+           RETURNING discussion_id`,
+    )
+    if (removed.length > 0) {
+      await touchDiscussion(tx, discussionId)
+      await recordRelationEdit(tx, viewerId, facts, 'unlinked a task from a discussion')
+    }
+    return ok(null)
+  })
 }
 
 /**
- * `POST /tasks/:id/discussion` (M5): the task's one live Discussion, made on
- * first use. The route has answered 404 for a task the caller cannot see;
- * this re-resolves both under the task row's lock, which every link writer
- * takes, so two calls at once make one Discussion and the second answers it.
- *
- * An existing live Discussion (open or resolved) is answered to any member,
- * `created: false`. Otherwise `discussion.create` decides, and the new one is
- * titled with the task as it reads now (cut to 4.31's 200); a later rename
- * of the task does not follow, because the link shows the live title.
+ * `POST /tasks/:id/discussion` remains the create-new convenience used by the
+ * current task UI. `created_via_task` records provenance only so repeated
+ * calls can reuse the Discussion this route made in the Task's *current*
+ * Folder. Other linked Discussions never suppress creation. After a Task
+ * move the old Discussion stays put and a new convenience Discussion may be
+ * created in the destination Folder.
  */
 export async function discussTask(
   db: Db,
@@ -776,15 +789,10 @@ export async function discussTask(
     if (facts === null) return notFound
     const readable = mayPerform(facts, 'discussion.read')
     if (!readable.allowed) return forbidden(readable.reason)
-    /* Step 7: the thread is listed on the project's Discussion tab, so a
-       project without one gets it here, in this transaction, when the actor
-       may start a discussion and may edit the project root's tab row; a
-       member of a sub-page only, who cannot see the root, changes nothing
-       there. The tab's id is answered only to someone who can see it. */
+
     const mayCreate = mayPerform(facts, 'discussion.create')
     const project = await projectOf(tx, folderId)
     const rootFacts = project === null ? null : await folderActorFacts(tx, viewerId, project)
-    /* The Desk keeps no tab row: its task threads open on the Desk itself. */
     const mayAddTab =
       mayCreate.allowed && rootFacts !== null && !rootFacts.isDefault &&
       mayPerform(rootFacts, PAGE_TREE_EDIT_ACTION).allowed
@@ -793,21 +801,39 @@ export async function discussTask(
       : project === null ? null : await liveDiscussionTab(tx, project)
     const discussionTabId =
       tabId !== null && (await folderActorFacts(tx, viewerId, tabId)) !== null ? tabId : null
-    const existing = await liveDiscussionOfTask(tx, taskId)
-    if (existing !== null) {
-      const found = await discussionById(tx, existing)
+
+    const existing = await rowsOf(
+      tx,
+      sql`SELECT d.id
+            FROM discussion_tasks dt
+            JOIN discussions d ON d.id = dt.discussion_id
+           WHERE dt.task_id = ${taskId}::uuid
+             AND dt.created_via_task
+             AND d.folder_id = ${folderId}::uuid
+             AND d.trashed_at IS NULL
+           ORDER BY d.created_at ASC, d.id ASC
+           LIMIT 1`,
+    )
+    if (existing[0]?.id !== undefined) {
+      const found = await discussionById(tx, viewerId, String(existing[0].id))
       return found === null ? notFound : ok({ created: false, discussion: found, discussionTabId })
     }
-    const decision = mayCreate
-    if (!decision.allowed) return forbidden(decision.reason)
+
+    if (!mayCreate.allowed) return forbidden(mayCreate.reason)
     const title =
       Array.from(String(row.title).trim()).slice(0, DISCUSSION_TITLE_MAX).join('').trim() ||
       'Untitled task'
     const inserted = await rowsOf(
       tx,
-      sql`INSERT INTO discussions (folder_id, task_id, title, created_by)
-          VALUES (${folderId}::uuid, ${taskId}::uuid, ${title}, ${viewerId}::uuid)
+      sql`INSERT INTO discussions (folder_id, title, created_by)
+          VALUES (${folderId}::uuid, ${title}, ${viewerId}::uuid)
           RETURNING id`,
+    )
+    const discussionId = String(inserted[0]?.id)
+    await tx.execute(
+      sql`INSERT INTO discussion_tasks
+            (discussion_id, task_id, created_via_task)
+          VALUES (${discussionId}::uuid, ${taskId}::uuid, true)`,
     )
     await recordEvent(tx, {
       actorId: viewerId,
@@ -818,23 +844,15 @@ export async function discussTask(
       folderId,
       detail: 'started a discussion',
     })
-    const made = await discussionById(tx, String(inserted[0]?.id))
+    const made = await discussionById(tx, viewerId, discussionId)
     return made === null ? notFound : ok({ created: true, discussion: made, discussionTabId })
   })
 }
 
-/**
- * `POST /discussions/:id/resolve`: a new Outcome, made current, and the
- * Discussion resolved, in one transaction (#320 "resolve + Outcome creation is
- * atomic"). Since Wave 2 (decision 3) `{}` resolves with no Outcome: the
- * thread is closed without a decision, `current_outcome_id` stays NULL.
- *
- * `source_comment_id` must be a comment **of this Discussion**; anything else
- * -- another Discussion's comment, a Task's, another Folder's, or no comment
- * -- is one 422, so the field cannot probe for comments elsewhere. Without a
- * `statement` the comment's body at this moment is the snapshot; with one,
- * the statement is, and the comment is provenance only.
- */
+/* ------------------------------------------------------------------ *
+ * Resolve and reopen
+ * ------------------------------------------------------------------ */
+
 export async function resolveDiscussion(
   db: Db,
   viewerId: string,
@@ -882,10 +900,6 @@ export async function resolveDiscussion(
       }
     }
 
-    /* Wave 2 decision 3 ("Close thread"): neither a statement nor a source
-       comment closes the Discussion with no Outcome at all -- no row, and
-       `current_outcome_id` NULL, which 0040's widened
-       `discussions_resolution_check` admits for a resolved row. */
     let outcomeId: string | null = null
     if (statement !== undefined) {
       const inserted = await rowsOf(
@@ -906,7 +920,6 @@ export async function resolveDiscussion(
                  updated_at = now(), last_activity_at = now()
            WHERE id = ${discussionId}::uuid`,
     )
-    // #321: any open input round closes in this same transaction.
     await onDiscussionResolved(tx, discussionId)
     await recordEvent(tx, {
       actorId: viewerId,
@@ -917,15 +930,11 @@ export async function resolveDiscussion(
       folderId: facts.folderId,
       detail: 'resolved a discussion',
     })
-    const resolved = await discussionById(tx, discussionId)
+    const resolved = await discussionById(tx, viewerId, discussionId)
     return resolved === null ? notFound : ok(resolved)
   })
 }
 
-/**
- * `POST /discussions/:id/reopen`: back to open, the current pointer cleared,
- * and nothing deleted -- every Outcome stays addressable as a previous one.
- */
 export async function reopenDiscussion(
   db: Db,
   viewerId: string,
@@ -959,20 +968,16 @@ export async function reopenDiscussion(
       folderId: facts.folderId,
       detail: 'reopened a discussion',
     })
-    const reopened = await discussionById(tx, discussionId)
+    const reopened = await discussionById(tx, viewerId, discussionId)
     return reopened === null ? notFound : ok(reopened)
   })
 }
 
 /* ------------------------------------------------------------------ *
- * Trash: remove, restore, purge (7.13's lifecycle, the fourth kind)
+ * Trash: soft lifecycle preserves relation rows; permanent purge cascades
+ * only the relation rows through 0066's foreign keys.
  * ------------------------------------------------------------------ */
 
-/**
- * #320's accidental-Discussion boundary: nobody but its creator has commented
- * on it, it has never had an Outcome (reopen keeps them, so "never" is any
- * row), and nobody else has given structured input (#321's hook).
- */
 async function isUnshared(
   tx: Executor,
   discussion: LockedDiscussion,
@@ -993,11 +998,6 @@ async function isUnshared(
   return !(await discussionHasOtherInput(tx, discussion.id, discussion.createdBy))
 }
 
-/**
- * The governed rule first (`discussion.trash` / `discussion.restore`, Can
- * edit), then the creator's own-unshared path. The refusal carries the
- * governed rule's sentence, because that is what the caller lacks.
- */
 async function lifecycleDecision(
   tx: Executor,
   facts: FolderActorFacts,
@@ -1013,7 +1013,6 @@ async function lifecycleDecision(
   return governed
 }
 
-/** `DELETE /discussions/:id`: to Trash, non-destructively. */
 export async function trashDiscussion(
   db: Db,
   viewerId: string,
@@ -1044,11 +1043,6 @@ export async function trashDiscussion(
   })
 }
 
-/**
- * The actor's facts over a Discussion's Folder, which may be trashed: the
- * Trash acts need the facts `folderActorFacts` hides by default, exactly as
- * `trashedFacetFacts` does. Membership is still required.
- */
 async function lockedTrashedWithFacts(
   tx: Executor,
   viewerId: string,
@@ -1072,10 +1066,6 @@ async function lockedTrashedWithFacts(
   return { discussion, facts, folderTrashed: folder[0]?.trashed === true }
 }
 
-/**
- * `POST /discussions/:id/restore`. 409 while its Folder is itself in Trash:
- * the Folder comes back as one entry and its Discussions ride its fate.
- */
 export async function restoreDiscussion(
   db: Db,
   viewerId: string,
@@ -1098,17 +1088,6 @@ export async function restoreDiscussion(
     if (discussion.state === 'open' && (await anotherOpenGeneral(tx, discussion))) {
       return conflict(ANOTHER_GENERAL)
     }
-    // M5: a task has one live Discussion; this one waits while another is.
-    // The task row's lock is the one `discussTask` takes before it creates.
-    if (discussion.taskId !== null) {
-      await tx.execute(
-        sql`SELECT 1 FROM tasks WHERE id = ${discussion.taskId}::uuid
-            FOR NO KEY UPDATE`,
-      )
-      if ((await liveDiscussionOfTask(tx, discussion.taskId, discussion.id)) !== null) {
-        return conflict(TASK_HAS_DISCUSSION)
-      }
-    }
     await tx.execute(
       sql`UPDATE discussions SET trashed_at = NULL, updated_at = now()
            WHERE id = ${discussionId}::uuid`,
@@ -1122,23 +1101,11 @@ export async function restoreDiscussion(
       folderId: facts.folderId,
       detail: 'restored a discussion from Trash',
     })
-    const restored = await discussionById(tx, discussionId)
+    const restored = await discussionById(tx, viewerId, discussionId)
     return restored === null ? notFound : ok(restored)
   })
 }
 
-/**
- * The 11.7 collection for Discussions, in `destroyTasks`'s shape: `doomed` is
- * a query answering discussion ids with its own lock clause.
- *
- * Deleting a Discussion cascades its Outcomes and its comments
- * (`comments_discussion_scope_fkey`), and with the comments their
- * `comment_files` rows -- the only reference anyone had to those uploads. So
- * the statement collects the files that hung on the doomed Discussions'
- * comments and on nothing else, and deletes those `files` rows; the caller
- * removes the bytes after the commit (7.15's order). A file also referenced
- * from a comment elsewhere, a page, or a cover stays.
- */
 export async function destroyDiscussions(
   executor: Executor,
   doomed: SQL,
@@ -1189,11 +1156,6 @@ export async function destroyDiscussions(
   return { discussionIds, fileIds }
 }
 
-/**
- * `DELETE /trash/discussions/:id`: `discussion.purge`, Full control with
- * ownership ignored. Only a trashed Discussion qualifies, so a permanent
- * delete is never a shorter road around Trash.
- */
 export async function purgeDiscussion(
   db: Db,
   viewerId: string,
@@ -1222,11 +1184,6 @@ export async function purgeDiscussion(
   })
 }
 
-/**
- * The `discussions` array of `GET /trash`: membership is the scope, never who
- * trashed it (7.13), and a Discussion of a trashed Folder rides that Folder's
- * entry rather than appearing twice.
- */
 export async function trashedDiscussions(
   db: Db,
   viewerId: string,
@@ -1242,8 +1199,6 @@ export async function trashedDiscussions(
          WHERE d.trashed_at IS NOT NULL
          ORDER BY d.trashed_at DESC, d.id DESC`,
   )
-  /* `restorable` is the restore route's own decision, read without the lock:
-     a Trash row offers Restore only to a viewer the route would admit. */
   const factsByFolder = new Map<string, FolderActorFacts | null>()
   const listed: TrashedDiscussion[] = []
   for (const row of rows) {
@@ -1269,7 +1224,6 @@ export async function trashedDiscussions(
             state: row.state === 'resolved' ? 'resolved' : 'open',
             trashed: true,
             isGeneral: row.is_general === true,
-            taskId: null,
           },
           'discussion.restore',
         )
