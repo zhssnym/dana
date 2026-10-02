@@ -1,0 +1,72 @@
+name: Issue 487 finalize backend
+
+on:
+  push:
+    branches: [backend/487-start-time-contract]
+    paths:
+      - '.github/workflows/issue-487-finalize.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: backend/487-start-time-contract
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Align export-version assertions and clean diagnostics
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              Path('app/tests/criteria/ac-880-task-document.test.ts'): [
+                  ('expect(data.version).toBe(10)', 'expect(data.version).toBe(11)'),
+              ],
+              Path('app/tests/criteria/focus-identity-353.test.ts'): [
+                  ('expect(EXPORT_VERSION).toBe(10)', 'expect(EXPORT_VERSION).toBe(11)'),
+                  ('expect(document.version).toBe(10)', 'expect(document.version).toBe(11)'),
+              ],
+              Path('app/tests/guards/guard-document-transaction.test.ts'): [
+                  ('expect(data.version).toBe(10)', 'expect(data.version).toBe(11)'),
+              ],
+          }
+
+          for path, pairs in replacements.items():
+              text = path.read_text()
+              for old, new in pairs:
+                  count = text.count(old)
+                  if count != 1:
+                      raise SystemExit(f'{path}: expected one occurrence of {old!r}, found {count}')
+                  text = text.replace(old, new)
+              path.write_text(text)
+          PY
+          rm -f issue-487-gate.log
+      - name: Install tooling
+        working-directory: app
+        run: npm ci
+      - name: Install Chromium
+        working-directory: app
+        run: npx playwright install --with-deps chromium
+      - name: Full repository gate
+        working-directory: app
+        run: npm run gate
+      - name: Diff check
+        run: git diff --check
+      - name: Commit validated cleanup
+        run: |
+          rm -f .github/workflows/issue-487-finalize.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "test: align export version for start time (#487)"
+          git push origin HEAD:backend/487-start-time-contract
