@@ -135,6 +135,7 @@ export function toConceptTask(
     due: dueDisplay(task, today, clock),
     ...(task.due_date === null || task.due_time === null ? {} : { dueTime: task.due_time.slice(0, 5) }),
     ...(task.start_date === null ? {} : { start: task.start_date }),
+    ...(task.start_date === null || task.start_time === null ? {} : { startTime: task.start_time.slice(0, 5) }),
     assignee,
     assignees: (task.assignees ?? (task.assignee === null ? [] : [task.assignee]))
       .map(toConceptPerson),
@@ -285,4 +286,5 @@ export const writtenElsewhere: readonly (keyof ConceptTask)[] = [
   'reminderAt',
   'repeatMonthDay',
   'start',
+  'startTime',
 ]
