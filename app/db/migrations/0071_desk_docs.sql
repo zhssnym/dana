@@ -1,4 +1,4 @@
--- 0069: Desk is private Work plus documentation, never a Discussion surface.
+-- 0071: Desk is private Work plus documentation, never a Discussion surface.
 --
 -- Existing Discussion rows and tabs are deliberately preserved. They may hold
 -- history from before this rule and deleting them would be data loss; the
@@ -147,7 +147,7 @@ BEGIN
    LIMIT 1;
 
   IF bad IS NOT NULL THEN
-    RAISE EXCEPTION '0069: Desk shape not established %', bad;
+    RAISE EXCEPTION '0071: Desk shape not established %', bad;
   END IF;
 END
 $$;

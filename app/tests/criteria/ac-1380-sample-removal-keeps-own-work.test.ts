@@ -191,12 +191,13 @@ describe('AC-1380 removing the sample keeps the person’s own work', () => {
     )
     expect(left.length).toBe(0)
     // The unregistered tabs (Purpose, Results, Discussion) go too: nothing of
-    // the sample is released into a project of its own.
+    // the sample is released into a project of its own. Only the Desk's own
+    // Docs tab (spec 7.30) is left.
     const remaining = await rows(
       app.db,
       sql`SELECT name FROM folders WHERE owner_id = ${looker.id}::uuid AND NOT is_default`,
     )
-    expect(remaining.map((row) => row.name)).toEqual([])
+    expect(remaining.map((row) => row.name)).toEqual(['Docs'])
   })
 
   test('a thread started on a sample Discussion tab sends its project to Trash', async () => {

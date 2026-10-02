@@ -1,5 +1,5 @@
 /*
-AC-1544: migration 0069 establishes Desk's Work + Docs shape without deleting
+AC-1544: migration 0071 establishes Desk's Work + Docs shape without deleting
 legacy content. An untouched Purpose page becomes Docs in place, an existing
 Discussion row is retained for history but ordered out of the normal Desk
 surface, and a Desk with no documentation receives Docs (spec 9.14, 7.30).
@@ -50,7 +50,7 @@ async function openScratch(): Promise<Scratch> {
     }
   }
 
-  const name = `${new URL(base).pathname.replace(/^\//, '')}_m69_${process.pid}`
+  const name = `${new URL(base).pathname.replace(/^\//, '')}_m71_${process.pid}`
   const admin = new pg.Client({ connectionString: base })
   admin.on('error', () => undefined)
   await admin.connect()
@@ -104,32 +104,35 @@ let db: Scratch
 let scratch: string
 
 beforeAll(async () => {
-  scratch = mkdtempSync(path.join(tmpdir(), 'dana-0069-'))
+  scratch = mkdtempSync(path.join(tmpdir(), 'dana-0071-'))
   const through0068 = path.join(scratch, 'a')
-  const through0069 = path.join(scratch, 'b')
+  const through0071 = path.join(scratch, 'b')
   cutThrough('0068_', through0068)
-  cutThrough('0069_', through0069)
+  cutThrough('0071_', through0071)
 
   db = await openScratch()
   await db.migrate(through0068)
 
   await db.exec(sql`INSERT INTO users (id, display_name) VALUES
     (${user}::uuid, 'Desk owner'), (${userTwo}::uuid, 'Second Desk owner')`)
+  /* People first: once a project has other tabs, 0062's trigger refuses a
+     member insert from a connection without `dana.step8` (the old server). */
   await db.exec(sql`INSERT INTO folders (id, owner_id, name, is_default, project_id, kind, tab_position) VALUES
     (${desk}::uuid, ${user}::uuid, 'Desk', true, ${desk}::uuid, 'work', 'a1'),
-    (${purpose}::uuid, ${user}::uuid, 'Purpose', false, ${desk}::uuid, 'doc', 'a0'),
-    (${discussion}::uuid, ${user}::uuid, 'Discussion', false, ${desk}::uuid, 'discussion', 'a2'),
-    (${notes}::uuid, ${user}::uuid, 'Notes', false, ${desk}::uuid, 'doc', 'a3'),
     (${emptyDesk}::uuid, ${userTwo}::uuid, 'Desk', true, ${emptyDesk}::uuid, 'work', 'a0')`)
   await db.exec(sql`INSERT INTO folder_members (folder_id, user_id, access) VALUES
     (${desk}::uuid, ${user}::uuid, 'full_control'),
     (${emptyDesk}::uuid, ${userTwo}::uuid, 'full_control')`)
+  await db.exec(sql`INSERT INTO folders (id, owner_id, name, is_default, project_id, kind, tab_position) VALUES
+    (${purpose}::uuid, ${user}::uuid, 'Purpose', false, ${desk}::uuid, 'doc', 'a0'),
+    (${discussion}::uuid, ${user}::uuid, 'Discussion', false, ${desk}::uuid, 'discussion', 'a2'),
+    (${notes}::uuid, ${user}::uuid, 'Notes', false, ${desk}::uuid, 'doc', 'a3')`)
   await db.exec(sql`INSERT INTO folder_facets (id, folder_id, kind, position, created_by) VALUES
     (${purpose}::uuid, ${desk}::uuid, 'purpose', 'a1', ${user}::uuid)`)
   await db.exec(sql`INSERT INTO page_blocks (id, folder_id, kind, position, page_position, text)
     VALUES (${block}::uuid, ${purpose}::uuid, 'paragraph', 1, 'a0', 'kept writing')`)
 
-  await db.migrate(through0069)
+  await db.migrate(through0071)
 }, 60_000)
 
 afterAll(async () => {
