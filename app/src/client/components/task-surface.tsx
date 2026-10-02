@@ -1,8 +1,8 @@
 /*
 A task's one page (M4): /app/tasks/:id, in the app's shell, on every screen.
 There is no peek. One column: the title with its state mark and the task's
-one "…", then `TaskCard` (four properties, the task's document, and its
-history).
+one "…", then `TaskCard` (properties and the task's document). History lives
+behind that same "…" rather than taking a row at the end of the page.
 */
 
 import { InlineTextarea } from "./ui/inline-field.js"
@@ -15,6 +15,7 @@ import { TASK_TITLE_LIMIT } from "../../shared/tasks.js"
 import { TaskCard, stateOf } from "./task-card.js"
 import { useCardWiring, type TaskRowProps } from "./task-row.js"
 import { ObjectMenu } from "./object-menu.js"
+import { TaskHistory } from "./thread/TaskHistory.js"
 import { copyTaskLink, duplicateTask } from "../tasks/task-acts.js"
 import { cn } from "./ui/utils.js"
 import { Button } from "./ui/button.js"
@@ -115,15 +116,26 @@ function Title({
   )
 }
 
-/* The task's one "…": copy link, duplicate, delete. Status carries drop and
-   reopen, and the timeline is its history. */
-function TaskMenu({ id, title, onDelete }: { id: string; title: string; onDelete?: () => void }) {
+/* The task's one "…": history, copy link, duplicate, delete. Status carries
+   Drop and Restore, so those are not repeated here. */
+function TaskMenu({
+  id,
+  title,
+  onHistory,
+  onDelete,
+}: {
+  id: string
+  title: string
+  onHistory: () => void
+  onDelete?: () => void
+}) {
   return (
     <ObjectMenu
       kind="task"
       name={title}
       width="w-56"
       handlers={{
+        history: onHistory,
         "copy-link": () => copyTaskLink(id),
         duplicate: () => duplicateTask(id, title),
         delete: onDelete,
@@ -142,6 +154,7 @@ export function TaskView({
 }) {
   const { task, patch, cardHandlers } = useCardWiring(props)
   const state = stateOf(task)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   return (
     <div className="flex flex-col gap-4 pt-2 pb-24">
@@ -162,6 +175,7 @@ export function TaskView({
           <TaskMenu
             id={props.id}
             title={task.title}
+            onHistory={() => setHistoryOpen(true)}
             {...(props.onDelete === undefined ? {} : { onDelete: props.onDelete })}
           />
           {onClose ? (
@@ -172,6 +186,13 @@ export function TaskView({
         </div>
       </div>
       <TaskCard task={task} patch={patch} {...cardHandlers} />
+      <TaskHistory
+        key={task.id}
+        taskId={task.id}
+        folderId={task.folder?.id ?? null}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      />
     </div>
   )
 }
