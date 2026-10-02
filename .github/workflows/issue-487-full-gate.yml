@@ -1,0 +1,42 @@
+name: Issue 487 full gate
+
+on:
+  push:
+    branches: [backend/487-start-time-contract]
+    paths:
+      - '.github/workflows/issue-487-full-gate.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: backend/487-start-time-contract
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install tooling
+        working-directory: app
+        run: npm ci
+      - name: Install Chromium
+        working-directory: app
+        run: npx playwright install --with-deps chromium
+      - name: Full repository gate
+        working-directory: app
+        run: npm run gate
+      - name: Remove temporary validation workflow
+        run: |
+          rm -f .github/workflows/issue-487-full-gate.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "chore: remove issue 487 validation workflow"
+          git push origin HEAD:backend/487-start-time-contract
