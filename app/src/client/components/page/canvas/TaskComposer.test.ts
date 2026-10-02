@@ -7,6 +7,7 @@ import { BlockNoteEditor } from '@blocknote/core'
 import { describe, expect, test } from 'vitest'
 
 import type { PageView } from '../../../../shared/pages.js'
+import { documentOperation } from '../../../../shared/page-document.js'
 import { baselineOf, canvasOperations } from './adapters.js'
 import { dehydrateTask, hydrateTask, mergeDraft, taskSchema } from './TaskComposer.js'
 
@@ -16,7 +17,7 @@ function block(n: number, kind: string, text: string | null, extra: Partial<Page
   return {
     id: id(n), kind: kind as PageView['blocks'][number]['kind'], position: n, page_position: null, section_block_id: null,
     list_parent_block_id: null, checked: null, rich_content: null, text, file_id: null, file_width: null, file_height: null,
-    file_reclaimed_at: null, ref_folder_id: null, width_pct: null, updated_at: new Date(0).toISOString(), ...extra,
+    file_reclaimed_at: null, file_name: null, ref_folder_id: null, width_pct: null, updated_at: new Date(0).toISOString(), ...extra,
   }
 }
 const stored: PageView = {
@@ -29,7 +30,7 @@ const stored: PageView = {
     block(5, 'quote', 'said'),
     block(6, 'code', 'x = 1'),
     block(7, 'image', 'caption', { file_id: file, width_pct: 50 }),
-    block(8, 'file', 'report.pdf', { file_id: id(98) }),
+    block(8, 'file', null, { file_id: id(98), file_name: 'report.pdf' }),
     block(9, 'callout', 'careful'),
     block(10, 'checklist', 'ticked', { checked: true }),
     block(11, 'divider', null),
@@ -44,10 +45,11 @@ describe('Task composer', () => {
     const editor = editorOf(stored)
     const drawn = dehydrateTask(editor.document, 600)
     const baseline = baselineOf(stored, drawn)
+    expect(editor.getBlock(id(8))?.props).toMatchObject({ name: 'report.pdf' })
     expect(baseline.blocks.map((b) => [b.block_kind, b.text, b.file_id])).toEqual([
       ['paragraph', 'Legacy line one\nLegacy line two', null], ['heading2', 'Plan', null], ['bullet', 'first', null],
       ['numbered', 'second', null], ['quote', 'said', null], ['code', 'x = 1', null], ['image', 'caption', file],
-      ['file', 'report.pdf', id(98)], ['callout', 'careful', null], ['checklist', 'ticked', null],
+      ['file', null, id(98)], ['callout', 'careful', null], ['checklist', 'ticked', null],
       ['divider', null, null],
     ])
     expect(baseline.blocks[9]?.checked).toBe(true)
@@ -78,6 +80,17 @@ describe('Task composer', () => {
     editor.insertBlocks([{ type: 'file' }], editor.document[0]!, 'after')
     const drawn = dehydrateTask(editor.document, 600)
     expect(drawn.blocks.map((b) => b.block_kind)).toEqual(['paragraph'])
+  })
+
+  test('an uploaded Task File keeps its filename for display but writes only the file relation', () => {
+    const page = { ...stored, blocks: [block(1, 'paragraph', 'kept')], items: [{ kind: 'block' as const, id: id(1) }] } as PageView
+    const editor = editorOf(page)
+    const fileId = id(97)
+    const inserted = editor.insertBlocks([{ id: id(20), type: 'file', props: { url: `/api/v1/files/${fileId}`, name: 'spec.pdf' } }], editor.document[0]!, 'after')[0]
+    expect(inserted?.props).toMatchObject({ name: 'spec.pdf' })
+    const record = dehydrateTask(editor.document, 600).blocks.find((candidate) => candidate.id === id(20))
+    expect(record).toMatchObject({ block_kind: 'file', text: null, rich_content: null, file_id: fileId })
+    expect(documentOperation.safeParse({ op: 'put_block', ...record }).success).toBe(true)
   })
 
   test('a toggle heading keeps its fold and its children across a save and a reload', () => {

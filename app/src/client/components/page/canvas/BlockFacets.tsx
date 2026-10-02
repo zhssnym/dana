@@ -106,6 +106,64 @@ function visitBlocks(
   }
 }
 
+const VISIBLE_FACETS = 2
+
+function facetChip(facet: BlockFacetRef): HTMLAnchorElement {
+  const link = document.createElement('a')
+  link.href = `/app/facets/${facet.id}`
+  link.textContent = facet.name
+  link.title = `Open ${facet.name}`
+  link.className = 'inline-flex h-5 max-w-36 shrink-0 items-center truncate rounded-sm border border-primary/30 bg-primary/10 px-1.5 text-[11px] font-medium leading-none text-foreground no-underline hover:bg-primary/15'
+  link.addEventListener('mousedown', (event) => event.stopPropagation())
+  return link
+}
+
+/**
+ * Sync exact-block facet metadata into BlockNote's DOM without putting it in
+ * the block's measured content box. The rail is a sibling of `.bn-block`, so a
+ * file/image keeps its native geometry and nested children still follow after
+ * the rail. Only two chips draw; the rest collapse into one stable `+N` mark.
+ */
+export function syncFacetDecorations(
+  host: HTMLElement,
+  wanted: ReadonlyMap<string, readonly BlockFacetRef[]>,
+): void {
+  host.querySelectorAll<HTMLElement>('[data-dana-block-facets]').forEach((rail) => {
+    const id = rail.dataset.danaBlockFacets ?? ''
+    if (!wanted.has(id)) rail.remove()
+  })
+  for (const [blockId, facets] of wanted) {
+    const block = [...host.querySelectorAll<HTMLElement>('.bn-block[data-id]')]
+      .find((element) => element.dataset.id === blockId)
+    const outer = block?.parentElement
+    if (block === undefined || outer === undefined || outer === null || !outer.classList.contains('bn-block-outer')) continue
+
+    let rail = outer.querySelector<HTMLElement>(`:scope > [data-dana-block-facets="${blockId}"]`)
+    const signature = facets.map((facet) => `${facet.id}:${facet.name}`).join('|')
+    if (rail?.dataset.signature === signature) continue
+    if (rail === null) {
+      rail = document.createElement('div')
+      rail.dataset.danaBlockFacets = blockId
+      rail.className = 'dana-block-facet-rail mt-0.5 flex min-w-0 items-center gap-1 overflow-visible'
+      rail.setAttribute('contenteditable', 'false')
+      rail.setAttribute('role', 'group')
+      rail.setAttribute('aria-label', 'Connected facets')
+      block.insertAdjacentElement('afterend', rail)
+    }
+    rail.dataset.signature = signature
+    const visible: HTMLElement[] = facets.slice(0, VISIBLE_FACETS).map(facetChip)
+    const hidden = facets.length - visible.length
+    if (hidden > 0) {
+      const more = document.createElement('span')
+      more.textContent = `+${hidden}`
+      more.title = `${hidden} more connected ${hidden === 1 ? 'facet' : 'facets'}`
+      more.className = 'inline-flex h-5 shrink-0 items-center px-1 text-[11px] font-medium leading-none text-muted-foreground'
+      visible.push(more)
+    }
+    rail.replaceChildren(...visible)
+  }
+}
+
 /**
  * BlockNote owns the block DOM, so relationship chips stay outside its
  * document schema. They move with the exact block but never become authored
@@ -125,36 +183,7 @@ function useFacetDecorations(editor: AnyEditor, model: BlockFacetMenuModel | und
           if (facets.length > 0) wanted.set(blockId, facets)
         })
       }
-      host.querySelectorAll<HTMLElement>('[data-dana-block-facets]').forEach((strip) => {
-        const id = strip.dataset.danaBlockFacets ?? ''
-        if (!wanted.has(id)) strip.remove()
-      })
-      for (const [blockId, facets] of wanted) {
-        const outer = [...host.querySelectorAll<HTMLElement>('.bn-block-outer[data-id], .bn-block[data-id]')]
-          .find((element) => element.dataset.id === blockId)
-        const content = outer?.querySelector<HTMLElement>(':scope > .bn-block > .bn-block-content, :scope > .bn-block-content')
-          ?? outer?.querySelector<HTMLElement>('.bn-block-content')
-        if (content === undefined || content === null) continue
-        let strip = content.querySelector<HTMLElement>(`:scope > [data-dana-block-facets="${blockId}"]`)
-        const signature = facets.map((facet) => `${facet.id}:${facet.name}`).join('|')
-        if (strip?.dataset.signature === signature) continue
-        if (strip === null) {
-          strip = document.createElement('div')
-          strip.dataset.danaBlockFacets = blockId
-          strip.className = 'dana-block-facet-strip mt-1 flex w-full flex-wrap items-center gap-1'
-          content.append(strip)
-        }
-        strip.dataset.signature = signature
-        strip.replaceChildren(...facets.map((facet) => {
-          const link = document.createElement('a')
-          link.href = `/app/facets/${facet.id}`
-          link.textContent = facet.name
-          link.title = `Open ${facet.name}`
-          link.className = 'inline-flex h-5 items-center rounded-sm border border-primary/30 bg-primary/10 px-1.5 text-[11px] font-medium leading-none text-foreground no-underline hover:bg-primary/15'
-          link.addEventListener('mousedown', (event) => event.stopPropagation())
-          return link
-        }))
-      }
+      syncFacetDecorations(host, wanted)
     }
     const schedule = (): void => {
       if (frame !== 0) return
@@ -166,7 +195,7 @@ function useFacetDecorations(editor: AnyEditor, model: BlockFacetMenuModel | und
     return () => {
       observer.disconnect()
       if (frame !== 0) window.cancelAnimationFrame(frame)
-      host.querySelectorAll('[data-dana-block-facets]').forEach((strip) => strip.remove())
+      host.querySelectorAll('[data-dana-block-facets]').forEach((rail) => rail.remove())
     }
   }, [editor, model])
 }
