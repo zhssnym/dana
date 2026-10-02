@@ -98,6 +98,7 @@ const discussion = id(0x67, 4)
 const notes = id(0x67, 5)
 const block = id(0x67, 6)
 const emptyDesk = id(0x67, 7)
+const userTwo = id(0x67, 8)
 
 let db: Scratch
 let scratch: string
@@ -112,16 +113,17 @@ beforeAll(async () => {
   db = await openScratch()
   await db.migrate(through0066)
 
-  await db.exec(sql`INSERT INTO users (id, display_name) VALUES (${user}::uuid, 'Desk owner')`)
+  await db.exec(sql`INSERT INTO users (id, display_name) VALUES
+    (${user}::uuid, 'Desk owner'), (${userTwo}::uuid, 'Second Desk owner')`)
   await db.exec(sql`INSERT INTO folders (id, owner_id, name, is_default, project_id, kind, tab_position) VALUES
     (${desk}::uuid, ${user}::uuid, 'Desk', true, ${desk}::uuid, 'work', 'a1'),
     (${purpose}::uuid, ${user}::uuid, 'Purpose', false, ${desk}::uuid, 'doc', 'a0'),
     (${discussion}::uuid, ${user}::uuid, 'Discussion', false, ${desk}::uuid, 'discussion', 'a2'),
     (${notes}::uuid, ${user}::uuid, 'Notes', false, ${desk}::uuid, 'doc', 'a3'),
-    (${emptyDesk}::uuid, ${user}::uuid, 'Desk', true, ${emptyDesk}::uuid, 'work', 'a0')`)
+    (${emptyDesk}::uuid, ${userTwo}::uuid, 'Desk', true, ${emptyDesk}::uuid, 'work', 'a0')`)
   await db.exec(sql`INSERT INTO folder_members (folder_id, user_id, access) VALUES
     (${desk}::uuid, ${user}::uuid, 'full_control'),
-    (${emptyDesk}::uuid, ${user}::uuid, 'full_control')`)
+    (${emptyDesk}::uuid, ${userTwo}::uuid, 'full_control')`)
   await db.exec(sql`INSERT INTO folder_facets (id, folder_id, kind, position, created_by) VALUES
     (${purpose}::uuid, ${desk}::uuid, 'purpose', 'a1', ${user}::uuid)`)
   await db.exec(sql`INSERT INTO page_blocks (id, folder_id, kind, position, page_position, text)
