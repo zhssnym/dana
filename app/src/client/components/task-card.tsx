@@ -6,9 +6,8 @@ Five fixed properties, always shown, in this order: Status, Assignee, Date
 (its start, reminder and repeat live inside the Date picker), Labels and Discussion,
 then "Blocked by" / "Blocks" lines once a relation exists (the editor's
 `/Blocked by` makes one). Then the task's own document, whose checklist items
-are its subtasks and which holds only what the person wrote, and the task's
-quiet history, where every act on the task is recorded. Every edit commits as it is made, so there is no
-Save.
+are its subtasks and which holds only what the person wrote. Every edit commits
+as it is made, so there is no Save.
 
 Files go in the task's document, which takes file and image blocks.
 */
@@ -29,7 +28,6 @@ import {
   RepeatPanel,
 } from "./task-pickers.js"
 import { SchedulePanel } from "./task-schedule-picker.js"
-import { TaskHistory } from "./thread/TaskHistory.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
 import { useAllPages, useMe, useTask } from "../api/queries.js"
 import { useUpdateTask } from "../api/mutations.js"
@@ -543,8 +541,6 @@ export function TaskCard({
           />
         </Suspense>
       </div>
-
-      <TaskHistory key={task.id} taskId={task.id} folderId={folderId} />
     </div>
   )
 }
