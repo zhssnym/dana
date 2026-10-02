@@ -119,7 +119,7 @@ export function TaskLabels({ taskId, folderId, worn, canManageFolder, canApplyFo
         {labels.isError ? <p role="alert" className="px-2 py-1 text-xs">Could not load labels.</p> : null}
         {mode === 'pick' ? <>
           <div role="group" aria-label="Labels" className="py-1">
-            {choices.map((label) => <button key={label.id} type="button" disabled={busy}
+            {choices.map((label) => <button key={label.id} type="button" disabled={busy || !mayApply(label.scope)}
               aria-pressed={selected.has(label.id)}
               aria-label={`${selected.has(label.id) ? 'Remove' : 'Assign'} label ${label.name}`}
               onClick={() => assign.mutate({ taskId, labelId: label.id, on: !selected.has(label.id) })}
