@@ -1,0 +1,549 @@
+
+> dana@3.0.0 gate
+> node scripts/gate.mjs
+
+(node:2782) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+=== gate: lint ===
+
+> dana@3.0.0 lint
+> eslint .
+
+
+=== gate: typecheck ===
+
+> dana@3.0.0 typecheck
+> tsc -p tsconfig.server.json && tsc -p tsconfig.client.json && tsc -p tsconfig.node.json
+
+
+=== gate: test (PGlite 0.5.4 fallback) ===
+
+> dana@3.0.0 test
+> node scripts/run-suite.mjs
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/dana/dana/app[39m
+
+{"level":30,"time":1790916298925,"pid":2900,"hostname":"runnervm8df0l","event":"sign_in","user_id":"e100d159-a933-4576-84eb-6a3cd2c335e2","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916298939,"pid":2900,"hostname":"runnervm8df0l","event":"sign_in","user_id":"e44c9391-fd1d-4bf9-b36a-22a719722497","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916298950,"pid":2900,"hostname":"runnervm8df0l","event":"sign_in","user_id":"cd1c339f-0aeb-426f-82b9-348741bd47db","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916298967,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916299109,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_view","msg":"operation"}
+{"level":30,"time":1790916299119,"pid":2900,"hostname":"runnervm8df0l","event":"invite_created","invite_id":"665f3cab-3c4a-4438-8686-26eec5a4108f","actor_id":"e100d159-a933-4576-84eb-6a3cd2c335e2","status":"pending","msg":"invite lifecycle"}
+{"level":30,"time":1790916299156,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"put_folder_page","msg":"operation"}
+{"level":30,"time":1790916299170,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"put_shelf_page","msg":"operation"}
+{"level":30,"time":1790916299266,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916299275,"pid":2900,"hostname":"runnervm8df0l","event":"folder_deleted","actor_id":"e100d159-a933-4576-84eb-6a3cd2c335e2","folder_id":"2a09fd1e-6311-4d01-84ca-9ca07d51b45f","tasks_open":0,"tasks_completed":0,"tasks_abandoned":0,"msg":"deletion"}
+{"level":30,"time":1790916299280,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916299338,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_view","msg":"operation"}
+{"level":30,"time":1790916299408,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916299417,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_folder_access_history","msg":"operation"}
+{"level":30,"time":1790916299423,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_member_responsibility","msg":"operation"}
+{"level":30,"time":1790916299454,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"put_folder_page","msg":"operation"}
+{"level":30,"time":1790916299524,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"put_shelf_page","msg":"operation"}
+{"level":30,"time":1790916299530,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_view","msg":"operation"}
+{"level":30,"time":1790916299532,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"patch_view","msg":"operation"}
+{"level":30,"time":1790916299533,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"delete_view","msg":"operation"}
+{"level":30,"time":1790916299544,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"delete_file","msg":"operation"}
+{"level":30,"time":1790916299598,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_folder_facets","msg":"operation"}
+{"level":30,"time":1790916299600,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_folder_facet_page","msg":"operation"}
+{"level":30,"time":1790916299603,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_facet_location","msg":"operation"}
+{"level":30,"time":1790916299622,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_discussion_outcomes","msg":"operation"}
+{"level":30,"time":1790916299661,"pid":2900,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"delete_file","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-397-authorization-sweep.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 2921[2mms[22m[39m
+     [33m[2m✓[22m[39m every row reaches the route it names, rather than the /api catch-all [33m 412[2mms[22m[39m
+ [32m✓[39m tests/criteria/ac-1519-projects-and-tabs-migration.test.ts [2m([22m[2m18 tests[22m[2m)[22m[33m 2003[2mms[22m[39m
+ [32m✓[39m tests/criteria/ac-1527-members-on-projects-migration.test.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 2001[2mms[22m[39m
+{"level":30,"time":1790916307660,"pid":2941,"hostname":"runnervm8df0l","event":"sign_in","user_id":"e56f27db-b39e-43d5-864c-a24696f24cbe","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916307673,"pid":2941,"hostname":"runnervm8df0l","event":"sign_in","user_id":"e8d2a3e8-ad31-46dd-bc69-33b3baf11ef7","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916307804,"pid":2941,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"put_folder_page","msg":"operation"}
+{"level":30,"time":1790916307915,"pid":2941,"hostname":"runnervm8df0l","event":"data_exported","actor_id":"e56f27db-b39e-43d5-864c-a24696f24cbe","bytes":8805,"msg":"data export"}
+ [31m❯[39m tests/guards/guard-document-transaction.test.ts [2m([22m[2m8 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 3003[2mms[22m[39m
+   [32m✓[39m bounded rich hierarchy and real Task commit once, conflict atomically, preserve fields and refuse legacy loss[32m 205[2mms[22m[39m
+[31m   [31m×[31m duplicate, export and workflow import retain hierarchy and rich content with fresh identities[39m[32m 100[2mms[22m[39m
+   [32m✓[39m three Section levels round-trip, a fourth is refused before writes, and content follows its Section[32m 97[2mms[22m[39m
+   [32m✓[39m legacy two-level documents are unchanged by the third level[32m 43[2mms[22m[39m
+   [32m✓[39m a folder page nests any block under writing, keeps it through a kind change, and refuses bad nesting before writes[32m 186[2mms[22m[39m
+   [32m✓[39m a Task document and a Purpose document nest blocks and store a toggle heading[32m 86[2mms[22m[39m
+   [32m✓[39m a page block leaves only with trash_page, keeps its kind, and lives only on a folder page[32m 153[2mms[22m[39m
+   [32m✓[39m a folder page stores presentation headings beside its Sections: flat, toggleable, and never a Section parent[32m 38[2mms[22m[39m
+{"level":30,"time":1790916311448,"pid":2955,"hostname":"runnervm8df0l","event":"sign_in","user_id":"36f60bdb-4e90-4ff4-a59f-ae85ded2e73c","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916311461,"pid":2955,"hostname":"runnervm8df0l","event":"sign_in","user_id":"b864b9ce-bdaf-4235-b29d-234eece04e2c","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916311471,"pid":2955,"hostname":"runnervm8df0l","event":"sign_in","user_id":"b7ae7e63-ed2f-4a8b-aeba-376a273b1de1","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916311483,"pid":2955,"hostname":"runnervm8df0l","event":"sign_in","user_id":"65c53445-c11c-47e9-89cb-c6a537f54e80","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916311494,"pid":2955,"hostname":"runnervm8df0l","event":"sign_in","user_id":"36e434b9-eac8-4bec-ab1d-a07270b0c19b","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916311512,"pid":2955,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916311521,"pid":2955,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916311529,"pid":2955,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-935-input-rounds.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 2452[2mms[22m[39m
+{"level":30,"time":1790916314823,"pid":2967,"hostname":"runnervm8df0l","event":"sign_in","user_id":"17cb1c68-fa4a-4a07-9331-8c64033bfda8","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916314836,"pid":2967,"hostname":"runnervm8df0l","event":"sign_in","user_id":"17fd6664-3e81-434f-8e8f-8966743192e2","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916314846,"pid":2967,"hostname":"runnervm8df0l","event":"sign_in","user_id":"203cd025-c045-414f-a859-1919f50454c3","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916314863,"pid":2967,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916315314,"pid":2967,"hostname":"runnervm8df0l","event":"data_exported","actor_id":"17cb1c68-fa4a-4a07-9331-8c64033bfda8","bytes":114380,"msg":"data export"}
+ [31m❯[39m tests/criteria/ac-880-task-document.test.ts [2m([22m[2m10 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 2679[2mms[22m[39m
+     [32m✓[39m AC-880: every non-empty note becomes paragraphs joined back to it, and a re-run adds nothing[32m 139[2mms[22m[39m
+     [32m✓[39m AC-881: notes written by the deployed client become the document on first read, once[32m 50[2mms[22m[39m
+     [32m✓[39m AC-882: a stranger is 404 and a Can-view member 403, and no stored row changes[32m 32[2mms[22m[39m
+     [32m✓[39m AC-883: a document write rewrites notes; a legacy notes write replaces a mirror and appends to a rich document[32m 100[2mms[22m[39m
+     [32m✓[39m AC-883: a legacy notes write never erases the tail of a plain document longer than the notes column[32m 41[2mms[22m[39m
+     [32m✓[39m AC-883: a legacy notes write replaces a short plain document whose text differs from notes[32m 30[2mms[22m[39m
+     [32m✓[39m AC-883: a Task document write leaves the deployed client's legacy Folder page writer open[32m 53[2mms[22m[39m
+     [32m✓[39m AC-883: a Task document refuses Task rows, Sections and a block nested under a divider with 422[32m 27[2mms[22m[39m
+[31m     [31m×[31m AC-884: duplicate and export carry the Task document[39m[32m 72[2mms[22m[39m
+     [32m✓[39m AC-885: trash keeps the document and purging the Task cascades it[32m 15[2mms[22m[39m
+ [32m✓[39m tests/criteria/ac-1510-task-threads-move-to-discussions.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 1873[2mms[22m[39m
+{"level":30,"time":1790916320655,"pid":2991,"hostname":"runnervm8df0l","event":"sign_in","user_id":"1d195787-74d0-478e-b948-e920331117cd","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916320669,"pid":2991,"hostname":"runnervm8df0l","event":"sign_in","user_id":"2c3fe7c7-91b0-49b4-bca6-72e641b2e7d2","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916320680,"pid":2991,"hostname":"runnervm8df0l","event":"sign_in","user_id":"94165126-d4fe-47bb-b56a-bb10e4b88ee0","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916320699,"pid":2991,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916320735,"pid":2991,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916320783,"pid":2991,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916320847,"pid":2991,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916320952,"pid":2991,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-920-discussion-comments.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 3124[2mms[22m[39m
+     [33m[2m✓[22m[39m every sample Folder-level comment is in one; removal still works [33m 606[2mms[22m[39m
+{"level":30,"time":1790916324552,"pid":3005,"hostname":"runnervm8df0l","event":"sign_in","user_id":"2b4872cc-f829-463a-aa6d-e8423b2c53ed","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916324563,"pid":3005,"hostname":"runnervm8df0l","event":"sign_in","user_id":"d3a61707-c9ee-496c-93af-1abe492dcd8d","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916324573,"pid":3005,"hostname":"runnervm8df0l","event":"sign_in","user_id":"aa6b9f74-a1f1-416c-a996-c85b3f169fb9","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916324585,"pid":3005,"hostname":"runnervm8df0l","event":"sign_in","user_id":"6407d636-d31f-4d04-9a47-5b37c087b71b","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916324595,"pid":3005,"hostname":"runnervm8df0l","event":"sign_in","user_id":"cf895e23-00fa-4772-a370-e866672967aa","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916324613,"pid":3005,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916324623,"pid":3005,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916324630,"pid":3005,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916324741,"pid":3005,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916324748,"pid":3005,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916324823,"pid":3005,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916324940,"pid":3005,"hostname":"runnervm8df0l","event":"folder_deleted","actor_id":"2b4872cc-f829-463a-aa6d-e8423b2c53ed","folder_id":"d2e3b1a1-aba9-46e7-bc78-e1cd49b46e69","tasks_open":0,"tasks_completed":0,"tasks_abandoned":0,"msg":"deletion"}
+ [32m✓[39m tests/criteria/ac-910-discussion-acts-follow-access.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2535[2mms[22m[39m
+ [32m✓[39m tests/criteria/ac-1516-steps-become-checklists.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 2859[2mms[22m[39m
+     [33m[2m✓[22m[39m migration_util.key_after is keyBetween(k, null) on the leg database [33m 1077[2mms[22m[39m
+ [32m✓[39m tests/criteria/ac-852-consultation-migration-backfill.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 1825[2mms[22m[39m
+ [32m✓[39m tests/guards/guard-account-deletion-sweep.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 1812[2mms[22m[39m
+{"level":30,"time":1790916335785,"pid":3050,"hostname":"runnervm8df0l","event":"sign_in","user_id":"274f8d0f-94d8-46d7-b4c4-b6277a853f60","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916335799,"pid":3050,"hostname":"runnervm8df0l","event":"sign_in","user_id":"da167cbd-322c-4dba-ba07-9946052c0544","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916335809,"pid":3050,"hostname":"runnervm8df0l","event":"sign_in","user_id":"d65445b5-5079-4ac2-95d9-8814fb04d810","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916335821,"pid":3050,"hostname":"runnervm8df0l","event":"sign_in","user_id":"273793a3-3a38-470b-9bc2-e0c3be5a7d8f","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916335839,"pid":3050,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916335850,"pid":3050,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916335898,"pid":3050,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916335905,"pid":3050,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916336017,"pid":3050,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916336022,"pid":3050,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916336076,"pid":3050,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916336082,"pid":3050,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916336087,"pid":3050,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-205-comment-permissions.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2466[2mms[22m[39m
+{"level":30,"time":1790916339105,"pid":3067,"hostname":"runnervm8df0l","event":"sign_in","user_id":"d1e6540c-d1e8-448c-b2ed-bc173c09fc36","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916339116,"pid":3067,"hostname":"runnervm8df0l","event":"sign_in","user_id":"4aebf0cf-5943-4aa2-aacb-842dacf22051","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916339138,"pid":3067,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916339212,"pid":3067,"hostname":"runnervm8df0l","event":"folder_deleted","actor_id":"d1e6540c-d1e8-448c-b2ed-bc173c09fc36","folder_id":"015fca95-5369-4a68-8fb3-035adbf4a669","tasks_open":2,"tasks_completed":1,"tasks_abandoned":1,"msg":"deletion"}
+{"level":30,"time":1790916339254,"pid":3067,"hostname":"runnervm8df0l","event":"reminder_pass_completed","reclaimed_pictures":0,"purged_trash":1,"purged_events":0,"pruned_sessions":0,"duration_ms":23,"msg":"operation"}
+ [32m✓[39m tests/criteria/ac-014-delete-cascade.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 2289[2mms[22m[39m
+{"level":30,"time":1790916342268,"pid":3080,"hostname":"runnervm8df0l","event":"sign_in","user_id":"3eb7dfa7-170d-486c-9481-65f903c69c90","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916342281,"pid":3080,"hostname":"runnervm8df0l","event":"sign_in","user_id":"72e093da-0324-470e-bb3d-9a72583b293b","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-825-workflow-round-trip-is-byte-equal.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2634[2mms[22m[39m
+     [33m[2m✓[22m[39m a page holding every kind that travels round trips exactly [33m 490[2mms[22m[39m
+{"level":30,"time":1790916345617,"pid":3095,"hostname":"runnervm8df0l","event":"sign_in","user_id":"f3b9b84a-14cd-43e7-ab70-2f37db44c286","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916345651,"pid":3095,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916345736,"pid":3095,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"delete_file","msg":"operation"}
+{"level":30,"time":1790916345746,"pid":3095,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"put_folder_page","msg":"operation"}
+{"level":30,"time":1790916345755,"pid":3095,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"put_shelf_page","msg":"operation"}
+{"level":30,"time":1790916345780,"pid":3095,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_view","msg":"operation"}
+{"level":30,"time":1790916345782,"pid":3095,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"patch_view","msg":"operation"}
+{"level":30,"time":1790916345784,"pid":3095,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"delete_view","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-236-structural-guard-sweep.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2301[2mms[22m[39m
+ [32m✓[39m tests/guards/guard-reclaim-reference-arms.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1806[2mms[22m[39m
+ [32m✓[39m src/server/time/today.test.ts [2m([22m[2m16 tests[22m[2m)[22m[33m 939[2mms[22m[39m
+     [33m[2m✓[22m[39m consecutive days tile the timeline and none is an absurd length [33m 539[2mms[22m[39m
+ [32m✓[39m src/client/components/page/canvas/adapters.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+{"level":30,"time":1790916353257,"pid":3133,"hostname":"runnervm8df0l","event":"sign_in","user_id":"2004de8c-ad46-4e15-b2cc-66fc7522ccfc","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916353271,"pid":3133,"hostname":"runnervm8df0l","event":"sign_in","user_id":"f8da1074-f796-4cc7-8728-f3394a01beba","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916353282,"pid":3133,"hostname":"runnervm8df0l","event":"sign_in","user_id":"47f64f11-4b22-4e46-b591-9a24089069f6","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916353291,"pid":3133,"hostname":"runnervm8df0l","event":"sign_in","user_id":"de7f1152-132f-45cc-9cb0-4e34bf693e5c","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916353315,"pid":3133,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916353326,"pid":3133,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-1511-discuss-a-task.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2657[2mms[22m[39m
+{"level":30,"time":1790916356785,"pid":3147,"hostname":"runnervm8df0l","event":"sign_in","user_id":"49d105df-d55f-4f6f-a50a-4ba2dc33ac31","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916356799,"pid":3147,"hostname":"runnervm8df0l","event":"sign_in","user_id":"a22b217b-51d1-44df-bdf0-8c1dc75d46ae","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916356810,"pid":3147,"hostname":"runnervm8df0l","event":"sign_in","user_id":"39a40a11-ccf6-4071-9a30-39326a9dcf80","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916356828,"pid":3147,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916356953,"pid":3147,"hostname":"runnervm8df0l","event":"task_status_changed","task_id":"af73034a-6daa-4f3e-9b5d-af5b4c189a2d","actor_id":"49d105df-d55f-4f6f-a50a-4ba2dc33ac31","status":"completed","msg":"task status"}
+{"level":30,"time":1790916357072,"pid":3147,"hostname":"runnervm8df0l","event":"folder_deleted","actor_id":"49d105df-d55f-4f6f-a50a-4ba2dc33ac31","folder_id":"9db56ec8-9b47-4826-bf6b-9e99176dc8ec","tasks_open":0,"tasks_completed":0,"tasks_abandoned":0,"msg":"deletion"}
+{"level":30,"time":1790916357106,"pid":3147,"hostname":"runnervm8df0l","event":"invite_created","invite_id":"7bcc9433-38e6-4e4a-aa3c-1929b0eb2a3c","actor_id":"49d105df-d55f-4f6f-a50a-4ba2dc33ac31","status":"pending","msg":"invite lifecycle"}
+{"level":30,"time":1790916357112,"pid":3147,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916357121,"pid":3147,"hostname":"runnervm8df0l","event":"folder_deleted","actor_id":"49d105df-d55f-4f6f-a50a-4ba2dc33ac31","folder_id":"c42df706-a7f3-4f3b-a9c1-d21980cdb623","tasks_open":0,"tasks_completed":0,"tasks_abandoned":0,"msg":"deletion"}
+{"level":30,"time":1790916357161,"pid":3147,"hostname":"runnervm8df0l","event":"data_exported","actor_id":"a22b217b-51d1-44df-bdf0-8c1dc75d46ae","bytes":2413,"msg":"data export"}
+{"level":30,"time":1790916357199,"pid":3147,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_views","msg":"operation"}
+{"level":30,"time":1790916357253,"pid":3147,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_views_important","msg":"operation"}
+{"level":30,"time":1790916357256,"pid":3147,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_views_my_day","msg":"operation"}
+{"level":30,"time":1790916357264,"pid":3147,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_views_planned","msg":"operation"}
+{"level":30,"time":1790916357290,"pid":3147,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_views_tasks","msg":"operation"}
+{"level":30,"time":1790916357358,"pid":3147,"hostname":"runnervm8df0l","event":"data_exported","actor_id":"39a40a11-ccf6-4071-9a30-39326a9dcf80","bytes":1753,"msg":"data export"}
+{"level":30,"time":1790916357381,"pid":3147,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_views","msg":"operation"}
+{"level":30,"time":1790916357396,"pid":3147,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_views_important","msg":"operation"}
+{"level":30,"time":1790916357400,"pid":3147,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_views_my_day","msg":"operation"}
+{"level":30,"time":1790916357406,"pid":3147,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_views_planned","msg":"operation"}
+{"level":30,"time":1790916357413,"pid":3147,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_views_tasks","msg":"operation"}
+ [32m✓[39m tests/guards/guard-list-visibility.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2852[2mms[22m[39m
+     [33m[2m✓[22m[39m the stranger sees none of the ids; the member sees every listable one [33m 693[2mms[22m[39m
+{"level":30,"time":1790916360485,"pid":3162,"hostname":"runnervm8df0l","event":"sign_in","user_id":"7ccadadd-d829-4ed2-8c36-0f3c5c15f409","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916360498,"pid":3162,"hostname":"runnervm8df0l","event":"sign_in","user_id":"3c4764d7-9924-44d5-8422-da6b5f136587","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-057-search-scope.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 2437[2mms[22m[39m
+ [32m✓[39m src/client/components/page/canvas/thread/thread-model.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+{"level":30,"time":1790916363921,"pid":3181,"hostname":"runnervm8df0l","event":"sign_in","user_id":"3daf8e53-b6ae-49f7-a12f-4a665bd6b000","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916363935,"pid":3181,"hostname":"runnervm8df0l","event":"sign_in","user_id":"694fe6ef-fa03-4ef5-90f4-f5792b7cfedc","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916363952,"pid":3181,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916364123,"pid":3181,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":40,"time":1790916364149,"pid":3181,"hostname":"runnervm8df0l","event":"unknown_request_fields","route":"POST /api/v1/tasks/:id/steps","fields":["position"],"count":1,"msg":"unknown request fields"}
+{"level":30,"time":1790916364236,"pid":3181,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-1518-assigned-work-ticks-the-checklist.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2823[2mms[22m[39m
+     [33m[2m✓[22m[39m the tick is stored; only growth past the cap is refused [33m 360[2mms[22m[39m
+{"level":30,"time":1790916367640,"pid":3193,"hostname":"runnervm8df0l","event":"sign_in","user_id":"cf8b58e8-9d96-4e96-b98d-8f9d2f663ed2","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916367655,"pid":3193,"hostname":"runnervm8df0l","event":"sign_in","user_id":"7a8dfa50-be8c-4fa9-83c7-f10b5bd64ee3","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916367668,"pid":3193,"hostname":"runnervm8df0l","event":"sign_in","user_id":"f92aa356-e227-4088-a293-50755cbbb0dd","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916367679,"pid":3193,"hostname":"runnervm8df0l","event":"sign_in","user_id":"80d57d1f-aa2d-4095-873d-b32e38019ecb","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916367692,"pid":3193,"hostname":"runnervm8df0l","event":"sign_in","user_id":"3be71e43-9c53-4297-9e21-060a0054e5db","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916367703,"pid":3193,"hostname":"runnervm8df0l","event":"sign_in","user_id":"f34cd355-fe24-4783-b299-18b52efe612c","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916367721,"pid":3193,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916367742,"pid":3193,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916367772,"pid":3193,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916367780,"pid":3193,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916367801,"pid":3193,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-024-roster-add-share-grant.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 2422[2mms[22m[39m
+{"level":30,"time":1790916370925,"pid":3206,"hostname":"runnervm8df0l","event":"sign_in","user_id":"bedca4ad-630f-4067-80a2-8c96f5d356f1","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916370939,"pid":3206,"hostname":"runnervm8df0l","event":"sign_in","user_id":"d060573d-747a-407a-a134-bf9456f103be","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916371183,"pid":3206,"hostname":"runnervm8df0l","event":"folder_deleted","actor_id":"bedca4ad-630f-4067-80a2-8c96f5d356f1","folder_id":"3d0b85da-cf92-43b3-95e3-04c702e583e9","tasks_open":0,"tasks_completed":0,"tasks_abandoned":0,"msg":"deletion"}
+{"level":30,"time":1790916371241,"pid":3206,"hostname":"runnervm8df0l","event":"data_exported","actor_id":"bedca4ad-630f-4067-80a2-8c96f5d356f1","bytes":5945,"msg":"data export"}
+ [32m✓[39m tests/criteria/ac-1019-page-block-round-trip.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2509[2mms[22m[39m
+   [33m[2m✓[22m[39m AC-1019 a page block and its sub-page are created, trashed, restored and moved together [33m 375[2mms[22m[39m
+{"level":30,"time":1790916374205,"pid":3219,"hostname":"runnervm8df0l","event":"sign_in","user_id":"c12aa67b-8d89-4a7b-928e-6ed2aa8cbfda","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916374219,"pid":3219,"hostname":"runnervm8df0l","event":"sign_in","user_id":"e390ebe3-2eaa-47ab-9410-5e502f2ee36a","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916374230,"pid":3219,"hostname":"runnervm8df0l","event":"sign_in","user_id":"e4585c95-365b-4f06-b65b-c3282c1c2842","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916374239,"pid":3219,"hostname":"runnervm8df0l","event":"sign_in","user_id":"7b573bcc-3bf6-4c5c-85a1-630bd61546ec","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916374253,"pid":3219,"hostname":"runnervm8df0l","event":"sign_in","user_id":"cc1359f7-6051-48d9-8008-9ecd490bc225","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916374657,"pid":3219,"hostname":"runnervm8df0l","event":"folder_deleted","actor_id":"c12aa67b-8d89-4a7b-928e-6ed2aa8cbfda","folder_id":"19c7552d-e937-4db2-bba7-d0141a6bfb5f","tasks_open":0,"tasks_completed":0,"tasks_abandoned":0,"msg":"deletion"}
+{"level":30,"time":1790916374687,"pid":3219,"hostname":"runnervm8df0l","event":"folder_deleted","actor_id":"c12aa67b-8d89-4a7b-928e-6ed2aa8cbfda","folder_id":"19c7552d-e937-4db2-bba7-d0141a6bfb5f","tasks_open":0,"tasks_completed":0,"tasks_abandoned":0,"msg":"deletion"}
+ [32m✓[39m tests/criteria/ac-1016-page-tree.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2648[2mms[22m[39m
+{"level":30,"time":1790916377671,"pid":3231,"hostname":"runnervm8df0l","event":"sign_in","user_id":"b54199ee-3d46-4a04-9ec8-efb911189bc1","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916377686,"pid":3231,"hostname":"runnervm8df0l","event":"sign_in","user_id":"049e1de0-4fb8-4605-9d0d-bdd81051a1cc","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916377696,"pid":3231,"hostname":"runnervm8df0l","event":"sign_in","user_id":"f5e35db8-8858-4cb6-a0ae-9d34eb5807fe","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916377714,"pid":3231,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916377728,"pid":3231,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916377809,"pid":3231,"hostname":"runnervm8df0l","event":"task_status_changed","task_id":"e64487d0-6145-4d7f-a3de-ddf18a46990e","actor_id":"b54199ee-3d46-4a04-9ec8-efb911189bc1","status":"completed","msg":"task status"}
+{"level":30,"time":1790916377838,"pid":3231,"hostname":"runnervm8df0l","event":"account_deleted","actor_id":"b54199ee-3d46-4a04-9ec8-efb911189bc1","invites":0,"folders_transferred":0,"folders_deleted":1,"memberships":1,"connections":1,"my_day_entries":0,"personal_rows":1,"sessions":1,"msg":"deletion"}
+ [32m✓[39m tests/criteria/ac-138-deletion-scrubs-and-survivors.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 2329[2mms[22m[39m
+{"level":30,"time":1790916380846,"pid":3243,"hostname":"runnervm8df0l","event":"sign_in","user_id":"c28eeb86-17cf-4c42-bf62-fd85393dd27a","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916380858,"pid":3243,"hostname":"runnervm8df0l","event":"sign_in","user_id":"1a51ec07-2aee-4e6f-beac-c03a4c3d12b1","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916380868,"pid":3243,"hostname":"runnervm8df0l","event":"sign_in","user_id":"a6ddae32-03cc-4d3b-9798-e957be21355c","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-900-backlinks-respect-source-access.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2386[2mms[22m[39m
+{"level":30,"time":1790916384138,"pid":3256,"hostname":"runnervm8df0l","event":"sign_in","user_id":"973f8765-62ea-41ef-b1d2-caebdd3c4195","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916384153,"pid":3256,"hostname":"runnervm8df0l","event":"sign_in","user_id":"6fbb3fbb-fb03-4d7b-8c45-5936f5b7cd71","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-870-workflow-keeps-internal-dependencies.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 2643[2mms[22m[39m
+     [33m[2m✓[22m[39m internal edges are written and recreated; the external one is not [33m 320[2mms[22m[39m
+{"level":30,"time":1790916387582,"pid":3269,"hostname":"runnervm8df0l","event":"sign_in","user_id":"edffc1db-0a32-4aa8-b023-259af3805362","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916387918,"pid":3269,"hostname":"runnervm8df0l","event":"task_status_changed","task_id":"e5987b69-d6f4-4850-92d5-1679a3088a26","actor_id":"edffc1db-0a32-4aa8-b023-259af3805362","status":"completed","msg":"task status"}
+{"level":30,"time":1790916387995,"pid":3269,"hostname":"runnervm8df0l","event":"data_exported","actor_id":"edffc1db-0a32-4aa8-b023-259af3805362","bytes":11160,"msg":"data export"}
+ [32m✓[39m tests/criteria/ac-423-task-schedule.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 2621[2mms[22m[39m
+{"level":30,"time":1790916390989,"pid":3281,"hostname":"runnervm8df0l","event":"sign_in","user_id":"87b639bb-b9fe-4dbd-8f97-1b2ccca5bd29","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916391004,"pid":3281,"hostname":"runnervm8df0l","event":"sign_in","user_id":"b9f56607-2531-4e59-8ab0-5a5a30bf12c3","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916391015,"pid":3281,"hostname":"runnervm8df0l","event":"sign_in","user_id":"472e3069-4b97-4f2a-be4a-47c395702bd1","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-930-discussion-links-refuse-a-stranger.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2354[2mms[22m[39m
+{"level":30,"time":1790916394299,"pid":3293,"hostname":"runnervm8df0l","event":"sign_in","user_id":"5d873518-ca1a-4e5a-adbf-64288eedc20d","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916394314,"pid":3293,"hostname":"runnervm8df0l","event":"sign_in","user_id":"3891acca-8252-4287-882b-28b382ef0cdd","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916394325,"pid":3293,"hostname":"runnervm8df0l","event":"sign_in","user_id":"0b569435-53fb-491f-b0ca-30de5167ff3e","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916394345,"pid":3293,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916394536,"pid":3293,"hostname":"runnervm8df0l","event":"account_deleted","actor_id":"3891acca-8252-4287-882b-28b382ef0cdd","invites":0,"folders_transferred":0,"folders_deleted":1,"memberships":1,"connections":1,"my_day_entries":0,"personal_rows":5,"sessions":1,"msg":"deletion"}
+{"level":30,"time":1790916394545,"pid":3293,"hostname":"runnervm8df0l","event":"sign_in","user_id":"164b4b98-4835-4c20-8c6b-6efb9ebf996e","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916394553,"pid":3293,"hostname":"runnervm8df0l","event":"sign_in","user_id":"011ed8be-1b39-4c62-b0f5-900a37134ec4","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916394561,"pid":3293,"hostname":"runnervm8df0l","event":"sign_in","user_id":"88247987-a723-40d4-b2a3-62fce359684c","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916394567,"pid":3293,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-1024-mentions-notify-members-once.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2641[2mms[22m[39m
+{"level":30,"time":1790916397708,"pid":3306,"hostname":"runnervm8df0l","event":"sign_in","user_id":"20bcdf43-c238-4eef-9a38-087823c26533","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916397721,"pid":3306,"hostname":"runnervm8df0l","event":"sign_in","user_id":"0a83c874-cd9f-463a-b868-e74fe9970372","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916397732,"pid":3306,"hostname":"runnervm8df0l","event":"sign_in","user_id":"90622fb8-5413-4f3c-92a7-ee9b0024b3f2","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916397742,"pid":3306,"hostname":"runnervm8df0l","event":"sign_in","user_id":"df7303fa-6b3e-42c8-8c81-5b8355019f2b","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-1380-sample-removal-keeps-own-work.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 5219[2mms[22m[39m
+     [33m[2m✓[22m[39m a sample page holding an own task goes to Trash with it, and the undo duplicates nothing [33m 1341[2mms[22m[39m
+     [33m[2m✓[22m[39m a comment and an edited paragraph on sample pages go to Trash, not past it [33m 550[2mms[22m[39m
+     [33m[2m✓[22m[39m an untouched sample, every page opened, is destroyed whole with nothing sent to Trash [33m 591[2mms[22m[39m
+     [33m[2m✓[22m[39m a thread started on a sample Discussion tab sends its project to Trash [33m 523[2mms[22m[39m
+ [32m✓[39m src/server/time/recurrence.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+{"level":30,"time":1790916403788,"pid":3326,"hostname":"runnervm8df0l","event":"sign_in","user_id":"5353f99a-88ec-4df9-8637-5d11a19da768","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916403879,"pid":3326,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_discussion_outcomes","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-912-resolve-records-an-outcome.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2350[2mms[22m[39m
+{"level":30,"time":1790916407030,"pid":3339,"hostname":"runnervm8df0l","event":"sign_in","user_id":"017395cd-2ea4-4ff6-baa6-8e3de857a8ed","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916407045,"pid":3339,"hostname":"runnervm8df0l","event":"sign_in","user_id":"aa97ae13-29c1-4088-8641-2adca1cd51dd","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916407091,"pid":3339,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"put_shelf_page","msg":"operation"}
+{"level":30,"time":1790916407158,"pid":3339,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"put_shelf_page","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-890-shelf-document.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2386[2mms[22m[39m
+{"level":30,"time":1790916410246,"pid":3351,"hostname":"runnervm8df0l","event":"sign_in","user_id":"51783647-d815-4944-8584-48018c9987ee","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916410262,"pid":3351,"hostname":"runnervm8df0l","event":"sign_in","user_id":"87363a6f-079e-43da-813f-788ab45f3840","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-025-create-defaults.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 2333[2mms[22m[39m
+ [32m✓[39m src/shared/recurrence.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+{"level":30,"time":1790916413539,"pid":3370,"hostname":"runnervm8df0l","event":"sign_in","user_id":"fb8278b4-1b28-48ff-9b6d-d4ac28fdd82c","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916413632,"pid":3370,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"delete_file","msg":"operation"}
+{"level":30,"time":1790916413786,"pid":3370,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"delete_file","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-905-reclaimed-picture-reads-as-reclaimed.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2529[2mms[22m[39m
+ [32m✓[39m src/client/components/page/canvas/turn-into.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m tests/criteria/ac-1014-block-nesting-migration.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1847[2mms[22m[39m
+{"level":30,"time":1790916419350,"pid":3404,"hostname":"runnervm8df0l","event":"sign_in","user_id":"e5a874ff-c066-4e7b-9b9e-91f1e41166f5","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916419363,"pid":3404,"hostname":"runnervm8df0l","event":"sign_in","user_id":"0d0b1f87-3bf1-4882-87d6-a21ca3fb5560","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916419373,"pid":3404,"hostname":"runnervm8df0l","event":"sign_in","user_id":"ea58e8a0-277e-43a0-84b7-8472490f51e6","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916419393,"pid":3404,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916419407,"pid":3404,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916419479,"pid":3404,"hostname":"runnervm8df0l","event":"task_status_changed","task_id":"1f35db6e-a8ca-4ef2-af4c-13f7e2ce2230","actor_id":"ea58e8a0-277e-43a0-84b7-8472490f51e6","status":"completed","msg":"task status"}
+{"level":30,"time":1790916419520,"pid":3404,"hostname":"runnervm8df0l","event":"task_status_changed","task_id":"9ed8dca6-5eaa-4f01-8d1d-50e1a540d913","actor_id":"ea58e8a0-277e-43a0-84b7-8472490f51e6","status":"completed","msg":"task status"}
+{"level":30,"time":1790916419563,"pid":3404,"hostname":"runnervm8df0l","event":"task_status_changed","task_id":"e852de2e-85b5-4242-a512-e3abc048250d","actor_id":"ea58e8a0-277e-43a0-84b7-8472490f51e6","status":"completed","msg":"task status"}
+{"level":30,"time":1790916419608,"pid":3404,"hostname":"runnervm8df0l","event":"task_status_changed","task_id":"17ffcf35-3f71-4fc7-99b9-8d30b1f3faaa","actor_id":"ea58e8a0-277e-43a0-84b7-8472490f51e6","status":"completed","msg":"task status"}
+ [32m✓[39m tests/criteria/ac-036-complete-sets-actor.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 2512[2mms[22m[39m
+{"level":30,"time":1790916422727,"pid":3416,"hostname":"runnervm8df0l","event":"sign_in","user_id":"3306c6df-3a13-411c-a0d7-8912e33a234e","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916422744,"pid":3416,"hostname":"runnervm8df0l","event":"sign_in","user_id":"f26fe1e0-9398-487a-bb62-bb4c6efbfd9b","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916422754,"pid":3416,"hostname":"runnervm8df0l","event":"sign_in","user_id":"6ef9eb83-36d6-4185-91d5-eaa2eb516b43","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916422774,"pid":3416,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916422816,"pid":3416,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916422865,"pid":3416,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916422875,"pid":3416,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916422949,"pid":3416,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-1529-moves-keep-people.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2562[2mms[22m[39m
+ [32m✓[39m src/client/components/page/canvas/CanvasSurface.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 550[2mms[22m[39m
+     [33m[2m✓[22m[39m a folder reference explains both removals and waits for confirmation [33m 426[2mms[22m[39m
+ [32m✓[39m src/client/views/work-board-model.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+{"level":30,"time":1790916427679,"pid":3443,"hostname":"runnervm8df0l","event":"sign_in","user_id":"6a303fad-58f3-4235-85a9-94076537e59a","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916427695,"pid":3443,"hostname":"runnervm8df0l","event":"sign_in","user_id":"2f2b387a-203e-4e64-ac6c-48461eadfeba","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916427715,"pid":3443,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/guards/guard-rung-parity.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2481[2mms[22m[39m
+{"level":30,"time":1790916430922,"pid":3456,"hostname":"runnervm8df0l","event":"sign_in","user_id":"75e8c6a4-9a6d-41be-828a-ad5118012a0c","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916431001,"pid":3456,"hostname":"runnervm8df0l","event":"data_exported","actor_id":"75e8c6a4-9a6d-41be-828a-ad5118012a0c","bytes":1801,"msg":"data export"}
+ [31m❯[39m tests/criteria/focus-identity-353.test.ts [2m([22m[2m2 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 2244[2mms[22m[39m
+[31m     [31m×[31m Focus icon/color overrides round-trip, merge per field, reset to absence, validate, and export[39m[32m 141[2mms[22m[39m
+     [32m✓[39m Overdue uses the same durable cover and description place key as the other native pages[32m 28[2mms[22m[39m
+{"level":30,"time":1790916434013,"pid":3468,"hostname":"runnervm8df0l","event":"sign_in","user_id":"c10f2c34-5315-48e6-973e-39988c17f3c8","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916434028,"pid":3468,"hostname":"runnervm8df0l","event":"sign_in","user_id":"f44bd9a2-85b7-4089-a9dd-b49989cb202d","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916434045,"pid":3468,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-1015-tab-drag-lands-where-dropped.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2410[2mms[22m[39m
+ [32m✓[39m src/client/components/page/canvas/TaskComposer.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+{"level":30,"time":1790916438374,"pid":3488,"hostname":"runnervm8df0l","event":"sign_in","user_id":"94518a70-a827-44c4-b158-473ea7a5b570","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-860-finite-progress-excludes-recurring.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2378[2mms[22m[39m
+{"level":30,"time":1790916441376,"pid":3500,"hostname":"runnervm8df0l","event":"sign_in","user_id":"d762dfc4-c95f-4148-a6bb-7f0b25d0d360","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916441390,"pid":3500,"hostname":"runnervm8df0l","event":"sign_in","user_id":"616c7116-b61b-4f25-a348-0c0a1912272b","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916441399,"pid":3500,"hostname":"runnervm8df0l","event":"sign_in","user_id":"3c5982ac-9ad6-416c-ae29-7b7529d20109","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-1537-archive-work.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2289[2mms[22m[39m
+{"level":30,"time":1790916444509,"pid":3512,"hostname":"runnervm8df0l","event":"sign_in","user_id":"e2706b70-e26c-4c14-bbc1-c80168c70a3b","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916444523,"pid":3512,"hostname":"runnervm8df0l","event":"sign_in","user_id":"d326ebfe-509b-4b5b-8326-43df47e20b98","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916444548,"pid":3512,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916444630,"pid":3512,"hostname":"runnervm8df0l","event":"folder_deleted","actor_id":"e2706b70-e26c-4c14-bbc1-c80168c70a3b","folder_id":"595358c7-4e47-4684-96fa-ac5f80136b3e","tasks_open":0,"tasks_completed":0,"tasks_abandoned":0,"msg":"deletion"}
+{"level":30,"time":1790916444670,"pid":3512,"hostname":"runnervm8df0l","event":"folder_deleted","actor_id":"e2706b70-e26c-4c14-bbc1-c80168c70a3b","folder_id":"e64fe688-17f9-4fb4-b62d-5e8f90f3526f","tasks_open":0,"tasks_completed":0,"tasks_abandoned":0,"msg":"deletion"}
+ [32m✓[39m tests/criteria/ac-1521-new-project-picks-its-tabs.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2326[2mms[22m[39m
+{"level":30,"time":1790916447711,"pid":3524,"hostname":"runnervm8df0l","event":"sign_in","user_id":"432a444b-3cce-4626-8ed5-0d9a210d4981","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916447726,"pid":3524,"hostname":"runnervm8df0l","event":"sign_in","user_id":"bb4109b9-3b22-47fa-a0f8-d082e52e4497","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-865-row-dependency-counts-hide-unreadable-ends.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2335[2mms[22m[39m
+{"level":30,"time":1790916450898,"pid":3536,"hostname":"runnervm8df0l","event":"sign_in","user_id":"57470854-e758-4231-878e-ee2f20a87669","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-1008-diagram-block-round-trips-as-its-source.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2387[2mms[22m[39m
+{"level":30,"time":1790916454031,"pid":3548,"hostname":"runnervm8df0l","event":"sign_in","user_id":"e94feb66-c6c5-4375-abf3-df505548d719","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916454044,"pid":3548,"hostname":"runnervm8df0l","event":"sign_in","user_id":"ce146aa1-0ac5-42f6-b9ec-9f692e97d932","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-955-task-move-carries-document-files.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2366[2mms[22m[39m
+{"level":30,"time":1790916457255,"pid":3563,"hostname":"runnervm8df0l","event":"sign_in","user_id":"bde568a0-4835-4094-b9f2-337158d0e917","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916457268,"pid":3563,"hostname":"runnervm8df0l","event":"sign_in","user_id":"6c54c062-0e02-42c9-9551-2429f5ed8ec2","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916457277,"pid":3563,"hostname":"runnervm8df0l","event":"sign_in","user_id":"0d2f4504-ad9c-4fc9-b168-d77a81f21e10","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916457294,"pid":3563,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-875-results-document-refuses-a-stranger.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2345[2mms[22m[39m
+ [32m✓[39m src/server/time/calendar-date.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 110[2mms[22m[39m
+{"level":30,"time":1790916460569,"pid":3583,"hostname":"runnervm8df0l","event":"sign_in","user_id":"269aa216-d39c-4383-bc05-097185a4703c","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916460584,"pid":3583,"hostname":"runnervm8df0l","event":"sign_in","user_id":"bb9559af-6057-4038-a2e7-8eeb9cd9a47a","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916460594,"pid":3583,"hostname":"runnervm8df0l","event":"sign_in","user_id":"1207850e-1fe3-4bd5-b5de-e97fa5c11f8d","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916460602,"pid":3583,"hostname":"runnervm8df0l","event":"sign_in","user_id":"265e511c-39c1-4def-a943-032f385c547d","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916460617,"pid":3583,"hostname":"runnervm8df0l","event":"sign_in","user_id":"b0be004b-9be0-4b8c-b4b9-1bdff2882157","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916460625,"pid":3583,"hostname":"runnervm8df0l","event":"sign_in","user_id":"3d339c40-452e-4c8c-8959-621f33e95d40","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916460677,"pid":3583,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916460687,"pid":3583,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916460730,"pid":3583,"hostname":"runnervm8df0l","event":"invite_created","invite_id":"bd92dcf0-05b2-4cca-a793-91d4c1aafc90","actor_id":"269aa216-d39c-4383-bc05-097185a4703c","status":"pending","msg":"invite lifecycle"}
+{"level":30,"time":1790916460764,"pid":3583,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916460770,"pid":3583,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-1523-tabs-have-the-projects-people.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2387[2mms[22m[39m
+ [32m✓[39m src/client/shell/page-tree.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/server/time/predicates.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+{"level":30,"time":1790916464057,"pid":3609,"hostname":"runnervm8df0l","event":"sign_in","user_id":"32f973f6-1742-4364-b706-a37079e0b522","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-1012-toggle-and-divider-blocks-round-trip.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2329[2mms[22m[39m
+{"level":30,"time":1790916467099,"pid":3621,"hostname":"runnervm8df0l","event":"sign_in","user_id":"bfb2d2ac-ed5e-4022-9c3b-5a59581e988a","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916467112,"pid":3621,"hostname":"runnervm8df0l","event":"sign_in","user_id":"7a525c87-79ea-45dc-91bd-4dfe44df7d87","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916467122,"pid":3621,"hostname":"runnervm8df0l","event":"sign_in","user_id":"7018d2f8-6fe4-4984-a719-633a56ae5b82","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-1050-import-into-a-page.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2235[2mms[22m[39m
+{"level":30,"time":1790916470213,"pid":3633,"hostname":"runnervm8df0l","event":"sign_in","user_id":"b8dd0ef5-85ef-4276-9c84-a70b2e17059f","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916470230,"pid":3633,"hostname":"runnervm8df0l","event":"sign_in","user_id":"46817485-eb01-434c-b6ac-abf3fd70d61e","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916470239,"pid":3633,"hostname":"runnervm8df0l","event":"sign_in","user_id":"c386d8ac-f989-4ecc-ac30-052f23ece0ad","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-950-folder-dependencies-stay-inside-the-folder.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2255[2mms[22m[39m
+{"level":30,"time":1790916473271,"pid":3645,"hostname":"runnervm8df0l","event":"sign_in","user_id":"b92a664c-445e-4a64-827f-cf809b95da58","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916473282,"pid":3645,"hostname":"runnervm8df0l","event":"sign_in","user_id":"812d5122-c4d5-4da2-8412-777142288185","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916473292,"pid":3645,"hostname":"runnervm8df0l","event":"sign_in","user_id":"81515567-4c77-4054-a1e6-6c075a0e2b50","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-1250-a-result-is-a-results-block-and-a-gated-link.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2301[2mms[22m[39m
+{"level":30,"time":1790916476338,"pid":3659,"hostname":"runnervm8df0l","event":"sign_in","user_id":"12a69753-4685-4a64-8e2f-656c8ee75811","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916476351,"pid":3659,"hostname":"runnervm8df0l","event":"sign_in","user_id":"d7edd9e6-167d-4bb3-90b4-0c17b4016fa2","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916476368,"pid":3659,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-1171-discussion-read-is-per-person.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2182[2mms[22m[39m
+{"level":30,"time":1790916479365,"pid":3671,"hostname":"runnervm8df0l","event":"sign_in","user_id":"0f7a7048-3494-4355-a9b7-29ea1ef185ea","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916479378,"pid":3671,"hostname":"runnervm8df0l","event":"sign_in","user_id":"f2175ef8-2008-400c-a196-f3e5de2cf382","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916479407,"pid":3671,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"put_shelf_page","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-366-shelf-reads-refuse-another-person.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2156[2mms[22m[39m
+{"level":30,"time":1790916482360,"pid":3683,"hostname":"runnervm8df0l","event":"sign_in","user_id":"e75bdc21-cbac-4f41-a57e-e59bce61cf10","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916482373,"pid":3683,"hostname":"runnervm8df0l","event":"sign_in","user_id":"70988bba-dd6b-4602-a753-2aad5b7f2839","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-1532-calendar-folder-scope.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2353[2mms[22m[39m
+ [32m✓[39m src/client/lib/dates.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+{"level":30,"time":1790916485858,"pid":3702,"hostname":"runnervm8df0l","event":"sign_in","user_id":"8f0e584a-9439-4c43-b30b-e08d6c58f018","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916485934,"pid":3702,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_folder_facets","msg":"operation"}
+{"level":30,"time":1790916485940,"pid":3702,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_folder_facet_page","msg":"operation"}
+{"level":30,"time":1790916485958,"pid":3702,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_folder_facet_page","msg":"operation"}
+{"level":30,"time":1790916485962,"pid":3702,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_facet_location","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-1524-old-clients-read-tabs.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2259[2mms[22m[39m
+{"level":30,"time":1790916488869,"pid":3714,"hostname":"runnervm8df0l","event":"sign_in","user_id":"ddd1c77e-53f6-4baa-b113-60cfb1f75c07","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916489039,"pid":3714,"hostname":"runnervm8df0l","event":"task_status_changed","task_id":"b69727f8-d3f2-4a90-8d6e-adbcbe41d2a6","actor_id":"ddd1c77e-53f6-4baa-b113-60cfb1f75c07","status":"completed","msg":"task status"}
+ [32m✓[39m tests/criteria/ac-1517-copies-come-unticked.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2248[2mms[22m[39m
+{"level":30,"time":1790916491963,"pid":3727,"hostname":"runnervm8df0l","event":"sign_in","user_id":"bc3d1b55-6cc3-43ed-9a8d-d46255609d75","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916491974,"pid":3727,"hostname":"runnervm8df0l","event":"sign_in","user_id":"655bb99e-ca04-4caa-97d8-40935e85d1a6","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916491983,"pid":3727,"hostname":"runnervm8df0l","event":"sign_in","user_id":"699c2d4c-b6fb-42f4-9d87-4e19a1ed1783","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916492001,"pid":3727,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916492012,"pid":3727,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+{"level":30,"time":1790916492176,"pid":3727,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"get_views_my_day","msg":"operation"}
+{"level":30,"time":1790916492220,"pid":3727,"hostname":"runnervm8df0l","event":"task_status_changed","task_id":"d0e5eca8-09db-488f-aa4b-80d63012fe2c","actor_id":"699c2d4c-b6fb-42f4-9d87-4e19a1ed1783","status":"completed","msg":"task status"}
+ [32m✓[39m tests/criteria/ac-1536-multiple-task-assignees.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2381[2mms[22m[39m
+   [33m[2m✓[22m[39m AC-1536 adds a second assignee, keeps the first, and removes only the departing member [33m 334[2mms[22m[39m
+{"level":30,"time":1790916495192,"pid":3740,"hostname":"runnervm8df0l","event":"sign_in","user_id":"6834543d-d8f1-4400-afd8-56bde5bdd014","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-1020-duplicate-keeps-its-place.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2277[2mms[22m[39m
+{"level":30,"time":1790916498256,"pid":3754,"hostname":"runnervm8df0l","event":"sign_in","user_id":"af7f8cb8-e022-472e-aac2-59e92739e78a","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916498400,"pid":3754,"hostname":"runnervm8df0l","event":"task_status_changed","task_id":"1ce19587-f11d-49fa-8334-02018d36f130","actor_id":"af7f8cb8-e022-472e-aac2-59e92739e78a","status":"completed","msg":"task status"}
+{"level":30,"time":1790916498422,"pid":3754,"hostname":"runnervm8df0l","event":"task_status_changed","task_id":"1ce19587-f11d-49fa-8334-02018d36f130","actor_id":"af7f8cb8-e022-472e-aac2-59e92739e78a","status":"pending","msg":"task status"}
+{"level":30,"time":1790916498453,"pid":3754,"hostname":"runnervm8df0l","event":"task_status_changed","task_id":"1ce19587-f11d-49fa-8334-02018d36f130","actor_id":"af7f8cb8-e022-472e-aac2-59e92739e78a","status":"completed","msg":"task status"}
+ [32m✓[39m tests/criteria/ac-1515-recurring-successor-placement.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2318[2mms[22m[39m
+{"level":30,"time":1790916501383,"pid":3767,"hostname":"runnervm8df0l","event":"sign_in","user_id":"15f70473-5dd0-4ee3-a581-fb1620315c92","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-1525-discussion-pick-keeps-writing.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2252[2mms[22m[39m
+ [32m✓[39m src/server/domain/fractional-index.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 79[2mms[22m[39m
+{"level":30,"time":1790916504681,"pid":3789,"hostname":"runnervm8df0l","event":"sign_in","user_id":"94795f8c-5b7c-4e38-84f2-da7b08957ee7","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916504693,"pid":3789,"hostname":"runnervm8df0l","event":"sign_in","user_id":"f648e3c2-ac67-43ea-95b1-31def34b40fd","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-1522-discuss-adds-the-discussion-tab.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2348[2mms[22m[39m
+ [32m✓[39m src/client/components/links/dana-link.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+{"level":30,"time":1790916508034,"pid":3830,"hostname":"runnervm8df0l","event":"sign_in","user_id":"81df2b5e-a462-4b92-8bc6-835b8e74d9f9","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-231-svg-refused-polyglot-reencoded.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2268[2mms[22m[39m
+{"level":30,"time":1790916511170,"pid":3846,"hostname":"runnervm8df0l","event":"sign_in","user_id":"448b1a10-7590-4fbb-97b5-9e629c6cc04a","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916511181,"pid":3846,"hostname":"runnervm8df0l","event":"sign_in","user_id":"cc936d5e-4400-46cc-ad1f-fdee926867f6","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916511197,"pid":3846,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-1170-reply-survives-parent-delete.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2286[2mms[22m[39m
+{"level":30,"time":1790916514204,"pid":3863,"hostname":"runnervm8df0l","event":"sign_in","user_id":"dd911a5f-be6c-41f6-a0de-171ced69e8dc","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916514218,"pid":3863,"hostname":"runnervm8df0l","event":"sign_in","user_id":"16d85308-9521-4da0-a5af-601b31d25f27","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916514228,"pid":3863,"hostname":"runnervm8df0l","event":"sign_in","user_id":"1b0414db-2f93-41a1-9660-6fd4a6bd6ce5","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916514297,"pid":3863,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-1528-project-members-read-every-page.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2412[2mms[22m[39m
+{"level":30,"time":1790916517461,"pid":3875,"hostname":"runnervm8df0l","event":"sign_in","user_id":"bc0c1f9d-9749-4e5b-b231-dd77f5ee34b4","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-1526-page-inside-work-lands-in-pages.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2277[2mms[22m[39m
+{"level":30,"time":1790916520437,"pid":3888,"hostname":"runnervm8df0l","event":"sign_in","user_id":"7b41d6a3-f2d2-4dae-a05c-92f3e55ba9c6","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916520450,"pid":3888,"hostname":"runnervm8df0l","event":"sign_in","user_id":"403fe74a-154c-444c-b468-19958cc885e6","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916520467,"pid":3888,"hostname":"runnervm8df0l","event":"retired_route_hit","reason":"post_folder_member","msg":"operation"}
+ [32m✓[39m tests/criteria/ac-1530-collaborators-do-not-spend-the-owners-cap.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2246[2mms[22m[39m
+ [32m✓[39m src/client/components/page/canvas/last-line.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m tests/guards/guard-agent-instructions.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+{"level":30,"time":1790916523831,"pid":3914,"hostname":"runnervm8df0l","event":"sign_in","user_id":"5423f0d4-2387-4f1b-a748-dc1dceba837a","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916524634,"pid":3914,"hostname":"runnervm8df0l","event":"account_deleted","actor_id":"5423f0d4-2387-4f1b-a748-dc1dceba837a","invites":0,"folders_transferred":0,"folders_deleted":51,"memberships":0,"connections":0,"my_day_entries":0,"personal_rows":120,"sessions":1,"msg":"deletion"}
+ [32m✓[39m tests/criteria/ac-1176-sample-people-never-inherit.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2936[2mms[22m[39m
+     [33m[2m✓[22m[39m deleting an account that kept its sample leaves no page owned by a sample person [33m 852[2mms[22m[39m
+{"level":30,"time":1790916527482,"pid":3926,"hostname":"runnervm8df0l","event":"sign_in","user_id":"7c47269b-63e2-423c-97ca-420825463eb4","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-1173-focus-lists-round-trip.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2107[2mms[22m[39m
+{"level":30,"time":1790916530424,"pid":3938,"hostname":"runnervm8df0l","event":"sign_in","user_id":"252f0472-f5f9-4798-89e8-55c8a537ce42","provisioned":true,"msg":"auth"}
+{"level":30,"time":1790916530436,"pid":3938,"hostname":"runnervm8df0l","event":"sign_in","user_id":"d79287b6-06a9-47ca-b132-9bcb575a066b","provisioned":true,"msg":"auth"}
+ [32m✓[39m tests/criteria/ac-195-file-serving-scope.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2196[2mms[22m[39m
+ [32m✓[39m src/client/components/page/canvas/CanvasDiagram.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/client/components/page/canvas/guard.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 76[2mms[22m[39m
+ [32m✓[39m src/client/components/thread/timeline/timeline.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/client/lib/responsibility-text.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/shared/block-kinds.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/client/components/page/canvas/marquee.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/client/parts/identity-colors.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/client/components/page/canvas/FreeformCompleted.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/shared/workflows.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/client/components/project-picker.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/client/shell/focus-lists.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/client/components/calendar/ranges.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/client/api/folder-invite.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 3[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 3 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m tests/criteria/ac-880-task-document.test.ts[2m > [22mAC-881 to AC-885: the Task document routes[2m > [22mAC-884: duplicate and export carry the Task document
+[31m[1mAssertionError[22m: expected 11 to be 10 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 10[39m
+[31m+ 11[39m
+
+[36m [2m❯[22m tests/criteria/ac-880-task-document.test.ts:[2m426:26[22m[39m
+    [90m424|[39m       folders: { id: string; tasks: { id: string; document: { kind: st…
+    [90m425|[39m     }
+    [90m426|[39m     [34mexpect[39m(data[33m.[39mversion)[33m.[39m[34mtoBe[39m([34m10[39m)
+    [90m   |[39m                          [31m^[39m
+    [90m427|[39m     const task = data.folders.find((f) => f.id === folderId)?.tasks.fi…
+    [90m428|[39m     [34mexpect[39m(task[33m?.[39mdocument[33m.[39m[34mmap[39m((b) [33m=>[39m [b[33m.[39mkind[33m,[39m b[33m.[39mtext]))[33m.[39m[34mtoEqual[39m([
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/criteria/focus-identity-353.test.ts[2m > [22m#353 durable Focus identity[2m > [22mFocus icon/color overrides round-trip, merge per field, reset to absence, validate, and export
+[31m[1mAssertionError[22m: expected 11 to be 10 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 10[39m
+[31m+ 11[39m
+
+[36m [2m❯[22m tests/criteria/focus-identity-353.test.ts:[2m108:28[22m[39m
+    [90m106|[39m     [34mexpectStatus[39m(exported[33m,[39m [34m200[39m[33m,[39m [32m'account export'[39m)
+    [90m107|[39m     [35mconst[39m document [33m=[39m exportDocument[33m.[39m[34mparse[39m(exported[33m.[39m[34mjson[39m())
+    [90m108|[39m     [34mexpect[39m([33mEXPORT_VERSION[39m)[33m.[39m[34mtoBe[39m([34m10[39m)
+    [90m   |[39m                            [31m^[39m
+    [90m109|[39m     [34mexpect[39m(document[33m.[39mversion)[33m.[39m[34mtoBe[39m([34m10[39m)
+    [90m110|[39m     [34mexpect[39m(document[33m.[39msettings[33m.[39mfocus_appearance)[33m.[39m[34mtoEqual[39m({
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/guards/guard-document-transaction.test.ts[2m > [22mduplicate, export and workflow import retain hierarchy and rich content with fresh identities
+[31m[1mAssertionError[22m: expected 11 to be 10 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 10[39m
+[31m+ 11[39m
+
+[36m [2m❯[22m tests/guards/guard-document-transaction.test.ts:[2m99:23[22m[39m
+
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m3 failed[39m[22m[2m | [22m[1m[32m98 passed[39m[22m[90m (101)[39m
+[2m      Tests [22m [1m[31m3 failed[39m[22m[2m | [22m[1m[32m482 passed[39m[22m[90m (485)[39m
+[2m   Start at [22m 04:44:55
+[2m   Duration [22m 239.29s[2m (transform 2.34s, setup 415ms, import 53.22s, tests 174.23s, environment 2.47s)[22m
+
+
+::error file=/home/runner/work/dana/dana/app/tests/criteria/ac-880-task-document.test.ts,title=tests/criteria/ac-880-task-document.test.ts > AC-881 to AC-885%3A the Task document routes > AC-884%3A duplicate and export carry the Task document,line=426,column=26::AssertionError: expected 11 to be 10 // Object.is equality%0A%0A- Expected%0A+ Received%0A%0A- 10%0A+ 11%0A%0A ❯ tests/criteria/ac-880-task-document.test.ts:426:26%0A%0A
+
+::error file=/home/runner/work/dana/dana/app/tests/criteria/focus-identity-353.test.ts,title=tests/criteria/focus-identity-353.test.ts > #353 durable Focus identity > Focus icon/color overrides round-trip%2C merge per field%2C reset to absence%2C validate%2C and export,line=108,column=28::AssertionError: expected 11 to be 10 // Object.is equality%0A%0A- Expected%0A+ Received%0A%0A- 10%0A+ 11%0A%0A ❯ tests/criteria/focus-identity-353.test.ts:108:28%0A%0A
+
+::error file=/home/runner/work/dana/dana/app/tests/guards/guard-document-transaction.test.ts,title=tests/guards/guard-document-transaction.test.ts > duplicate%2C export and workflow import retain hierarchy and rich content with fresh identities,line=99,column=23::AssertionError: expected 11 to be 10 // Object.is equality%0A%0A- Expected%0A+ Received%0A%0A- 10%0A+ 11%0A%0A ❯ tests/guards/guard-document-transaction.test.ts:99:23%0A%0A
+
+```
+Dana gate
+commit    58b68ad (58b68add22f2fdf9d993e2cb05194779e7efee00)
+tree      tree dirty at 58b68ad
+machine   runnervm8df0l
+port      3100 (browser leg, default)
+start     2026-10-02T04:44:34.670Z
+end       2026-10-02T04:48:54.587Z
+
+install                       ok         -  node_modules as installed, package-lock.json unmodified since dbbae77; npm ci not re-run
+lint                          ok        6s
+typecheck                     ok       14s
+test (PGlite 0.5.4 fallback)  RED    4m00s  exit 1, 3 failed | 98 passed (101) files, 3 failed | 482 passed (485) tests
+
+GATE: red at test (PGlite 0.5.4 fallback)
+```
