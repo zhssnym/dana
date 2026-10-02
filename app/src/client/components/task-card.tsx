@@ -276,7 +276,7 @@ function useTaskMay(taskId: string, folderId: string | null) {
     applyFolderLabels: facts !== null && (mayDraw(facts, 'label.apply') || facts.access === 'can_contribute'),
     labelScopeName: row?.kind === 'work' ? 'Work' as const : 'Page' as const,
     labels: [...(detail?.labels.personal ?? []), ...(detail?.labels.folder ?? [])],
-    threadId: detail?.discussion_id ?? null,
+    threadId: detail?.linked_discussions[0]?.id ?? null,
   }
 }
 

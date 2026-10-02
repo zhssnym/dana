@@ -85,8 +85,8 @@ export const TASK_CARD_KEYS = [
 export const TASK_DETAIL_EXTRA_KEYS = [
   'completed_at',
   'completed_by',
-  /* M5: the task's live Discussion, the task page's one link to it. */
-  'discussion_id',
+  /* Issue #497: the task's live, readable linked Discussions. */
+  'linked_discussions',
   'notes',
   'reminder',
   'series_id',

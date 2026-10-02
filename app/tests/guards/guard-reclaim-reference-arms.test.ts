@@ -63,7 +63,8 @@ import type { DbClient } from '../../db/client.js'
 import { createTestDb, rows } from '../support/helpers.js'
 
 const APP_ROOT = fileURLToPath(new URL('../..', import.meta.url))
-const DOMAIN_FILES = path.join(APP_ROOT, 'src', 'server', 'domain', 'files.ts')
+/* #501 moved the predicate, unchanged, from files.ts into files-core.ts. */
+const DOMAIN_FILES = path.join(APP_ROOT, 'src', 'server', 'domain', 'files-core.ts')
 
 /**
  * Every foreign key into `files(id)` as of issue #263, and what a wrong sweep
