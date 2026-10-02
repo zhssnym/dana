@@ -23,14 +23,18 @@ const state = vi.hoisted(() => ({
 // need a view) and hands the test what FolderCanvas gave it.
 vi.mock('./CanvasSurface.js', async () => {
   const { useEffect } = await import('react')
+  const { installCanvasGuard } = await import('./guard.js')
   return {
     CanvasSurface: (props: { editor: CanvasEditor; onChange: (editor: CanvasEditor) => void; settle?: (taskIds: readonly string[]) => Promise<boolean> }) => {
       state.surfaces.push(props)
       useEffect(() => {
         const host = document.body.appendChild(document.createElement('div'))
         props.editor.mount(host)
+        // The real guard, as the surface installs it: the in-place removal of
+        // the trashed Tasks' rows must get past it.
+        const unguard = installCanvasGuard(props.editor, () => {})
         const off = props.editor.onChange(() => { props.onChange(props.editor) })
-        return () => { off(); props.editor.unmount(); host.remove() }
+        return () => { off(); unguard(); props.editor.unmount(); host.remove() }
       }, [props.editor])
       return null
     },
