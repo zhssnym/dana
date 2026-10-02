@@ -42,14 +42,19 @@ function useSlot(end: "lead" | "trail") {
 /* Workspace tabs sit above this row on desktop; the tab component removes
    itself on a phone, where the full strip would compete with Menu and Search.
    The work-page row stays compact at Dana's 32px row height, only 4px taller
-   than its controls. */
-export function WindowBar() {
+   than its controls. `phone` is a phone's open thread, where the row is the
+   whole 48px bar so its 44px touch targets fit. */
+export function WindowBar({ phone = false }: { phone?: boolean }) {
   return (
     <>
       <TabStrip />
       <div
         data-window-bar
-        className="flex h-[var(--row-height)] shrink-0 items-center gap-1.5 bg-card px-3"
+        className={
+          phone
+            ? "flex h-12 shrink-0 items-center gap-1 bg-background px-1"
+            : "flex h-[var(--row-height)] shrink-0 items-center gap-1.5 bg-card px-3"
+        }
       >
         {/* The left end: history arrows and the breadcrumb trail. */}
         <div
