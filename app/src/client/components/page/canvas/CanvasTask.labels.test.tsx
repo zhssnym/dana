@@ -2,6 +2,7 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type { LabelRef } from '../../../../shared/labels.js'
 import type { TaskCard } from '../../../../shared/tasks.js'
 import type { RowContext } from '../../../parts/presenters.js'
 
@@ -13,6 +14,15 @@ vi.mock('../../../api/queries.js', () => ({
 import { CanvasTask, CanvasTaskProvider } from './CanvasTask.js'
 
 afterEach(cleanup)
+
+const enhancement: LabelRef = {
+  id: '00000000-0000-4000-8000-000000000003',
+  scope: 'folder',
+  name: 'enhancement',
+  color: '#22C55E',
+  archived: false,
+  folder_id: '00000000-0000-4000-8000-000000000002',
+}
 
 const task: TaskCard = {
   id: '00000000-0000-4000-8000-000000000001',
@@ -38,17 +48,7 @@ const task: TaskCard = {
   pending_invite_email: null,
   section_block_id: null,
   created_by: null,
-  labels: {
-    personal: [],
-    folder: [{
-      id: '00000000-0000-4000-8000-000000000003',
-      scope: 'folder',
-      name: 'enhancement',
-      color: '#22C55E',
-      archived: false,
-      folder_id: '00000000-0000-4000-8000-000000000002',
-    }],
-  },
+  labels: { personal: [], folder: [enhancement] },
   blocked_by_count: 0,
   blocks_count: 0,
   created_at: '2026-10-02T00:00:00.000Z',
