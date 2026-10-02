@@ -92,6 +92,19 @@ export function useBlockFacets(
   return model
 }
 
+/** Every nested BlockNote block is still an exact persisted source. */
+function visitBlocks(
+  blocks: readonly { id: string; children?: readonly unknown[] }[],
+  visit: (id: string) => void,
+): void {
+  for (const block of blocks) {
+    visit(block.id)
+    if (Array.isArray(block.children) && block.children.length > 0) {
+      visitBlocks(block.children as readonly { id: string; children?: readonly unknown[] }[], visit)
+    }
+  }
+}
+
 /**
  * BlockNote owns the block DOM, so relationship chips stay outside its
  * document schema and are attached as a decoration. They are navigation, not
@@ -107,10 +120,10 @@ function useFacetDecorations(editor: AnyEditor, model: BlockFacetMenuModel | und
       frame = 0
       const wanted = new Map<string, readonly BlockFacetRef[]>()
       if (model !== undefined) {
-        for (const block of editor.document) {
-          const facets = model.selected(block.id)
-          if (facets.length > 0) wanted.set(block.id, facets)
-        }
+        visitBlocks(editor.document, (blockId) => {
+          const facets = model.selected(blockId)
+          if (facets.length > 0) wanted.set(blockId, facets)
+        })
       }
       host.querySelectorAll<HTMLElement>('[data-dana-block-facets]').forEach((strip) => {
         const id = strip.dataset.danaBlockFacets ?? ''
