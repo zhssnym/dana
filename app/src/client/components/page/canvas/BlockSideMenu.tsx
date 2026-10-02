@@ -16,6 +16,7 @@ import type { BlockNoteEditor } from '@blocknote/core'
 import { SideMenuExtension } from '@blocknote/core/extensions'
 import { useBlockNoteEditor, useComponentsContext, useExtension, useExtensionState } from '@blocknote/react'
 import type { BlockFacetRef } from '../../../../shared/block-facets.js'
+import { useTask } from '../../../api/queries.js'
 import { useBlockFacets } from './BlockFacets.js'
 import { blockLink, blockSelection, setBlockSelection } from './block-selection.js'
 import { conversionOf, isCurrent, withoutIds } from './turn-into.js'
@@ -56,10 +57,9 @@ export const BlockMenuContext = createContext<BlockMenuModel | null>(null)
 const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+'
 const NON_PERSISTED_BLOCKS = new Set(['danaTask', 'danaFolder'])
 
-/** A Work root or Doc tab resolves the exact project-local facet directory. */
-function routedWorkPage(): string | undefined {
+function routedId(segment: 'folders' | 'facets' | 'tasks'): string | undefined {
   if (typeof window === 'undefined') return undefined
-  const match = /^\/app\/(?:folders|facets)\/([0-9a-f-]{36})(?:\/|$)/i.exec(window.location.pathname)
+  const match = new RegExp(`^/app/${segment}/([0-9a-f-]{36})(?:/|$)`, 'i').exec(window.location.pathname)
   return match?.[1]
 }
 
@@ -204,7 +204,6 @@ function BlockSideMenuRoot({ model }: { readonly model: BlockMenuModel }): React
   )
 }
 
-/** Hooks that need React Query only mount when the route has a Work scope. */
 function ProjectScopedBlockSideMenu({ folderId, inherited }: { readonly folderId: string; readonly inherited: BlockMenuModel }): React.JSX.Element {
   const editor = useBlockNoteEditor() as AnyEditor
   const automaticFacets = useBlockFacets(editor, folderId, editor.isEditable)
@@ -212,11 +211,22 @@ function ProjectScopedBlockSideMenu({ folderId, inherited }: { readonly folderId
   return <BlockSideMenuRoot model={model} />
 }
 
+/** A Task's one page has its own URL; its detail names the Work page it lives in. */
+function TaskScopedBlockSideMenu({ taskId, inherited }: { readonly taskId: string; readonly inherited: BlockMenuModel }): React.JSX.Element {
+  const task = useTask(taskId)
+  const folderId = task.data?.folder.id
+  if (folderId === undefined) return <BlockSideMenuRoot model={inherited} />
+  return <ProjectScopedBlockSideMenu folderId={folderId} inherited={inherited} />
+}
+
 export function BlockSideMenu(): React.JSX.Element {
   const inherited = useContext(BlockMenuContext)!
-  const scope = routedWorkPage()
-  if (scope === undefined || inherited.facets !== undefined) return <BlockSideMenuRoot model={inherited} />
-  return <ProjectScopedBlockSideMenu folderId={scope} inherited={inherited} />
+  if (inherited.facets !== undefined) return <BlockSideMenuRoot model={inherited} />
+  const folderId = routedId('folders') ?? routedId('facets')
+  if (folderId !== undefined) return <ProjectScopedBlockSideMenu folderId={folderId} inherited={inherited} />
+  const taskId = routedId('tasks')
+  if (taskId !== undefined) return <TaskScopedBlockSideMenu taskId={taskId} inherited={inherited} />
+  return <BlockSideMenuRoot model={inherited} />
 }
 
 function firstLineCentre(content: Element): number {
