@@ -217,7 +217,7 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
         }}
       >
         {/* One task, announced as a list of one, as every task row is. */}
-        <div role="list"><div role="listitem"><ThreadRow task={known} state={state} bridge={bridge} thread={thread} {...(bridge.freeform ? { expanded, onExpand: () => setExpanded((open) => !open) } : {})} /></div></div>
+        <div role="list" className="cursor-pointer"><div role="listitem"><ThreadRow task={known} state={state} bridge={bridge} thread={thread} {...(bridge.freeform ? { expanded, onExpand: () => setExpanded((open) => !open) } : {})} /></div></div>
         {bridge.freeform && expanded ? <div data-freeform-task-details="" role="region" aria-label={`${known.title} details`} className="ml-7 border-l border-border py-3 pl-4">
           <Suspense fallback={<p className="text-sm text-muted-foreground">Loading task…</p>}>
             <FreeformTaskDetails taskId={taskId} />
