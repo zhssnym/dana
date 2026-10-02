@@ -7,12 +7,15 @@ export const blockFacetRef = z.object({
 })
 export type BlockFacetRef = z.infer<typeof blockFacetRef>
 
-/** Project-wide relation read used by the canvas to decorate only blocks it draws. */
 export const projectBlockFacetRow = z.object({
   block_id: z.uuid(),
   facets: z.array(blockFacetRef),
 })
 export type ProjectBlockFacetRow = z.infer<typeof projectBlockFacetRow>
+
+/** GET /block-facets?folder=:pageId -- `folder` may be any page of the project. */
+export const getProjectBlockFacetsQuery = z.object({ folder: z.uuid() })
+export type GetProjectBlockFacetsQuery = z.infer<typeof getProjectBlockFacetsQuery>
 
 export const getProjectBlockFacetsResponse = z.object({
   project_id: z.uuid(),
@@ -20,8 +23,9 @@ export const getProjectBlockFacetsResponse = z.object({
 })
 export type GetProjectBlockFacetsResponse = z.infer<typeof getProjectBlockFacetsResponse>
 
-/** Atomic replacement avoids separate link/unlink requests and duplicate edges. */
+/** PUT /block-facets. Atomic replacement avoids separate link/unlink races. */
 export const putBlockFacetsBody = z.object({
+  block_id: z.uuid(),
   facet_ids: z.array(z.uuid()).max(50).refine(
     (ids) => new Set(ids).size === ids.length,
     { message: 'facet_ids: duplicate facets are not allowed' },
