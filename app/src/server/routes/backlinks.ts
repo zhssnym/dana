@@ -13,9 +13,9 @@ import { getProjectBlockFacetsResponse, putBlockFacetsBody, putBlockFacetsRespon
 import type { ReferenceKind } from '../../shared/references.js'
 import { requireSession } from '../auth/index.js'
 import { backlinksOf } from '../domain/backlinks.js'
-import { projectBlockFacets, setBlockFacets } from '../domain/block-facets.js'
 import { resolveReference } from '../domain/references.js'
 import { sendError, sendValidationError } from '../http/errors.js'
+import { projectBlockFacets, setBlockFacets } from '../views/block-facets.js'
 import { connectedWorkOf } from '../views/connected-work.js'
 import { routerWithPreamble } from './preamble.js'
 
@@ -67,7 +67,7 @@ export function createBacklinksRouter(
 
   /* One project-wide read feeds the small chips without one request per
      block. `:id` may be any live page in the project; membership is checked
-     inside the domain read and the response carries no unrelated project. */
+     inside the view read and the response carries no unrelated project. */
   router.get(
     '/folders/:id/block-facets',
     requireSession,
@@ -85,9 +85,9 @@ export function createBacklinksRouter(
     },
   )
 
-  /* Atomic replacement is the explicit link+unlink operation. The domain
-     validates the source block, write authority, target Doc tabs and exact
-     same-project boundary in one transaction. */
+  /* Atomic replacement is the explicit link+unlink operation. The view-layer
+     coordinator validates the source block, write authority, target Doc tabs
+     and exact same-project boundary in one transaction. */
   router.put(
     '/blocks/:id/facets',
     requireSession,
