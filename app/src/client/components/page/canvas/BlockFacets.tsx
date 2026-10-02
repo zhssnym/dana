@@ -23,15 +23,15 @@ function replaceRow(
 }
 
 /**
- * One controller for the two pieces of block-reference UI: the gutter menu
- * and the quiet chips attached to the exact block. `folderId` may be any page
- * of the project; Shelf canvases pass none and therefore get neither.
+ * One controller for the gutter action and the quiet exact-block chips.
+ * Reading the relation is independent of editing it: Can-view members still
+ * see what is connected; `editable` only decides whether the menu may mutate.
  */
 export function useBlockFacets(
   editor: AnyEditor,
   folderId: string | undefined,
   editable: boolean,
-  onNotice: (message: string) => void,
+  onNotice?: (message: string) => void,
 ): BlockFacetMenuModel | undefined {
   const pages = useAllPages(folderId !== undefined)
   const client = useQueryClient()
@@ -54,11 +54,11 @@ export function useBlockFacets(
         (old) => replaceRow(old, answer.block_id, answer.facets),
       )
     },
-    onError: (error) => onNotice(error instanceof Error ? error.message : 'The facet connection could not be changed.'),
+    onError: (error) => onNotice?.(error instanceof Error ? error.message : 'The facet connection could not be changed.'),
   })
 
   const model = useMemo<BlockFacetMenuModel | undefined>(() => {
-    if (folderId === undefined || !editable) return undefined
+    if (folderId === undefined) return undefined
     const page = pages.data?.find((candidate) => candidate.id === folderId)
     const projectId = page?.project_id
     if (projectId === undefined) return undefined
@@ -76,8 +76,10 @@ export function useBlockFacets(
     const byBlock = new Map((relations.data?.blocks ?? []).map((row) => [row.block_id, row.facets] as const))
     return {
       options,
+      editable,
       selected: (blockId) => byBlock.get(blockId) ?? [],
       toggle: (blockId, facetId) => {
+        if (!editable) return
         const current = byBlock.get(blockId) ?? []
         const ids = current.some((facet) => facet.id === facetId)
           ? current.filter((facet) => facet.id !== facetId).map((facet) => facet.id)
@@ -92,7 +94,6 @@ export function useBlockFacets(
   return model
 }
 
-/** Every nested BlockNote block is still an exact persisted source. */
 function visitBlocks(
   blocks: readonly { id: string; children?: readonly unknown[] }[],
   visit: (id: string) => void,
@@ -107,9 +108,8 @@ function visitBlocks(
 
 /**
  * BlockNote owns the block DOM, so relationship chips stay outside its
- * document schema and are attached as a decoration. They are navigation, not
- * authored text: saving/reordering the block never serializes the chips and
- * therefore cannot turn them into proximity semantics.
+ * document schema. They move with the exact block but never become authored
+ * text or a neighboring reference block.
  */
 function useFacetDecorations(editor: AnyEditor, model: BlockFacetMenuModel | undefined): void {
   useEffect(() => {
