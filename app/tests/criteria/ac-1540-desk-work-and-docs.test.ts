@@ -1,8 +1,7 @@
 /*
 AC-1540: Desk is the private Work project. It starts with Work and Docs,
-accepts additional Doc tabs only, and refuses both Discussion entry points.
-This is the server-side product boundary behind issue #509; the client also
-omits Discussion from Desk tabs and Task properties (spec 9.6, 9.3).
+accepts additional Doc tabs only, and refuses both Discussion entry points
+from the root and its documentation pages (spec 7.30, 9.14).
 */
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
@@ -59,6 +58,15 @@ describe('AC-1540 Desk is Work plus documentation', () => {
       { name: 'Docs', kind: 'doc', root: false },
     ])
 
+    const docs = await rows(
+      app.db,
+      sql`SELECT id FROM folders
+           WHERE project_id = ${deskId}::uuid AND kind = 'doc' AND name = 'Docs'
+             AND deleted_at IS NULL AND archived_at IS NULL
+           LIMIT 1`,
+    )
+    const docsId = String(docs[0]?.id)
+
     const added = await owner.browser.json(`/folders/${deskId}/tabs`, 'POST', { kind: 'doc' })
     expectStatus(added, 201, 'Desk adds a documentation page')
     expect((await tabsOf(deskId)).map((tab) => [tab.name, tab.kind])).toEqual([
@@ -72,28 +80,35 @@ describe('AC-1540 Desk is Work plus documentation', () => {
       expectStatus(refused, 422, `Desk refuses a ${kind} tab`)
     }
 
-    expectStatus(
-      await owner.browser.json(`/folders/${deskId}/discussions`, 'POST', { title: 'No team here' }),
-      409,
-      'Desk refuses a new Discussion',
-    )
+    for (const pageId of [deskId, docsId]) {
+      expectStatus(
+        await owner.browser.json(`/folders/${pageId}/discussions`, 'POST', { title: 'No team here' }),
+        409,
+        'Desk refuses a new Discussion from every page',
+      )
+    }
 
-    const madeTask = await owner.browser.json('/tasks', 'POST', {
-      title: 'Private task',
-      folder_id: deskId,
-    })
-    expectStatus(madeTask, 201, 'a Desk task')
-    const taskId = String((madeTask.json() as { id?: unknown }).id)
-    expectStatus(
-      await owner.browser.json(`/tasks/${taskId}/discussion`, 'POST'),
-      409,
-      'a Desk task refuses Start a discussion',
-    )
+    for (const folderId of [deskId, docsId]) {
+      const madeTask = await owner.browser.json('/tasks', 'POST', {
+        title: `Private task ${folderId}`,
+        folder_id: folderId,
+      })
+      expectStatus(madeTask, 201, 'a Desk task')
+      const taskId = String((madeTask.json() as { id?: unknown }).id)
+      expectStatus(
+        await owner.browser.json(`/tasks/${taskId}/discussion`, 'POST'),
+        409,
+        'a Task anywhere in Desk refuses Start a discussion',
+      )
+    }
 
     expect(
       await rows(
         app.db,
-        sql`SELECT count(*)::int AS n FROM discussions WHERE folder_id = ${deskId}::uuid`,
+        sql`SELECT count(*)::int AS n
+              FROM discussions d
+              JOIN folders f ON f.id = d.folder_id
+             WHERE f.project_id = ${deskId}::uuid`,
       ),
     ).toEqual([{ n: 0 }])
   }, 60_000)
