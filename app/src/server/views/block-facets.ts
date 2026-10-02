@@ -16,6 +16,28 @@ function refs(rows: readonly Record<string, unknown>[]): BlockFacetRef[] {
   return rows.map((row) => ({ id: String(row.id), name: String(row.name) }))
 }
 
+/** The only facet targets a block in `pageId`'s Work/project may name. */
+export async function projectFacetOptions(
+  executor: Executor,
+  viewerId: string,
+  pageId: string,
+): Promise<BlockFacetRef[] | null> {
+  if ((await accessOf(executor, viewerId, pageId)) === null) return null
+  const rows = await rowsOf(
+    executor,
+    sql`SELECT tf.id, tf.name
+          FROM folders p
+          JOIN folders tf ON tf.project_id = p.project_id
+         WHERE p.id = ${pageId}::uuid
+           AND p.deleted_at IS NULL AND p.archived_at IS NULL
+           AND tf.kind = 'doc' AND tf.tab_position IS NOT NULL
+           AND tf.id <> tf.project_id
+           AND tf.deleted_at IS NULL AND tf.archived_at IS NULL
+         ORDER BY tf.tab_position, tf.id`,
+  )
+  return refs(rows)
+}
+
 /** Project-wide block-owned facet edges visible from `pageId`. */
 export async function projectBlockFacets(
   executor: Executor,
