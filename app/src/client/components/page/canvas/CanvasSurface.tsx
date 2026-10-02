@@ -34,6 +34,7 @@ import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { MentionSuggestions } from './mentions.js'
 import { AddTaskLine } from './AddTaskLine.js'
 import { useCanvasTaskDelete } from './CanvasTask.js'
+import { ConnectedWork } from '../../links/connected-work.js'
 import './canvas.css'
 
 type HeadingMode = 'section' | 'document' | 'none'
@@ -383,6 +384,7 @@ export function CanvasSurface({
       {/* Work's last line, for a reader who can write (the one asked to, `placeholder`). */}
       {lastLine ? <AddTaskLine editor={editor} page={peopleFolderId ?? ''} editable={editable} /> : null}
       {footer}
+      {headingMode === 'document' && peopleFolderId !== undefined ? <ConnectedWork id={peopleFolderId} /> : null}
       {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}
     </div>
     <AlertDialog open={referenceToConvert !== null} onOpenChange={(open) => { if (!open) setReferenceToConvert(null) }}>
