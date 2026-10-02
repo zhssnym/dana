@@ -68,7 +68,7 @@ describe('issue #497 migration 0066', () => {
     await db.execute(sql`INSERT INTO discussion_tasks (discussion_id, task_id) VALUES (${ids.firstDiscussion}::uuid, ${ids.secondTask}::uuid), (${ids.secondDiscussion}::uuid, ${ids.firstTask}::uuid)`)
     expect((await rows(db, sql`SELECT count(*)::int AS n FROM discussion_tasks WHERE task_id = ${ids.firstTask}::uuid`))[0]?.n).toBe(2)
     expect((await rows(db, sql`SELECT count(*)::int AS n FROM discussion_tasks WHERE discussion_id = ${ids.firstDiscussion}::uuid`))[0]?.n).toBe(2)
-    await expectRejectedBy(() => db.execute(sql`INSERT INTO discussion_tasks (discussion_id, task_id) VALUES (${ids.firstDiscussion}::uuid, ${ids.firstTask}::uuid)`), /unique|duplicate|discussion_tasks_pkey/i)
+    await expectRejectedBy(() => db.execute(sql`INSERT INTO discussion_tasks (discussion_id, task_id) VALUES (${ids.firstDiscussion}::uuid, ${ids.firstTask}::uuid)`), 'discussion_tasks_pkey')
   })
   test('permanent endpoint deletion cascades only edges', async () => {
     await db.execute(sql`DELETE FROM tasks WHERE id = ${ids.secondTask}::uuid`)

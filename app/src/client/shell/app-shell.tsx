@@ -127,14 +127,24 @@ const UPDATE_AVAILABLE = 'Update available, reload'
 /*
 The one top bar. On a laptop: the show-sidebar control when the sidebar is
 hidden, then the window bar (trail and page controls). Below 768px the
-same window bar sits between Menu and Search, so a phone has one bar.
+same window bar sits between Menu and Search, so a phone has one bar. An
+open thread takes a phone's whole bar, as a messaging app's does: its back,
+title and acts (DiscussionView portals them in), no Menu or Search.
 */
 function TopBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): React.JSX.Element {
   const { isMobile, setOpenMobile } = useSidebar()
+  const threadOpen = useThreadOpen()
   if (!isMobile) {
     return (
       <div className="shrink-0">
         <WindowBar />
+      </div>
+    )
+  }
+  if (threadOpen) {
+    return (
+      <div className="shrink-0 border-b border-border bg-background">
+        <WindowBar phone />
       </div>
     )
   }
@@ -166,6 +176,12 @@ function TopBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): React.
 }
 
 const TASK_PREFIX = '/app/tasks/'
+
+/** Whether a Discussion thread is open (r4: `?discussion=<id>` on a page). */
+function useThreadOpen(): boolean {
+  const { pathname, search } = useLocation()
+  return pathname.startsWith(FOLDER_PREFIX) && new URLSearchParams(search).has('discussion')
+}
 
 /*
 The window bar's left end: where this route sits. A page is its trail; a task
@@ -215,7 +231,8 @@ function TopTrail(): React.JSX.Element {
   const { isMobile, state } = useSidebar()
   return (
     <>
-      <WindowBarLead>{trail}</WindowBarLead>
+      {/* A phone's open thread draws its own back and title there instead. */}
+      <WindowBarLead>{isMobile && discussionId !== null ? null : trail}</WindowBarLead>
       {isMobile || state === 'expanded' ? null : (
         <Tooltip>
           <TooltipTrigger
@@ -329,6 +346,7 @@ function skipTo(region: HTMLElement | null): void {
 
 export function AppShell(): React.JSX.Element {
   const location = useLocation()
+  const threadOpen = useThreadOpen()
   const [content, setContent] = useState<HTMLDivElement | null>(null)
   usePageTitle(content)
   const me = useMe()
@@ -588,7 +606,8 @@ export function AppShell(): React.JSX.Element {
               data-shell-scroll
               className="min-h-0 flex-1 overflow-y-auto"
             >
-              <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-4 py-4 md:px-10 md:py-6">
+              {/* An open thread reads across the full width, as a chat does. */}
+              <div className={`mx-auto w-full px-4 py-4 md:px-10 md:py-6 ${threadOpen ? '' : 'max-w-[var(--shell-content-max)]'}`}>
                 {/* 9.8: pending invites sit above every /app page; a read in
                     flight, a failed read and an empty answer all draw nothing. */}
                 {(invites.data?.length ?? 0) > 0 ? (

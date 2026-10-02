@@ -83,7 +83,7 @@ import type {
 } from '../../shared/tasks.js'
 import { deleteTaskMyDayResponse, postTaskMyDayResponse } from '../../shared/tasks.js'
 import { patchCommentResponse } from '../../shared/comments.js'
-import type { CommentLine, PatchCommentBody } from '../../shared/comments.js'
+import type { CommentLine, PatchCommentBody, ReactionKey } from '../../shared/comments.js'
 import {
   postNotificationReadResponse,
   postNotificationsReadAllResponse,
@@ -864,7 +864,7 @@ export function useMarkAllNotificationsRead(): UseMutationResult<
 
 /*
 Chat writes (r7) are the one exception to "a mutation invalidates nothing
-itself" (queryClient.ts `INVALIDATES_META`): a post, edit, delete or like
+itself" (queryClient.ts `INVALIDATES_META`): a post, edit, delete or reaction
 refreshes the conversations and the lists of threads, not the whole app.
 */
 const chatChanged: InvalidatesMeta = () => (key) =>
@@ -909,18 +909,74 @@ export function useDeleteComment(): UseMutationResult<void, Error, string> {
   })
 }
 
-/** PUT and DELETE /comments/:id/like, one bit per person (7.14). */
-export function useSetCommentLike(): UseMutationResult<
+export interface CommentReactionVariables {
+  readonly id: string
+  readonly reaction: ReactionKey
+  /** Leave it (PUT) or take it back (DELETE). */
+  readonly on: boolean
+  /** The viewer, whose id joins or leaves the reaction's `by` at once. */
+  readonly viewerId: string
+}
+
+/** One comment with the viewer's reaction left or taken back: a new reaction
+ * goes last (the order is first-left), the viewer last in its `by`, and a
+ * reaction nobody holds any more is dropped. */
+export function withReaction(line: CommentLine, { reaction, on, viewerId }: CommentReactionVariables): CommentLine {
+  const held = line.reactions.find((r) => r.reaction === reaction)
+  if (on) {
+    if (held?.by.includes(viewerId) === true) return line
+    return {
+      ...line,
+      reactions: held === undefined
+        ? [...line.reactions, { reaction, by: [viewerId] }]
+        : line.reactions.map((r) => (r === held ? { ...r, by: [...r.by, viewerId] } : r)),
+    }
+  }
+  if (held?.by.includes(viewerId) !== true) return line
+  return {
+    ...line,
+    reactions: line.reactions
+      .map((r) => (r === held ? { ...r, by: r.by.filter((id) => id !== viewerId) } : r))
+      .filter((r) => r.by.length > 0),
+  }
+}
+
+/**
+ * PUT and DELETE /comments/:id/reactions/:reaction (7.14). The cached threads
+ * holding the comment change at once and are put back if the server refuses;
+ * success refreshes the conversations as every chat write does.
+ */
+export function useSetCommentReaction(): UseMutationResult<
   void,
   Error,
-  { readonly id: string; readonly liked: boolean }
+  CommentReactionVariables,
+  (readonly [readonly unknown[], unknown])[]
 > {
+  const client = useQueryClient()
+  const isThread = (query: { queryKey: readonly unknown[] }): boolean =>
+    (query.queryKey[0] === 'folders' || query.queryKey[0] === 'discussions') && query.queryKey[2] === 'thread'
   return useMutation({
     meta: CHAT_WRITE,
-    mutationFn: ({ id, liked }) =>
+    onMutate: async (variables) => {
+      await client.cancelQueries({ predicate: isThread })
+      const snapshot: (readonly [readonly unknown[], unknown])[] = []
+      for (const [key, thread] of client.getQueriesData<GetThreadResponse>({ predicate: isThread })) {
+        if (thread?.comments.some((c) => c.id === variables.id) !== true) continue
+        snapshot.push([key, thread])
+        client.setQueryData<GetThreadResponse>(key, {
+          ...thread,
+          comments: thread.comments.map((c) => (c.id === variables.id ? withReaction(c, variables) : c)),
+        })
+      }
+      return snapshot
+    },
+    onError: (_error, _variables, snapshot) => {
+      for (const [key, data] of snapshot ?? []) client.setQueryData(key, data)
+    },
+    mutationFn: ({ id, reaction, on }) =>
       mutateApi(null, {
-        method: liked ? 'PUT' : 'DELETE',
-        path: `/comments/${id}/like`,
+        method: on ? 'PUT' : 'DELETE',
+        path: `/comments/${id}/reactions/${reaction}`,
       }),
   })
 }

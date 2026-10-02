@@ -3,12 +3,13 @@ Issue #495: one compact relation interaction from either side.
 
 A Task keeps its existing Discussion property. Opening it immediately shows
 recent Discussions, filters them as the person types, and offers creation in
-the same surface. A Discussion keeps "Turn into a task" as its one visible
-entry point and uses the same pattern for Tasks. The relationship itself is
+the same surface. A Discussion keeps "Turn into a task" as its entry point,
+in the thread's "…" menu, and uses the same pattern for Tasks; its linked
+Tasks are the slim rows above the posts. The relationship itself is
 #497's persisted many-to-many edge; this file never treats either endpoint as
 owned by the other.
 */
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, type RefObject } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router'
 
@@ -34,7 +35,6 @@ import { showToast } from '../state/toasts.js'
 import { paths } from '../routes.js'
 import { Plus, X } from '../lib/icons.js'
 import { PROPERTY_LABEL, PROPERTY_ROW } from './task-pickers.js'
-import { Button } from './ui/button.js'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover.js'
 import { cn } from './ui/utils.js'
 import { StateMark, STATE_WORD, taskState } from './thread/timeline/state.js'
@@ -300,7 +300,7 @@ function TaskDiscussionPicker({
                   title="Unlink"
                   disabled={busy}
                   onClick={() => void unlink(discussion)}
-                  className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:bg-background hover:text-foreground focus-visible:opacity-100 group-hover/link:opacity-100"
+                  className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:bg-background hover:text-foreground focus-visible:opacity-100 group-hover/link:opacity-100 pointer-coarse:opacity-100"
                 >
                   <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
                 </button>
@@ -355,34 +355,29 @@ function TaskDiscussionPicker({
 
 /* ------------------------------------------------------------ Discussion */
 
-export function DiscussionTaskAction({
-  discussion,
-  folderId,
-  canRelate,
-  canCreate,
-}: {
-  readonly discussion: Discussion
-  readonly folderId: string
-  readonly canRelate: boolean
-  readonly canCreate: boolean
-}): React.JSX.Element | null {
-  if (!canRelate) return null
-  return <DiscussionTaskPicker discussion={discussion} folderId={folderId} canCreate={canCreate} />
-}
-
-function DiscussionTaskPicker({
+/* The thread's "…" menu opens this; it has no trigger of its own and is
+   drawn against the element the menu came from. `folderId` is the thread's
+   own folder (the project), whose Work a new task joins: a Discussion tab's
+   page has no Work. */
+export function DiscussionTaskPicker({
   discussion,
   folderId,
   canCreate,
+  open,
+  onOpenChange,
+  anchor,
 }: {
   readonly discussion: Discussion
   readonly folderId: string
   readonly canCreate: boolean
+  readonly open: boolean
+  readonly onOpenChange: (open: boolean) => void
+  readonly anchor: RefObject<HTMLElement | null>
 }): React.JSX.Element {
   const client = useQueryClient()
-  const nearby = useFolderOpenTasks(folderId)
+  const nearby = useFolderOpenTasks(folderId, open)
   const create = useCreateTask()
-  const [open, setOpen] = useState(false)
+  const setOpen = onOpenChange
   const [q, setQ] = useState('')
   const [working, setWorking] = useState<string | null>(null)
   const [added, setAdded] = useState<ReadonlySet<string>>(new Set())
@@ -463,10 +458,7 @@ function DiscussionTaskPicker({
         if (!next) setQ('')
       }}
     >
-      <PopoverTrigger render={<Button type="button" />}>
-        Turn into a task
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] p-1" aria-label="Task picker">
+      <PopoverContent anchor={anchor} align="end" className="w-80 max-w-[calc(100vw-2rem)] p-1" aria-label="Task picker">
         <input
           autoFocus
           aria-label="Search or create a task"
@@ -543,15 +535,21 @@ export function DiscussionLinkedTasks({
   }
 
   return (
-    <div className="mt-3.5 flex min-w-0 flex-wrap gap-1.5" aria-label="Linked tasks">
+    /* The tasks it is about: one slim row each, its mark, name and state.
+       Unlink shows on hover or focus (always on a touch screen) and removes
+       only the edge. */
+    <ul className="shrink-0 text-sm" aria-label="Linked tasks">
       {discussion.linked_tasks.map((task) => {
         const state = taskState(task)
         return (
-          <span key={task.id} className="group/task inline-flex h-7 max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 pl-2 pr-1 text-sm">
-            <Link to={paths.task(task.id)} className="flex min-w-0 items-center gap-1.5 outline-none hover:underline focus-visible:underline">
-              <StateMark state={state} className="size-3.5 shrink-0" />
-              <span className="max-w-56 truncate text-foreground">{task.title}</span>
-              <span className="shrink-0 text-[11px] text-muted-foreground">{STATE_WORD[state]}</span>
+          <li key={task.id} className="group/task -mx-2.5 flex min-w-0 items-center rounded-md hover:bg-accent">
+            <Link
+              to={paths.task(task.id)}
+              className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2.5 py-1.5 outline-none focus-visible:bg-accent"
+            >
+              <StateMark state={state} className="size-4 shrink-0" />
+              <span className="min-w-0 truncate text-foreground">{task.title}</span>
+              <span className="shrink-0 text-muted-foreground">{STATE_WORD[state]}</span>
             </Link>
             {canUnlink ? (
               <button
@@ -560,15 +558,15 @@ export function DiscussionLinkedTasks({
                 title="Unlink"
                 disabled={working !== null}
                 onClick={() => void unlink(task.id)}
-                className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:bg-background hover:text-foreground focus-visible:opacity-100 group-hover/task:opacity-100"
+                className="mr-1 inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-none hover:text-foreground focus-visible:opacity-100 group-hover/task:opacity-100 pointer-coarse:size-11 pointer-coarse:opacity-100"
               >
                 <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
               </button>
             ) : null}
-          </span>
+          </li>
         )
       })}
-    </div>
+    </ul>
   )
 }
 

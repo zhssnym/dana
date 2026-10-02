@@ -1,23 +1,30 @@
 /*
 One thread, as its own page (W-C; #212, #320; r4, r9). The top bar's
 breadcrumb names it and its page crumb returns to the list, and the page's
-own head and tabs step aside. Its head reads like a letter's: the 28px
-title on the left; "Turn into a task", "Resolve" and the "…" menu (Rename,
-Move to Trash) on the right; a rule under it. It says nothing the posts
-already show.
+own head and tabs step aside. There is no title row: the thread's acts sit
+at the top bar's right end while it is open, "Resolve" (or "Reopen") and
+the "…" menu ("Turn into a task", Rename, Move to Trash). On a phone the top
+bar's left end is back, the title, and "<Page> · Discussion" under it.
 
-Issue #495 keeps "Turn into a task" as the one visible Task relation entry
-point. It opens a compact create-or-link picker: recent Tasks are visible
-immediately, typing searches them, and creation stays in the same surface.
-A Discussion may link several Tasks; the linked Tasks sit under the title as
-compact references and unlinking removes only #497's edge.
+"Turn into a task" (issue #495) opens a compact create-or-link picker,
+drawn under the "…" menu: the page's open tasks show at once, typing
+searches them, and the last line creates a new task from the same input,
+titled as the thread when nothing is typed, at the end of the Work of the
+thread's own folder. Choosing one links it (`POST
+/discussions/:id/tasks`); a thread may be about several tasks, so the act
+stays offered after the first. The linked tasks sit above the posts, one
+slim row each with its state mark, name and state; Unlink on a row (hover or
+focus) removes only the link. A task made whose link then fails stays
+standing and the picker offers to retry that link, never a second task. The
+General discussion is never linked: it is the page's catch-all, not one
+subject.
 
 The thread fills the window: the posts read from the top, the history
 scrolls in its own region, and the composer stays at the window's foot. "Resolve" puts one optional line, "What was decided?",
 where the composer was (empty resolves without a decision, Wave 2 decision
 3). A resolved or trashed thread takes no writes (the server answers 409
-`discussion_frozen`), so it has no composer: a short block under the title
-says "Resolved <date> by <name>" and the decision if any, with Reopen. Move to Trash asks
+`discussion_frozen`), so it has no composer; the feed ends with who
+resolved it, and Reopen is in the top bar. Move to Trash asks
 nothing: the thread goes back to the list at once and the undo bar brings it
 back. Server state names are unchanged (`resolved`).
 
@@ -28,11 +35,12 @@ this thread's row.
 
 Near-live: the posts re-read every few seconds and the thread's own row every
 fifteen (`api/consultation.ts`). Opening the thread, and every new post seen
-while it is on screen, marks it read for this person on every device.
+while it is on screen, marks it read for this person on every device. It
+opens at the first post from someone else since the last read, else at the
+end.
 
 Which acts are drawn is `discussionPowers`; none of it is authorization. The
-General discussion is never offered Task linking or Move to Trash here (the
-routes decide too).
+General discussion is never offered Move to Trash here (the route decides).
 */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
@@ -48,19 +56,19 @@ import {
   useUpdateDiscussion,
 } from '../../api/consultation.js'
 import { ApiError } from '../../api/http.js'
-import { formatDate } from '../../lib/dates.js'
+import { useFolder } from '../../api/queries.js'
 import { folderGates, mayDraw } from '../../lib/folder-authority.js'
-import { Check, MoreHorizontal } from '../../lib/icons.js'
+import { ArrowLeft, Check, MoreHorizontal } from '../../lib/icons.js'
 import type { PersonResolver, ThreadAuthority } from '../../lib/thread.js'
 import { pushUndo, undoLabel } from '../../shell/undo.js'
 import { DISCUSSION_TITLE_MAX, OUTCOME_STATEMENT_MAX } from '../../../shared/consultation.js'
 import type { Discussion } from '../../../shared/consultation.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
-import { localDay } from '../thread/grouping.js'
 import { ThreadPosts } from '../thread/ThreadPosts.js'
 import { Button } from '../ui/button.js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu.js'
-import { DiscussionLinkedTasks, DiscussionTaskAction } from '../discussion-task-links.js'
+import { WindowBarActions, WindowBarLead } from '../window-bar.js'
+import { DiscussionLinkedTasks, DiscussionTaskPicker } from '../discussion-task-links.js'
 import type { ConsultationViewer } from './authority.js'
 import { discussionPowers } from './authority.js'
 
@@ -75,24 +83,40 @@ export function DiscussionView(props: {
 }): React.JSX.Element {
   const { discussionId } = props
   const discussion = useOpenDiscussion(discussionId)
+  /* A phone's way back is drawn while the thread loads or fails too. */
+  const lead = <ThreadLead title={discussion.data?.title ?? ''} folderId={props.folderId} onBack={props.onBack} />
 
   if (discussion.isPending) {
-    return <SkeletonList />
+    return (
+      <>
+        {lead}
+        <SkeletonList />
+      </>
+    )
   }
   if (discussion.isError) {
     const gone = discussion.error instanceof ApiError && discussion.error.status === 404
-    return gone ? (
-      <p className="text-sm text-muted-foreground">This thread is in Trash or no longer exists.</p>
-    ) : (
-      <InlineError onRetry={() => void discussion.refetch()} />
+    return (
+      <>
+        {lead}
+        {gone ? (
+          <p className="text-sm text-muted-foreground">This thread is in Trash or no longer exists.</p>
+        ) : (
+          <InlineError onRetry={() => void discussion.refetch()} />
+        )}
+      </>
     )
   }
-  return <ThreadBody {...props} discussion={discussion.data} onRefused={() => void discussion.refetch()} />
+  return (
+    <>
+      {lead}
+      <ThreadBody {...props} discussion={discussion.data} onRefused={() => void discussion.refetch()} />
+    </>
+  )
 }
 
 function ThreadBody(props: {
   readonly discussion: Discussion
-  readonly folderId: string
   readonly viewer: ConsultationViewer | null
   readonly personOf: PersonResolver
   readonly justStarted: boolean
@@ -101,16 +125,21 @@ function ThreadBody(props: {
      under us, so read it again. */
   readonly onRefused: () => void
 }): React.JSX.Element {
-  const { discussion: d, folderId, viewer, personOf, justStarted, onBack, onRefused } = props
+  const { discussion: d, viewer, personOf, justStarted, onBack, onRefused } = props
   const thread = useDiscussionThread(d.id)
   const reopen = useReopenDiscussion()
   const trash = useTrashFromThread()
   const restore = useRestoreDiscussion()
   const postComment = usePostDiscussionComment()
   const markRead = useMarkDiscussionRead()
-  /* After a conversion resolves the thread its button is gone; the focus
-     goes to Reopen, which takes its place. */
+  /* "Turn into a task" opens its picker under the "…" button. */
+  const [picking, setPicking] = useState(false)
+  const menuRef = useRef<HTMLButtonElement>(null)
+  /* "Resolve" put its line in the composer's place. Once it resolves, the
+     focus goes to Reopen, which takes Resolve's place in the top bar. */
   const [closing, setClosing] = useState(false)
+  const landOnReopen = useRef(false)
+  const reopenRef = useRef<HTMLButtonElement>(null)
   const [box, height] = useFillHeight()
   const [renaming, setRenaming] = useState(false)
   const [pointer] = useState(() => globalThis.matchMedia?.('(pointer: fine)').matches ?? false)
@@ -119,11 +148,12 @@ function ThreadBody(props: {
   const [openAt] = useState<string | null>(() => d.read_at ?? null)
 
   /* On the document, so an Escape with nothing focused (after a click on the
-     page) leaves too; one aimed elsewhere (the sidebar, a dialog) does not. */
+     page) leaves too, as does one from the thread's own acts in the top bar;
+     one aimed elsewhere (the sidebar, a dialog) does not. */
   useEffect(() => {
     const leave = (event: KeyboardEvent): void => {
       const target = event.target as HTMLElement
-      if (target !== document.body && !box.current?.contains(target)) return
+      if (target !== document.body && !box.current?.contains(target) && target.closest('[data-thread-bar]') === null) return
       if (leavesThread(event)) onBack()
     }
     document.addEventListener('keydown', leave)
@@ -163,15 +193,12 @@ function ThreadBody(props: {
     [live, gates?.moderate, gates?.mutateOwnComment, gates?.likeComment, gates?.createComment],
   )
 
-  const outcome = d.state === 'resolved' ? d.current_outcome : null
-  const closedBy = outcome?.actor_id ?? d.resolved_by
-  const closedAt = outcome?.created_at ?? d.resolved_at
   const trashed = d.trashed_at !== null
   const trashable = powers.trash && !d.is_general
   const resolvable = powers.resolve && d.state === 'open' && !trashed
-  /* The relationship picker edits the Discussion edge, so it follows the
-     Discussion's edit authority. Task creation is a separate capability and
-     is offered inside the same picker only when the viewer has it. */
+  /* The picker edits the thread's links, so it follows the thread's edit
+     authority; creating a task there is a second capability, offered inside
+     the picker only to someone who has it. */
   const relatable = d.state === 'open' && !trashed && powers.edit && !d.is_general
   const canCreateTask = viewer !== null && mayDraw(viewer.facts, 'task.create')
 
@@ -187,95 +214,99 @@ function ThreadBody(props: {
     pushUndo(undoLabel('Moved to Trash', d.title), () => { restore.mutate(d.id) })
   }
 
-  const today = localDay(new Date().toISOString())
   const resolved = d.state === 'resolved'
-  /* Closed: a short block under the title says how it ended (and the
-     decision, if one was given), with Reopen beside it. */
-  const closedNote = frozen ? (
-    <div className="mt-4 flex min-w-0 shrink-0 items-start gap-3 rounded-md border border-border px-3 py-2">
-      <div className="min-w-0 flex-1 text-sm">
-        <p className="text-muted-foreground">
-          {trashed
-            ? 'This thread is in Trash.'
-            : `Resolved${closedAt !== null ? ` ${formatDate(localDay(closedAt), today)}` : ''}${closedBy !== null ? ` by ${personOf(closedBy).name}` : ''}`}
-        </p>
-        {!trashed && outcome !== null && outcome.statement !== '' ? (
-          <p className="mt-0.5 break-words whitespace-pre-wrap text-foreground">{outcome.statement}</p>
-        ) : null}
-      </div>
-      {resolved && powers.reopen && !trashed ? (
-        <Button type="button" variant="ghost" size="sm" className="-my-0.5 shrink-0" disabled={reopen.isPending} onClick={() => { reopen.mutate(d.id) }}>
+  const hasMenu = relatable || (powers.edit && !frozen) || trashable
+  const reopenable = resolved && powers.reopen && !trashed
+  useEffect(() => {
+    if (!resolved || !landOnReopen.current) return
+    landOnReopen.current = false
+    reopenRef.current?.focus()
+  }, [resolved])
+
+  /* The thread's acts sit at the right end of the top bar, only while it is
+     open here. A laptop reads "Resolve" (or "Reopen"); a phone draws Resolve
+     as its check alone, 44px like every touch target there. */
+  const acts = (
+    <div data-thread-bar="" className="flex shrink-0 items-center gap-1">
+      {resolvable && !closing ? (
+        <>
+          <Button type="button" variant="ghost" className="text-muted-foreground hover:text-foreground max-md:hidden" onClick={() => { setClosing(true) }}>
+            <Check className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+            Resolve
+          </Button>
+          <Button type="button" variant="ghost" aria-label="Resolve" className="size-11 text-muted-foreground md:hidden" onClick={() => { setClosing(true) }}>
+            <Check className="!size-5" strokeWidth={1.75} aria-hidden="true" />
+          </Button>
+        </>
+      ) : null}
+      {reopenable ? (
+        <Button ref={reopenRef} type="button" variant="ghost" className="text-muted-foreground hover:text-foreground max-md:h-11" disabled={reopen.isPending} onClick={() => { reopen.mutate(d.id) }}>
           Reopen
         </Button>
       ) : null}
+      {hasMenu ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                ref={menuRef}
+                type="button"
+                aria-label="Thread actions"
+                className="flex size-[var(--control-height)] shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground max-md:size-11"
+              />
+            }
+          >
+            <MoreHorizontal className="size-4 max-md:size-5" strokeWidth={1.75} aria-hidden="true" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {relatable ? (
+              <DropdownMenuItem onClick={() => { setPicking(true) }}>{canCreateTask ? 'Turn into a task' : 'Link a task'}</DropdownMenuItem>
+            ) : null}
+            {powers.edit && !frozen ? (
+              <DropdownMenuItem onClick={() => { setRenaming(true) }}>Rename</DropdownMenuItem>
+            ) : null}
+            {trashable ? (
+              <DropdownMenuItem variant="destructive" onClick={moveToTrash}>
+                Move to Trash
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
     </div>
-  ) : null
+  )
 
-  const hasMenu = (powers.edit && !frozen) || trashable
   return (
     <div
       ref={box}
       className="flex min-w-0 flex-col"
       style={height === null ? undefined : { height }}
     >
-      {/* A letter's head: the 28px title on the left, the acts on the right. */}
-      <header className="flex min-w-0 shrink-0 items-start gap-2 pt-4 max-md:flex-wrap max-md:pt-2">
-        {renaming ? (
-          <Rename discussion={d} onDone={() => { setRenaming(false) }} />
-        ) : (
-          <h1 data-page-title="" className="line-clamp-2 min-w-0 flex-1 break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-foreground">{d.title}</h1>
-        )}
-        {/* On a phone the acts take their own line under the title, so the
-            title is never squeezed to a few letters. */}
-        <div className="mt-1 ml-auto flex shrink-0 items-center gap-2 max-md:ml-0 max-md:w-full">
-          {!closing ? (
-            <DiscussionTaskAction discussion={d} folderId={folderId} canRelate={relatable} canCreate={canCreateTask} />
-          ) : null}
-          {resolvable && !closing ? (
-            <Button type="button" variant="outline" onClick={() => { setClosing(true) }}>
-              <Check className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-              Resolve
-            </Button>
-          ) : null}
-          {hasMenu ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <button
-                    type="button"
-                    aria-label="Thread actions"
-                    className="flex size-[var(--control-height)] shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground"
-                  />
-                }
-              >
-                <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {powers.edit && !frozen ? (
-                  <DropdownMenuItem onClick={() => { setRenaming(true) }}>Rename</DropdownMenuItem>
-                ) : null}
-                {trashable ? (
-                  <DropdownMenuItem variant="destructive" onClick={moveToTrash}>
-                    Move to Trash
-                  </DropdownMenuItem>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
-        </div>
-      </header>
-
-      <DiscussionLinkedTasks discussion={d} canUnlink={relatable} />
-
-      {closedNote}
-      {d.context !== null && d.context !== '' ? (
-        <p className="mt-2 shrink-0 text-sm break-words whitespace-pre-wrap text-muted-foreground">{d.context}</p>
+      <WindowBarActions order={2}>{acts}</WindowBarActions>
+      {/* The top bar names the thread; this names it for the window's title
+          and a screen reader, and draws nothing. */}
+      <h1 data-page-title={d.title} className="sr-only">{d.title}</h1>
+      {renaming ? <Rename discussion={d} onDone={() => { setRenaming(false) }} /> : null}
+      {relatable ? (
+        <DiscussionTaskPicker
+          discussion={d}
+          folderId={d.folder_id}
+          canCreate={canCreateTask}
+          open={picking}
+          onOpenChange={setPicking}
+          anchor={menuRef}
+        />
       ) : null}
-      {/* The rule under the head, as a letter's. */}
-      <div aria-hidden="true" className="mt-6 mb-2 h-px shrink-0 bg-border" />
+      <DiscussionLinkedTasks discussion={d} canUnlink={relatable} />
+      {trashed ? <p className="shrink-0 py-1.5 text-sm text-muted-foreground">This thread is in Trash.</p> : null}
+      {d.context !== null && d.context !== '' ? (
+        <p className="shrink-0 py-1.5 text-sm break-words whitespace-pre-wrap text-muted-foreground">{d.context}</p>
+      ) : null}
 
       <ThreadPosts
-        folderId={folderId}
+        /* Attachments are stored in the thread's own folder, which the
+           server checks `file_ids` against; the tab's id is refused (422). */
+        folderId={d.folder_id}
         comments={comments}
         loading={thread.isPending}
         failed={thread.isError}
@@ -287,14 +318,54 @@ function ThreadBody(props: {
         focusOnLand={pointer}
         openAt={justStarted ? undefined : openAt}
         onRefused={refused}
-        post={(body) => postComment.mutateAsync({ discussionId: d.id, body })}
+        post={(body) => postComment.mutateAsync({ discussionId: d.id, body, taskIds: d.linked_tasks.map((task) => task.id) })}
+        resolution={
+          d.state === 'resolved'
+            ? {
+                by: d.current_outcome?.actor_id ?? d.resolved_by,
+                at: d.current_outcome?.created_at ?? d.resolved_at,
+                statement: d.current_outcome?.statement ?? null,
+              }
+            : null
+        }
         {...(frozen
           ? { closed: null }
           : closing
-            ? { closed: <CloseThread discussion={d} onDone={() => { setClosing(false) }} /> }
+            ? {
+                closed: (
+                  <CloseThread
+                    discussion={d}
+                    onDone={(done) => {
+                      landOnReopen.current = done
+                      setClosing(false)
+                    }}
+                  />
+                ),
+              }
             : {})}
       />
     </div>
+  )
+}
+
+/* A phone's top bar while a thread is open: back to the list, then the
+   thread's title on one line over "<Page> · Discussion". A laptop's top bar
+   keeps the breadcrumb, which says the same. */
+function ThreadLead({ title, folderId, onBack }: { readonly title: string; readonly folderId: string; readonly onBack: () => void }): React.JSX.Element {
+  const folder = useFolder(folderId)
+  const names = folder.data === undefined ? [] : [...(folder.data.ancestors ?? []).slice(-1), folder.data].map((f) => f.name)
+  return (
+    <WindowBarLead>
+      <div data-thread-bar="" className="flex min-w-0 flex-1 items-center gap-1 md:hidden">
+        <Button type="button" variant="ghost" aria-label="Back to threads" className="size-11 shrink-0 text-muted-foreground" onClick={onBack}>
+          <ArrowLeft className="!size-5" strokeWidth={1.75} aria-hidden="true" />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm text-foreground" title={title}>{title}</p>
+          {names.length > 0 ? <p className="truncate text-xs text-muted-foreground">{names.join(' · ')}</p> : null}
+        </div>
+      </div>
+    </WindowBarLead>
   )
 }
 
@@ -338,7 +409,8 @@ function useFillHeight(): [React.RefObject<HTMLDivElement | null>, number | null
   return [box, height]
 }
 
-/** Rename, from the "…" menu: the title becomes its field; Enter saves, Escape leaves. */
+/** Rename, from the "…" menu: the title as a field in a slim row above the
+ * posts; Enter or leaving it saves, Escape leaves it unchanged. */
 function Rename({ discussion: d, onDone }: { readonly discussion: Discussion; readonly onDone: () => void }): React.JSX.Element {
   const update = useUpdateDiscussion()
   const [draft, setDraft] = useState(d.title)
@@ -357,7 +429,7 @@ function Rename({ discussion: d, onDone }: { readonly discussion: Discussion; re
       value={draft}
       maxLength={DISCUSSION_TITLE_MAX}
       disabled={update.isPending}
-      className="min-w-0 flex-1 bg-transparent text-[length:var(--text-title-size)] leading-8 font-title text-foreground outline-none"
+      className="mb-2 h-10 w-full min-w-0 shrink-0 rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-ring max-md:h-11"
       onFocus={(event) => { event.currentTarget.select() }}
       onChange={(event) => { setDraft(event.target.value) }}
       onBlur={save}
@@ -377,7 +449,7 @@ function Rename({ discussion: d, onDone }: { readonly discussion: Discussion; re
 /** "Resolve": one optional line in the composer's place and in its
  * frame (the same 40px box, the act inline where Send was), then Enter.
  * Escape or Cancel leaves it open. */
-function CloseThread({ discussion: d, onDone }: { readonly discussion: Discussion; readonly onDone: () => void }): React.JSX.Element {
+function CloseThread({ discussion: d, onDone }: { readonly discussion: Discussion; readonly onDone: (resolved: boolean) => void }): React.JSX.Element {
   const resolve = useResolveDiscussion()
   const [statement, setStatement] = useState('')
   return (
@@ -386,7 +458,7 @@ function CloseThread({ discussion: d, onDone }: { readonly discussion: Discussio
       onSubmit={(event) => {
         event.preventDefault()
         const decided = statement.trim()
-        resolve.mutate({ id: d.id, body: decided === '' ? {} : { statement: decided } }, { onSuccess: onDone })
+        resolve.mutate({ id: d.id, body: decided === '' ? {} : { statement: decided } }, { onSuccess: () => { onDone(true) } })
       }}
     >
       <input
@@ -400,14 +472,14 @@ function CloseThread({ discussion: d, onDone }: { readonly discussion: Discussio
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
             event.preventDefault()
-            onDone()
+            onDone(false)
           }
         }}
       />
-      <Button type="button" variant="ghost" onClick={onDone}>
+      <Button type="button" variant="ghost" className="max-md:h-11" onClick={() => { onDone(false) }}>
         Cancel
       </Button>
-      <Button type="submit" variant="ghost" disabled={resolve.isPending}>
+      <Button type="submit" variant="ghost" className="max-md:h-11" disabled={resolve.isPending}>
         Resolve
       </Button>
     </form>

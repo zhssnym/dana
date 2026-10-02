@@ -1,6 +1,6 @@
 /*
 The 7.14 contract: a comment on a task or on the folder's own
-thread, one level of replies (4.15), likes as one bit per person, files by
+thread, replies that name the post they answer (4.15), reactions from a fixed set, files by
 reference to 7.15's rows. The thread read returns whole and ordered; there
 is no pagination, a conversation being read as a conversation.
 
@@ -334,6 +334,28 @@ export interface CommentFile {
   height: number | null
 }
 
+/** The whole reaction set: a small fixed one, keyed by name so the stored
+ * value never depends on how a client encodes the glyph. A like from before
+ * reactions is a `thumbs_up`. */
+export const REACTIONS = {
+  thumbs_up: '👍',
+  heart: '❤️',
+  laugh: '😂',
+  party: '🎉',
+  surprised: '😮',
+  thanks: '🙏',
+} as const
+export type ReactionKey = keyof typeof REACTIONS
+export const REACTION_KEYS = Object.keys(REACTIONS) as [ReactionKey, ...ReactionKey[]]
+export const reactionKey = z.enum(REACTION_KEYS)
+
+export interface CommentReaction {
+  reaction: ReactionKey
+  /** Who left it (user ids, earliest first); never empty. The viewer's own
+   * is found by looking for their id. */
+  by: string[]
+}
+
 export interface CommentLine {
   id: string
   folder_id: string
@@ -349,13 +371,9 @@ export interface CommentLine {
    * posts, whose `body` is then the whole post. Optional in the type only
    * so older fixtures compile: the server always answers it. */
   content?: PostContent | null
-  /** The whole reaction set is one count (DES-146). */
-  likes: number
-  /** Whether the viewer is inside that count. */
-  liked: boolean
-  /** Who is inside it (user ids, earliest first), so a like reads as names.
-   * Optional in the type only so older fixtures compile. */
-  liked_by?: string[]
+  /** One entry per reaction someone has left, in the order each was first
+   * left; a reaction nobody has left is absent. */
+  reactions: CommentReaction[]
   files: CommentFile[]
   created_at: string
   edited_at: string | null
@@ -370,6 +388,11 @@ The read half: `api/http.ts` parses every response through a zod schema, and
 `CommentLine` and `ThreadView` above are interfaces only. Written from
 `domain/comments.ts`, as the read halves in `shelves.ts` and `events.ts` are.
 */
+export const commentReaction = z.object({
+  reaction: reactionKey,
+  by: z.array(z.uuid()).min(1),
+})
+
 export const commentLine = z.object({
   id: z.uuid(),
   folder_id: z.uuid(),
@@ -379,9 +402,7 @@ export const commentLine = z.object({
   author_id: z.uuid(),
   body: z.string().nullable(),
   content: postContent.nullable().optional(),
-  likes: z.number().int(),
-  liked: z.boolean(),
-  liked_by: z.array(z.uuid()).optional(),
+  reactions: z.array(commentReaction),
   files: z.array(
     z.object({
       id: z.uuid(),

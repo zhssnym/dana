@@ -8,20 +8,32 @@ place (every attachment of an older comment) follow it as tiles.
 
 Long posts fold after about eight lines behind "Show more".
 
+A chat bubble hands in a `footer` (reactions, time): it floats at the right
+end of the last line of text when there is room, else takes a line of its
+own, and sits beside "Show more" while the post is folded.
+
+A link to a task draws as a compact card: the task's state mark, its title on
+one line and its state word, opening the task when pressed.
+
 Nothing here imports BlockNote: a thread with fifty posts draws fifty of these,
 and the editor is loaded only for the one composer.
 */
 import { useLayoutEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router'
 
 import { walkPostBlocks } from '../../../shared/comments.js'
 import type { CommentFile, PostBlock, PostContent } from '../../../shared/comments.js'
 import type { RichContent } from '../../../shared/rich-content.js'
+import { queryKeys } from '../../api/keys.js'
+import { useTask } from '../../api/queries.js'
 import { FileText } from '../../lib/icons.js'
 import { fileSrc } from '../../lib/thread.js'
-import { danaLinkOf } from '../links/dana-link.js'
+import { danaLinkOf, resolveReference } from '../links/dana-link.js'
 import { DanaLinkChip } from '../links/dana-link-display.js'
 import { MentionChip } from '../page/canvas/mention-chip.js'
 import { cn } from '../ui/utils.js'
+import { STATE_WORD, StateMark, taskState } from './timeline/state.js'
 
 /* About eight lines of body text before a post folds; a post with files
    folds later, so a picture and its name and size show whole. */
@@ -33,12 +45,15 @@ export function PostView({
   body,
   files,
   edited = false,
+  footer,
 }: {
   readonly content: PostContent | null | undefined
   readonly body: string | null
   readonly files: readonly CommentFile[]
   /** Slack's "(edited)": inline after the last line when it is text, else on a line of its own. */
   readonly edited?: boolean
+  /** Drawn after the text, at the right (a bubble's reactions and time). */
+  readonly footer?: React.ReactNode
 }): React.JSX.Element {
   const inner = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
@@ -48,7 +63,11 @@ export function PostView({
     const element = inner.current
     if (element === null) return
     const measure = (): void => {
-      setOverflows(element.scrollHeight > element.clientHeight + 4)
+      /* Once folded, stays folded for this content: the footer moving out
+         from under the fold would otherwise unfold it again. The caller
+         keys this view by the post's edit. */
+      const over = element.scrollHeight > element.clientHeight + 4
+      setOverflows((was) => was || over)
     }
     measure()
     const observer = new ResizeObserver(measure)
@@ -63,7 +82,11 @@ export function PostView({
   const placed = new Set<string>()
   if (content) walkPostBlocks(content.blocks, (block) => { if (block.file_id !== undefined) placed.add(block.file_id) })
   const loose = files.filter((file) => !placed.has(file.id))
-  const mark = edited ? <span className="text-xs text-muted-foreground"> (edited)</span> : null
+  const folded = overflows && !open
+  const mark =
+    footer !== undefined
+      ? folded ? null : <span className="float-right mt-0.5 ml-2 whitespace-nowrap">{footer}</span>
+      : edited ? <span className="text-xs text-muted-foreground"> (edited)</span> : null
   const lastBlock = content ? content.blocks.at(-1) : undefined
   const inline =
     content ? lastBlock?.kind === 'paragraph' && (lastBlock.children?.length ?? 0) === 0 && loose.length === 0 : loose.length === 0
@@ -73,7 +96,8 @@ export function PostView({
       <div
         ref={inner}
         className={cn(
-          'min-w-0 space-y-1.5 text-sm break-words whitespace-pre-wrap text-foreground',
+          'min-w-0 space-y-1.5 text-sm wrap-anywhere whitespace-pre-wrap text-foreground',
+          footer !== undefined && 'flow-root',
           !open && (files.length > 0 ? FOLD_FILES : FOLD),
           !open && 'overflow-hidden',
         )}
@@ -87,15 +111,18 @@ export function PostView({
         {mark !== null && !inline ? <p className="leading-none">{mark}</p> : null}
       </div>
       {overflows || open ? (
-        <button
-          type="button"
-          className="mt-1 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground"
-          onClick={() => {
-            setOpen((value) => !value)
-          }}
-        >
-          {open ? 'Show less' : 'Show more'}
-        </button>
+        <div className="mt-1 flex items-center gap-2">
+          <button
+            type="button"
+            className="rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground"
+            onClick={() => {
+              setOpen((value) => !value)
+            }}
+          >
+            {open ? 'Show less' : 'Show more'}
+          </button>
+          {folded && footer !== undefined ? <span className="ml-auto whitespace-nowrap">{footer}</span> : null}
+        </div>
       ) : null}
     </div>
   )
@@ -261,6 +288,9 @@ function Runs({ rich }: { readonly rich: RichContent | undefined }): React.JSX.E
         if (run.italic) node = <em>{node}</em>
         // Wave 2 (W-D): a person mention draws the canvas's chip.
         if (run.mention !== undefined) return <MentionChip key={index} label={run.text} />
+        if (run.href !== undefined && danaLinkOf(run.href)?.kind === 'task') {
+          return <TaskRef key={index} href={run.href} stored={run.text} />
+        }
         if (run.href !== undefined) {
           node = danaLinkOf(run.href) !== null
             ? <DanaLinkChip href={run.href} stored={run.text} />
@@ -269,6 +299,35 @@ function Runs({ rich }: { readonly rich: RichContent | undefined }): React.JSX.E
         return <span key={index}>{node}</span>
       })}
     </>
+  )
+}
+
+/** A task named in a post: its mark, title and state on one line, opening
+ * the task. Read only once the link itself resolves (so a task the reader
+ * may not see is never asked for); until then, and if the task cannot be
+ * read, it is the ordinary link chip. */
+function TaskRef({ href, stored }: { readonly href: string; readonly stored: string }): React.JSX.Element {
+  const target = danaLinkOf(href)
+  const reference = useQuery({
+    queryKey: queryKeys.reference(target?.kind ?? '', target?.id ?? ''),
+    queryFn: () => resolveReference(target!.kind, target!.id),
+    enabled: target !== null,
+    retry: false,
+    staleTime: 30_000,
+  })
+  const task = useTask(target !== null && reference.isSuccess ? target.id : null)
+  if (target === null || task.data === undefined) return <DanaLinkChip href={href} stored={stored} />
+  const state = taskState(task.data)
+  return (
+    <Link
+      to={target.path}
+      data-dana-link="task"
+      className="mx-px inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-sm border border-border bg-background px-1.5 align-bottom whitespace-nowrap no-underline outline-none hover:bg-accent"
+    >
+      <StateMark state={state} className="size-3.5" />
+      <span className={cn('min-w-0 truncate font-section text-foreground', state !== 'open' && 'text-muted-foreground')}>{task.data.title}</span>
+      <span className="shrink-0 text-xs text-muted-foreground">{STATE_WORD[state]}</span>
+    </Link>
   )
 }
 
