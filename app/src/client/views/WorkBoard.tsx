@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { PageView } from '../../shared/pages.js'
 import type { TaskCard } from '../../shared/tasks.js'
 import { useCreateTask } from '../api/mutations.js'
+import { useWearFilterLabel } from '../api/labels.js'
 import { mutateApi } from '../api/http.js'
 import { queryKeys } from '../api/keys.js'
 import { BoardQuickAdd, TaskBoard } from '../components/task-board.js'
@@ -68,6 +69,7 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
   group: WorkGroup
 }): React.JSX.Element {
   const create = useCreateTask()
+  const wearFilterLabel = useWearFilterLabel(folderId)
   const queryClient = useQueryClient()
   const sectionZones = useRef(new Map<string, HTMLElement>())
   const [naming, setNaming] = useState<string | null>(null)
@@ -310,10 +312,13 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
         return true
       }}
       quickAdd={(column) => {
-        if (filtered || !canCreate || pending?.id === column.key) return null
+        if ((filtered && filter.label === null) || !canCreate || pending?.id === column.key) return null
         const target = captureOf(column.key)
         if (target === null) return null
-        return <BoardQuickAdd label={`New task in ${column.label}`} onAdd={(title) => create.mutate({ title, folder_id: folderId, ...target })} />
+        return <BoardQuickAdd label={`New task in ${column.label}`} onAdd={(title) => create.mutate(
+          { title, folder_id: folderId, ...target },
+          { onSuccess: (task) => wearFilterLabel(task.id, filter.label) },
+        )} />
       }}
       subsectionAdd={(column) => {
         if (group !== 'section' || !canEdit || filtered || !sectionById.has(column.key) || depthOf(column.key) >= 3) return null
