@@ -129,9 +129,9 @@ function EndpointButton({
       className={cn(
         "min-w-0 rounded-md border px-2 py-1.5 text-left transition-[background-color,border-color,color] duration-[var(--duration-fast)]",
         active
-          ? "border-primary/45 bg-primary/8 text-foreground"
+          ? "border-primary/40 bg-primary/10 text-foreground"
           : "border-border bg-card text-foreground hover:bg-accent",
-        disabled && "cursor-not-allowed opacity-45",
+        disabled && "cursor-not-allowed opacity-40",
       )}
     >
       <span className="block text-[11px] font-medium text-muted-foreground">{name}</span>
@@ -144,10 +144,6 @@ function EndpointButton({
 }
 
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
-
-function startOfDayLocal(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
-}
 
 function sameDay(a: Date | null | undefined, b: Date | null | undefined): boolean {
   if (!a || !b) return false
@@ -391,7 +387,7 @@ function ScheduleCalendar({
                   "relative flex size-8 items-center justify-center rounded-sm text-sm tabular-nums transition-[background-color,color,box-shadow] duration-[var(--duration-fast)] ease-[var(--ease-standard)]",
                   isEndpoint
                     ? isActive
-                      ? "bg-primary font-medium text-primary-foreground ring-1 ring-primary/35 ring-offset-1 ring-offset-background"
+                      ? "bg-primary font-medium text-primary-foreground ring-1 ring-primary/30 ring-offset-1 ring-offset-background"
                       : "bg-primary/80 font-medium text-primary-foreground"
                     : outside
                       ? "text-quiet-foreground hover:bg-accent hover:text-muted-foreground"
@@ -414,14 +410,14 @@ function ScheduleCalendar({
               {showStartHandle ? (
                 <span
                   aria-hidden="true"
-                  className="absolute inset-y-0 left-0 z-20 w-3 cursor-ew-resize touch-none before:absolute before:inset-y-1 before:left-1 before:w-0.5 before:rounded-full before:bg-foreground/35 before:opacity-35 group-hover/day:before:opacity-100"
+                  className="absolute inset-y-0 left-0 z-20 w-3 cursor-ew-resize touch-none before:absolute before:inset-y-1 before:left-1 before:w-0.5 before:rounded-full before:bg-foreground/35 before:opacity-30 group-hover/day:before:opacity-100"
                   onPointerDown={(pointer) => beginResize("start", pointer)}
                 />
               ) : null}
               {showDueHandle ? (
                 <span
                   aria-hidden="true"
-                  className="absolute inset-y-0 right-0 z-20 w-3 cursor-ew-resize touch-none before:absolute before:inset-y-1 before:right-1 before:w-0.5 before:rounded-full before:bg-foreground/35 before:opacity-35 group-hover/day:before:opacity-100"
+                  className="absolute inset-y-0 right-0 z-20 w-3 cursor-ew-resize touch-none before:absolute before:inset-y-1 before:right-1 before:w-0.5 before:rounded-full before:bg-foreground/35 before:opacity-30 group-hover/day:before:opacity-100"
                   onPointerDown={(pointer) => beginResize("due", pointer)}
                 />
               ) : null}
@@ -443,7 +439,6 @@ export function SchedulePanel({
   const dueDate = task.due ? parseDueLabel(task.due.label) : null
   const dueKey = dueDate === null ? null : isoDay(dueDate)
   const startKey = task.start ?? null
-  const startDate = startKey === null ? null : parseIsoDate(startKey)
   const dueTime = task.dueTime ?? null
   const startTime = task.startTime ?? null
   const canEditStart = task.id !== "new"
@@ -495,7 +490,7 @@ export function SchedulePanel({
     setRefused(null)
     patch(task.id, { start: undefined, startTime: undefined })
     update.mutate({ id: task.id, body: { start_date: null } })
-    setEndpoint(dueKey === null ? "due" : "due")
+    setEndpoint("due")
   }
 
   function clearDue() {
