@@ -6,16 +6,16 @@ The list reads like an issues list: one bordered box, hairlines between rows,
 and a tinted head row with two filters on the left, "Open" (the default) and
 "Resolved", with no counts, and a small "New thread" button on the right. The
 filter lives in this component only; there is no storage key.
-Each thread is one compact line with one leading mark: a thread about a task
-shows the task's state mark (linking to the task); any other shows an outline
-speech bubble while open, a filled check once resolved, and pressing it
-resolves (without a decision) or reopens, with Undo. Then the title, at
-medium weight and cut short before the meta; an unread one (a post from
-someone else since this person last read it, the server's `read_at`) is
-heavier and nothing else marks it. On the right, small muted meta: the last
-poster and when ("Lucía Ortega · 4 days ago"), or "Resolved · Sep 18" once
-resolved. A resolved thread is the same
-row, muted. No preview, no face, no post counts (M4 §4.7).
+Each thread is one compact line with one leading mark: a thread linked to one
+or more Tasks shows the first linked Task's state mark (linking to that Task);
+any other shows an outline speech bubble while open, a filled check once
+resolved, and pressing it resolves (without a decision) or reopens, with Undo.
+Then the title, at medium weight and cut short before the meta; an unread one
+(a post from someone else since this person last read it, the server's
+`read_at`) is heavier and nothing else marks it. On the right, small muted
+meta: the last poster and when ("Lucía Ortega · 4 days ago"), or
+"Resolved · Sep 18" once resolved. A resolved thread is the same row, muted.
+No preview, no face, no post counts (M4 §4.7).
 
 The keyboard path is the task lists' (`row-keys.ts`): arrows move, Enter
 opens, Space resolves or reopens. An old `?threads=closed` link still loads;
@@ -253,9 +253,8 @@ function ThreadRow({
 }): React.JSX.Element {
   const isOpen = state === 'open'
   const fresh = isUnread(d, viewerId)
-  /* Issue #497 made the link plural; until #495's picker, the row leads with the first. */
-  const linkedTask = d.linked_tasks[0] ?? null
   const last = d.last_post ?? null
+  const linkedTask = d.linked_tasks[0] ?? null
   /* "Lucía Ortega · 4 days ago", or "Resolved · Sep 18". */
   const meta = isOpen
     ? [
@@ -295,11 +294,10 @@ function ThreadRow({
       }}
     >
       {linkedTask !== null ? (
-        /* A thread about a task leads with the task's state, linking to it. */
         <Link
           to={paths.task(linkedTask.id)}
-          title={`Task: ${linkedTask.title}`}
-          aria-label={`Task: ${linkedTask.title}`}
+          title={d.linked_tasks.length === 1 ? `Task: ${linkedTask.title}` : `${d.linked_tasks.length} linked tasks · ${linkedTask.title}`}
+          aria-label={d.linked_tasks.length === 1 ? `Task: ${linkedTask.title}` : `${d.linked_tasks.length} linked tasks; open ${linkedTask.title}`}
           className={cn(MARK, 'text-muted-foreground outline-none hover:text-foreground')}
         >
           <StateMark state={taskState(linkedTask)} className="size-3.5" />
