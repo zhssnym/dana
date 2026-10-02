@@ -10,7 +10,7 @@ import { Button } from '../components/ui/button.js'
 import { Calendar } from '../components/ui/calendar.js'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '../components/ui/popover.js'
 import { cn } from '../components/ui/utils.js'
-import { LabelDot } from '../components/label-chip.js'
+import { LabelChip } from '../components/label-chip.js'
 import {
   ArrowLeft,
   CalendarDays,
@@ -161,15 +161,18 @@ function ChoiceRow({
   active,
   onClick,
   before,
+  content,
 }: {
   readonly label: string
   readonly active: boolean
   readonly onClick: () => void
   readonly before?: React.ReactNode
+  readonly content?: React.ReactNode
 }): React.JSX.Element {
   return (
     <button
       type="button"
+      aria-label={label}
       aria-pressed={active}
       className="flex min-h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground outline-none transition-colors duration-[var(--duration-fast)] hover:bg-accent focus-visible:bg-accent"
       onClick={onClick}
@@ -177,7 +180,9 @@ function ChoiceRow({
       {before === undefined ? null : (
         <span className="flex size-4 shrink-0 items-center justify-center">{before}</span>
       )}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {content === undefined
+        ? <span className="min-w-0 flex-1 truncate">{label}</span>
+        : <span className="flex min-w-0 flex-1">{content}</span>}
       <Check className={active ? 'ml-auto size-4 opacity-100' : 'ml-auto size-4 opacity-0'} strokeWidth={2.5} aria-hidden="true" />
     </button>
   )
@@ -248,21 +253,21 @@ export function TaskFilterControl({
           <Filter aria-hidden="true" />
         </PopoverTrigger>
         <PopoverContent align="end" className="relative w-[18rem] max-sm:max-h-[var(--available-height)] max-sm:overflow-y-auto p-1">
-              <FilterHeader
-                title="Filter tasks"
-                {...(taskFilterActive(filter) ? { onClear: () => onChange(NO_TASK_FILTER) } : {})}
-              />
-              <div role="group" aria-label="Task filters">
-                <FilterRow icon={ListChecks} label="Status" value={statusValue} active={panel === 'status'} onClick={() => setPanel('status')} />
-                <FilterRow icon={CalendarDays} label="Date" value={dayLabel(filter, today)} active={panel === 'date'} onClick={() => setPanel('date')} />
-                <FilterRow icon={UserRound} label="Assigned" value={assigneeValue} active={panel === 'assignee'} onClick={() => setPanel('assignee')} />
-                {labels.length > 0 || filter.label !== null ? (
-                  <FilterRow icon={Tag} label="Label" value={currentLabel} active={panel === 'label'} onClick={() => setPanel('label')} />
-                ) : null}
-                <div aria-hidden="true" className="-mx-1 my-1 h-px bg-border" />
-                <ToggleRow icon={Star} label="Important" pressed={filter.important} onHover={() => setPanel('root')} onClick={() => onChange({ ...filter, important: !filter.important })} />
-                <ToggleRow icon={Repeat2} label="Repeating" pressed={filter.repeating} onHover={() => setPanel('root')} onClick={() => onChange({ ...filter, repeating: !filter.repeating })} />
-              </div>
+          <FilterHeader
+            title="Filter tasks"
+            {...(taskFilterActive(filter) ? { onClear: () => onChange(NO_TASK_FILTER) } : {})}
+          />
+          <div role="group" aria-label="Task filters">
+            <FilterRow icon={ListChecks} label="Status" value={statusValue} active={panel === 'status'} onClick={() => setPanel('status')} />
+            <FilterRow icon={CalendarDays} label="Date" value={dayLabel(filter, today)} active={panel === 'date'} onClick={() => setPanel('date')} />
+            <FilterRow icon={UserRound} label="Assigned" value={assigneeValue} active={panel === 'assignee'} onClick={() => setPanel('assignee')} />
+            {labels.length > 0 || filter.label !== null ? (
+              <FilterRow icon={Tag} label="Label" value={currentLabel} active={panel === 'label'} onClick={() => setPanel('label')} />
+            ) : null}
+            <div aria-hidden="true" className="-mx-1 my-1 h-px bg-border" />
+            <ToggleRow icon={Star} label="Important" pressed={filter.important} onHover={() => setPanel('root')} onClick={() => onChange({ ...filter, important: !filter.important })} />
+            <ToggleRow icon={Repeat2} label="Repeating" pressed={filter.repeating} onHover={() => setPanel('root')} onClick={() => onChange({ ...filter, repeating: !filter.repeating })} />
+          </div>
           {panel === 'root' ? null : <div className="w-[18rem] rounded-lg border border-border bg-popover p-1 max-sm:mt-1 sm:absolute sm:right-full sm:top-0 sm:max-h-[var(--available-height)] sm:overflow-y-auto">
 
           {panel === 'status' ? (
@@ -329,7 +334,6 @@ export function TaskFilterControl({
               <div role="group" aria-label="Label" className="max-h-72 overflow-y-auto">
                 <ChoiceRow
                   label="Any label"
-                  before={<span aria-hidden="true" className="size-2" />}
                   active={filter.label === null}
                   onClick={() => onChange({ ...filter, label: null })}
                 />
@@ -337,7 +341,7 @@ export function TaskFilterControl({
                   <ChoiceRow
                     key={label.id}
                     label={label.name}
-                    before={<LabelDot color={label.color} />}
+                    content={<LabelChip label={label} className="max-w-[12rem]" />}
                     active={filter.label === label.id}
                     onClick={() => {
                       onChange({ ...filter, label: label.id })
@@ -376,20 +380,28 @@ export function TaskFilterChips({
   if (chips.length === 0) return null
   return (
     <div className="flex flex-wrap items-center gap-1" aria-label="Active filters">
-      {chips.map((chip) => (
-        <Button
+      {chips.map((chip) => {
+        const activeLabel = chip.key === 'label' && filter.label !== null
+          ? labels.find((label) => label.id === filter.label)
+          : undefined
+        return <Button
           key={chip.key}
           variant="ghost"
           size="xs"
-          className="max-w-56 rounded-sm bg-accent font-normal text-muted-foreground hover:text-foreground"
+          className={cn(
+            'max-w-56 font-normal text-muted-foreground hover:text-foreground',
+            activeLabel === undefined ? 'rounded-sm bg-accent' : 'h-6 rounded-full px-0.5 pr-1',
+          )}
           aria-label={`Remove ${chip.label} filter`}
           title={chip.label}
           onClick={() => onChange(chip.cleared)}
         >
-          <span className="truncate">{chip.label}</span>
+          {activeLabel === undefined
+            ? <span className="truncate">{chip.label}</span>
+            : <LabelChip label={activeLabel} className="max-w-[10rem]" />}
           <X aria-hidden="true" />
         </Button>
-      ))}
+      })}
       {chips.length > 1 ? (
         <Button variant="ghost" size="xs" className="font-normal text-muted-foreground" onClick={() => onChange(NO_TASK_FILTER)}>
           Clear all
