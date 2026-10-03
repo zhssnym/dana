@@ -26,6 +26,7 @@ import { NotFoundPage } from './pages/NotFoundPage.js'
 import { ScheduledPage } from './pages/ScheduledPage.js'
 import { FocusListPage } from './pages/FocusListPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
+import { StatsPage } from './pages/StatsPage.js'
 import { ArchivedWorkPage } from './pages/ArchivedWorkPage.js'
 import { ShelfPage } from './pages/ShelfPage.js'
 import { TaskPage } from './pages/TaskPage.js'
@@ -78,6 +79,7 @@ export function Router(): React.JSX.Element {
           <Route path="results/:id" element={<ResultLinkPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="settings/archived-work" element={<ArchivedWorkPage />} />
+          <Route path="stats" element={<StatsPage />} />
           {/* People lives in Settings now; the old address still lands there. */}
           <Route path="people" element={<Navigate to={`${paths.settings}#people`} replace />} />
           {retiredPaths.map(({ from, to }) => (
