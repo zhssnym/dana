@@ -108,9 +108,9 @@ describe('block facet metadata rail', () => {
     })
     vi.stubGlobal('cancelAnimationFrame', vi.fn())
 
-    let host: HTMLElement | undefined
+    const state: { host?: HTMLElement } = {}
     const editor = {
-      get domElement() { return host },
+      get domElement() { return state.host },
       document: [{ id: 'block-1', children: [] }],
     } as unknown as Parameters<typeof installFacetDecorations>[0]
     const model = {
@@ -123,7 +123,8 @@ describe('block facet metadata rail', () => {
 
     const cleanup = installFacetDecorations(editor, model)
     expect(frames).toHaveLength(1)
-    host = document.createElement('div')
+    const host = document.createElement('div')
+    state.host = host
     host.innerHTML = '<div class="bn-block-outer" data-id="block-1"><div class="bn-block"><div class="bn-block-content"></div></div></div>'
     frames.shift()!(0)
 
