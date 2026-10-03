@@ -31,9 +31,8 @@
   overflow: visible;
 }
 
-/* The authored placement marker is the navigable source pill. Give it enough
-   default room to be useful and let its wording wrap naturally instead of
-   becoming an unreadable ellipsis. */
+/* The authored placement marker is compact provenance, not a second content
+   block. It stays one quiet line; widening the divider reveals more text. */
 .dana-writing-canvas
   .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
   > :not([data-connected-work-detail]) {
@@ -44,8 +43,8 @@
   width: 100%;
   max-width: var(--dana-connected-source-width);
   min-width: 0;
-  padding-block-end: 32px;
-  overflow: visible;
+  padding-block-end: 28px;
+  overflow: hidden;
 }
 
 .dana-writing-canvas
@@ -61,19 +60,22 @@
   display: inline-flex;
   width: auto;
   max-width: 100%;
-  align-items: flex-start;
-  white-space: normal !important;
+  min-height: 20px;
+  align-items: center;
+  white-space: nowrap !important;
   vertical-align: top;
+  font-size: 12px !important;
+  line-height: 18px !important;
 }
 
 .dana-writing-canvas
   .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
   > :not([data-connected-work-detail]) a > span {
   min-width: 0;
-  overflow: visible !important;
-  text-overflow: clip !important;
-  white-space: normal !important;
-  overflow-wrap: anywhere;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  overflow-wrap: normal;
 }
 
 /* One divider, one interaction target. Its hit area is intentionally wider
@@ -150,7 +152,7 @@ html.dana-resizing-connected-source * {
 .dana-writing-canvas
   [data-connected-work-native-source]
   > div.absolute {
-  top: 27px !important;
+  top: 25px !important;
   bottom: auto !important;
   right: auto !important;
   left: calc(-1 * var(--dana-connected-source-width) - 28px) !important;
