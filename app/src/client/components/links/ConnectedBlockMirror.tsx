@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { BlockNoteView } from '@blocknote/shadcn'
 import { useCreateBlockNote } from '@blocknote/react'
-import { Link as RouterLink } from 'react-router'
 
 import type { PageBlock, PageView } from '../../../shared/pages.js'
-import { Link2 } from '../../lib/icons.js'
 import { hydrateCanvas } from '../page/canvas/adapters.js'
 import { pageTheme } from '../page/canvas/BlockSideMenu.js'
 import { canvasSchema } from '../page/canvas/schema.js'
@@ -14,6 +12,10 @@ import '../page/canvas/canvas.css'
  * One connected block has one canonical identity. A facet mirror only renders
  * that canonical PageBlock through Dana's normal canvas schema; it never owns
  * a second editable copy or a second save path.
+ *
+ * Navigation belongs to the source pill beside the mirror. The nested editor
+ * is presentation-only so it cannot compete with the parent canvas's block
+ * handles or selection model.
  */
 export function mirroredBlockInput(block: PageBlock, width: number) {
   const isolated: PageBlock = {
@@ -32,9 +34,10 @@ export function mirroredBlockInput(block: PageBlock, width: number) {
 
 export function ConnectedBlockMirror({
   block,
-  sourcePath,
 }: {
   readonly block: PageBlock
+  /** Kept in the component contract because existing callers already resolve it;
+   * the visible source pill now owns navigation instead of a duplicate icon. */
   readonly sourcePath: string | null
 }): React.JSX.Element {
   const host = useRef<HTMLDivElement>(null)
@@ -68,7 +71,7 @@ export function ConnectedBlockMirror({
   }, [])
 
   return (
-    <div ref={host} className="group/mirror relative min-w-0" data-connected-work-mirror data-source-block-id={block.id}>
+    <div ref={host} className="relative min-w-0" data-connected-work-mirror data-source-block-id={block.id}>
       <div className="dana-writing-canvas dana-connected-block-mirror min-w-0">
         <BlockNoteView
           editor={editor}
@@ -81,16 +84,6 @@ export function ConnectedBlockMirror({
           aria-label="Referenced block"
         />
       </div>
-      {sourcePath === null ? null : (
-        <RouterLink
-          to={sourcePath}
-          title="Open source"
-          aria-label="Open source block"
-          className="absolute right-0 top-0 z-20 inline-flex size-6 items-center justify-center rounded-sm bg-background/90 text-muted-foreground opacity-0 shadow-sm hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring group-hover/mirror:opacity-100 pointer-coarse:opacity-100"
-        >
-          <Link2 size={13} aria-hidden="true" />
-        </RouterLink>
-      )}
     </div>
   )
 }
