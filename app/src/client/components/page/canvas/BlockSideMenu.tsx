@@ -16,8 +16,6 @@ import type { BlockNoteEditor } from '@blocknote/core'
 import { SideMenuExtension } from '@blocknote/core/extensions'
 import { useBlockNoteEditor, useComponentsContext, useExtension, useExtensionState } from '@blocknote/react'
 import type { BlockFacetRef } from '../../../../shared/block-facets.js'
-import { useTask } from '../../../api/queries.js'
-import { useBlockFacets } from './BlockFacets.js'
 import { blockLink, blockSelection, setBlockSelection } from './block-selection.js'
 import { conversionOf, isCurrent, withoutIds } from './turn-into.js'
 import type { TreeBlock, TurnTarget } from './turn-into.js'
@@ -56,12 +54,6 @@ export const BlockMenuContext = createContext<BlockMenuModel | null>(null)
 
 const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+'
 const NON_PERSISTED_BLOCKS = new Set(['danaTask', 'danaFolder'])
-
-function routedId(segment: 'folders' | 'facets' | 'tasks'): string | undefined {
-  if (typeof window === 'undefined') return undefined
-  const match = new RegExp(`^/app/${segment}/([0-9a-f-]{36})(?:/|$)`, 'i').exec(window.location.pathname)
-  return match?.[1]
-}
 
 function actingOn(editor: AnyEditor, id: string): readonly string[] {
   const selected = blockSelection(editor)
@@ -204,28 +196,13 @@ function BlockSideMenuRoot({ model }: { readonly model: BlockMenuModel }): React
   )
 }
 
-function ProjectScopedBlockSideMenu({ folderId, inherited }: { readonly folderId: string; readonly inherited: BlockMenuModel }): React.JSX.Element {
-  const editor = useBlockNoteEditor() as AnyEditor
-  const automaticFacets = useBlockFacets(editor, folderId, editor.isEditable)
-  const model = automaticFacets === undefined ? inherited : { ...inherited, facets: automaticFacets }
-  return <BlockSideMenuRoot model={model} />
-}
-
-/** A Task's one page has its own URL; its detail names the Work page it lives in. */
-function TaskScopedBlockSideMenu({ taskId, inherited }: { readonly taskId: string; readonly inherited: BlockMenuModel }): React.JSX.Element {
-  const task = useTask(taskId)
-  const folderId = task.data?.folder.id
-  if (folderId === undefined) return <BlockSideMenuRoot model={inherited} />
-  return <ProjectScopedBlockSideMenu folderId={folderId} inherited={inherited} />
-}
-
+/**
+ * The canvas owns facet scope and relations for its whole lifetime. The side
+ * menu is transient hover UI and must never create a second facet controller:
+ * doing so lets its unmount lifecycle erase persistent relationship chips.
+ */
 export function BlockSideMenu(): React.JSX.Element {
   const inherited = useContext(BlockMenuContext)!
-  if (inherited.facets !== undefined) return <BlockSideMenuRoot model={inherited} />
-  const folderId = routedId('folders') ?? routedId('facets')
-  if (folderId !== undefined) return <ProjectScopedBlockSideMenu folderId={folderId} inherited={inherited} />
-  const taskId = routedId('tasks')
-  if (taskId !== undefined) return <TaskScopedBlockSideMenu taskId={taskId} inherited={inherited} />
   return <BlockSideMenuRoot model={inherited} />
 }
 
