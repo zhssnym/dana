@@ -5,9 +5,11 @@ import { sharedCanvasParagraph } from './CanvasParagraph.js'
 import { taskSchema } from './TaskComposer.js'
 
 describe('Task writing link previews', () => {
-  test('uses the same paragraph preview renderer as page writing', () => {
+  test('takes its paragraph treatment from the shared page preview spec', () => {
     expect(defaultBlockSpecs.paragraph).toBe(sharedCanvasParagraph)
-    expect(taskSchema.blockSpecs.paragraph.implementation.render)
-      .toBe(sharedCanvasParagraph.implementation.render)
+    // BlockNote normalizes a block spec while building a schema, so the
+    // function identity changes even when the same renderer is the source.
+    expect(taskSchema.blockSpecs.paragraph.implementation.render.toString())
+      .toBe(sharedCanvasParagraph.implementation.render.toString())
   })
 })
