@@ -4,8 +4,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { BlockFacetRef, GetProjectBlockFacetsResponse } from '../../../../shared/block-facets.js'
 import { getProjectBlockFacetsResponse, putBlockFacetsResponse } from '../../../../shared/block-facets.js'
 import { getPlain, mutateApi } from '../../../api/http.js'
+import { queryKeys } from '../../../api/keys.js'
 import { useAllPages } from '../../../api/queries.js'
 import type { AnyEditor, BlockFacetMenuModel } from './BlockSideMenu.js'
+import { registerCanvasEditor } from './editor-registry.js'
 
 function key(folderId: string) {
   return ['block-facets', folderId] as const
@@ -35,6 +37,13 @@ export function useBlockFacets(
 ): BlockFacetMenuModel | undefined {
   const pages = useAllPages(folderId !== undefined)
   const client = useQueryClient()
+
+  /* #526: Connected work is mounted after BlockNote, but placing one belongs
+     to this exact editor so it can use the normal document insertion/order
+     path. Register the already-existing editor instead of plumbing another
+     editor prop through every CanvasSurface caller. */
+  useEffect(() => registerCanvasEditor(editor), [editor])
+
   const relations = useQuery({
     queryKey: folderId === undefined ? ['block-facets', 'none'] : key(folderId),
     queryFn: () => getPlain(getProjectBlockFacetsResponse, `/block-facets?folder=${encodeURIComponent(folderId!)}`),
@@ -49,10 +58,19 @@ export function useBlockFacets(
       }),
     onSuccess: (answer) => {
       if (folderId === undefined) return
+      const before = client.getQueryData<GetProjectBlockFacetsResponse>(key(folderId))
+        ?.blocks.find((row) => row.block_id === answer.block_id)?.facets ?? []
       client.setQueryData<GetProjectBlockFacetsResponse>(
         key(folderId),
         (old) => replaceRow(old, answer.block_id, answer.facets),
       )
+      /* A facet relation immediately changes that facet's unplaced/inline
+         connected-work projection. Refresh both removed and newly added
+         targets so the document never waits for a focus refetch. */
+      const changed = new Set([...before.map((facet) => facet.id), ...answer.facets.map((facet) => facet.id)])
+      for (const facetId of changed) {
+        void client.invalidateQueries({ queryKey: queryKeys.connectedWork(facetId) })
+      }
     },
     onError: (error) => onNotice?.(error instanceof Error ? error.message : 'The facet connection could not be changed.'),
   })
@@ -143,10 +161,11 @@ function releaseHost(content: HTMLElement): void {
 
 /**
  * Sync exact-block facet metadata without changing BlockNote's structural DOM.
- * Dana's stable row identity lives on `.bn-block-outer[data-id]`; the rail is
- * absolutely positioned inside that row's content padding, so it cannot become
- * a sibling of `.bn-block` (which breaks BlockNote's drag-handle discovery) or
- * participate in media/file width measurement.
+ *
+ * #526 removes the detached metadata row from file blocks. A File already has
+ * a compact identity row (`.bn-file-name-with-icon`), so its facet chips sit in
+ * that same row. Text and other block kinds keep the quiet metadata rail below
+ * their content, where no native value row exists to join.
  */
 export function syncFacetDecorations(
   host: HTMLElement,
@@ -155,9 +174,9 @@ export function syncFacetDecorations(
   host.querySelectorAll<HTMLElement>('[data-dana-block-facets]').forEach((rail) => {
     const id = rail.dataset.danaBlockFacets ?? ''
     if (wanted.has(id)) return
-    const content = rail.parentElement
+    const content = rail.closest<HTMLElement>('.bn-block-content')
     rail.remove()
-    if (content instanceof HTMLElement) releaseHost(content)
+    if (content !== null) releaseHost(content)
   })
 
   for (const [blockId, facets] of wanted) {
@@ -168,19 +187,30 @@ export function syncFacetDecorations(
     ) ?? outer?.querySelector<HTMLElement>('.bn-block-content')
     if (outer === undefined || content === undefined || content === null) continue
 
-    prepareHost(content)
-    let rail = content.querySelector<HTMLElement>(`:scope > [data-dana-block-facets="${blockId}"]`)
-    const signature = facets.map((facet) => `${facet.id}:${facet.name}`).join('|')
+    const fileRow = content.querySelector<HTMLElement>('.bn-file-name-with-icon')
+    const inline = fileRow !== null
+    const mount = fileRow ?? content
+    if (inline) releaseHost(content)
+    else prepareHost(content)
+
+    let rail = outer.querySelector<HTMLElement>(`[data-dana-block-facets="${blockId}"]`)
+    if (rail !== null && rail.parentElement !== mount) {
+      rail.remove()
+      rail = null
+    }
+    const signature = `${inline ? 'inline' : 'rail'}:${facets.map((facet) => `${facet.id}:${facet.name}`).join('|')}`
     if (rail?.dataset.signature === signature) continue
     if (rail === null) {
       rail = document.createElement('div')
       rail.dataset.danaBlockFacets = blockId
-      rail.className = 'dana-block-facet-rail absolute bottom-0 left-0 z-10 flex h-5 min-w-0 max-w-full items-center gap-1 overflow-visible'
       rail.setAttribute('contenteditable', 'false')
       rail.setAttribute('role', 'group')
       rail.setAttribute('aria-label', 'Connected facets')
-      content.append(rail)
+      mount.append(rail)
     }
+    rail.className = inline
+      ? 'dana-block-facet-rail ml-1 inline-flex h-5 min-w-0 shrink-0 items-center gap-1 overflow-visible'
+      : 'dana-block-facet-rail absolute bottom-0 left-0 z-10 flex h-5 min-w-0 max-w-full items-center gap-1 overflow-visible'
     rail.dataset.signature = signature
     const visible: HTMLElement[] = facets.slice(0, VISIBLE_FACETS).map(facetChip)
     const hidden = facets.length - visible.length
