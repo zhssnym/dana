@@ -10,6 +10,10 @@ unchanged. Deleting the placement therefore cannot unlink the relationship; it
 simply returns the still-live relationship to the unplaced inbox below the
 document.
 
+A block source is rendered as a live read-only mirror of its canonical
+PageBlock. The source document remains the only write path, so there is no
+second copy to synchronize. Discussion posts keep the compact source fallback.
+
 #488 promotion stays on that same primitive. Explicit Promote copies a short
 source statement into the placed block and keeps the marked Dana Link as its
 provenance. On Results the block becomes a native Result; on another document
@@ -31,9 +35,11 @@ import { queryKeys } from '../../api/keys.js'
 import { FileText, Flag, GripVertical, Plus, X } from '../../lib/icons.js'
 import { backlinkPath } from './dana-link.js'
 import { DanaLinkKindIcon } from './kind-icon.js'
+import { ConnectedBlockMirror } from './ConnectedBlockMirror.js'
 import type { CanvasInput } from '../page/canvas/adapters.js'
 import type { AnyEditor } from '../page/canvas/BlockSideMenu.js'
 import { canvasEditorNear } from '../page/canvas/editor-registry.js'
+import './connected-work.css'
 
 const DRAG_TYPE = 'application/x-dana-connected-work'
 const PLACEMENT_PARAM = 'connected-work'
@@ -302,6 +308,56 @@ function FileChip({ file }: { readonly file: { id: string; name: string } }): Re
   )
 }
 
+function SourceActions({
+  source,
+  facetId,
+  explicitFacetIds,
+  canPromote,
+  promoteLabel,
+  onPromote,
+  onUnlink,
+  busy,
+}: {
+  readonly source: ConnectedWorkSource
+  readonly facetId: string
+  readonly explicitFacetIds: readonly string[] | undefined
+  readonly canPromote: boolean
+  readonly promoteLabel: string
+  readonly onPromote: () => void
+  readonly onUnlink: (blockId: string, remaining: string[]) => void
+  readonly busy: boolean
+}): React.JSX.Element | null {
+  const explicit = source.kind === 'block' && explicitFacetIds?.includes(facetId) === true
+  if (!canPromote && !explicit) return null
+  return (
+    <div className="flex shrink-0 items-center">
+      {canPromote ? (
+        <button
+          type="button"
+          title={promoteLabel}
+          aria-label={promoteLabel}
+          onClick={onPromote}
+          className="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/source:opacity-100 pointer-coarse:opacity-100"
+        >
+          <Flag size={13} aria-hidden="true" />
+        </button>
+      ) : null}
+      {explicit ? (
+        <button
+          type="button"
+          title="Unlink"
+          aria-label="Unlink from this facet"
+          disabled={busy}
+          onClick={() => onUnlink(source.id, explicitFacetIds!.filter((id) => id !== facetId))}
+          className="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/source:opacity-100 pointer-coarse:opacity-100 disabled:opacity-40"
+        >
+          <X size={13} aria-hidden="true" />
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
 function SourceDetails({
   facetId,
   row,
@@ -325,11 +381,36 @@ function SourceDetails({
   readonly onUnlink: (blockId: string, remaining: string[]) => void
   readonly busy: boolean
 }): React.JSX.Element | null {
+  const path = sourcePath(row, source)
+  const actions = (
+    <SourceActions
+      source={source}
+      facetId={facetId}
+      explicitFacetIds={explicitFacetIds}
+      canPromote={canPromote}
+      promoteLabel={promoteLabel}
+      onPromote={onPromote}
+      onUnlink={onUnlink}
+      busy={busy}
+    />
+  )
+
+  /* One canonical block, another live placement. The durable paragraph marker
+     still owns ordering in this facet, but its UI is replaced by Dana's native
+     rendering of the exact source block. */
+  if (!promoted && source.kind === 'block' && source.block !== undefined && source.block !== null) {
+    return (
+      <div className="group/source relative min-w-0 py-0.5" data-connected-work-native-source>
+        <ConnectedBlockMirror block={source.block} sourcePath={path} />
+        <div className="absolute right-7 top-0 z-20">{actions}</div>
+      </div>
+    )
+  }
+
   const authoredText = sourceText(source)
   const text = promoted ? null : authoredText
   const canonicalFromFiles = authoredText === null && source.files.length > 0
   const files = promoted && canonicalFromFiles ? [] : source.files
-  const path = sourcePath(row, source)
   const explicit = source.kind === 'block' && explicitFacetIds?.includes(facetId) === true
   const hasAction = canPromote || explicit
   if (text === null && files.length === 0 && !hasAction) return null
@@ -349,33 +430,7 @@ function SourceDetails({
           </div>
         )}
       </div>
-      {hasAction ? (
-        <div className="flex shrink-0 items-center">
-          {canPromote ? (
-            <button
-              type="button"
-              title={promoteLabel}
-              aria-label={promoteLabel}
-              onClick={onPromote}
-              className="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/source:opacity-100 pointer-coarse:opacity-100"
-            >
-              <Flag size={13} aria-hidden="true" />
-            </button>
-          ) : null}
-          {explicit ? (
-            <button
-              type="button"
-              title="Unlink"
-              aria-label="Unlink from this facet"
-              disabled={busy}
-              onClick={() => onUnlink(source.id, explicitFacetIds!.filter((id) => id !== facetId))}
-              className="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/source:opacity-100 pointer-coarse:opacity-100 disabled:opacity-40"
-            >
-              <X size={13} aria-hidden="true" />
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+      {actions}
     </div>
   )
 }
@@ -403,7 +458,7 @@ function ConnectedOutputs({
 }): React.JSX.Element | null {
   if (row.sources.length === 0) return null
   return (
-    <div className="mt-0.5 min-w-0 pl-1">
+    <div className="min-w-0 space-y-1" data-connected-work-sources>
       {row.sources.map((source) => (
         <SourceDetails
           key={`${source.kind}:${source.id}`}

@@ -43,6 +43,10 @@ vi.mock('./CanvasTask.js', () => ({ useCanvasTaskDelete: () => null }))
 vi.mock('./slash-items.js', async (importOriginal) => ({ ...(await importOriginal<object>()), CanvasSlashMenu: () => null }))
 vi.mock('./guard.js', () => ({ installCanvasGuard: () => () => {} }))
 vi.mock('./mentions.js', () => ({ MentionSuggestions: () => null }))
+// CanvasSurface's tests exercise canvas commands and menus, not Connected work's
+// nested native renderer. Keeping that renderer out also keeps this focused
+// BlockNote mock from having to reproduce the complete schema factory surface.
+vi.mock('../../links/ConnectedBlockMirror.js', () => ({ ConnectedBlockMirror: () => null }))
 vi.mock('./commands.js', () => ({
   bindTaskCommand: () => () => {},
   placeSection: () => false,
