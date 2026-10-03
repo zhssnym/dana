@@ -8,7 +8,7 @@ export interface VideoTarget {
 export interface GoogleMapsTarget {
   readonly href: string
   readonly label: string
-  readonly previewSrc: string | null
+  readonly embedSrc: string | null
   readonly needsResolve: boolean
 }
 
@@ -67,8 +67,7 @@ function coordinatePair(value: string | null): MapCoordinates | null {
 
 /** Coordinates Google exposes in its long URLs, without calling a geocoder. */
 function mapCoordinates(url: URL): MapCoordinates | null {
-  // Place share URLs often carry the exact pin in Google's data tuple. Prefer
-  // it to /@lat,lng, which can be only the camera/viewport centre.
+  // Prefer the exact place pin over Google's camera centre when both exist.
   const data = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/u.exec(url.toString())
   if (data !== null) return coordinates(data[1]!, data[2]!)
 
@@ -87,25 +86,34 @@ function coordinateText(value: number): string {
 }
 
 /**
- * The browser loads only Dana here. The server renders a fixed-size map image
- * from OpenStreetMap tiles, so no Google iframe/API key and no third-party CSP
- * widening is needed in the writing surface.
+ * OpenStreetMap publishes this export/embed page specifically for iframe use.
+ * It gives Dana a real map preview without a Google frame, API key, tile proxy,
+ * or server-side image renderer.
  */
-function mapPreviewSrc(url: URL): string | null {
+function openStreetMapEmbedSrc(url: URL): string | null {
   const point = mapCoordinates(url)
   if (point === null) return null
-  const params = new URLSearchParams({
-    lat: coordinateText(point.latitude),
-    lng: coordinateText(point.longitude),
-  })
-  return `/api/v1/link-previews/map-image?${params.toString()}`
+
+  const latSpan = 0.0025
+  const longitudeScale = Math.max(0.25, Math.cos(point.latitude * Math.PI / 180))
+  const lngSpan = 0.0075 / longitudeScale
+  const embed = new URL('https://www.openstreetmap.org/export/embed.html')
+  embed.searchParams.set('bbox', [
+    coordinateText(point.longitude - lngSpan),
+    coordinateText(point.latitude - latSpan),
+    coordinateText(point.longitude + lngSpan),
+    coordinateText(point.latitude + latSpan),
+  ].join(','))
+  embed.searchParams.set('layer', 'mapnik')
+  embed.searchParams.set('marker', `${coordinateText(point.latitude)},${coordinateText(point.longitude)}`)
+  return embed.toString()
 }
 
 /**
  * A key-free preview target for a Google Maps link. Dana never frames Google:
- * it reads coordinates already present in the long URL. Opaque maps.app.goo.gl
- * links are first resolved by Dana's Google-only redirect resolver, then
- * passed through here again.
+ * it reads coordinates already present in the long URL and uses OpenStreetMap's
+ * supported embed page. Opaque maps.app.goo.gl links are first resolved by
+ * Dana's Google-only redirect resolver, then passed through here again.
  */
 export function googleMapsTarget(value: string): GoogleMapsTarget | null {
   const url = safeUrl(value)
@@ -116,7 +124,7 @@ export function googleMapsTarget(value: string): GoogleMapsTarget | null {
     return {
       href: url.toString(),
       label: 'Shared location',
-      previewSrc: null,
+      embedSrc: null,
       needsResolve: true,
     }
   }
@@ -127,7 +135,7 @@ export function googleMapsTarget(value: string): GoogleMapsTarget | null {
   return {
     href: url.toString(),
     label: mapLabel(url),
-    previewSrc: mapPreviewSrc(url),
+    embedSrc: openStreetMapEmbedSrc(url),
     needsResolve: false,
   }
 }
