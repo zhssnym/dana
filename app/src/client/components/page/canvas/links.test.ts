@@ -3,20 +3,22 @@ import { describe, expect, test } from 'vitest'
 import { googleMapsTarget } from './links.js'
 
 describe('Google Maps link previews', () => {
-  test('builds real embed targets for long place and search URLs', () => {
+  test('builds a key-free OpenStreetMap frame from Google coordinates', () => {
     expect(googleMapsTarget('https://www.google.com/maps/place/CN+Tower/@43.6426,-79.3871,17z')).toMatchObject({
       label: 'CN Tower',
-      embedSrc: 'https://maps.google.com/maps?q=43.6426%2C-79.3871&output=embed',
+      embedSrc: 'https://www.openstreetmap.org/export/embed.html?bbox=-79.3951%2C43.6366%2C-79.3791%2C43.6486&layer=mapnik&marker=43.6426%2C-79.3871',
       needsResolve: false,
     })
-    expect(googleMapsTarget('https://www.google.com/maps/search/?api=1&query=York%20University')).toMatchObject({
-      label: 'York University',
-      embedSrc: 'https://maps.google.com/maps?q=York+University&output=embed',
+
+    expect(googleMapsTarget('https://www.google.com/maps/place/182+Tall+Grass+Trail/data=!4m6!3m5!1sabc!8m2!3d43.799123!4d-79.584321!16sabc')).toMatchObject({
+      label: '182 Tall Grass Trail',
+      embedSrc: expect.stringContaining('https://www.openstreetmap.org/export/embed.html?'),
       needsResolve: false,
     })
-    expect(googleMapsTarget('https://maps.google.com/?q=Toronto')).toMatchObject({
-      label: 'Toronto',
-      embedSrc: 'https://maps.google.com/maps?q=Toronto&output=embed',
+
+    expect(googleMapsTarget('https://maps.google.com/?q=43.7735,-79.5019')).toMatchObject({
+      label: '43.7735,-79.5019',
+      embedSrc: expect.stringContaining('marker=43.7735%2C-79.5019'),
       needsResolve: false,
     })
   })
@@ -28,16 +30,21 @@ describe('Google Maps link previews', () => {
       embedSrc: null,
       needsResolve: true,
     })
-    expect(googleMapsTarget('https://www.google.ca/maps/place/Toronto')).toMatchObject({
+    expect(googleMapsTarget('https://www.google.ca/maps/place/Toronto/@43.6532,-79.3832,12z')).toMatchObject({
       label: 'Toronto',
-      embedSrc: 'https://maps.google.com/maps?q=Toronto&output=embed',
+      embedSrc: expect.stringContaining('www.openstreetmap.org/export/embed.html'),
       needsResolve: false,
     })
   })
 
-  test('falls back when a valid map URL exposes no embeddable location', () => {
+  test('falls back when a valid map URL exposes no coordinates', () => {
     expect(googleMapsTarget('https://www.google.com/maps')).toMatchObject({
       label: 'Map location',
+      embedSrc: null,
+      needsResolve: false,
+    })
+    expect(googleMapsTarget('https://www.google.com/maps/search/?api=1&query=York%20University')).toMatchObject({
+      label: 'York University',
       embedSrc: null,
       needsResolve: false,
     })
