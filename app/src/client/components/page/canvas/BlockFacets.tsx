@@ -107,6 +107,7 @@ function visitBlocks(
 }
 
 const VISIBLE_FACETS = 2
+const FACET_SPACE = '24px'
 
 function facetChip(facet: BlockFacetRef): HTMLAnchorElement {
   const link = document.createElement('a')
@@ -118,11 +119,34 @@ function facetChip(facet: BlockFacetRef): HTMLAnchorElement {
   return link
 }
 
+function prepareHost(content: HTMLElement): void {
+  if (content.dataset.danaFacetHost === 'true') return
+  content.dataset.danaFacetHost = 'true'
+  content.dataset.danaFacetPosition = content.style.position
+  content.dataset.danaFacetOverflow = content.style.overflow
+  content.dataset.danaFacetPaddingBottom = content.style.paddingBottom
+  content.style.position = 'relative'
+  content.style.overflow = 'visible'
+  content.style.paddingBottom = FACET_SPACE
+}
+
+function releaseHost(content: HTMLElement): void {
+  if (content.dataset.danaFacetHost !== 'true') return
+  content.style.position = content.dataset.danaFacetPosition ?? ''
+  content.style.overflow = content.dataset.danaFacetOverflow ?? ''
+  content.style.paddingBottom = content.dataset.danaFacetPaddingBottom ?? ''
+  delete content.dataset.danaFacetHost
+  delete content.dataset.danaFacetPosition
+  delete content.dataset.danaFacetOverflow
+  delete content.dataset.danaFacetPaddingBottom
+}
+
 /**
- * Sync exact-block facet metadata into BlockNote's DOM without putting it in
- * the block's measured content box. The rail is a sibling of `.bn-block`, so a
- * file/image keeps its native geometry and nested children still follow after
- * the rail. Only two chips draw; the rest collapse into one stable `+N` mark.
+ * Sync exact-block facet metadata without changing BlockNote's structural DOM.
+ * Dana's stable row identity lives on `.bn-block-outer[data-id]`; the rail is
+ * absolutely positioned inside that row's content padding, so it cannot become
+ * a sibling of `.bn-block` (which breaks BlockNote's drag-handle discovery) or
+ * participate in media/file width measurement.
  */
 export function syncFacetDecorations(
   host: HTMLElement,
@@ -130,25 +154,32 @@ export function syncFacetDecorations(
 ): void {
   host.querySelectorAll<HTMLElement>('[data-dana-block-facets]').forEach((rail) => {
     const id = rail.dataset.danaBlockFacets ?? ''
-    if (!wanted.has(id)) rail.remove()
+    if (wanted.has(id)) return
+    const content = rail.parentElement
+    rail.remove()
+    if (content instanceof HTMLElement) releaseHost(content)
   })
-  for (const [blockId, facets] of wanted) {
-    const block = [...host.querySelectorAll<HTMLElement>('.bn-block[data-id]')]
-      .find((element) => element.dataset.id === blockId)
-    const outer = block?.parentElement
-    if (block === undefined || outer === undefined || outer === null || !outer.classList.contains('bn-block-outer')) continue
 
-    let rail = outer.querySelector<HTMLElement>(`:scope > [data-dana-block-facets="${blockId}"]`)
+  for (const [blockId, facets] of wanted) {
+    const outer = [...host.querySelectorAll<HTMLElement>('.bn-block-outer[data-id]')]
+      .find((element) => element.dataset.id === blockId)
+    const content = outer?.querySelector<HTMLElement>(
+      ':scope > .bn-block > .react-renderer > .bn-block-content, :scope > .bn-block > .bn-block-content',
+    ) ?? outer?.querySelector<HTMLElement>('.bn-block-content')
+    if (outer === undefined || content === undefined || content === null) continue
+
+    prepareHost(content)
+    let rail = content.querySelector<HTMLElement>(`:scope > [data-dana-block-facets="${blockId}"]`)
     const signature = facets.map((facet) => `${facet.id}:${facet.name}`).join('|')
     if (rail?.dataset.signature === signature) continue
     if (rail === null) {
       rail = document.createElement('div')
       rail.dataset.danaBlockFacets = blockId
-      rail.className = 'dana-block-facet-rail mt-0.5 flex min-w-0 items-center gap-1 overflow-visible'
+      rail.className = 'dana-block-facet-rail absolute bottom-0 left-0 z-10 flex h-5 min-w-0 max-w-full items-center gap-1 overflow-visible'
       rail.setAttribute('contenteditable', 'false')
       rail.setAttribute('role', 'group')
       rail.setAttribute('aria-label', 'Connected facets')
-      block.insertAdjacentElement('afterend', rail)
+      content.append(rail)
     }
     rail.dataset.signature = signature
     const visible: HTMLElement[] = facets.slice(0, VISIBLE_FACETS).map(facetChip)
@@ -195,7 +226,7 @@ function useFacetDecorations(editor: AnyEditor, model: BlockFacetMenuModel | und
     return () => {
       observer.disconnect()
       if (frame !== 0) window.cancelAnimationFrame(frame)
-      host.querySelectorAll('[data-dana-block-facets]').forEach((rail) => rail.remove())
+      syncFacetDecorations(host, new Map())
     }
   }, [editor, model])
 }
