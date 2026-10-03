@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BlockNoteView } from '@blocknote/shadcn'
 import { useCreateBlockNote } from '@blocknote/react'
 import { Link as RouterLink } from 'react-router'
@@ -40,8 +40,9 @@ export function ConnectedBlockMirror({
   const host = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(640)
   const [theme, setTheme] = useState<'dark' | 'light'>(pageTheme)
-  const signature = useMemo(() => JSON.stringify(block), [block])
-  const initial = useMemo(() => mirroredBlockInput(block, width), []) // the effect below keeps it live
+  // useCreateBlockNote owns the editor instance; later source/width changes are
+  // reconciled into that same read-only renderer below.
+  const initial = mirroredBlockInput(block, 640)
   const editor = useCreateBlockNote({ schema: canvasSchema, initialContent: [initial] as never })
 
   useEffect(() => {
@@ -58,7 +59,7 @@ export function ConnectedBlockMirror({
   useEffect(() => {
     const next = mirroredBlockInput(block, width)
     editor.replaceBlocks(editor.document, [next] as never)
-  }, [editor, signature, width, block])
+  }, [editor, block, width])
 
   useEffect(() => {
     const observer = new MutationObserver(() => setTheme(pageTheme()))
