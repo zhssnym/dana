@@ -23,7 +23,7 @@ import { StateMark } from "./thread/timeline/state.js"
 import { prefetchTask, useTask } from "../api/queries.js"
 /* PROTOTYPE (chat dock): the task's way into its conversation. */
 import { useDiscussTask } from "../api/consultation.js"
-import { openChatDock } from "../state/chat-dock.js"
+import { closeChatDock, openChatDock, useChatDock } from "../state/chat-dock.js"
 import { useQueryClient } from "@tanstack/react-query"
 
 /* The title, big, renaming in place. Required, 1 to 300, refused with a
@@ -156,12 +156,18 @@ folder, or the default one) has no project chat, so it draws nothing.
 function OpenChat({ taskId }: { taskId: string }) {
   const detail = useTask(taskId)
   const discuss = useDiscussTask()
+  const dockOpen = useChatDock() !== null
   const folder = detail.data?.folder
   if (detail.data === undefined || folder === undefined || folder.is_default) return null
   const linked = detail.data.linked_discussions[0]
 
   function open(): void {
     if (folder === undefined) return
+    /* One control, two states: it closes the dock it opened. */
+    if (dockOpen) {
+      closeChatDock()
+      return
+    }
     if (linked !== undefined) {
       openChatDock({ folderId: folder.id, section: "chat", discussionId: linked.id })
       return
@@ -178,8 +184,9 @@ function OpenChat({ taskId }: { taskId: string }) {
       type="button"
       variant="ghost"
       size="icon"
-      aria-label="Open chat"
-      title="Open chat"
+      aria-label={dockOpen ? "Close chat" : "Open chat"}
+      title={dockOpen ? "Close chat" : "Open chat"}
+      aria-expanded={dockOpen}
       disabled={discuss.isPending}
       onClick={open}
     >

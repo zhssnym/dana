@@ -21,6 +21,10 @@ export interface ChatDockState {
 export const CHAT_DOCK_WIDTH = 440
 
 let state: ChatDockState | null = null
+/** Widened for reading a long thread; then it covers the page beside it. */
+let wide = false
+/** "Manage team" was pressed where no page could answer; the next one does. */
+let managePending = false
 const listeners = new Set<() => void>()
 const manageListeners = new Set<() => void>()
 
@@ -43,7 +47,24 @@ export function openChatDock(next: {
 }
 
 export function closeChatDock(): void {
+  wide = false
   if (state !== null) set(null)
+}
+
+export function toggleChatDockWide(): void {
+  wide = !wide
+  listeners.forEach((notify) => { notify() })
+}
+
+export function useChatDockWide(): boolean {
+  return useSyncExternalStore(
+    (notify) => {
+      listeners.add(notify)
+      return () => listeners.delete(notify)
+    },
+    () => wide,
+    () => false,
+  )
 }
 
 export function useChatDock(): ChatDockState | null {
@@ -59,10 +80,16 @@ export function useChatDock(): ChatDockState | null {
 
 /** The dock's "Manage team": the page that owns the full people panel opens it. */
 export function manageTeam(): void {
+  if (manageListeners.size === 0) managePending = true
   manageListeners.forEach((notify) => { notify() })
 }
 
+/** A project page listens; one that mounts after the press answers it too. */
 export function onManageTeam(listener: () => void): () => void {
   manageListeners.add(listener)
+  if (managePending) {
+    managePending = false
+    listener()
+  }
   return () => manageListeners.delete(listener)
 }
