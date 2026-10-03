@@ -25,7 +25,7 @@ import type { GetFolderResponse } from '../../../shared/folders.js'
 import { useDiscussTask } from '../../api/consultation.js'
 import { useConnections, useFolder, useMe, useTask } from '../../api/queries.js'
 import { viewerFacts } from '../../lib/folder-authority.js'
-import { X } from '../../lib/icons.js'
+import { UsersRound, X } from '../../lib/icons.js'
 import type { PersonResolver } from '../../lib/thread.js'
 import { initialsOf } from '../../parts/presenters.js'
 import { paths } from '../../routes.js'
@@ -45,6 +45,7 @@ import { RosterTints } from '../default-avatar.js'
 import { PersonFace } from '../person-face.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
 import { Button } from '../ui/button.js'
+import { Tabs } from '../ui/tabs.js'
 import { cn } from '../ui/utils.js'
 
 type Section = 'chat' | 'people'
@@ -135,21 +136,6 @@ function Dock({
     if (!onProjectPage) void navigate(paths.folder(headId))
     manageTeam()
   }
-  const switchTo = (to: Section, label: string): React.JSX.Element => (
-    <button
-      type="button"
-      aria-pressed={section === to}
-      className={cn(
-        'h-[var(--control-height)] rounded-sm px-1.5 text-sm outline-none focus-visible:bg-hover',
-        section === to ? 'font-section text-foreground' : 'text-muted-foreground hover:text-foreground',
-      )}
-      /* Back to Chat keeps the thread that was open. */
-      onClick={() => { openChatDock({ folderId, section: to, discussionId }) }}
-    >
-      {label}
-    </button>
-  )
-
   return (
     <aside
       data-chat-dock=""
@@ -161,32 +147,43 @@ function Dock({
         wide ? 'w-3xl' : 'w-[var(--sharing-panel-width)]',
       )}
     >
-      <header className="flex h-12 shrink-0 items-center gap-1 border-b border-border pr-2 pl-4">
-        <p className="min-w-0 flex-1 truncate text-sm font-title text-foreground" title={project?.name}>
-          {project?.name ?? ''}
-        </p>
-        <div role="group" aria-label="Show" className="flex shrink-0 items-center gap-1">
-          {switchTo('chat', 'Chat')}
-          {switchTo('people', 'People')}
+      <header className="shrink-0 px-4 pt-2">
+        <div className="flex h-9 items-center gap-1">
+          <p className="min-w-0 flex-1 truncate text-sm font-title text-foreground" title={project?.name}>
+            {project?.name ?? ''}
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-pressed={wide}
+            className="shrink-0 font-normal text-muted-foreground max-md:hidden"
+            onClick={toggleChatDockWide}
+          >
+            {wide ? 'Narrow' : 'Widen'}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Close chat"
+            className="-mr-2 shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={closeChatDock}
+          >
+            <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          </Button>
         </div>
-        <button
-          type="button"
-          aria-pressed={wide}
-          className="ml-2 h-[var(--control-height)] shrink-0 rounded-sm px-1.5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:bg-hover max-md:hidden"
-          onClick={toggleChatDockWide}
-        >
-          {wide ? 'Narrow' : 'Widen'}
-        </button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="Close chat"
-          className="ml-1 shrink-0 text-muted-foreground hover:text-foreground"
-          onClick={closeChatDock}
-        >
-          <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
-        </Button>
+        {/* The project's own tab row, so the dock reads as part of it. Back
+            to Chat keeps the thread that was open. */}
+        <Tabs
+          label="Show"
+          value={section}
+          items={[
+            { value: 'chat', label: 'Chat' },
+            { value: 'people', label: 'People' },
+          ]}
+          onValueChange={(to) => { openChatDock({ folderId, section: to, discussionId }) }}
+        />
       </header>
 
       <RosterTints ids={members.map((member) => member.user.id)}>
@@ -254,6 +251,7 @@ function Chat({
           </div>
         ) : null}
         <DiscussionList
+          docked
           folderId={folderId}
           viewer={viewer}
           personOf={personOf}
@@ -293,6 +291,9 @@ function People({ project, viewerId, onManage }: {
   const members = [...project.members].sort((a, b) => Number(b.is_owner) - Number(a.is_owner))
   return (
     <div className="pb-4">
+      <p className="pb-2 text-xs text-muted-foreground">
+        {members.length === 1 ? 'Only you, so far' : `${String(members.length)} people on this project`}
+      </p>
       <ul role="list" className="flex flex-col gap-[var(--space-row)]">
         {members.map((member) => {
           const name = member.user.display_name ?? 'Someone'
@@ -314,9 +315,10 @@ function People({ project, viewerId, onManage }: {
         type="button"
         variant="ghost"
         size="sm"
-        className="mt-[var(--space-group)] -ml-1.5 font-normal text-muted-foreground"
+        className="mt-[var(--space-group)] -ml-1.5 text-muted-foreground"
         onClick={onManage}
       >
+        <UsersRound className="size-4" strokeWidth={1.75} aria-hidden="true" />
         {members.length <= 1 ? 'Add teammates' : 'Manage team'}
       </Button>
     </div>

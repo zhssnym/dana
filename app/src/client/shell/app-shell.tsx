@@ -93,7 +93,6 @@ import { useModalOpen, useRightEdge } from '../components/right-edge.js'
 /* PROTOTYPE (chat dock): the dock, its state, and the width test below. */
 import { ChatDock } from '../components/chat-dock/ChatDock.js'
 import { CHAT_DOCK_WIDTH, useChatDock } from '../state/chat-dock.js'
-import { useIsMobile } from '../components/ui/use-mobile.js'
 import { WindowBar, WindowBarActions, WindowBarLead } from '../components/window-bar.js'
 import { BreadcrumbTrail } from '../components/breadcrumb-trail.js'
 import {
@@ -350,6 +349,25 @@ function skipTo(region: HTMLElement | null): void {
   target.focus()
 }
 
+/*
+PROTOTYPE (chat dock): whether the window is wide enough to give the dock its
+own room. Below this the sidebar, the dock and a readable page do not fit side
+by side, so the dock lies over the page's right instead of squeezing it.
+*/
+const DOCK_ROOM_QUERY = '(min-width: 1280px)'
+
+function useRoomForDock(): boolean {
+  const [roomy, setRoomy] = useState(() => window.matchMedia(DOCK_ROOM_QUERY).matches)
+  useEffect(() => {
+    const query = window.matchMedia(DOCK_ROOM_QUERY)
+    const onChange = (): void => { setRoomy(query.matches) }
+    query.addEventListener('change', onChange)
+    onChange()
+    return () => { query.removeEventListener('change', onChange) }
+  }, [])
+  return roomy
+}
+
 export function AppShell(): React.JSX.Element {
   const location = useLocation()
   const [content, setContent] = useState<HTMLDivElement | null>(null)
@@ -377,8 +395,8 @@ export function AppShell(): React.JSX.Element {
      right-edge panel reserved. On a phone it covers the page instead: there
      is no room to give. */
   const dockOpen = useChatDock() !== null
-  const phone = useIsMobile()
-  const rightEdge = panelEdge + (dockOpen && !phone ? CHAT_DOCK_WIDTH : 0)
+  const roomy = useRoomForDock()
+  const rightEdge = panelEdge + (dockOpen && roomy ? CHAT_DOCK_WIDTH : 0)
   /* Whether a modal task surface is open over the page. See the wrapper below. */
   const modalOpen = useModalOpen()
   /*
