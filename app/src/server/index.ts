@@ -45,6 +45,7 @@ import { createReferencesRouter } from './routes/references.js'
 import { createBacklinksRouter } from './routes/backlinks.js'
 import { createSampleRouter } from './routes/sample.js'
 import { createTasksRouter } from './routes/tasks.js'
+import { createStatsRouter } from './routes/stats.js'
 import { createTrashRouter } from './routes/trash.js'
 import { createViewsRouter } from './routes/views.js'
 import { createWorkshopRouter } from './routes/workshop.js'
@@ -702,6 +703,10 @@ export function createApp(options: AppOptions = {}): express.Express {
     '/api/v1',
     createExportRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
   )
+
+  // The operators' stats: one GET at the literal path `/stats`, which no
+  // earlier router claims, so this mount is order-independent.
+  app.use('/api/v1', createStatsRouter({ dbClient: options.dbClient }))
 
   // Dana Link references (issue #223): two GETs under the `/references`
   // prefix, which no earlier router claims, so this mount is
