@@ -1,44 +1,49 @@
 /* Connected work mirrors one canonical block in another facet. The ordinary
-   marked paragraph still persists placement/order. When a canonical mirror is
-   available, that paragraph becomes a compact provenance row under the mirror
-   rather than competing with the mirrored content itself. */
+   marked paragraph still persists placement/order. With a canonical mirror it
+   becomes the source lane: source on the left, divider, live mirror on the
+   right. Nothing competes for the mirror's own content box. */
 .dana-writing-canvas
   .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror]) {
-  display: flex !important;
-  flex-direction: column;
+  display: grid !important;
+  grid-template-columns: 148px minmax(0, 1fr);
+  column-gap: 12px;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   overflow: visible;
 }
 
-/* The native mirror owns the primary row. */
+/* The canonical mirror owns the right lane. The border is the relationship
+   divider and stretches for the full height of the source/mirror pair. */
 .dana-writing-canvas
   .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
   > [data-connected-work-detail] {
-  order: 1;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: stretch;
   display: block;
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  padding-inline-start: 16px;
+  border-inline-start: 1px solid var(--border);
   overflow: visible;
 }
 
-/* Restore the placement marker as provenance, but keep it quiet and compact.
-   It lives on its own line below the mirror. Long task/page chips never share
-   the mirror's horizontal lane, and the right side is reserved for the three
-   relationship actions. */
+/* The authored placement marker is the source pill. Keep it in a narrow,
+   predictable lane rather than letting a long Task/Page name push into the
+   mirror. The lower space is reserved for Promote / Unlink. */
 .dana-writing-canvas
   .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
   > :not([data-connected-work-detail]) {
-  order: 2;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
   display: block !important;
-  width: calc(100% + 4px);
-  max-width: calc(100% + 4px);
+  width: 100%;
+  max-width: 148px;
   min-width: 0;
-  margin-top: 4px;
-  margin-inline-start: -4px;
-  padding-inline-end: 76px;
+  padding-block-end: 28px;
   overflow: hidden;
 }
 
@@ -52,12 +57,24 @@
 .dana-writing-canvas
   .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
   > :not([data-connected-work-detail]) a {
+  display: inline-flex;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: top;
 }
 
-/* Multiple exact sources from one placement read as a vertical sequence of
-   native blocks, never as competing inline chips. */
+.dana-writing-canvas
+  .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
+  > :not([data-connected-work-detail]) a > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Multiple exact sources from one placement stay vertically ordered in the
+   mirror lane. */
 .dana-writing-canvas
   .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
   [data-connected-work-sources] {
@@ -80,38 +97,32 @@
   overflow: visible;
 }
 
-/* Reserve the provenance row's right gutter for relationship actions instead
-   of laying those controls over the mirrored block. `SourceActions` occupies
-   the first 48px and Open source the last 24px. */
+/* Promote and Unlink belong to the source lane, not on top of the canonical
+   block. The native-source wrapper begins 177px to the right of the source
+   lane (148 source + 12 gap + 1 border + 16 mirror inset), so this places the
+   48px action pair at the source lane's right edge. */
 .dana-writing-canvas
   [data-connected-work-native-source]
   > div.absolute {
-  top: auto !important;
-  bottom: -28px !important;
-  right: 24px !important;
+  top: 25px !important;
+  bottom: auto !important;
+  right: auto !important;
+  left: -77px !important;
   z-index: 20;
 }
 
-.dana-writing-canvas
-  [data-connected-work-native-source]
-  [data-connected-work-mirror]
-  > a[aria-label='Open source block'] {
-  top: auto !important;
-  bottom: -28px !important;
-  right: 0 !important;
-  box-shadow: none;
-}
-
-/* The nested read-only BlockNote instance is a renderer, not another page.
-   Remove its page-level inset/background and force every structural wrapper to
-   respect the Results lane. Native block specs (file, image, text, callout,
-   map preview, etc.) keep their own appearance inside that boundary. */
+/* The nested BlockNote instance is only a live renderer. Pointer hit-testing
+   must fall through to the parent placement block; otherwise BlockNote's
+   parent side menu can mistake the nested mirror block for the real block and
+   its drag handle becomes unusable. Navigation is provided by the source pill. */
 .dana-connected-block-mirror {
   width: 100%;
   max-width: 100%;
   min-width: 0;
   padding: 0 !important;
   overflow: visible;
+  pointer-events: none;
+  user-select: none;
 }
 
 .dana-connected-block-mirror .bn-container,
@@ -125,8 +136,6 @@
 }
 
 .dana-connected-block-mirror .bn-container {
-  /* A read-only mirror must never look selected merely because its nested
-     ProseMirror owns the only node in that renderer. */
   --bn-colors-selected-background: transparent;
   --bn-colors-selected-text: var(--foreground);
 }
@@ -147,22 +156,83 @@
   min-width: 0;
 }
 
-/* Nested mirror editors are read-only presentation. Suppress BlockNote/Dana
-   node-selection rings and tints so File blocks never look permanently blue
-   or selected. */
+/* A mirror cannot be selected independently from its parent placement. Strip
+   both Dana and upstream BlockNote node-selection treatments, including the
+   File row's selected border/fill and resize/selection chrome. */
 .dana-connected-block-mirror .ProseMirror-selectednode,
 .dana-connected-block-mirror .bn-block-content.ProseMirror-selectednode,
-.dana-connected-block-mirror .ProseMirror-selectednode > .bn-block-content {
+.dana-connected-block-mirror .ProseMirror-selectednode > .bn-block-content,
+.dana-connected-block-mirror [data-selected='true'],
+.dana-connected-block-mirror [aria-selected='true'] {
   outline: none !important;
   box-shadow: none !important;
+  background-color: transparent !important;
+  border-color: var(--border) !important;
+}
+
+.dana-connected-block-mirror .ProseMirror-selectednode *,
+.dana-connected-block-mirror .bn-block-content.ProseMirror-selectednode *,
+.dana-connected-block-mirror [data-selected='true'] * {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.dana-connected-block-mirror .bn-file-name-with-icon {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: var(--border) !important;
 }
 
 .dana-connected-block-mirror .ProseMirror-focused .bn-block-content.ProseMirror-selectednode::after,
 .dana-connected-block-mirror .ProseMirror-focused .ProseMirror-selectednode > .bn-block-content::after,
 .dana-connected-block-mirror .bn-block-content.ProseMirror-selectednode > ::after,
-.dana-connected-block-mirror .ProseMirror-selectednode > .bn-block-content > ::after {
+.dana-connected-block-mirror .ProseMirror-selectednode > .bn-block-content > ::after,
+.dana-connected-block-mirror .ProseMirror-selectednode::before,
+.dana-connected-block-mirror .ProseMirror-selectednode::after {
   content: none !important;
   display: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* On a narrow canvas the source sits above the mirror. Controls stay in the
+   source row and the divider turns horizontal rather than squeezing either
+   side into an unusable column. */
+@media (max-width: 680px) {
+  .dana-writing-canvas
+    .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror]) {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 6px;
+  }
+
+  .dana-writing-canvas
+    .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
+    > :not([data-connected-work-detail]) {
+    grid-column: 1;
+    grid-row: 1;
+    max-width: 100%;
+    padding-inline-end: 52px;
+    padding-block-end: 0;
+  }
+
+  .dana-writing-canvas
+    .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
+    > [data-connected-work-detail] {
+    grid-column: 1;
+    grid-row: 2;
+    padding-inline-start: 0;
+    padding-block-start: 8px;
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--border);
+  }
+
+  .dana-writing-canvas
+    [data-connected-work-native-source]
+    > div.absolute {
+    top: -38px !important;
+    right: 0 !important;
+    left: auto !important;
+  }
 }
 
 /* A facet relationship is durable metadata, so its source-side chip must not
