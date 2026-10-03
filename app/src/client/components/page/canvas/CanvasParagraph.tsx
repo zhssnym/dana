@@ -2,6 +2,7 @@ import { defaultBlockSpecs } from '@blocknote/core'
 import { createReactBlockSpec } from '@blocknote/react'
 import { useQuery } from '@tanstack/react-query'
 import { ExternalLink, MapPin } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { z } from 'zod'
 import { getFolderResponse } from '../../../../shared/folders.js'
@@ -38,10 +39,11 @@ function GoogleMapsCard({ href, label }: { readonly href: string; readonly label
 }
 
 function GoogleMapsImage({ target }: { readonly target: GoogleMapsTarget }): React.JSX.Element {
-  if (target.previewSrc === null) return <GoogleMapsCard href={target.href} label={target.label} />
+  const [failed, setFailed] = useState(false)
+  if (target.previewSrc === null || failed) return <GoogleMapsCard href={target.href} label={target.label} />
   return (
     <div className="mt-2 overflow-hidden rounded-lg border border-border bg-muted">
-      <img src={target.previewSrc} alt={`Map preview for ${target.label}`} loading="lazy" className="h-56 w-full bg-muted object-cover" />
+      <img src={target.previewSrc} alt={`Map preview for ${target.label}`} loading="lazy" onError={() => setFailed(true)} className="h-56 w-full bg-muted object-cover" />
       <a href={target.href} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-2 bg-background px-2.5 py-2 text-sm text-foreground no-underline hover:bg-muted/50">
         <MapPin className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate font-medium">{target.label}</span>
