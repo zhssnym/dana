@@ -9,6 +9,7 @@ import { queryKeys } from '../../api/keys.js'
 import { Link2 } from '../../lib/icons.js'
 import { danaLinkOf, referenceDisplayLabel, resolveReference } from './dana-link.js'
 import { DanaLinkKindIcon } from './kind-icon.js'
+import './connected-work.css'
 
 const CHIP = 'dana-link-chip mx-px inline-flex max-w-full items-baseline gap-1 rounded-sm border border-border bg-muted px-1.5 align-baseline text-[length:inherit] leading-[inherit] font-section text-foreground! no-underline!'
 const FACET = 'border-primary/30 bg-primary/10'
