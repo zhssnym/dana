@@ -29,40 +29,20 @@ function Reference({ href, kind, id }: { readonly href: string; readonly kind: '
 
 function GoogleMapsCard({ href, label }: { readonly href: string; readonly label: string }): React.JSX.Element {
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={`Open ${label} in Google Maps`}
-      className="mt-2 flex max-w-full items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-2 text-foreground no-underline transition-colors hover:bg-muted/50"
-    >
+    <a href={href} target="_blank" rel="noreferrer" aria-label={`Open ${label} in Google Maps`} className="mt-2 flex max-w-full items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-2 text-foreground no-underline transition-colors hover:bg-muted/50">
       <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground" aria-hidden="true"><MapPin className="size-4" /></span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">{label}</span>
-        <span className="block text-xs text-muted-foreground">Google Maps</span>
-      </span>
+      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{label}</span><span className="block text-xs text-muted-foreground">Google Maps</span></span>
       <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
     </a>
   )
 }
 
-function GoogleMapsFrame({ target }: { readonly target: GoogleMapsTarget }): React.JSX.Element {
-  if (target.embedSrc === null) return <GoogleMapsCard href={target.href} label={target.label} />
+function GoogleMapsImage({ target }: { readonly target: GoogleMapsTarget }): React.JSX.Element {
+  if (target.previewSrc === null) return <GoogleMapsCard href={target.href} label={target.label} />
   return (
     <div className="mt-2 overflow-hidden rounded-lg border border-border bg-muted">
-      <iframe
-        src={target.embedSrc}
-        title={`Map of ${target.label}`}
-        loading="lazy"
-        referrerPolicy="strict-origin-when-cross-origin"
-        className="h-56 w-full border-0 bg-muted"
-      />
-      <a
-        href={target.href}
-        target="_blank"
-        rel="noreferrer"
-        className="flex min-w-0 items-center gap-2 bg-background px-2.5 py-2 text-sm text-foreground no-underline hover:bg-muted/50"
-      >
+      <img src={target.previewSrc} alt={`Map preview for ${target.label}`} loading="lazy" className="h-56 w-full bg-muted object-cover" />
+      <a href={target.href} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-2 bg-background px-2.5 py-2 text-sm text-foreground no-underline hover:bg-muted/50">
         <MapPin className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate font-medium">{target.label}</span>
         <span className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground">Open in Google Maps <ExternalLink className="size-3" aria-hidden="true" /></span>
@@ -82,16 +62,14 @@ function ResolvedGoogleMapsPreview({ target }: { readonly target: GoogleMapsTarg
   })
   if (query.data !== undefined) {
     const resolved = googleMapsTarget(query.data.url)
-    if (resolved !== null && resolved.embedSrc !== null && !resolved.needsResolve) {
-      return <GoogleMapsFrame target={{ ...resolved, href: target.href }} />
-    }
+    if (resolved !== null && resolved.previewSrc !== null && !resolved.needsResolve) return <GoogleMapsImage target={{ ...resolved, href: target.href }} />
   }
   return <GoogleMapsCard href={target.href} label={target.label} />
 }
 
 function GoogleMapsPreview({ target }: { readonly target: GoogleMapsTarget }): React.JSX.Element {
   if (target.needsResolve) return <ResolvedGoogleMapsPreview target={target} />
-  return <GoogleMapsFrame target={target} />
+  return <GoogleMapsImage target={target} />
 }
 
 function LinkPreview({ href }: { readonly href: string }): React.JSX.Element | null {
@@ -108,16 +86,13 @@ function LinkPreview({ href }: { readonly href: string }): React.JSX.Element | n
 
 const base = defaultBlockSpecs.paragraph
 type InlineText = { type: 'text'; text: string }
-// A Dana Link chip (`danaLink`, #223) has no content and draws itself; it adds
-// no text here and no preview below.
 type Inline = InlineText | { type: 'link'; href: string; content: InlineText[] } | { type: 'danaLink' }
+
 /** Supported inline custom block; all text/selection/history remain BlockNote's. */
 export const createCanvasParagraph = createReactBlockSpec(base.config, {
   meta: base.implementation.meta,
   parse: base.implementation.parse,
   render: ({ block, contentRef }) => {
-    // BlockNote also calls render while inserting a non-text block (an image),
-    // when content is not an inline array; a throw here unmounts the whole canvas.
     const content = Array.isArray(block.content) ? block.content as Inline[] : []
     const text = content.map((inline) => inline.type === 'text' ? inline.text : inline.type === 'link' ? inline.content.map((run) => run.text).join('') : '').join('')
     const links = [...new Set([...linksIn(text), ...content.flatMap((inline) => inline.type === 'link' ? [inline.href] : [])])]
@@ -125,3 +100,12 @@ export const createCanvasParagraph = createReactBlockSpec(base.config, {
   },
   toExternalHTML: ({ contentRef }) => <p ref={contentRef} />,
 }, base.extensions)
+
+/**
+ * TaskComposer still takes BlockNote's paragraph slot while sharing the rest
+ * of the canvas vocabulary. schema.ts imports this module before TaskComposer
+ * constructs its schema, so install the same renderer in that slot once. This
+ * keeps page and Task link previews one treatment rather than two copies.
+ */
+export const sharedCanvasParagraph = createCanvasParagraph()
+Object.assign(defaultBlockSpecs, { paragraph: sharedCanvasParagraph })
