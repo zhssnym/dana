@@ -34,6 +34,10 @@ describe('block facet metadata rail', () => {
     expect(content.style.position).toBe('relative')
     expect(content.style.paddingBottom).toBe('24px')
     expect(rail.getAttribute('contenteditable')).toBe('false')
+    expect(rail.style.getPropertyValue('visibility')).toBe('visible')
+    expect(rail.style.getPropertyPriority('visibility')).toBe('important')
+    expect(rail.style.getPropertyValue('opacity')).toBe('1')
+    expect(rail.style.getPropertyPriority('opacity')).toBe('important')
     expect([...rail.querySelectorAll('a')].map((chip) => chip.textContent)).toEqual(['Purpose', 'Results'])
     expect(rail.textContent).toContain('+1')
   })
@@ -60,6 +64,28 @@ describe('block facet metadata rail', () => {
     expect(content.style.paddingBottom).toBe('')
     expect(rail.className).toContain('inline-flex')
     expect(rail.className).not.toContain('absolute')
+    expect(rail.style.getPropertyValue('visibility')).toBe('visible')
+    expect(rail.style.getPropertyPriority('visibility')).toBe('important')
+    expect(rail.style.getPropertyValue('opacity')).toBe('1')
+    expect(rail.style.getPropertyPriority('opacity')).toBe('important')
+  })
+
+  test('reasserts persistent visibility when BlockNote hover styling mutates an existing rail', () => {
+    const host = document.createElement('div')
+    host.innerHTML = '<div class="bn-block-outer" data-id="block-1"><div class="bn-block"><div class="bn-block-content"></div></div></div>'
+    const wanted = new Map([['block-1', facets.slice(0, 1)]])
+    syncFacetDecorations(host, wanted)
+
+    const rail = host.querySelector<HTMLElement>('[data-dana-block-facets="block-1"]')!
+    rail.style.setProperty('visibility', 'hidden', 'important')
+    rail.style.setProperty('opacity', '0', 'important')
+
+    syncFacetDecorations(host, wanted)
+
+    expect(rail.style.getPropertyValue('visibility')).toBe('visible')
+    expect(rail.style.getPropertyPriority('visibility')).toBe('important')
+    expect(rail.style.getPropertyValue('opacity')).toBe('1')
+    expect(rail.style.getPropertyPriority('opacity')).toBe('important')
   })
 
   test('removes the treatment and restores the content box when the relationship is removed', () => {

@@ -159,6 +159,13 @@ function releaseHost(content: HTMLElement): void {
   delete content.dataset.danaFacetPaddingBottom
 }
 
+/** A relationship is durable metadata, not a hover action. Keep the rail itself
+ * visible regardless of whichever BlockNote hover rules surround its host. */
+function keepFacetRailVisible(rail: HTMLElement): void {
+  rail.style.setProperty('visibility', 'visible', 'important')
+  rail.style.setProperty('opacity', '1', 'important')
+}
+
 /**
  * Sync exact-block facet metadata without changing BlockNote's structural DOM.
  *
@@ -199,6 +206,7 @@ export function syncFacetDecorations(
       rail = null
     }
     const signature = `${inline ? 'inline' : 'rail'}:${facets.map((facet) => `${facet.id}:${facet.name}`).join('|')}`
+    if (rail !== null) keepFacetRailVisible(rail)
     if (rail?.dataset.signature === signature) continue
     if (rail === null) {
       rail = document.createElement('div')
@@ -211,6 +219,7 @@ export function syncFacetDecorations(
     rail.className = inline
       ? 'dana-block-facet-rail ml-1 inline-flex h-5 min-w-0 shrink-0 items-center gap-1 overflow-visible'
       : 'dana-block-facet-rail absolute bottom-0 left-0 z-10 flex h-5 min-w-0 max-w-full items-center gap-1 overflow-visible'
+    keepFacetRailVisible(rail)
     rail.dataset.signature = signature
     const visible: HTMLElement[] = facets.slice(0, VISIBLE_FACETS).map(facetChip)
     const hidden = facets.length - visible.length
