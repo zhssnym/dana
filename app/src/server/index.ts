@@ -177,7 +177,6 @@ const THEME_SCRIPT_HASH = 'sha256-Dj3RFqRnuo6lgqd0HI36Wj2p9AqPZv5+ymGddn+OUjw='
 export function createApp(options: AppOptions = {}): express.Express {
   const app = express()
   app.disable('x-powered-by')
-
   /*
   **Exactly one proxy hop, and never `true` (issue #153).**
 
@@ -365,7 +364,7 @@ export function createApp(options: AppOptions = {}): express.Express {
         "style-src 'self' 'unsafe-inline'; " +
         "img-src 'self' data: blob: https://*.googleusercontent.com; " +
         "media-src 'self' blob:; " +
-        "frame-src https://www.youtube-nocookie.com https://player.vimeo.com; " +
+        "frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://maps.google.com; " +
         "connect-src 'self' data: https://*.sentry.io; " +
         `report-uri ${CSP_REPORT_PATH}; ` +
         'report-to csp-endpoint',
