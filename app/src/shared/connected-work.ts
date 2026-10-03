@@ -12,10 +12,15 @@ inline facet chip in a paragraph makes that paragraph the source; a chip in an
 image caption makes that image block the source; a chip in a Discussion post
 makes that post the source. Media blocks that cannot carry rich text are not
 silently associated with a neighbouring chip.
+
+A page-block source also carries its canonical PageBlock read model. This is
+not a copy to edit: it lets another facet render the same block identity with
+Dana's native renderer while the source document remains the only write path.
 */
 import { z } from 'zod'
 
 import { BACKLINK_HOMES, BACKLINK_LIMIT, BACKLINK_SURFACES } from './backlinks.js'
+import { pageBlock } from './pages.js'
 
 export const CONNECTED_WORK_TEXT_MAX = 280
 
@@ -35,6 +40,8 @@ export const connectedWorkSource = z.object({
   text: z.string().max(CONNECTED_WORK_TEXT_MAX).nullable(),
   /** Files carried by this exact block/post, never neighbouring files. */
   files: z.array(connectedWorkFile),
+  /** The same canonical block payload normal page/task reads use. Posts have none. */
+  block: pageBlock.nullable().optional(),
 })
 export type ConnectedWorkSource = z.infer<typeof connectedWorkSource>
 
