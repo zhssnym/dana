@@ -635,6 +635,12 @@ export function AppShell(): React.JSX.Element {
               data-shell-scroll
               className="min-h-0 flex-1 overflow-y-auto"
             >
+              {/* The width a cover bleeds to (`100cqw` in page-cover.tsx). The
+                  scroll region is a query container too, but its width counts
+                  its own scrollbar, so a cover measured against it ran under
+                  the scrollbar and gave the page a sideways scroll. This box
+                  is the room inside the scrollbar. */}
+              <div className="@container">
               {/* An open thread reads across the full width, as a chat does. */}
               <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-4 py-4 md:px-10 md:py-6">
                 {/* 9.8: pending invites sit above every /app page; a read in
@@ -643,6 +649,7 @@ export function AppShell(): React.JSX.Element {
                   <InviteGate invites={invites.data ?? []} />
                 ) : null}
                 <Outlet />
+              </div>
               </div>
             </div>
           </SidebarInset>
