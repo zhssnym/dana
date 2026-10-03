@@ -105,13 +105,21 @@ describe('AC-1252 whole-block facet references', () => {
     const backlinks = await owner.browser.json(`/facets/${resultsId}/backlinks`, 'GET')
     expectStatus(backlinks, 200, 'Results projects its block-owned sources')
     const source = connectedSource(backlinks.json() as GetConnectedWorkResponse, blockId)
-    expect(source).toEqual({
+    expect(source).toEqual(expect.objectContaining({
       id: blockId,
       kind: 'block',
       block_kind: 'image',
       text: 'final-render.png',
       files: [{ id: fileId, name: 'final-render.png' }],
-    })
+      block: expect.objectContaining({
+        id: blockId,
+        kind: 'image',
+        file_id: fileId,
+        file_name: 'final-render.png',
+        section_block_id: null,
+        list_parent_block_id: null,
+      }),
+    }))
 
     const strangerRead = await stranger.browser.json(`/block-facets?folder=${projectId}`, 'GET')
     expectStatus(strangerRead, 404, 'a stranger cannot enumerate a project relation graph')
@@ -158,7 +166,13 @@ describe('AC-1252 whole-block facet references', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]?.block_ids.filter((id) => id === paragraphId)).toHaveLength(1)
     expect(rows[0]?.sources.filter((source) => source.id === paragraphId)).toHaveLength(1)
-    expect(rows[0]?.sources.find((source) => source.id === paragraphId)?.text).toBe('Approved package')
+    const paragraph = rows[0]?.sources.find((source) => source.id === paragraphId)
+    expect(paragraph?.text).toBe('Approved package')
+    expect(paragraph?.block).toEqual(expect.objectContaining({
+      id: paragraphId,
+      kind: 'paragraph',
+      text: 'Approved Results package',
+    }))
 
     const search = await owner.browser.json(`/references/search?folder=${a.projectId}&q=Results`, 'GET')
     expectStatus(search, 200, 'the inline picker searches in the current Work context')
