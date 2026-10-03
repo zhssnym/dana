@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import type { CanvasBlock, CanvasEditor } from './schema.js'
@@ -81,7 +82,17 @@ function draw(block: CanvasBlock, folderRefs: ReadonlyMap<string, string>, onCre
   } as unknown as CanvasEditor
   // The slash menu binds the surface in the app; it is stubbed here.
   bindCanvasSurface(state.editor, headingMode === 'document' ? 'document' : 'work')
-  render(<CanvasSurface editor={state.editor} onChange={() => {}} onCreateTask={onCreateTask} folderRefs={folderRefs} onUploadFile={() => Promise.reject(new Error("no uploads here"))} onNotice={() => {}} headingMode={headingMode} />)
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  })
+  render(
+    <QueryClientProvider client={client}>
+      <CanvasSurface editor={state.editor} onChange={() => {}} onCreateTask={onCreateTask} folderRefs={folderRefs} onUploadFile={() => Promise.reject(new Error("no uploads here"))} onNotice={() => {}} headingMode={headingMode} />
+    </QueryClientProvider>,
+  )
 }
 
 describe('Turn into › Task from the canvas block menu', () => {
