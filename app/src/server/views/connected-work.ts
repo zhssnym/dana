@@ -23,6 +23,7 @@ import type {
   ConnectedWorkSource,
   GetConnectedWorkResponse,
 } from '../../shared/connected-work.js'
+import type { PageBlock } from '../../shared/pages.js'
 import { parseDanaLink } from '../../shared/references.js'
 import { idSet, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
@@ -41,6 +42,22 @@ function clip(value: unknown): string | null {
   return chars.length <= CONNECTED_WORK_TEXT_MAX
     ? text
     : `${chars.slice(0, CONNECTED_WORK_TEXT_MAX - 1).join('').trimEnd()}…`
+}
+
+function nullableString(value: unknown): string | null {
+  return value === null || value === undefined ? null : String(value)
+}
+
+function nullableInt(value: unknown): number | null {
+  return value === null || value === undefined ? null : Number(value)
+}
+
+function iso(value: unknown): string {
+  return value instanceof Date ? value.toISOString() : new Date(String(value)).toISOString()
+}
+
+function nullableIso(value: unknown): string | null {
+  return value === null || value === undefined ? null : iso(value)
 }
 
 function isFacetHref(href: unknown, facetId: string, origin?: string): boolean {
@@ -154,6 +171,9 @@ async function persistedBlockBacklinks(
   return [...byDocument.values()]
 }
 
+/** A block source carries the same canonical read model normal Page/Task reads
+ * carry. The facet mirror therefore renders one identity rather than rebuilding
+ * a second representation from preview text and file chips. */
 async function blockSources(
   executor: Executor,
   viewerId: string,
@@ -165,7 +185,11 @@ async function blockSources(
   if (ids.length === 0) return map
   const rows = await rowsOf(
     executor,
-    sql`SELECT pb.id, pb.kind, pb.rich_content, pb.file_id, f.name AS file_name
+    sql`SELECT pb.id, pb.kind, pb.position, pb.page_position,
+               pb.section_block_id, pb.list_parent_block_id, pb.toggleable,
+               pb.checked, pb.rich_content, pb.text, pb.file_id,
+               pb.ref_folder_id, pb.width_pct, pb.updated_at, pb.file_reclaimed_at,
+               f.width AS file_width, f.height AS file_height, f.name AS file_name
           FROM page_blocks pb
           LEFT JOIN files f ON f.id = pb.file_id
          WHERE pb.id IN ${idSet(ids)}
@@ -180,16 +204,38 @@ async function blockSources(
            )`,
   )
   for (const row of rows) {
-    const fileId = row.file_id === null || row.file_id === undefined ? null : String(row.file_id)
+    const fileId = nullableString(row.file_id)
+    const fileName = nullableString(row.file_name)
     const files: ConnectedWorkFile[] = fileId === null
       ? []
-      : [{ id: fileId, name: row.file_name === null || row.file_name === undefined ? 'File' : String(row.file_name) }]
-    map.set(String(row.id), {
+      : [{ id: fileId, name: fileName ?? 'File' }]
+    const block: PageBlock = {
       id: String(row.id),
+      kind: String(row.kind) as PageBlock['kind'],
+      position: Number(row.position),
+      page_position: nullableString(row.page_position),
+      section_block_id: nullableString(row.section_block_id),
+      list_parent_block_id: nullableString(row.list_parent_block_id),
+      toggleable: row.toggleable === null || row.toggleable === undefined ? null : row.toggleable === true,
+      checked: row.checked === null || row.checked === undefined ? null : row.checked === true,
+      rich_content: row.rich_content as PageBlock['rich_content'],
+      text: nullableString(row.text),
+      file_id: fileId,
+      file_width: nullableInt(row.file_width),
+      file_height: nullableInt(row.file_height),
+      file_reclaimed_at: nullableIso(row.file_reclaimed_at),
+      file_name: fileName,
+      ref_folder_id: nullableString(row.ref_folder_id),
+      width_pct: nullableInt(row.width_pct),
+      updated_at: iso(row.updated_at),
+    }
+    map.set(block.id, {
+      id: block.id,
       kind: 'block',
-      block_kind: String(row.kind),
-      text: richPreview(row.rich_content, facetId, origin) ?? clip(row.file_name),
+      block_kind: block.kind,
+      text: richPreview(row.rich_content, facetId, origin) ?? clip(row.text) ?? clip(row.file_name),
       files,
+      block,
     })
   }
   return map

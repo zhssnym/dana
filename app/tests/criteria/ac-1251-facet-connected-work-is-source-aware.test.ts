@@ -113,14 +113,25 @@ describe('AC-1251 facet Connected work keeps the exact source object', () => {
       block_ids: [blockId],
     }))
     expect(connected.results[0]?.sources).toEqual([
-      {
+      expect.objectContaining({
         id: blockId,
         kind: 'block',
         block_kind: 'paragraph',
         text: 'Final drawings approved',
         files: [],
-      },
+        block: expect.objectContaining({
+          id: blockId,
+          kind: 'paragraph',
+          text: 'Final drawings Results approved',
+          file_id: null,
+          section_block_id: null,
+          list_parent_block_id: null,
+        }),
+      }),
     ])
+
+    const canonical = connected.results[0]?.sources[0]?.block
+    expect(canonical?.rich_content?.runs.map((run) => run.text).join('')).toBe('Final drawings Results approved')
 
     const refused = await stranger.browser.json(`/facets/${resultsId}/backlinks`, 'GET')
     expectStatus(refused, 404, 'a stranger cannot learn the facet or its connected sources')
@@ -145,5 +156,6 @@ describe('AC-1251 facet Connected work keeps the exact source object', () => {
     expect(row?.block_ids).toEqual([blockId])
     expect(row?.sources.map((source) => source.id)).toEqual([blockId])
     expect(row?.sources[0]?.text).toBe('Final drawings approved')
+    expect(row?.sources[0]?.block?.id).toBe(blockId)
   })
 })

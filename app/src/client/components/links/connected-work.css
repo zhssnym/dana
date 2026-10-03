@@ -1,79 +1,45 @@
-/* Connected work: the exact referenced artifact is the result; its Task/Page is provenance.
-   Keep this presentation-only. The placement remains the same native BlockNote block and
-   Dana Link, so drag handles, ordering, autosave, undo and relationship identity are untouched. */
+/* Connected work mirrors one canonical block in another facet. The ordinary
+   marked paragraph still persists placement/order, but when the canonical
+   block is available it becomes implementation metadata rather than a second
+   visible Task/Page chip. */
 .dana-writing-canvas
-  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] a[href^='/api/v1/files/']) {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  align-items: flex-start;
+  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] [data-connected-work-mirror])
+  > .bn-inline-content {
+  display: none;
 }
 
 .dana-writing-canvas
-  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] a[href^='/api/v1/files/'])
+  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] [data-connected-work-mirror])
   > [data-connected-work-detail] {
-  order: 1;
   width: 100%;
   min-width: 0;
 }
 
-/* The generated placement link is still the durable provenance marker, but it
-   should read as context after the artifact rather than compete with it. */
-.dana-writing-canvas
-  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] a[href^='/api/v1/files/'])
-  > .bn-inline-content {
-  order: 2;
-  display: flex;
+/* The nested read-only BlockNote instance is a renderer, not another page.
+   Remove its page-level inset/background while leaving each native block spec
+   (file, image, text, callout, etc.) untouched. */
+.dana-connected-block-mirror {
+  width: 100%;
   min-width: 0;
-  align-items: center;
-  margin-top: 2px;
-  color: var(--muted-foreground);
-  font-size: 11px;
-  line-height: 16px;
+  padding: 0 !important;
 }
 
-.dana-writing-canvas
-  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] a[href^='/api/v1/files/'])
-  > .bn-inline-content::before {
-  content: 'From';
-  flex: none;
-  margin-inline-end: 4px;
-  color: var(--muted-foreground);
-  font-weight: 400;
-}
-
-.dana-writing-canvas
-  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] a[href^='/api/v1/files/'])
-  > .bn-inline-content .dana-link-chip {
-  border-color: transparent !important;
-  background: transparent !important;
+.dana-connected-block-mirror .bn-container,
+.dana-connected-block-mirror .bn-editor {
+  width: 100%;
+  min-width: 0;
   padding-inline: 0 !important;
-  color: var(--muted-foreground) !important;
-  font-size: 11px;
-  font-weight: 400;
-}
-
-.dana-writing-canvas
-  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] a[href^='/api/v1/files/'])
-  > .bn-inline-content .dana-link-chip:hover {
   background: transparent !important;
-  color: var(--foreground) !important;
 }
 
-/* File/media carried by the exact referenced block is the primary output. */
-.dana-writing-canvas
-  [data-connected-work-detail] a[href^='/api/v1/files/'] {
-  min-height: 28px;
-  gap: 6px;
-  border-radius: var(--radius-md);
-  padding: 4px 8px;
-  color: var(--foreground);
-  font-size: 14px;
-  font-weight: 500;
+.dana-connected-block-mirror .bn-editor > .bn-block-group {
+  margin: 0;
+  padding: 0;
 }
 
-.dana-writing-canvas
-  [data-connected-work-detail] a[href^='/api/v1/files/'] svg {
-  width: 14px;
-  height: 14px;
+/* A facet relationship is durable metadata, so its source-side chip must not
+   disappear with hover. Hover may reveal actions, never the relationship. */
+.dana-writing-canvas .dana-block-facet-rail {
+  visibility: visible !important;
+  opacity: 1 !important;
 }
