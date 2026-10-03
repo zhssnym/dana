@@ -46,31 +46,74 @@ function mapLabel(url: URL): string {
   return 'Map location'
 }
 
-function mapCoordinates(url: URL): string | null {
-  const match = /\/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,|$)/u.exec(url.pathname)
-  return match === null ? null : `${match[1]},${match[2]}`
+interface MapCoordinates {
+  readonly latitude: number
+  readonly longitude: number
 }
 
-function mapQuery(url: URL): string | null {
-  const query = url.searchParams.get('query') ?? url.searchParams.get('q') ?? url.searchParams.get('destination')
-  if (query !== null) return cleanMapLabel(query)
-  return mapCoordinates(url) ?? pathMapLabel(url)
+function coordinates(latitude: string, longitude: string): MapCoordinates | null {
+  const lat = Number(latitude)
+  const lng = Number(longitude)
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
+    ? { latitude: lat, longitude: lng }
+    : null
 }
 
+function coordinatePair(value: string | null): MapCoordinates | null {
+  if (value === null) return null
+  const match = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/u.exec(value)
+  return match === null ? null : coordinates(match[1]!, match[2]!)
+}
+
+/** Coordinates Google exposes in its long URLs, without calling a geocoder. */
+function mapCoordinates(url: URL): MapCoordinates | null {
+  const at = /\/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,|\/|$)/u.exec(url.pathname)
+  if (at !== null) return coordinates(at[1]!, at[2]!)
+
+  // Place share URLs often carry the actual pin in Google's data tuple even
+  // when the visible path contains only a street address.
+  const data = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/u.exec(url.toString())
+  if (data !== null) return coordinates(data[1]!, data[2]!)
+
+  for (const name of ['query', 'q', 'destination', 'll', 'center']) {
+    const pair = coordinatePair(url.searchParams.get(name))
+    if (pair !== null) return pair
+  }
+  return null
+}
+
+function coordinateText(value: number): string {
+  return value.toFixed(6).replace(/0+$/u, '').replace(/\.$/u, '')
+}
+
+/**
+ * OpenStreetMap's export frame is intentionally coordinate-only: no API key,
+ * account, billing project or geocoding service is required. The original
+ * Google Maps URL remains the navigation target below the frame.
+ */
 function mapEmbedSrc(url: URL): string | null {
-  const query = mapQuery(url)
-  if (query === null) return null
-  const embed = new URL('https://maps.google.com/maps')
-  embed.searchParams.set('q', query)
-  embed.searchParams.set('output', 'embed')
+  const point = mapCoordinates(url)
+  if (point === null) return null
+  const lat = coordinateText(point.latitude)
+  const lng = coordinateText(point.longitude)
+  const bbox = [
+    coordinateText(point.longitude - 0.008),
+    coordinateText(point.latitude - 0.006),
+    coordinateText(point.longitude + 0.008),
+    coordinateText(point.latitude + 0.006),
+  ].join(',')
+  const embed = new URL('https://www.openstreetmap.org/export/embed.html')
+  embed.searchParams.set('bbox', bbox)
+  embed.searchParams.set('layer', 'mapnik')
+  embed.searchParams.set('marker', `${lat},${lng}`)
   return embed.toString()
 }
 
 /**
- * A key-free Google Maps preview target. Long map URLs expose enough location
- * data to build the ordinary maps.google.com `output=embed` frame. Google's
- * opaque short share links are resolved by Dana's server before this helper is
- * called again with their long destination.
+ * A key-free preview target for a Google Maps link. Dana never frames Google:
+ * it reads coordinates already present in the long URL and draws those through
+ * OpenStreetMap. Opaque maps.app.goo.gl links are first resolved by Dana's
+ * Google-only redirect resolver, then passed through here again.
  */
 export function googleMapsTarget(value: string): GoogleMapsTarget | null {
   const url = safeUrl(value)
