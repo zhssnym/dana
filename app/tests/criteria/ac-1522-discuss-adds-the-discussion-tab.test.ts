@@ -62,4 +62,33 @@ describe('AC-1522 Discuss adds the Discussion tab', () => {
     expectStatus(listed, 200, 'the Discussion tab lists the project')
     expect((listed.json() as { discussions: { id: string }[] }).discussions.map((d) => d.id)).toContain(threadId)
   }, 60_000)
+
+  test('an existing Discussion-tab thread links to a readable Task elsewhere in the same project', async () => {
+    const [owner] = (await cast.of(app)) as [Actor, Actor]
+    const project = await createFolder(owner, 'ac1522 cross-tab link', 'doc')
+    const sub = await owner.browser.json('/folders', 'POST', { name: 'ac1522 work page', parent_folder_id: project })
+    expectStatus(sub, 201, 'a project page')
+    const subId = (sub.json() as { id: string }).id
+    const task = await createTaskOk(owner, { title: 'ac1522 linked task', folder_id: subId }, 'task on another project page')
+
+    const discussed = await owner.browser.json(`/tasks/${task.id}/discussion`, 'POST')
+    expectStatus(discussed, 201, 'create the project Discussion tab')
+    const tabId = (discussed.json() as { discussion_tab_id: string }).discussion_tab_id
+
+    const started = await owner.browser.json(`/folders/${tabId}/discussions`, 'POST', { title: 'ac1522 standalone thread' })
+    expectStatus(started, 201, 'thread created on Discussion tab')
+    const threadId = (started.json() as { id: string }).id
+
+    const linked = await owner.browser.json(`/discussions/${threadId}/tasks`, 'POST', { task_id: task.id })
+    expectStatus(linked, 201, 'cross-tab relation inside one project')
+    expect((linked.json() as { discussion: { linked_tasks: Array<{ id: string }> } }).discussion.linked_tasks.map((item) => item.id)).toContain(task.id)
+
+    const otherProject = await createFolder(owner, 'ac1522 other project', 'doc')
+    const otherTask = await createTaskOk(owner, { title: 'ac1522 foreign task', folder_id: otherProject }, 'task in another project')
+    expectStatus(
+      await owner.browser.json(`/discussions/${threadId}/tasks`, 'POST', { task_id: otherTask.id }),
+      422,
+      'a readable task from another project is still outside the relation scope',
+    )
+  }, 60_000)
 })
