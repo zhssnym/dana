@@ -36,6 +36,8 @@ export const queryKeys = {
   shelves: () => ['shelves'] as const,
   trash: () => ['trash'] as const,
   archivedWork: () => ['archive', 'folders'] as const,
+  /** The operators' aggregate counts (GET /stats). */
+  stats: () => ['stats'] as const,
   /** 4.13's `kind:id` reference, so two subjects never share a key. */
   events: (subject: string) => ['events', subject] as const,
 

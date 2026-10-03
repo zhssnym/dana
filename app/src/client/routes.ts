@@ -39,6 +39,8 @@ export const paths = {
   trash: '/app/trash',
   settings: '/app/settings',
   archivedWork: '/app/settings/archived-work',
+  /** The operators' counts; a 404 for everyone else, and not in any menu. */
+  stats: '/app/stats',
   people: '/app/people',
 } as const
 
