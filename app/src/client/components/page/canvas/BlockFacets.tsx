@@ -270,18 +270,20 @@ export function syncFacetDecorations(
  */
 function useFacetDecorations(editor: AnyEditor, model: BlockFacetMenuModel | undefined): void {
   useEffect(() => {
+    /* A transient consumer (for example BlockNote's hover side menu) may mount
+       before its relation model is resolved. An unresolved consumer must never
+       clear decorations owned by the always-mounted canvas. */
+    if (model === undefined) return
     const host = editor.domElement
     if (host === undefined || host === null) return
     let frame = 0
     const sync = (): void => {
       frame = 0
       const wanted = new Map<string, readonly BlockFacetRef[]>()
-      if (model !== undefined) {
-        visitBlocks(editor.document, (blockId) => {
-          const facets = model.selected(blockId)
-          if (facets.length > 0) wanted.set(blockId, facets)
-        })
-      }
+      visitBlocks(editor.document, (blockId) => {
+        const facets = model.selected(blockId)
+        if (facets.length > 0) wanted.set(blockId, facets)
+      })
       syncFacetDecorations(host, wanted)
     }
     const schedule = (): void => {
@@ -294,7 +296,10 @@ function useFacetDecorations(editor: AnyEditor, model: BlockFacetMenuModel | und
     return () => {
       observer.disconnect()
       if (frame !== 0) window.cancelAnimationFrame(frame)
-      syncFacetDecorations(host, new Map())
+      /* Decorations live with BlockNote's DOM and disappear when that DOM does.
+         Do not actively clear them here: another still-mounted controller may
+         own the same rails, and hover-menu teardown must never erase durable
+         relationship metadata. */
     }
   }, [editor, model])
 }
