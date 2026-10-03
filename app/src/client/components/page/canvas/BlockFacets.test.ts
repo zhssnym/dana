@@ -11,7 +11,7 @@ const facets: readonly BlockFacetRef[] = [
 ]
 
 describe('block facet metadata rail', () => {
-  test('uses the real outer-row id, keeps BlockNote structural children untouched, and collapses extra facets', () => {
+  test('uses the real outer-row id, keeps BlockNote structural children untouched, and uses a first-line gutter', () => {
     const host = document.createElement('div')
     host.innerHTML = `
       <div class="bn-block-outer" data-id="block-1">
@@ -32,14 +32,20 @@ describe('block facet metadata rail', () => {
     expect(content.contains(rail)).toBe(true)
     expect([...outer.children]).toEqual(structuralChildren)
     expect(content.style.position).toBe('relative')
-    expect(content.style.paddingBottom).toBe('24px')
+    expect(content.style.paddingInlineEnd).toBe('136px')
+    expect(content.style.paddingBottom).toBe('')
     expect(rail.getAttribute('contenteditable')).toBe('false')
+    expect(rail.className).toContain('absolute')
+    expect(rail.className).toContain('top-0')
+    expect(rail.className).toContain('right-0')
+    expect(rail.style.getPropertyValue('display')).toBe('flex')
+    expect(rail.style.getPropertyPriority('display')).toBe('important')
     expect(rail.style.getPropertyValue('visibility')).toBe('visible')
     expect(rail.style.getPropertyPriority('visibility')).toBe('important')
     expect(rail.style.getPropertyValue('opacity')).toBe('1')
     expect(rail.style.getPropertyPriority('opacity')).toBe('important')
-    expect([...rail.querySelectorAll('a')].map((chip) => chip.textContent)).toEqual(['Purpose', 'Results'])
-    expect(rail.textContent).toContain('+1')
+    expect([...rail.querySelectorAll('a')].map((chip) => chip.textContent)).toEqual(['Purpose'])
+    expect(rail.textContent).toContain('+2')
   })
 
   test('keeps facet chips in the native file row instead of adding detached metadata space', () => {
@@ -61,9 +67,12 @@ describe('block facet metadata rail', () => {
     const rail = host.querySelector<HTMLElement>('[data-dana-block-facets="block-1"]')!
     expect(rail.parentElement).toBe(fileRow)
     expect(rail.textContent).toBe('Results')
+    expect(content.style.paddingInlineEnd).toBe('')
     expect(content.style.paddingBottom).toBe('')
     expect(rail.className).toContain('inline-flex')
     expect(rail.className).not.toContain('absolute')
+    expect(rail.style.getPropertyValue('display')).toBe('inline-flex')
+    expect(rail.style.getPropertyPriority('display')).toBe('important')
     expect(rail.style.getPropertyValue('visibility')).toBe('visible')
     expect(rail.style.getPropertyPriority('visibility')).toBe('important')
     expect(rail.style.getPropertyValue('opacity')).toBe('1')
@@ -77,11 +86,14 @@ describe('block facet metadata rail', () => {
     syncFacetDecorations(host, wanted)
 
     const rail = host.querySelector<HTMLElement>('[data-dana-block-facets="block-1"]')!
+    rail.style.setProperty('display', 'none', 'important')
     rail.style.setProperty('visibility', 'hidden', 'important')
     rail.style.setProperty('opacity', '0', 'important')
 
     syncFacetDecorations(host, wanted)
 
+    expect(rail.style.getPropertyValue('display')).toBe('flex')
+    expect(rail.style.getPropertyPriority('display')).toBe('important')
     expect(rail.style.getPropertyValue('visibility')).toBe('visible')
     expect(rail.style.getPropertyPriority('visibility')).toBe('important')
     expect(rail.style.getPropertyValue('opacity')).toBe('1')
@@ -90,16 +102,17 @@ describe('block facet metadata rail', () => {
 
   test('removes the treatment and restores the content box when the relationship is removed', () => {
     const host = document.createElement('div')
-    host.innerHTML = '<div class="bn-block-outer" data-id="block-1"><div class="bn-block"><div class="bn-block-content" style="overflow: clip"></div></div></div>'
+    host.innerHTML = '<div class="bn-block-outer" data-id="block-1"><div class="bn-block"><div class="bn-block-content" style="overflow: clip; padding-inline-end: 5px"></div></div></div>'
     const content = host.querySelector<HTMLElement>('.bn-block-content')!
     syncFacetDecorations(host, new Map([['block-1', facets.slice(0, 1)]]))
     expect(host.querySelector('[data-dana-block-facets]')).not.toBeNull()
     expect(content.style.overflow).toBe('visible')
+    expect(content.style.paddingInlineEnd).toBe('136px')
 
     syncFacetDecorations(host, new Map())
     expect(host.querySelector('[data-dana-block-facets]')).toBeNull()
     expect(content.style.position).toBe('')
     expect(content.style.overflow).toBe('clip')
-    expect(content.style.paddingBottom).toBe('')
+    expect(content.style.paddingInlineEnd).toBe('5px')
   })
 })

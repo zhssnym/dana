@@ -5,7 +5,7 @@ import type { BlockFacetRef, GetProjectBlockFacetsResponse } from '../../../../s
 import { getProjectBlockFacetsResponse, putBlockFacetsResponse } from '../../../../shared/block-facets.js'
 import { getPlain, mutateApi } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
-import { useAllPages } from '../../../api/queries.js'
+import { useAllPages, useTask } from '../../../api/queries.js'
 import type { AnyEditor, BlockFacetMenuModel } from './BlockSideMenu.js'
 import { registerCanvasEditor } from './editor-registry.js'
 
@@ -22,6 +22,29 @@ function replaceRow(
   const blocks = old.blocks.filter((row) => row.block_id !== blockId)
   if (facets.length > 0) blocks.push({ block_id: blockId, facets: [...facets] })
   return { ...old, blocks }
+}
+
+function routedId(segment: 'folders' | 'facets' | 'tasks'): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  const match = new RegExp(`^/app/${segment}/([0-9a-f-]{36})(?:/|$)`, 'i').exec(window.location.pathname)
+  return match?.[1]
+}
+
+/**
+ * Resolve the project scope from the current canvas route. This hook belongs
+ * to the always-mounted canvas, not the transient BlockNote side menu: facet
+ * relationships are durable metadata and their chips must exist before the
+ * user ever hovers a gutter handle.
+ */
+export function useAutomaticBlockFacets(
+  editor: AnyEditor,
+  editable: boolean,
+  onNotice?: (message: string) => void,
+): BlockFacetMenuModel | undefined {
+  const taskId = routedId('tasks') ?? null
+  const task = useTask(taskId)
+  const folderId = routedId('folders') ?? routedId('facets') ?? task.data?.folder.id
+  return useBlockFacets(editor, folderId, editable, onNotice)
 }
 
 /**
@@ -125,14 +148,14 @@ function visitBlocks(
 }
 
 const VISIBLE_FACETS = 2
-const FACET_SPACE = '24px'
+const FACET_GUTTER = '136px'
 
 function facetChip(facet: BlockFacetRef): HTMLAnchorElement {
   const link = document.createElement('a')
   link.href = `/app/facets/${facet.id}`
   link.textContent = facet.name
   link.title = `Open ${facet.name}`
-  link.className = 'inline-flex h-5 max-w-36 shrink-0 items-center truncate rounded-sm border border-primary/30 bg-primary/10 px-1.5 text-[11px] font-medium leading-none text-foreground no-underline hover:bg-primary/15'
+  link.className = 'inline-flex h-5 max-w-28 shrink-0 items-center truncate rounded-sm border border-primary/30 bg-primary/10 px-1.5 text-[11px] font-medium leading-none text-foreground no-underline hover:bg-primary/15'
   link.addEventListener('mousedown', (event) => event.stopPropagation())
   return link
 }
@@ -142,26 +165,29 @@ function prepareHost(content: HTMLElement): void {
   content.dataset.danaFacetHost = 'true'
   content.dataset.danaFacetPosition = content.style.position
   content.dataset.danaFacetOverflow = content.style.overflow
-  content.dataset.danaFacetPaddingBottom = content.style.paddingBottom
+  content.dataset.danaFacetPaddingInlineEnd = content.style.paddingInlineEnd
   content.style.position = 'relative'
   content.style.overflow = 'visible'
-  content.style.paddingBottom = FACET_SPACE
+  /* Keep metadata beside the first line instead of creating a detached second
+     row. The gutter exists only while this block has a relationship. */
+  content.style.paddingInlineEnd = FACET_GUTTER
 }
 
 function releaseHost(content: HTMLElement): void {
   if (content.dataset.danaFacetHost !== 'true') return
   content.style.position = content.dataset.danaFacetPosition ?? ''
   content.style.overflow = content.dataset.danaFacetOverflow ?? ''
-  content.style.paddingBottom = content.dataset.danaFacetPaddingBottom ?? ''
+  content.style.paddingInlineEnd = content.dataset.danaFacetPaddingInlineEnd ?? ''
   delete content.dataset.danaFacetHost
   delete content.dataset.danaFacetPosition
   delete content.dataset.danaFacetOverflow
-  delete content.dataset.danaFacetPaddingBottom
+  delete content.dataset.danaFacetPaddingInlineEnd
 }
 
 /** A relationship is durable metadata, not a hover action. Keep the rail itself
  * visible regardless of whichever BlockNote hover rules surround its host. */
 function keepFacetRailVisible(rail: HTMLElement): void {
+  rail.style.setProperty('display', rail.dataset.inline === 'true' ? 'inline-flex' : 'flex', 'important')
   rail.style.setProperty('visibility', 'visible', 'important')
   rail.style.setProperty('opacity', '1', 'important')
 }
@@ -169,10 +195,10 @@ function keepFacetRailVisible(rail: HTMLElement): void {
 /**
  * Sync exact-block facet metadata without changing BlockNote's structural DOM.
  *
- * #526 removes the detached metadata row from file blocks. A File already has
- * a compact identity row (`.bn-file-name-with-icon`), so its facet chips sit in
- * that same row. Text and other block kinds keep the quiet metadata rail below
- * their content, where no native value row exists to join.
+ * File blocks already have a compact identity row, so their chips live in that
+ * row. Other block kinds use a reserved right-side metadata gutter aligned to
+ * the first line. A long prose/list block therefore never gains an awkward
+ * second metadata line underneath it.
  */
 export function syncFacetDecorations(
   host: HTMLElement,
@@ -205,23 +231,26 @@ export function syncFacetDecorations(
       rail.remove()
       rail = null
     }
-    const signature = `${inline ? 'inline' : 'rail'}:${facets.map((facet) => `${facet.id}:${facet.name}`).join('|')}`
+    const visibleCount = inline ? VISIBLE_FACETS : 1
+    const signature = `${inline ? 'inline' : 'gutter'}:${facets.map((facet) => `${facet.id}:${facet.name}`).join('|')}`
     if (rail !== null) keepFacetRailVisible(rail)
     if (rail?.dataset.signature === signature) continue
     if (rail === null) {
       rail = document.createElement('div')
       rail.dataset.danaBlockFacets = blockId
+      rail.dataset.inline = inline ? 'true' : 'false'
       rail.setAttribute('contenteditable', 'false')
       rail.setAttribute('role', 'group')
       rail.setAttribute('aria-label', 'Connected facets')
       mount.append(rail)
     }
+    rail.dataset.inline = inline ? 'true' : 'false'
     rail.className = inline
       ? 'dana-block-facet-rail ml-1 inline-flex h-5 min-w-0 shrink-0 items-center gap-1 overflow-visible'
-      : 'dana-block-facet-rail absolute bottom-0 left-0 z-10 flex h-5 min-w-0 max-w-full items-center gap-1 overflow-visible'
+      : 'dana-block-facet-rail absolute right-0 top-0 z-10 flex h-5 min-w-0 max-w-[128px] items-center justify-end gap-1 overflow-visible'
     keepFacetRailVisible(rail)
     rail.dataset.signature = signature
-    const visible: HTMLElement[] = facets.slice(0, VISIBLE_FACETS).map(facetChip)
+    const visible: HTMLElement[] = facets.slice(0, visibleCount).map(facetChip)
     const hidden = facets.length - visible.length
     if (hidden > 0) {
       const more = document.createElement('span')
