@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'vitest'
 
 import type { ConnectedWorkItem, ConnectedWorkSource } from '../../../shared/connected-work.js'
-import { clampConnectedSourceWidth } from './dana-link-display.js'
+import { clampConnectedSourceWidth, installConnectedSourceSplitter } from './dana-link-display.js'
 import {
   connectedWorkKey,
   placementKeyOf,
@@ -103,5 +103,41 @@ describe('connected work source lane', () => {
     expect(clampConnectedSourceWidth(40, 900)).toBe(160)
     expect(clampConnectedSourceWidth(900, 900)).toBe(420)
     expect(clampConnectedSourceWidth(420, 560)).toBe(280)
+  })
+
+  test('attaches after the mirror detail arrives, resizes live, and remembers the placement width', async () => {
+    window.localStorage.clear()
+    const placement = document.createElement('div')
+    placement.className = 'bn-block-content'
+    placement.innerHTML = '<a href="/app/tasks/source">Source task with a longer name</a>'
+    Object.defineProperty(placement, 'getBoundingClientRect', {
+      value: () => ({ left: 100, width: 900 } as DOMRect),
+    })
+    const sourceLink = placement.querySelector<HTMLAnchorElement>('a')!
+    const cleanup = installConnectedSourceSplitter(sourceLink)
+
+    expect(placement.querySelector('[data-connected-work-splitter]')).toBeNull()
+    placement.dataset.connectedWorkPlacement = 'true'
+    const detail = document.createElement('div')
+    detail.dataset.connectedWorkDetail = 'placement-1'
+    placement.append(detail)
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+
+    const handle = detail.querySelector<HTMLElement>('[data-connected-work-splitter]')!
+    expect(handle).not.toBeNull()
+    expect(handle.getAttribute('role')).toBe('separator')
+    expect(placement.style.getPropertyValue('--dana-connected-source-width')).toBe('200px')
+
+    handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 300 }))
+    window.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 460 }))
+    expect(placement.style.getPropertyValue('--dana-connected-source-width')).toBe('360px')
+    window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientX: 460 }))
+    expect(window.localStorage.getItem('dana:connected-source-width:placement-1')).toBe('360')
+
+    handle.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }))
+    expect(placement.style.getPropertyValue('--dana-connected-source-width')).toBe('380px')
+    expect(window.localStorage.getItem('dana:connected-source-width:placement-1')).toBe('380')
+
+    cleanup()
   })
 })
