@@ -577,13 +577,14 @@ export async function readOutcome(
  * ------------------------------------------------------------------ */
 
 /**
- * Add one edge while both endpoint rows are stable. A new link can name only
- * a live Task in the Discussion's current Folder; this preserves the old
- * authorization/refusal boundary without making the relation itself a
- * containment rule. A moved link may later span Folders and remains durable.
+ * Add one edge while both endpoint rows are stable. The picker is project
+ * scoped, so a Discussion on the Discussion tab can link a readable live Task
+ * on Work or another page in the same project. The relation is still only a
+ * reference: moving either endpoint later does not move the other one.
  */
 async function addTaskLink(
   tx: Executor,
+  viewerId: string,
   discussion: LockedDiscussion,
   taskId: string,
   createdViaTask: boolean,
@@ -593,14 +594,18 @@ async function addTaskLink(
   }
   const task = await rowsOf(
     tx,
-    sql`SELECT 1 FROM tasks
-         WHERE id = ${taskId}::uuid
-           AND folder_id = ${discussion.folderId}::uuid
-           AND deleted_at IS NULL
-         FOR NO KEY UPDATE`,
+    sql`SELECT t.id
+          FROM tasks t
+          JOIN folders tf ON tf.id = t.folder_id
+          JOIN folders df ON df.id = ${discussion.folderId}::uuid
+         WHERE t.id = ${taskId}::uuid
+           AND t.deleted_at IS NULL
+           AND tf.project_id = df.project_id
+           AND ${visibleFolder(sql`t.folder_id`, viewerId)}
+         FOR NO KEY UPDATE OF t`,
   )
   if (task.length === 0) {
-    return invalid('task_id', 'must name a task of this folder')
+    return invalid('task_id', 'must name a readable task of this project')
   }
   const inserted = await rowsOf(
     tx,
@@ -658,7 +663,7 @@ export async function updateDiscussion(
 
     let linkCreated = false
     if (body.task_id !== undefined) {
-      const linked = await addTaskLink(tx, discussion, body.task_id, false)
+      const linked = await addTaskLink(tx, viewerId, discussion, body.task_id, false)
       if (linked.kind !== 'ok') return linked
       linkCreated = linked.value
     }
@@ -712,7 +717,7 @@ export async function linkDiscussionTask(
     if (discussion.state !== 'open') {
       return conflict('A resolved Discussion is reopened before it is edited.')
     }
-    const linked = await addTaskLink(tx, discussion, taskId, false)
+    const linked = await addTaskLink(tx, viewerId, discussion, taskId, false)
     if (linked.kind !== 'ok') return linked
     if (linked.value) {
       await touchDiscussion(tx, discussionId)
