@@ -1,33 +1,59 @@
 /* Connected work mirrors one canonical block in another facet. The ordinary
-   marked paragraph still persists placement/order, but when the canonical
-   block is available it becomes implementation metadata rather than a second
-   visible Task/Page chip. */
+   marked paragraph still persists placement/order. When a canonical mirror is
+   available, that paragraph becomes a compact provenance row under the mirror
+   rather than competing with the mirrored content itself. */
 .dana-writing-canvas
   .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror]) {
-  display: block !important;
+  display: flex !important;
+  flex-direction: column;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   overflow: visible;
 }
 
-/* CanvasParagraph wraps its authored inline content and link previews inside
-   its own element, so hiding only `.bn-inline-content` leaves the placement
-   marker visible beside the mirror. A native mirror owns the whole placement
-   lane: suppress every original renderer child and leave only Dana's portal. */
-.dana-writing-canvas
-  .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
-  > :not([data-connected-work-detail]) {
-  display: none !important;
-}
-
+/* The native mirror owns the primary row. */
 .dana-writing-canvas
   .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
   > [data-connected-work-detail] {
+  order: 1;
   display: block;
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  overflow: visible;
+}
+
+/* Restore the placement marker as provenance, but keep it quiet and compact.
+   It lives on its own line below the mirror. Long task/page chips never share
+   the mirror's horizontal lane, and the right side is reserved for the three
+   relationship actions. */
+.dana-writing-canvas
+  .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
+  > :not([data-connected-work-detail]) {
+  order: 2;
+  display: block !important;
+  width: calc(100% + 4px);
+  max-width: calc(100% + 4px);
+  min-width: 0;
+  margin-top: 4px;
+  margin-inline-start: -4px;
+  padding-inline-end: 76px;
+  overflow: hidden;
+}
+
+.dana-writing-canvas
+  .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
+  > :not([data-connected-work-detail]) :is(.bn-inline-content, a, span) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dana-writing-canvas
+  .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
+  > :not([data-connected-work-detail]) a {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Multiple exact sources from one placement read as a vertical sequence of
@@ -54,6 +80,28 @@
   overflow: visible;
 }
 
+/* Reserve the provenance row's right gutter for relationship actions instead
+   of laying those controls over the mirrored block. `SourceActions` occupies
+   the first 48px and Open source the last 24px. */
+.dana-writing-canvas
+  [data-connected-work-native-source]
+  > div.absolute {
+  top: auto !important;
+  bottom: -28px !important;
+  right: 24px !important;
+  z-index: 20;
+}
+
+.dana-writing-canvas
+  [data-connected-work-native-source]
+  [data-connected-work-mirror]
+  > a[aria-label='Open source block'] {
+  top: auto !important;
+  bottom: -28px !important;
+  right: 0 !important;
+  box-shadow: none;
+}
+
 /* The nested read-only BlockNote instance is a renderer, not another page.
    Remove its page-level inset/background and force every structural wrapper to
    respect the Results lane. Native block specs (file, image, text, callout,
@@ -76,6 +124,13 @@
   overflow: visible;
 }
 
+.dana-connected-block-mirror .bn-container {
+  /* A read-only mirror must never look selected merely because its nested
+     ProseMirror owns the only node in that renderer. */
+  --bn-colors-selected-background: transparent;
+  --bn-colors-selected-text: var(--foreground);
+}
+
 .dana-connected-block-mirror .bn-editor > .bn-block-group {
   width: 100%;
   max-width: 100%;
@@ -90,6 +145,24 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
+}
+
+/* Nested mirror editors are read-only presentation. Suppress BlockNote/Dana
+   node-selection rings and tints so File blocks never look permanently blue
+   or selected. */
+.dana-connected-block-mirror .ProseMirror-selectednode,
+.dana-connected-block-mirror .bn-block-content.ProseMirror-selectednode,
+.dana-connected-block-mirror .ProseMirror-selectednode > .bn-block-content {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.dana-connected-block-mirror .ProseMirror-focused .bn-block-content.ProseMirror-selectednode::after,
+.dana-connected-block-mirror .ProseMirror-focused .ProseMirror-selectednode > .bn-block-content::after,
+.dana-connected-block-mirror .bn-block-content.ProseMirror-selectednode > ::after,
+.dana-connected-block-mirror .ProseMirror-selectednode > .bn-block-content > ::after {
+  content: none !important;
+  display: none !important;
 }
 
 /* A facet relationship is durable metadata, so its source-side chip must not
