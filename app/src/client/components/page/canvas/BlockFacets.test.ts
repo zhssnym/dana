@@ -38,6 +38,30 @@ describe('block facet metadata rail', () => {
     expect(rail.textContent).toContain('+1')
   })
 
+  test('keeps facet chips in the native file row instead of adding detached metadata space', () => {
+    const host = document.createElement('div')
+    host.innerHTML = `
+      <div class="bn-block-outer" data-id="block-1">
+        <div class="bn-block">
+          <div class="bn-block-content">
+            <div class="bn-file-name-with-icon"><span class="bn-file-name">N000604443.pdf</span></div>
+          </div>
+        </div>
+      </div>
+    `
+
+    syncFacetDecorations(host, new Map([['block-1', facets.slice(1, 2)]]))
+
+    const content = host.querySelector<HTMLElement>('.bn-block-content')!
+    const fileRow = host.querySelector<HTMLElement>('.bn-file-name-with-icon')!
+    const rail = host.querySelector<HTMLElement>('[data-dana-block-facets="block-1"]')!
+    expect(rail.parentElement).toBe(fileRow)
+    expect(rail.textContent).toBe('Results')
+    expect(content.style.paddingBottom).toBe('')
+    expect(rail.className).toContain('inline-flex')
+    expect(rail.className).not.toContain('absolute')
+  })
+
   test('removes the treatment and restores the content box when the relationship is removed', () => {
     const host = document.createElement('div')
     host.innerHTML = '<div class="bn-block-outer" data-id="block-1"><div class="bn-block"><div class="bn-block-content" style="overflow: clip"></div></div></div>'
