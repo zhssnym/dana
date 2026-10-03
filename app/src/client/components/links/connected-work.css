@@ -3,38 +3,93 @@
    block is available it becomes implementation metadata rather than a second
    visible Task/Page chip. */
 .dana-writing-canvas
-  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] [data-connected-work-mirror])
-  > .bn-inline-content {
-  display: none;
+  .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror]) {
+  display: block !important;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: visible;
+}
+
+/* CanvasParagraph wraps its authored inline content and link previews inside
+   its own element, so hiding only `.bn-inline-content` leaves the placement
+   marker visible beside the mirror. A native mirror owns the whole placement
+   lane: suppress every original renderer child and leave only Dana's portal. */
+.dana-writing-canvas
+  .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
+  > :not([data-connected-work-detail]) {
+  display: none !important;
 }
 
 .dana-writing-canvas
-  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] [data-connected-work-mirror])
+  .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
   > [data-connected-work-detail] {
+  display: block;
   width: 100%;
+  max-width: 100%;
   min-width: 0;
 }
 
+/* Multiple exact sources from one placement read as a vertical sequence of
+   native blocks, never as competing inline chips. */
+.dana-writing-canvas
+  .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
+  [data-connected-work-sources] {
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  gap: 0.625rem;
+}
+
+.dana-writing-canvas
+  .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
+  [data-connected-work-native-source],
+.dana-writing-canvas
+  .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
+  [data-connected-work-mirror] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: visible;
+}
+
 /* The nested read-only BlockNote instance is a renderer, not another page.
-   Remove its page-level inset/background while leaving each native block spec
-   (file, image, text, callout, etc.) untouched. */
+   Remove its page-level inset/background and force every structural wrapper to
+   respect the Results lane. Native block specs (file, image, text, callout,
+   map preview, etc.) keep their own appearance inside that boundary. */
 .dana-connected-block-mirror {
   width: 100%;
+  max-width: 100%;
   min-width: 0;
   padding: 0 !important;
+  overflow: visible;
 }
 
 .dana-connected-block-mirror .bn-container,
 .dana-connected-block-mirror .bn-editor {
   width: 100%;
+  max-width: 100%;
   min-width: 0;
   padding-inline: 0 !important;
   background: transparent !important;
+  overflow: visible;
 }
 
 .dana-connected-block-mirror .bn-editor > .bn-block-group {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin: 0;
   padding: 0;
+}
+
+.dana-connected-block-mirror .bn-block-outer,
+.dana-connected-block-mirror .bn-block,
+.dana-connected-block-mirror .bn-block-content {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* A facet relationship is durable metadata, so its source-side chip must not
