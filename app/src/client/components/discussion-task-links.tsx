@@ -11,7 +11,7 @@ owned by the other.
 */
 import { useMemo, useRef, useState, type RefObject } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from 'react-router'
+import { Link } from 'react-router'
 
 import {
   DISCUSSION_TITLE_MAX,
@@ -32,6 +32,8 @@ import { ApiError, getPlain, mutateApi, OfflineError } from '../api/http.js'
 import { queryKeys } from '../api/keys.js'
 import { writeFailureMessage } from '../api/queryClient.js'
 import { showToast } from '../state/toasts.js'
+/* PROTOTYPE (chat dock): a task opens its conversation in the dock. */
+import { openChatDock } from '../state/chat-dock.js'
 import { paths } from '../routes.js'
 import { Plus, X } from '../lib/icons.js'
 import { PROPERTY_LABEL, PROPERTY_ROW } from './task-pickers.js'
@@ -100,7 +102,6 @@ function TaskDiscussionPicker({
   readonly mayStart: boolean
 }): React.JSX.Element {
   const client = useQueryClient()
-  const navigate = useNavigate()
   const detail = useTask(taskId)
   const discuss = useDiscussTask()
   const create = useCreateDiscussion()
@@ -123,8 +124,11 @@ function TaskDiscussionPicker({
     .filter((discussion) => !discussion.is_general && !linkedIds.has(discussion.id))
     .slice(0, INITIAL_LIMIT)
   const busy = detail.isPending || discuss.isPending || create.isPending || update.isPending || working !== null
-  const threadAt = (id: string, tabId: string | null = null): string =>
-    `${paths.folder(tabId ?? folderId)}?discussion=${id}`
+  /* PROTOTYPE (chat dock): was a navigation to the thread's own page; the
+     task now stays where it is and the thread opens beside it. */
+  const openThread = (id: string): void => {
+    openChatDock({ folderId, section: 'chat', discussionId: id })
+  }
 
   const settled = (): void => {
     /* Relation writes change the Discussion, TaskDetail and every list that
@@ -174,7 +178,7 @@ function TaskDiscussionPicker({
       settled()
       setOpen(false)
       setQ('')
-      void navigate(threadAt(discussion.id, tabId))
+      openThread(discussion.id)
     } catch (error) {
       retry.current = { discussion, tabId }
       showToast(relationFailure(error, 'The discussion was created but was not linked'))
@@ -212,7 +216,7 @@ function TaskDiscussionPicker({
         settled()
         setOpen(false)
         setQ('')
-        void navigate(threadAt(discussion.id, convenience.tabId))
+        openThread(discussion.id)
         return
       }
 
@@ -288,7 +292,7 @@ function TaskDiscussionPicker({
                   className="min-w-0 flex-1 truncate text-left text-sm text-foreground"
                   onClick={() => {
                     setOpen(false)
-                    void navigate(threadAt(discussion.id))
+                    openThread(discussion.id)
                   }}
                 >
                   {discussion.title}

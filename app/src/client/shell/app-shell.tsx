@@ -90,6 +90,10 @@ import { useAppearance } from './appearance.js'
 import { mirroredTheme } from '../lib/theme.js'
 import { openSearch } from './overlays.js'
 import { useModalOpen, useRightEdge } from '../components/right-edge.js'
+/* PROTOTYPE (chat dock): the dock, its state, and the width test below. */
+import { ChatDock } from '../components/chat-dock/ChatDock.js'
+import { CHAT_DOCK_WIDTH, useChatDock } from '../state/chat-dock.js'
+import { useIsMobile } from '../components/ui/use-mobile.js'
 import { WindowBar, WindowBarActions, WindowBarLead } from '../components/window-bar.js'
 import { BreadcrumbTrail } from '../components/breadcrumb-trail.js'
 import {
@@ -368,7 +372,13 @@ export function AppShell(): React.JSX.Element {
   const update = useUpdateAffordance()
   /* What an open right-edge panel has reserved. Zero when nothing is open,
      which is almost always. */
-  const rightEdge = useRightEdge()
+  const panelEdge = useRightEdge()
+  /* PROTOTYPE (chat dock): the dock takes room as well, beside whatever a
+     right-edge panel reserved. On a phone it covers the page instead: there
+     is no room to give. */
+  const dockOpen = useChatDock() !== null
+  const phone = useIsMobile()
+  const rightEdge = panelEdge + (dockOpen && !phone ? CHAT_DOCK_WIDTH : 0)
   /* Whether a modal task surface is open over the page. See the wrapper below. */
   const modalOpen = useModalOpen()
   /*
@@ -621,6 +631,9 @@ export function AppShell(): React.JSX.Element {
           {groups.dialogs}
         </SidebarProvider>
       </div>
+      {/* PROTOTYPE (chat dock): mounted once, so it survives navigation, and
+          outside the wrapper above, so a modal surface never makes it inert. */}
+      <ChatDock />
       {/* The one notice column: toasts, the offline notice and the undo bar,
           bottom-centre. */}
       <ToastRegion clearsCapture={false}>

@@ -144,6 +144,8 @@ import { paths } from '../routes.js'
 import { FOLDER_ACTION_PARAM, folderActionPath } from '../shell/app-sidebar.js'
 import { copyLink } from '../lib/object-acts.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
+/* PROTOTYPE (chat dock): Team opens the dock; its Manage team opens sharing. */
+import { closeChatDock, onManageTeam, openChatDock, useChatDock } from '../state/chat-dock.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { AddTabMenu, FolderTabs } from '../components/folder-tabs.js'
 import { ProjectPicker } from '../components/project-picker.js'
@@ -405,6 +407,15 @@ function FolderPageBody({
   while open and the shell pads the page body by it (`components/right-edge`).
   */
   useReserveRightEdge(SHARING_PANEL_WIDTH, sharing)
+  /* PROTOTYPE (chat dock): the dock and the sharing panel share the right
+     edge, so one closes the other. The dock is the project's, whichever of
+     its tabs is showing. */
+  const dock = useChatDock()
+  const dockHere = dock !== null && (dock.folderId === headId || dock.folderId === id)
+  useEffect(() => onManageTeam(() => { setSharing(true) }), [])
+  useEffect(() => {
+    if (sharing) closeChatDock()
+  }, [sharing])
 
   const detail = folder.data
   const scheduled = open.data?.scheduled ?? []
@@ -999,10 +1010,19 @@ function FolderPageBody({
       {isDefault ? null : (
         <Button
           variant="ghost"
-          aria-expanded={sharing}
+          /* PROTOTYPE (chat dock): with teammates, Team toggles the dock;
+             alone, it still opens the sharing panel to add some. */
+          aria-expanded={members.length <= 1 ? sharing : dockHere}
           className="text-muted-foreground"
           onClick={() => {
-            setSharing(!sharing)
+            if (members.length <= 1) {
+              setSharing(!sharing)
+            } else if (dockHere) {
+              closeChatDock()
+            } else {
+              setSharing(false)
+              openChatDock({ folderId: headId, section: 'chat' })
+            }
             dropParam(MEMBER_PARAM)
           }}
         >

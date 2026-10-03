@@ -8,7 +8,7 @@ behind that same "…" rather than taking a row at the end of the page.
 import { InlineTextarea } from "./ui/inline-field.js"
 import { useEffect, useRef, useState } from "react"
 
-import { X } from "../lib/icons.js"
+import { MessageSquare, X } from "../lib/icons.js"
 import { TITLE_REQUIRED, tooLong } from "./task-copy.js"
 /* 10.3's number for the field, from the shared contract rather than restated. */
 import { TASK_TITLE_LIMIT } from "../../shared/tasks.js"
@@ -20,7 +20,10 @@ import { copyTaskLink, duplicateTask } from "../tasks/task-acts.js"
 import { cn } from "./ui/utils.js"
 import { Button } from "./ui/button.js"
 import { StateMark } from "./thread/timeline/state.js"
-import { prefetchTask } from "../api/queries.js"
+import { prefetchTask, useTask } from "../api/queries.js"
+/* PROTOTYPE (chat dock): the task's way into its conversation. */
+import { useDiscussTask } from "../api/consultation.js"
+import { openChatDock } from "../state/chat-dock.js"
 import { useQueryClient } from "@tanstack/react-query"
 
 /* The title, big, renaming in place. Required, 1 to 300, refused with a
@@ -144,6 +147,47 @@ function TaskMenu({
   )
 }
 
+/*
+PROTOTYPE (chat dock): opens the task's conversation in the dock, beside the
+task. A linked discussion opens as it is; a task with none gets its own made
+(or found) by POST /tasks/:id/discussion first. A task outside a project (no
+folder, or the default one) has no project chat, so it draws nothing.
+*/
+function OpenChat({ taskId }: { taskId: string }) {
+  const detail = useTask(taskId)
+  const discuss = useDiscussTask()
+  const folder = detail.data?.folder
+  if (detail.data === undefined || folder === undefined || folder.is_default) return null
+  const linked = detail.data.linked_discussions[0]
+
+  function open(): void {
+    if (folder === undefined) return
+    if (linked !== undefined) {
+      openChatDock({ folderId: folder.id, section: "chat", discussionId: linked.id })
+      return
+    }
+    discuss.mutate(taskId, {
+      onSuccess: ({ discussion }) => {
+        openChatDock({ folderId: folder.id, section: "chat", discussionId: discussion.id })
+      },
+    })
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label="Open chat"
+      title="Open chat"
+      disabled={discuss.isPending}
+      onClick={open}
+    >
+      <MessageSquare className="size-4" strokeWidth={1.75} aria-hidden="true" />
+    </Button>
+  )
+}
+
 export function TaskView({
   task: props,
   onClose,
@@ -175,6 +219,7 @@ export function TaskView({
           />
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <OpenChat taskId={props.id} />
           <TaskMenu
             id={props.id}
             title={task.title}
