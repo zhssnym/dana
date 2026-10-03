@@ -239,7 +239,7 @@ function Stats({ stats }: { readonly stats: GetStatsResponse }): React.JSX.Eleme
       <p className="text-xs text-muted-foreground">
         Active means signed in and used Dana in that window; people who signed out are not counted
         until they return, and show as not active in 30 days. Work pages leave out each person’s Desk,
-        the sample workspace and anything in the trash. Weeks start on Monday, UTC.
+        the sample workspace and anything archived or in the trash. Weeks start on Monday, UTC.
       </p>
     </div>
   )
@@ -248,9 +248,11 @@ function Stats({ stats }: { readonly stats: GetStatsResponse }): React.JSX.Eleme
 export function StatsPage(): React.JSX.Element {
   const stats = useStats()
   if (stats.error instanceof ApiError && stats.error.status === 404) return <NotFoundPage />
+  // No heading until the server has answered, so the page says nothing to
+  // someone it is about to tell "not found".
+  if (stats.isPending) return <SkeletonList />
   return (
     <Screen title="Stats" description="Every account on Dana, and how much each uses it. No page names or content.">
-      {stats.isPending ? <SkeletonList /> : null}
       {stats.isError ? <InlineError onRetry={() => { void stats.refetch() }} /> : null}
       {stats.data === undefined ? null : <Stats stats={stats.data} />}
     </Screen>

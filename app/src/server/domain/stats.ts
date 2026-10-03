@@ -7,7 +7,9 @@ Privacy page tells people operators can see. No page names or content.
 - People: live accounts (`deleted_at IS NULL`).
 - Work pages: live `folders` rows of kind 'work', minus each account's
   default folder (Desk) and minus what the sample workspace created, so the
-  count is pages people made themselves. A trashed page is not counted.
+  count is pages people made themselves. A project's Work tabs and subpages
+  are pages too and count for the project's owner. Trashed and archived
+  pages are not counted. Weeks are Monday to Monday, UTC.
 - Active: every authenticated request rolls its session's `expires_at` to
   now() + SESSION_TTL_DAYS (auth/sessions.ts, passed in by the route because
   the domain may not import auth), so `expires_at - TTL` is when that session
@@ -26,7 +28,7 @@ const WEEKS = 12
 
 const workPages = sql`
   SELECT f.owner_id, f.created_at FROM folders f
-   WHERE f.kind = 'work' AND NOT f.is_default AND f.deleted_at IS NULL
+   WHERE f.kind = 'work' AND NOT f.is_default AND f.deleted_at IS NULL AND f.archived_at IS NULL
      AND NOT EXISTS (SELECT 1 FROM sample_objects s WHERE s.kind = 'folder' AND s.id = f.id)`
 
 const num = (value: unknown): number => Number(value ?? 0)
@@ -43,9 +45,9 @@ export async function readStats(db: Db, sessionTtlDays: number): Promise<GetStat
             GROUP BY s.user_id)
     SELECT
       (SELECT count(*) FROM people) AS people_total,
-      (SELECT count(*) FROM people WHERE created_at >= date_trunc('week', now())) AS people_week,
+      (SELECT count(*) FROM people WHERE created_at >= date_trunc('week', now(), 'UTC')) AS people_week,
       (SELECT count(*) FROM pages) AS pages_total,
-      (SELECT count(*) FROM pages WHERE created_at >= date_trunc('week', now())) AS pages_week,
+      (SELECT count(*) FROM pages WHERE created_at >= date_trunc('week', now(), 'UTC')) AS pages_week,
       (SELECT count(*) FROM seen WHERE at > now() - interval '1 day') AS active_day,
       (SELECT count(*) FROM seen WHERE at > now() - interval '7 days') AS active_week,
       (SELECT count(*) FROM seen WHERE at > now() - interval '30 days') AS active_month`)
@@ -54,10 +56,10 @@ export async function readStats(db: Db, sessionTtlDays: number): Promise<GetStat
     WITH pages AS (${workPages}),
          w AS (
            SELECT generate_series(
-             date_trunc('week', now()) - ${sql.raw(`interval '${String(WEEKS - 1)} weeks'`)},
-             date_trunc('week', now()),
+             date_trunc('week', now(), 'UTC') - ${sql.raw(`interval '${String(WEEKS - 1)} weeks'`)},
+             date_trunc('week', now(), 'UTC'),
              interval '1 week') AS start)
-    SELECT to_char(w.start, 'YYYY-MM-DD') AS week_start,
+    SELECT to_char(w.start AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS week_start,
       (SELECT count(*) FROM users u WHERE u.deleted_at IS NULL
           AND u.created_at >= w.start AND u.created_at < w.start + interval '1 week') AS new_people,
       (SELECT count(*) FROM pages p
