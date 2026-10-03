@@ -67,13 +67,13 @@ function coordinatePair(value: string | null): MapCoordinates | null {
 
 /** Coordinates Google exposes in its long URLs, without calling a geocoder. */
 function mapCoordinates(url: URL): MapCoordinates | null {
-  const at = /\/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,|\/|$)/u.exec(url.pathname)
-  if (at !== null) return coordinates(at[1]!, at[2]!)
-
-  // Place share URLs often carry the actual pin in Google's data tuple even
-  // when the visible path contains only a street address.
+  // Place share URLs often carry the exact pin in Google's data tuple. Prefer
+  // it to /@lat,lng, which can be only the camera/viewport centre.
   const data = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/u.exec(url.toString())
   if (data !== null) return coordinates(data[1]!, data[2]!)
+
+  const at = /\/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,|\/|$)/u.exec(url.pathname)
+  if (at !== null) return coordinates(at[1]!, at[2]!)
 
   for (const name of ['query', 'q', 'destination', 'll', 'center']) {
     const pair = coordinatePair(url.searchParams.get(name))
