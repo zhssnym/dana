@@ -43,6 +43,10 @@ vi.mock('./CanvasTask.js', () => ({ useCanvasTaskDelete: () => null }))
 vi.mock('./slash-items.js', async (importOriginal) => ({ ...(await importOriginal<object>()), CanvasSlashMenu: () => null }))
 vi.mock('./guard.js', () => ({ installCanvasGuard: () => () => {} }))
 vi.mock('./mentions.js', () => ({ MentionSuggestions: () => null }))
+// CanvasSurface's tests exercise canvas commands and menus, not Connected work's
+// nested native renderer. Keeping that renderer out also keeps this focused
+// BlockNote mock from having to reproduce the complete schema factory surface.
+vi.mock('../../links/ConnectedBlockMirror.js', () => ({ ConnectedBlockMirror: () => null }))
 vi.mock('./commands.js', () => ({
   bindTaskCommand: () => () => {},
   placeSection: () => false,
@@ -121,7 +125,7 @@ describe('the block menu', () => {
     const names = screen.getAllByRole('button').map((button) => button.textContent)
     expect(names).toEqual(expect.arrayContaining(['Text', 'Heading 1', 'Bulleted list', 'Task', 'Copy link to block', 'Delete']))
     expect(names.some((name) => name?.startsWith('Duplicate'))).toBe(true)
-    expect(names.filter((name) => /Move|Remove heading|Continue after/.test(name ?? ''))).toEqual([])
+    expect(names.filter((name) => /Move|Remove heading|Continue after/.test(name ?? '')).toEqual([])
     // Every heading Work stores: Heading 1 a Section here; Heading 2 and 3 a
     // presentation heading (no Section of theirs stands at the root); and the
     // three toggle headings, which fold without grouping Tasks.
