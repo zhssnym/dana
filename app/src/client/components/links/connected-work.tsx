@@ -3,11 +3,18 @@ Connected work (#488, #526): reciprocal facet references that can participate
 in the authored facet document without becoming another relationship model.
 
 The relationship still belongs to the source's Dana Link / page_block_facets
-edge. Placement is only a normal paragraph carrying one marked Dana Link back
-to that source. That makes the reference a native document block: BlockNote's
-existing drag handle, ordering, autosave, undo and Delete all work unchanged.
-Deleting the placement therefore cannot unlink the relationship; it simply
-returns the still-live relationship to the unplaced inbox below the document.
+edge. Placement is only a normal document block carrying one marked Dana Link
+back to that source. That makes the reference a native document block:
+BlockNote's existing drag handle, ordering, autosave, undo and Delete all work
+unchanged. Deleting the placement therefore cannot unlink the relationship; it
+simply returns the still-live relationship to the unplaced inbox below the
+document.
+
+#488 promotion stays on that same primitive. Explicit Promote copies a short
+source statement into the placed block and keeps the marked Dana Link as its
+provenance. On Results the block becomes a native Result; on another document
+facet it stays ordinary authored text. No promotion table or second relation
+is introduced.
 */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -15,11 +22,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link as RouterLink } from 'react-router'
 
 import { getProjectBlockFacetsResponse, putBlockFacetsResponse } from '../../../shared/block-facets.js'
-import { getConnectedWorkResponse } from '../../../shared/connected-work.js'
+import { CONNECTED_WORK_TEXT_MAX, getConnectedWorkResponse } from '../../../shared/connected-work.js'
 import type { ConnectedWorkItem, ConnectedWorkSource } from '../../../shared/connected-work.js'
+import { getFacetsResponse } from '../../../shared/facets.js'
+import type { FacetKind } from '../../../shared/facets.js'
 import { getPlain, mutateApi } from '../../api/http.js'
 import { queryKeys } from '../../api/keys.js'
-import { FileText, GripVertical, Plus, X } from '../../lib/icons.js'
+import { FileText, Flag, GripVertical, Plus, X } from '../../lib/icons.js'
 import { backlinkPath } from './dana-link.js'
 import { DanaLinkKindIcon } from './kind-icon.js'
 import type { CanvasInput } from '../page/canvas/adapters.js'
@@ -29,6 +38,7 @@ import { canvasEditorNear } from '../page/canvas/editor-registry.js'
 const DRAG_TYPE = 'application/x-dana-connected-work'
 const PLACEMENT_PARAM = 'connected-work'
 const FACET_PARAM = 'connected-facet'
+const PROMOTED_SOURCE_PARAM = 'promoted-source'
 
 export function connectedWorkKey(row: ConnectedWorkItem): string {
   return `${row.surface}:${row.home}:${row.home_id}:${row.member_id ?? ''}`
@@ -40,22 +50,43 @@ function sourcePath(row: ConnectedWorkItem, source: ConnectedWorkSource): string
   return `${base}${source.kind === 'post' ? '#post-' : '#block-'}${source.id}`
 }
 
-function placementPath(row: ConnectedWorkItem, facetId: string): string | null {
-  const base = backlinkPath(row)
-  if (base === null || typeof window === 'undefined') return null
+function markedPath(
+  base: string,
+  row: ConnectedWorkItem,
+  facetId: string,
+  promotedSourceId?: string,
+): string | null {
+  if (typeof window === 'undefined') return null
   const url = new URL(base, window.location.origin)
   url.searchParams.set(PLACEMENT_PARAM, connectedWorkKey(row))
   url.searchParams.set(FACET_PARAM, facetId)
+  if (promotedSourceId !== undefined) url.searchParams.set(PROMOTED_SOURCE_PARAM, promotedSourceId)
   return `${url.pathname}${url.search}${url.hash}`
 }
 
-function placementKeyFromHref(href: string, facetId: string): string | null {
+function placementPath(row: ConnectedWorkItem, facetId: string): string | null {
+  const base = backlinkPath(row)
+  return base === null ? null : markedPath(base, row, facetId)
+}
+
+function promotionPath(row: ConnectedWorkItem, source: ConnectedWorkSource, facetId: string): string | null {
+  const base = sourcePath(row, source) ?? backlinkPath(row)
+  return base === null ? null : markedPath(base, row, facetId, source.id)
+}
+
+interface PlacementMarker {
+  readonly key: string
+  readonly promotedSourceId: string | null
+}
+
+function placementMarkerFromHref(href: string, facetId: string): PlacementMarker | null {
   if (typeof window === 'undefined') return null
   try {
     const url = new URL(href, window.location.origin)
     if (url.searchParams.get(FACET_PARAM) !== facetId) return null
     const key = url.searchParams.get(PLACEMENT_PARAM)
-    return key === null || key === '' ? null : key
+    if (key === null || key === '') return null
+    return { key, promotedSourceId: url.searchParams.get(PROMOTED_SOURCE_PARAM) }
   } catch {
     return null
   }
@@ -68,8 +99,8 @@ interface EditorBlock {
   readonly children?: readonly EditorBlock[]
 }
 
-function placementKeyOf(block: EditorBlock, facetId: string): string | null {
-  if (block.type !== 'paragraph' || !Array.isArray(block.content)) return null
+function placementMarkerOf(block: EditorBlock, facetId: string): PlacementMarker | null {
+  if (!Array.isArray(block.content)) return null
   for (const inline of block.content) {
     if (typeof inline !== 'object' || inline === null) continue
     const candidate = inline as { type?: unknown; props?: { href?: unknown }; href?: unknown }
@@ -79,10 +110,18 @@ function placementKeyOf(block: EditorBlock, facetId: string): string | null {
         ? candidate.href
         : undefined
     if (typeof href !== 'string') continue
-    const key = placementKeyFromHref(href, facetId)
-    if (key !== null) return key
+    const marker = placementMarkerFromHref(href, facetId)
+    if (marker !== null) return marker
   }
   return null
+}
+
+export function placementKeyOf(block: EditorBlock, facetId: string): string | null {
+  return placementMarkerOf(block, facetId)?.key ?? null
+}
+
+export function promotedSourceOf(block: EditorBlock, facetId: string): string | null {
+  return placementMarkerOf(block, facetId)?.promotedSourceId ?? null
 }
 
 function placementsOf(editor: AnyEditor, facetId: string): Map<string, string[]> {
@@ -196,6 +235,60 @@ function sourceText(source: ConnectedWorkSource): string | null {
   return text
 }
 
+function clampPromotionStatement(value: string): string {
+  const chars = [...value.trim()]
+  if (chars.length <= CONNECTED_WORK_TEXT_MAX) return chars.join('')
+  return `${chars.slice(0, CONNECTED_WORK_TEXT_MAX - 1).join('').trimEnd()}…`
+}
+
+/** The authored sentence created by explicit promotion. The source's own text
+ * wins; a file-only source promotes its file name(s), and a source with no
+ * projection falls back to its parent work label rather than fabricating copy. */
+export function promotionStatement(row: ConnectedWorkItem, source: ConnectedWorkSource): string {
+  const text = sourceText(source)
+  if (text !== null) return clampPromotionStatement(text)
+  const files = source.files.map((file) => file.name.trim()).filter((name) => name !== '')
+  if (files.length > 0) return clampPromotionStatement(files.join(', '))
+  return clampPromotionStatement(row.label === '' ? 'Untitled' : row.label)
+}
+
+/** Promotion is a document conversion, not a new relation. The same marked
+ * provenance link remains in the canonical block. Results receives its native
+ * Result kind; every other document facet receives ordinary authored text. */
+export function promotionBlock(
+  row: ConnectedWorkItem,
+  source: ConnectedWorkSource,
+  facetId: string,
+  results: boolean,
+): CanvasInput | null {
+  const href = promotionPath(row, source, facetId)
+  if (href === null) return null
+  const statement = promotionStatement(row, source)
+  const label = row.label === '' ? 'Untitled' : row.label
+  return {
+    type: results ? 'result' : 'paragraph',
+    content: [
+      { type: 'text', text: statement, styles: {} },
+      { type: 'text', text: ' ', styles: {} },
+      { type: 'danaLink', props: { href, label } },
+    ],
+  }
+}
+
+function promotePlacement(
+  editor: AnyEditor,
+  blockId: string,
+  row: ConnectedWorkItem,
+  source: ConnectedWorkSource,
+  facetId: string,
+  results: boolean,
+): void {
+  const block = editor.getBlock(blockId)
+  const input = promotionBlock(row, source, facetId, results)
+  if (block === undefined || input === null) return
+  editor.updateBlock(block, input)
+}
+
 function FileChip({ file }: { readonly file: { id: string; name: string } }): React.JSX.Element {
   return (
     <a
@@ -214,6 +307,10 @@ function SourceDetails({
   row,
   source,
   explicitFacetIds,
+  promoted,
+  canPromote,
+  promoteLabel,
+  onPromote,
   onUnlink,
   busy,
 }: {
@@ -221,13 +318,21 @@ function SourceDetails({
   readonly row: ConnectedWorkItem
   readonly source: ConnectedWorkSource
   readonly explicitFacetIds: readonly string[] | undefined
+  readonly promoted: boolean
+  readonly canPromote: boolean
+  readonly promoteLabel: string
+  readonly onPromote: () => void
   readonly onUnlink: (blockId: string, remaining: string[]) => void
   readonly busy: boolean
 }): React.JSX.Element | null {
-  const text = sourceText(source)
+  const authoredText = sourceText(source)
+  const text = promoted ? null : authoredText
+  const canonicalFromFiles = authoredText === null && source.files.length > 0
+  const files = promoted && canonicalFromFiles ? [] : source.files
   const path = sourcePath(row, source)
   const explicit = source.kind === 'block' && explicitFacetIds?.includes(facetId) === true
-  if (text === null && source.files.length === 0 && !explicit) return null
+  const hasAction = canPromote || explicit
+  if (text === null && files.length === 0 && !hasAction) return null
   return (
     <div className="group/source flex min-w-0 items-start gap-1 py-0.5">
       <div className="min-w-0 flex-1">
@@ -238,23 +343,38 @@ function SourceDetails({
             {text}
           </RouterLink>
         )}
-        {source.files.length === 0 ? null : (
+        {files.length === 0 ? null : (
           <div className="flex min-w-0 flex-wrap gap-1 pt-0.5">
-            {source.files.map((file) => <FileChip key={file.id} file={file} />)}
+            {files.map((file) => <FileChip key={file.id} file={file} />)}
           </div>
         )}
       </div>
-      {explicit ? (
-        <button
-          type="button"
-          title="Unlink"
-          aria-label="Unlink from this facet"
-          disabled={busy}
-          onClick={() => onUnlink(source.id, explicitFacetIds!.filter((id) => id !== facetId))}
-          className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/source:opacity-100 pointer-coarse:opacity-100 disabled:opacity-40"
-        >
-          <X size={13} aria-hidden="true" />
-        </button>
+      {hasAction ? (
+        <div className="flex shrink-0 items-center">
+          {canPromote ? (
+            <button
+              type="button"
+              title={promoteLabel}
+              aria-label={promoteLabel}
+              onClick={onPromote}
+              className="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/source:opacity-100 pointer-coarse:opacity-100"
+            >
+              <Flag size={13} aria-hidden="true" />
+            </button>
+          ) : null}
+          {explicit ? (
+            <button
+              type="button"
+              title="Unlink"
+              aria-label="Unlink from this facet"
+              disabled={busy}
+              onClick={() => onUnlink(source.id, explicitFacetIds!.filter((id) => id !== facetId))}
+              className="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/source:opacity-100 pointer-coarse:opacity-100 disabled:opacity-40"
+            >
+              <X size={13} aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   )
@@ -263,13 +383,21 @@ function SourceDetails({
 function ConnectedOutputs({
   facetId,
   row,
+  promotedSourceId,
+  canPromote,
+  promoteLabel,
   explicitByBlock,
+  onPromote,
   onUnlink,
   busy,
 }: {
   readonly facetId: string
   readonly row: ConnectedWorkItem
+  readonly promotedSourceId: string | null
+  readonly canPromote: boolean
+  readonly promoteLabel: string
   readonly explicitByBlock: ReadonlyMap<string, readonly string[]>
+  readonly onPromote: (source: ConnectedWorkSource) => void
   readonly onUnlink: (blockId: string, remaining: string[]) => void
   readonly busy: boolean
 }): React.JSX.Element | null {
@@ -283,6 +411,10 @@ function ConnectedOutputs({
           row={row}
           source={source}
           explicitFacetIds={explicitByBlock.get(source.id)}
+          promoted={promotedSourceId === source.id}
+          canPromote={canPromote && promotedSourceId === null}
+          promoteLabel={promoteLabel}
+          onPromote={() => onPromote(source)}
           onUnlink={onUnlink}
           busy={busy}
         />
@@ -295,6 +427,7 @@ interface PortalTarget {
   readonly blockId: string
   readonly row: ConnectedWorkItem
   readonly mount: HTMLElement
+  readonly promotedSourceId: string | null
 }
 
 function samePortalTargets(
@@ -306,12 +439,14 @@ function samePortalTargets(
     return next !== undefined &&
       target.blockId === next.blockId &&
       target.row === next.row &&
-      target.mount === next.mount
+      target.mount === next.mount &&
+      target.promotedSourceId === next.promotedSourceId
   })
 }
 
 function usePlacementPortals(
   editor: AnyEditor | null,
+  facetId: string,
   rows: readonly ConnectedWorkItem[],
   placements: ReadonlyMap<string, readonly string[]>,
 ): readonly PortalTarget[] {
@@ -341,7 +476,8 @@ function usePlacementPortals(
           const outer = [...root.querySelectorAll<HTMLElement>('.bn-block-outer[data-id]')]
             .find((element) => element.dataset.id === blockId)
           const content = outer?.querySelector<HTMLElement>('.bn-block-content')
-          if (outer === undefined || content === undefined || content === null) continue
+          const block = editor.getBlock(blockId) as unknown as EditorBlock | undefined
+          if (outer === undefined || content === undefined || content === null || block === undefined) continue
           wanted.add(blockId)
           content.dataset.connectedWorkPlacement = 'true'
           let mount = content.querySelector<HTMLElement>(`:scope > [data-connected-work-detail="${blockId}"]`)
@@ -352,7 +488,7 @@ function usePlacementPortals(
             mount.className = 'min-w-0'
             content.append(mount)
           }
-          next.push({ blockId, row, mount })
+          next.push({ blockId, row, mount, promotedSourceId: promotedSourceOf(block, facetId) })
         }
       }
       root.querySelectorAll<HTMLElement>('[data-connected-work-detail]').forEach((mount) => {
@@ -375,7 +511,9 @@ function usePlacementPortals(
     sync()
     const observer = new MutationObserver(schedule)
     observer.observe(root, { childList: true, subtree: true })
+    const off = editor.onChange(schedule)
     return () => {
+      off()
       observer.disconnect()
       if (frame !== 0) window.cancelAnimationFrame(frame)
       root.querySelectorAll<HTMLElement>('[data-connected-work-detail]').forEach((mount) => {
@@ -384,7 +522,7 @@ function usePlacementPortals(
         if (content !== null) delete content.dataset.connectedWorkPlacement
       })
     }
-  }, [editor, rows, placements])
+  }, [editor, facetId, rows, placements])
   return targets
 }
 
@@ -431,6 +569,10 @@ function UnplacedRow({
   )
 }
 
+function promotableFacet(kind: FacetKind | undefined): boolean {
+  return kind === 'purpose' || kind === 'results' || kind === 'shared_blank' || kind === 'private_blank'
+}
+
 export function ConnectedWork({ id, className = '' }: {
   readonly id: string
   readonly className?: string
@@ -451,14 +593,26 @@ export function ConnectedWork({ id, className = '' }: {
     retry: false,
     staleTime: 0,
   })
+  const projectId = blockFacets.data?.project_id
+  const facets = useQuery({
+    queryKey: ['facets', 'connected-work-promotion', projectId ?? 'none'],
+    queryFn: () => getPlain(getFacetsResponse, `/folders/${encodeURIComponent(projectId!)}/facets`),
+    enabled: projectId !== undefined,
+    retry: false,
+    staleTime: 0,
+  })
+  const facetKind = facets.data?.facets.find((facet) => facet.id === id)?.kind
+  const results = facetKind === 'results'
   const rows = connected.data?.results ?? []
   const rowsByKey = useMemo(() => new Map(rows.map((row) => [connectedWorkKey(row), row] as const)), [rows])
   const explicitByBlock = useMemo(
     () => new Map((blockFacets.data?.blocks ?? []).map((row) => [row.block_id, row.facets.map((facet) => facet.id)] as const)),
     [blockFacets.data],
   )
-  const portals = usePlacementPortals(editor, rows, placements)
+  const portals = usePlacementPortals(editor, id, rows, placements)
   const unplaced = rows.filter((row) => !placements.has(connectedWorkKey(row)))
+  const canPromote = editor?.isEditable === true && promotableFacet(facetKind)
+  const promoteLabel = results ? 'Promote to Result' : 'Promote to facet'
 
   const unlink = useMutation({
     mutationFn: ({ blockId, facetIds }: { blockId: string; facetIds: string[] }) =>
@@ -527,11 +681,18 @@ export function ConnectedWork({ id, className = '' }: {
 
   return (
     <div ref={host} className={`contents ${className}`} data-connected-work>
-      {portals.map(({ blockId, row, mount }) => createPortal(
+      {portals.map(({ blockId, row, mount, promotedSourceId }) => createPortal(
         <ConnectedOutputs
           facetId={id}
           row={row}
+          promotedSourceId={promotedSourceId}
+          canPromote={canPromote}
+          promoteLabel={promoteLabel}
           explicitByBlock={explicitByBlock}
+          onPromote={(source) => {
+            if (editor === null || !canPromote) return
+            promotePlacement(editor, blockId, row, source, id, results)
+          }}
           onUnlink={(sourceId, remaining) => unlink.mutate({ blockId: sourceId, facetIds: remaining })}
           busy={unlink.isPending}
         />,
