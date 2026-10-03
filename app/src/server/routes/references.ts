@@ -35,10 +35,19 @@ const googleMapsPreviewQuery = z.object({
   url: z.string().url().max(2048),
 })
 const GOOGLE_MAPS_HOST = /^(?:maps\.)?google\.[a-z]{2,3}(?:\.[a-z]{2})?$/u
+const GOOGLE_MAPS_RESOLVER_HEADERS = {
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.8',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
+} as const
 
 type MapsRedirectFetch = (
   input: string,
-  init: { readonly redirect: 'manual'; readonly signal: AbortSignal },
+  init: {
+    readonly redirect: 'manual'
+    readonly signal: AbortSignal
+    readonly headers: Readonly<Record<string, string>>
+  },
 ) => Promise<globalThis.Response>
 
 function shortGoogleMapsUrl(value: string): URL | null {
@@ -50,6 +59,15 @@ function shortGoogleMapsUrl(value: string): URL | null {
   } catch {
     return null
   }
+}
+
+function redirectableGoogleMapsShortUrl(value: string): URL | null {
+  const url = shortGoogleMapsUrl(value)
+  if (url === null) return null
+  // Google's shortener can serve a JS interstitial to server/CLI requests.
+  // `_imcp=1` selects its ordinary desktop redirect path instead.
+  url.searchParams.set('_imcp', '1')
+  return url
 }
 
 function longGoogleMapsUrl(url: URL): boolean {
@@ -69,13 +87,14 @@ export async function resolveGoogleMapsShortLink(
   value: string,
   fetcher: MapsRedirectFetch = fetch,
 ): Promise<string | null> {
-  let current = shortGoogleMapsUrl(value)
+  let current = redirectableGoogleMapsShortUrl(value)
   if (current === null) return null
 
   for (let hop = 0; hop < 5; hop += 1) {
     const response = await fetcher(current.toString(), {
       redirect: 'manual',
       signal: AbortSignal.timeout(5_000),
+      headers: GOOGLE_MAPS_RESOLVER_HEADERS,
     })
     if (response.status < 300 || response.status >= 400) return null
     const location = response.headers.get('location')
@@ -88,7 +107,7 @@ export async function resolveGoogleMapsShortLink(
       return null
     }
     if (longGoogleMapsUrl(next)) return next.toString()
-    const short = shortGoogleMapsUrl(next.toString())
+    const short = redirectableGoogleMapsShortUrl(next.toString())
     if (short === null) return null
     current = short
   }
