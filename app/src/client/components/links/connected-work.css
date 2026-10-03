@@ -1,0 +1,79 @@
+/* Connected work: the exact referenced artifact is the result; its Task/Page is provenance.
+   Keep this presentation-only. The placement remains the same native BlockNote block and
+   Dana Link, so drag handles, ordering, autosave, undo and relationship identity are untouched. */
+.dana-writing-canvas
+  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] a[href^='/api/v1/files/']) {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.dana-writing-canvas
+  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] a[href^='/api/v1/files/'])
+  > [data-connected-work-detail] {
+  order: 1;
+  width: 100%;
+  min-width: 0;
+}
+
+/* The generated placement link is still the durable provenance marker, but it
+   should read as context after the artifact rather than compete with it. */
+.dana-writing-canvas
+  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] a[href^='/api/v1/files/'])
+  > .bn-inline-content {
+  order: 2;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.dana-writing-canvas
+  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] a[href^='/api/v1/files/'])
+  > .bn-inline-content::before {
+  content: 'From';
+  flex: none;
+  margin-inline-end: 4px;
+  color: var(--muted-foreground);
+  font-weight: 400;
+}
+
+.dana-writing-canvas
+  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] a[href^='/api/v1/files/'])
+  > .bn-inline-content .dana-link-chip {
+  border-color: transparent !important;
+  background: transparent !important;
+  padding-inline: 0 !important;
+  color: var(--muted-foreground) !important;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.dana-writing-canvas
+  .bn-block-content[data-connected-work-placement='true']:has(> [data-connected-work-detail] a[href^='/api/v1/files/'])
+  > .bn-inline-content .dana-link-chip:hover {
+  background: transparent !important;
+  color: var(--foreground) !important;
+}
+
+/* File/media carried by the exact referenced block is the primary output. */
+.dana-writing-canvas
+  [data-connected-work-detail] a[href^='/api/v1/files/'] {
+  min-height: 28px;
+  gap: 6px;
+  border-radius: var(--radius-md);
+  padding: 4px 8px;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.dana-writing-canvas
+  [data-connected-work-detail] a[href^='/api/v1/files/'] svg {
+  width: 14px;
+  height: 14px;
+}
