@@ -22,6 +22,7 @@ import { queryKeys } from '../../api/keys.js'
 import { FileText, GripVertical, Plus, X } from '../../lib/icons.js'
 import { backlinkPath } from './dana-link.js'
 import { DanaLinkKindIcon } from './kind-icon.js'
+import type { CanvasInput } from '../page/canvas/adapters.js'
 import type { AnyEditor } from '../page/canvas/BlockSideMenu.js'
 import { canvasEditorNear } from '../page/canvas/editor-registry.js'
 
@@ -142,7 +143,7 @@ function usePlacements(editor: AnyEditor | null, facetId: string): ReadonlyMap<s
   return placed
 }
 
-function placementBlock(row: ConnectedWorkItem, facetId: string): { type: 'paragraph'; content: unknown[] } | null {
+function placementBlock(row: ConnectedWorkItem, facetId: string): CanvasInput | null {
   const href = placementPath(row, facetId)
   if (href === null) return null
   return {
@@ -296,6 +297,19 @@ interface PortalTarget {
   readonly mount: HTMLElement
 }
 
+function samePortalTargets(
+  before: readonly PortalTarget[],
+  after: readonly PortalTarget[],
+): boolean {
+  return before.length === after.length && before.every((target, index) => {
+    const next = after[index]
+    return next !== undefined &&
+      target.blockId === next.blockId &&
+      target.row === next.row &&
+      target.mount === next.mount
+  })
+}
+
 function usePlacementPortals(
   editor: AnyEditor | null,
   rows: readonly ConnectedWorkItem[],
@@ -303,53 +317,74 @@ function usePlacementPortals(
 ): readonly PortalTarget[] {
   const [targets, setTargets] = useState<readonly PortalTarget[]>([])
   useEffect(() => {
-    const root = editor?.domElement
+    if (editor === null) {
+      setTargets([])
+      return
+    }
+    const root = editor.domElement
     if (root === undefined || root === null) {
       setTargets([])
       return
     }
     const rowsByKey = new Map(rows.map((row) => [connectedWorkKey(row), row] as const))
-    const wanted = new Set<string>()
-    const next: PortalTarget[] = []
-    for (const [key, ids] of placements) {
-      const row = rowsByKey.get(key)
-      if (row === undefined) continue
-      for (const blockId of ids) {
-        const outer = [...root.querySelectorAll<HTMLElement>('.bn-block-outer[data-id]')]
-          .find((element) => element.dataset.id === blockId)
-        const content = outer?.querySelector<HTMLElement>('.bn-block-content')
-        if (outer === undefined || content === undefined || content === null) continue
-        wanted.add(blockId)
-        content.dataset.connectedWorkPlacement = 'true'
-        let mount = content.querySelector<HTMLElement>(`:scope > [data-connected-work-detail="${blockId}"]`)
-        if (mount === null) {
-          mount = document.createElement('div')
-          mount.dataset.connectedWorkDetail = blockId
-          mount.setAttribute('contenteditable', 'false')
-          mount.className = 'min-w-0'
-          content.append(mount)
+    let current: readonly PortalTarget[] = []
+    let frame = 0
+
+    const sync = (): void => {
+      frame = 0
+      const wanted = new Set<string>()
+      const next: PortalTarget[] = []
+      for (const [key, ids] of placements) {
+        const row = rowsByKey.get(key)
+        if (row === undefined) continue
+        for (const blockId of ids) {
+          const outer = [...root.querySelectorAll<HTMLElement>('.bn-block-outer[data-id]')]
+            .find((element) => element.dataset.id === blockId)
+          const content = outer?.querySelector<HTMLElement>('.bn-block-content')
+          if (outer === undefined || content === undefined || content === null) continue
+          wanted.add(blockId)
+          content.dataset.connectedWorkPlacement = 'true'
+          let mount = content.querySelector<HTMLElement>(`:scope > [data-connected-work-detail="${blockId}"]`)
+          if (mount === null) {
+            mount = document.createElement('div')
+            mount.dataset.connectedWorkDetail = blockId
+            mount.setAttribute('contenteditable', 'false')
+            mount.className = 'min-w-0'
+            content.append(mount)
+          }
+          next.push({ blockId, row, mount })
         }
-        next.push({ blockId, row, mount })
+      }
+      root.querySelectorAll<HTMLElement>('[data-connected-work-detail]').forEach((mount) => {
+        const blockId = mount.dataset.connectedWorkDetail ?? ''
+        if (wanted.has(blockId)) return
+        const content = mount.closest<HTMLElement>('.bn-block-content')
+        mount.remove()
+        if (content !== null) delete content.dataset.connectedWorkPlacement
+      })
+      if (!samePortalTargets(current, next)) {
+        current = next
+        setTargets(next)
       }
     }
-    root.querySelectorAll<HTMLElement>('[data-connected-work-detail]').forEach((mount) => {
-      const id = mount.dataset.connectedWorkDetail ?? ''
-      if (wanted.has(id)) return
-      const content = mount.closest<HTMLElement>('.bn-block-content')
-      mount.remove()
-      if (content !== null) delete content.dataset.connectedWorkPlacement
-    })
-    setTargets(next)
-  }, [editor, rows, placements])
+    const schedule = (): void => {
+      if (frame !== 0) return
+      frame = window.requestAnimationFrame(sync)
+    }
 
-  useEffect(() => () => {
-    const root = editor?.domElement
-    root?.querySelectorAll<HTMLElement>('[data-connected-work-detail]').forEach((mount) => {
-      const content = mount.closest<HTMLElement>('.bn-block-content')
-      mount.remove()
-      if (content !== null) delete content.dataset.connectedWorkPlacement
-    })
-  }, [editor])
+    sync()
+    const observer = new MutationObserver(schedule)
+    observer.observe(root, { childList: true, subtree: true })
+    return () => {
+      observer.disconnect()
+      if (frame !== 0) window.cancelAnimationFrame(frame)
+      root.querySelectorAll<HTMLElement>('[data-connected-work-detail]').forEach((mount) => {
+        const content = mount.closest<HTMLElement>('.bn-block-content')
+        mount.remove()
+        if (content !== null) delete content.dataset.connectedWorkPlacement
+      })
+    }
+  }, [editor, rows, placements])
   return targets
 }
 
@@ -453,7 +488,8 @@ export function ConnectedWork({ id, className = '' }: {
   /* Dragging from the inbox creates the same ordinary document reference as
      the keyboard/touch Place action. After that, BlockNote owns all movement. */
   useEffect(() => {
-    const root = editor?.domElement
+    if (editor === null) return
+    const root = editor.domElement
     if (root === undefined || root === null) return
     const dragOver = (event: DragEvent): void => {
       if (!event.dataTransfer?.types.includes(DRAG_TYPE)) return
