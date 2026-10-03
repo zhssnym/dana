@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 
 import type { BlockFacetRef } from '../../../../shared/block-facets.js'
-import { syncFacetDecorations } from './BlockFacets.js'
+import { installFacetDecorations, syncFacetDecorations } from './BlockFacets.js'
 
 const facets: readonly BlockFacetRef[] = [
   { id: '00000000-0000-4000-8000-000000000001', name: 'Purpose' },
@@ -98,6 +98,39 @@ describe('block facet metadata rail', () => {
     expect(rail.style.getPropertyPriority('visibility')).toBe('important')
     expect(rail.style.getPropertyValue('opacity')).toBe('1')
     expect(rail.style.getPropertyPriority('opacity')).toBe('important')
+  })
+
+  test('attaches the permanent pill when the editor DOM becomes ready after the owner mounts', () => {
+    const frames: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback)
+      return frames.length
+    })
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+
+    const state: { host?: HTMLElement } = {}
+    const editor = {
+      get domElement() { return state.host },
+      document: [{ id: 'block-1', children: [] }],
+    } as unknown as Parameters<typeof installFacetDecorations>[0]
+    const model = {
+      options: facets,
+      editable: true,
+      selected: (blockId: string) => blockId === 'block-1' ? facets.slice(0, 1) : [],
+      toggle: () => undefined,
+      busy: false,
+    } as Parameters<typeof installFacetDecorations>[1]
+
+    const cleanup = installFacetDecorations(editor, model)
+    expect(frames).toHaveLength(1)
+    const host = document.createElement('div')
+    state.host = host
+    host.innerHTML = '<div class="bn-block-outer" data-id="block-1"><div class="bn-block"><div class="bn-block-content"></div></div></div>'
+    frames.shift()!(0)
+
+    expect(host.querySelector('[data-dana-block-facets="block-1"]')?.textContent).toBe('Purpose')
+    cleanup()
+    vi.unstubAllGlobals()
   })
 
   test('removes the treatment and restores the content box when the relationship is removed', () => {
