@@ -43,7 +43,9 @@ function GoogleMapsImage({ target }: { readonly target: GoogleMapsTarget }): Rea
   if (target.previewSrc === null || failed) return <GoogleMapsCard href={target.href} label={target.label} />
   return (
     <div className="mt-2 overflow-hidden rounded-lg border border-border bg-muted">
-      <img src={target.previewSrc} alt={`Map preview for ${target.label}`} loading="lazy" onError={() => setFailed(true)} className="h-56 w-full bg-muted object-cover" />
+      <a href={target.href} target="_blank" rel="noreferrer" aria-label={`Open map preview for ${target.label} in Google Maps`} className="block">
+        <img src={target.previewSrc} alt={`Map preview for ${target.label}`} loading="lazy" onError={() => setFailed(true)} className="h-56 w-full bg-muted object-cover" />
+      </a>
       <a href={target.href} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-2 bg-background px-2.5 py-2 text-sm text-foreground no-underline hover:bg-muted/50">
         <MapPin className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate font-medium">{target.label}</span>
