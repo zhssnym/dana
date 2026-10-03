@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'vitest'
 
 import type { ConnectedWorkItem, ConnectedWorkSource } from '../../../shared/connected-work.js'
+import { clampConnectedSourceWidth } from './dana-link-display.js'
 import {
   connectedWorkKey,
   placementKeyOf,
@@ -93,5 +94,14 @@ describe('connected work promotion', () => {
     const promoted = promotionBlock(ownRow, ownSource, FACET, true)
     const content = promoted?.content as Array<{ type: string; text?: string }>
     expect(content[0]).toMatchObject({ type: 'text', text: 'final-design.pdf' })
+  })
+})
+
+describe('connected work source lane', () => {
+  test('defaults and user resizing stay inside readable bounds', () => {
+    expect(clampConnectedSourceWidth(200, 900)).toBe(200)
+    expect(clampConnectedSourceWidth(40, 900)).toBe(160)
+    expect(clampConnectedSourceWidth(900, 900)).toBe(420)
+    expect(clampConnectedSourceWidth(420, 560)).toBe(280)
   })
 })
