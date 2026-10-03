@@ -23,6 +23,12 @@ describe('Google Maps link previews', () => {
     })
   })
 
+  test('prefers an exact place pin over the map camera centre', () => {
+    expect(googleMapsTarget('https://www.google.com/maps/place/Exact+Pin/@43.7,-79.5,15z/data=!4m5!3m4!1sabc!8m2!3d43.712345!4d-79.523456')).toMatchObject({
+      previewSrc: '/api/v1/link-previews/map-image?lat=43.712345&lng=-79.523456',
+    })
+  })
+
   test('marks shared links for server resolution and supports country domains', () => {
     expect(googleMapsTarget('https://maps.app.goo.gl/AbCdEf123')).toEqual({
       href: 'https://maps.app.goo.gl/AbCdEf123',
