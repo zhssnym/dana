@@ -1,9 +1,10 @@
 /*
-Dana Link references (issue #223, M1-C1). Two reads, no writes, no table.
+Dana Link references (issue #223, M1-C1). Reads only, no table.
 
-    GET /api/v1/references/:kind/:id   one target, as a chip summary
-    GET /api/v1/references/search      the picker's list, as it is typed
-    GET /api/v1/results/:id            where a native Result lives (#213)
+    GET /api/v1/references/:kind/:id          one target, as a chip summary
+    GET /api/v1/references/search             the picker's list, as it is typed
+    GET /api/v1/results/:id                   where a native Result lives (#213)
+    GET /api/v1/link-previews/google-maps     resolve a Google Maps short share link (#529)
 
 #488 adds one rule to the picker when it is used inside a Work/project: facet
 references are project-local. Generic Dana Links to Tasks/Folders/etc retain
@@ -12,6 +13,7 @@ project. An exact pasted URL can still resolve as navigation, but Connected
 work likewise refuses to treat a cross-project facet href as a relationship.
 */
 import type { Request, Response, Router } from 'express'
+import { z } from 'zod'
 
 import type { DbClient } from '../../../db/client.js'
 import { referenceKind, referenceSearchQuery } from '../../shared/references.js'
@@ -29,11 +31,102 @@ export interface ReferencesRouterOptions {
   rateLimits?: RateLimits
 }
 
+const googleMapsPreviewQuery = z.object({
+  url: z.string().url().max(2048),
+})
+const GOOGLE_MAPS_HOST = /^(?:maps\.)?google\.[a-z]{2,3}(?:\.[a-z]{2})?$/u
+
+type MapsRedirectFetch = (
+  input: string,
+  init: { readonly redirect: 'manual'; readonly signal: AbortSignal },
+) => Promise<Response>
+
+function shortGoogleMapsUrl(value: string): URL | null {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' && url.hostname.toLowerCase() === 'maps.app.goo.gl'
+      ? url
+      : null
+  } catch {
+    return null
+  }
+}
+
+function longGoogleMapsUrl(url: URL): boolean {
+  if (url.protocol !== 'https:') return false
+  const host = url.hostname.toLowerCase().replace(/^www\./u, '')
+  if (!GOOGLE_MAPS_HOST.test(host)) return false
+  return host.startsWith('maps.google.') || url.pathname.startsWith('/maps')
+}
+
+/**
+ * Follow only Google's opaque Maps shortener, one redirect at a time. Every
+ * hop is validated before the next network request, so a caller cannot turn
+ * this read into an open redirect follower/SSRF primitive. The function stops
+ * as soon as Google exposes a normal Maps URL; no map page body is downloaded.
+ */
+export async function resolveGoogleMapsShortLink(
+  value: string,
+  fetcher: MapsRedirectFetch = fetch,
+): Promise<string | null> {
+  let current = shortGoogleMapsUrl(value)
+  if (current === null) return null
+
+  for (let hop = 0; hop < 5; hop += 1) {
+    const response = await fetcher(current.toString(), {
+      redirect: 'manual',
+      signal: AbortSignal.timeout(5_000),
+    })
+    if (response.status < 300 || response.status >= 400) return null
+    const location = response.headers.get('location')
+    if (location === null) return null
+
+    let next: URL
+    try {
+      next = new URL(location, current)
+    } catch {
+      return null
+    }
+    if (longGoogleMapsUrl(next)) return next.toString()
+    const short = shortGoogleMapsUrl(next.toString())
+    if (short === null) return null
+    current = short
+  }
+  return null
+}
+
 export function createReferencesRouter(
   options: ReferencesRouterOptions = {},
 ): Router {
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const searchLimit = optionalLimit(options.rateLimits?.search)
+
+  router.get(
+    '/link-previews/google-maps',
+    requireSession,
+    searchLimit,
+    async (req: Request, res: Response) => {
+      const parsed = googleMapsPreviewQuery.safeParse(req.query)
+      if (!parsed.success) {
+        sendValidationError(res, parsed.error)
+        return
+      }
+      if (shortGoogleMapsUrl(parsed.data.url) === null) {
+        sendError(res, 422, 'validation_failed', 'url: must be a Google Maps short link.')
+        return
+      }
+      try {
+        const resolved = await resolveGoogleMapsShortLink(parsed.data.url)
+        if (resolved === null) {
+          sendError(res, 502, 'upstream_failed', 'The Google Maps link could not be resolved.')
+          return
+        }
+        res.status(200).json({ url: resolved })
+      } catch {
+        sendError(res, 502, 'upstream_failed', 'The Google Maps link could not be resolved.')
+      }
+    },
+  )
 
   router.get(
     '/references/search',
