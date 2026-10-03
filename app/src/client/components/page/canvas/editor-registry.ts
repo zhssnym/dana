@@ -11,12 +11,30 @@ the document and its autosave remain BlockNote's authority.
 const editors = new Map<HTMLElement, AnyEditor>()
 
 export function registerCanvasEditor(editor: AnyEditor): () => void {
-  const root = editor.domElement
-  if (root === undefined || root === null) return () => undefined
-  editors.set(root, editor)
-  window.dispatchEvent(new CustomEvent('dana:canvas-editor-ready'))
+  let root: HTMLElement | null = null
+  let frame = 0
+  let stopped = false
+
+  const attach = (): void => {
+    frame = 0
+    if (stopped) return
+    const next = editor.domElement
+    if (next === undefined || next === null) {
+      frame = window.requestAnimationFrame(attach)
+      return
+    }
+    if (root === next && editors.get(next) === editor) return
+    if (root !== null && editors.get(root) === editor) editors.delete(root)
+    root = next
+    editors.set(root, editor)
+    window.dispatchEvent(new CustomEvent('dana:canvas-editor-ready'))
+  }
+
+  attach()
   return () => {
-    if (editors.get(root) === editor) editors.delete(root)
+    stopped = true
+    if (frame !== 0) window.cancelAnimationFrame(frame)
+    if (root !== null && editors.get(root) === editor) editors.delete(root)
   }
 }
 
