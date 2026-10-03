@@ -39,7 +39,7 @@ const GOOGLE_MAPS_HOST = /^(?:maps\.)?google\.[a-z]{2,3}(?:\.[a-z]{2})?$/u
 type MapsRedirectFetch = (
   input: string,
   init: { readonly redirect: 'manual'; readonly signal: AbortSignal },
-) => Promise<Response>
+) => Promise<globalThis.Response>
 
 function shortGoogleMapsUrl(value: string): URL | null {
   try {
