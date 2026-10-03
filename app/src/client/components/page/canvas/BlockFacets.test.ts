@@ -11,37 +11,45 @@ const facets: readonly BlockFacetRef[] = [
 ]
 
 describe('block facet metadata rail', () => {
-  test('stays outside the measured block content and collapses extra facets', () => {
+  test('uses the real outer-row id, keeps BlockNote structural children untouched, and collapses extra facets', () => {
     const host = document.createElement('div')
     host.innerHTML = `
-      <div class="bn-block-outer">
-        <div class="bn-block" data-id="block-1">
+      <div class="bn-block-outer" data-id="block-1">
+        <div class="bn-block">
           <div class="react-renderer"><div class="bn-block-content">file.pdf</div></div>
         </div>
         <div class="bn-block-group"><div>nested content</div></div>
       </div>
     `
 
+    const outer = host.querySelector<HTMLElement>('.bn-block-outer')!
+    const structuralChildren = [...outer.children]
     syncFacetDecorations(host, new Map([['block-1', facets]]))
 
-    const block = host.querySelector<HTMLElement>('.bn-block')!
     const rail = host.querySelector<HTMLElement>('[data-dana-block-facets="block-1"]')!
     const content = host.querySelector<HTMLElement>('.bn-block-content')!
-    expect(content.contains(rail)).toBe(false)
-    expect(block.nextElementSibling).toBe(rail)
-    expect(rail.nextElementSibling?.classList.contains('bn-block-group')).toBe(true)
+    expect(rail).not.toBeNull()
+    expect(content.contains(rail)).toBe(true)
+    expect([...outer.children]).toEqual(structuralChildren)
+    expect(content.style.position).toBe('relative')
+    expect(content.style.paddingBottom).toBe('24px')
     expect(rail.getAttribute('contenteditable')).toBe('false')
     expect([...rail.querySelectorAll('a')].map((chip) => chip.textContent)).toEqual(['Purpose', 'Results'])
     expect(rail.textContent).toContain('+1')
   })
 
-  test('removes the rail when the block no longer has facet relationships', () => {
+  test('removes the treatment and restores the content box when the relationship is removed', () => {
     const host = document.createElement('div')
-    host.innerHTML = '<div class="bn-block-outer"><div class="bn-block" data-id="block-1"><div class="bn-block-content"></div></div></div>'
+    host.innerHTML = '<div class="bn-block-outer" data-id="block-1"><div class="bn-block"><div class="bn-block-content" style="overflow: clip"></div></div></div>'
+    const content = host.querySelector<HTMLElement>('.bn-block-content')!
     syncFacetDecorations(host, new Map([['block-1', facets.slice(0, 1)]]))
     expect(host.querySelector('[data-dana-block-facets]')).not.toBeNull()
+    expect(content.style.overflow).toBe('visible')
 
     syncFacetDecorations(host, new Map())
     expect(host.querySelector('[data-dana-block-facets]')).toBeNull()
+    expect(content.style.position).toBe('')
+    expect(content.style.overflow).toBe('clip')
+    expect(content.style.paddingBottom).toBe('')
   })
 })
