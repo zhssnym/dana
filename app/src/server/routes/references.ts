@@ -5,7 +5,6 @@ Dana Link references (issue #223, M1-C1). Reads only, no table.
     GET /api/v1/references/search             the picker's list, as it is typed
     GET /api/v1/results/:id                   where a native Result lives (#213)
     GET /api/v1/link-previews/google-maps     resolve a Google Maps short share link (#529)
-    GET /api/v1/link-previews/map-image       same-origin OpenStreetMap preview (#529)
 
 #488 adds one rule to the picker when it is used inside a Work/project: facet
 references are project-local. Generic Dana Links to Tasks/Folders/etc retain
@@ -13,8 +12,6 @@ their ordinary reach; only `kind: facet` rows are cut to the composing
 project. An exact pasted URL can still resolve as navigation, but Connected
 work likewise refuses to treat a cross-project facet href as a relationship.
 */
-import { Buffer } from 'node:buffer'
-
 import type { Request, Response, Router } from 'express'
 import { z } from 'zod'
 
@@ -37,26 +34,11 @@ export interface ReferencesRouterOptions {
 const googleMapsPreviewQuery = z.object({
   url: z.string().url().max(2048),
 })
-const mapImageQuery = z.object({
-  lat: z.coerce.number().finite().min(-85).max(85),
-  lng: z.coerce.number().finite().min(-180).max(180),
-})
 const GOOGLE_MAPS_HOST = /^(?:maps\.)?google\.[a-z]{2,3}(?:\.[a-z]{2})?$/u
-
-const MAP_ZOOM = 16
-const TILE_SIZE = 256
-const TILE_CACHE_TTL_MS = 60 * 60 * 1_000
-const TILE_CACHE_MAX = 128
-const tileCache = new Map<string, { readonly data: string; readonly expiresAt: number }>()
 
 type MapsRedirectFetch = (
   input: string,
   init: { readonly redirect: 'manual'; readonly signal: AbortSignal },
-) => Promise<globalThis.Response>
-
-type MapTileFetch = (
-  input: string,
-  init: { readonly headers: Readonly<Record<string, string>>; readonly signal: AbortSignal },
 ) => Promise<globalThis.Response>
 
 function shortGoogleMapsUrl(value: string): URL | null {
@@ -113,82 +95,6 @@ export async function resolveGoogleMapsShortLink(
   return null
 }
 
-function tilePoint(latitude: number, longitude: number): { readonly x: number; readonly y: number } {
-  const scale = 2 ** MAP_ZOOM
-  const lat = latitude * Math.PI / 180
-  return {
-    x: (longitude + 180) / 360 * scale,
-    y: (1 - Math.log(Math.tan(lat) + (1 / Math.cos(lat))) / Math.PI) / 2 * scale,
-  }
-}
-
-function wrappedTileX(value: number): number {
-  const scale = 2 ** MAP_ZOOM
-  return ((value % scale) + scale) % scale
-}
-
-async function tileData(x: number, y: number, fetcher: MapTileFetch): Promise<string> {
-  const scale = 2 ** MAP_ZOOM
-  const tileX = wrappedTileX(x)
-  const tileY = Math.max(0, Math.min(scale - 1, y))
-  const key = `${MAP_ZOOM}/${tileX}/${tileY}`
-  const cached = tileCache.get(key)
-  if (fetcher === fetch && cached !== undefined && cached.expiresAt > Date.now()) return cached.data
-
-  const response = await fetcher(`https://tile.openstreetmap.org/${key}.png`, {
-    headers: {
-      Accept: 'image/png',
-      'User-Agent': 'Dana map preview (https://dana.so)',
-    },
-    signal: AbortSignal.timeout(5_000),
-  })
-  if (!response.ok || !(response.headers.get('content-type') ?? '').toLowerCase().startsWith('image/png')) {
-    throw new Error('OpenStreetMap tile request failed.')
-  }
-  const bytes = await response.arrayBuffer()
-  if (bytes.byteLength > 1_000_000) throw new Error('OpenStreetMap tile was too large.')
-  const data = Buffer.from(bytes).toString('base64')
-
-  if (fetcher === fetch) {
-    if (tileCache.size >= TILE_CACHE_MAX) {
-      const oldest = tileCache.keys().next().value as string | undefined
-      if (oldest !== undefined) tileCache.delete(oldest)
-    }
-    tileCache.set(key, { data, expiresAt: Date.now() + TILE_CACHE_TTL_MS })
-  }
-  return data
-}
-
-/**
- * Render a small, same-origin SVG from nine fixed OpenStreetMap raster tiles.
- * The client never loads a third-party frame or tile directly. The upstream
- * host is fixed here, tiles are cached, and the image carries attribution.
- */
-export async function renderOpenStreetMapPreview(
-  latitude: number,
-  longitude: number,
-  fetcher: MapTileFetch = fetch,
-): Promise<string> {
-  const point = tilePoint(latitude, longitude)
-  const baseX = Math.floor(point.x) - 1
-  const baseY = Math.floor(point.y) - 1
-  const markerX = (point.x - baseX) * TILE_SIZE
-  const markerY = (point.y - baseY) * TILE_SIZE
-  const viewY = Math.max(0, Math.min(markerY - 112, TILE_SIZE * 3 - 224))
-
-  const tiles = await Promise.all(
-    Array.from({ length: 9 }, async (_, index) => {
-      const column = index % 3
-      const row = Math.floor(index / 3)
-      const data = await tileData(baseX + column, baseY + row, fetcher)
-      return `<image x="${column * TILE_SIZE}" y="${row * TILE_SIZE}" width="${TILE_SIZE}" height="${TILE_SIZE}" href="data:image/png;base64,${data}"/>`
-    }),
-  )
-
-  const attributionY = viewY + 218
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="768" height="224" viewBox="0 ${viewY.toFixed(2)} 768 224" role="img" aria-label="Map preview">${tiles.join('')}<circle cx="${markerX.toFixed(2)}" cy="${markerY.toFixed(2)}" r="10" fill="#ffffff"/><circle cx="${markerX.toFixed(2)}" cy="${markerY.toFixed(2)}" r="6" fill="#416180"/><rect x="578" y="${(attributionY - 16).toFixed(2)}" width="184" height="18" rx="3" fill="#ffffff" fill-opacity="0.86"/><text x="756" y="${(attributionY - 4).toFixed(2)}" text-anchor="end" font-family="sans-serif" font-size="10" fill="#333333">© OpenStreetMap contributors</text></svg>`
-}
-
 export function createReferencesRouter(
   options: ReferencesRouterOptions = {},
 ): Router {
@@ -218,26 +124,6 @@ export function createReferencesRouter(
         res.status(200).json({ url: resolved })
       } catch {
         sendError(res, 502, 'upstream_failed', 'The Google Maps link could not be resolved.')
-      }
-    },
-  )
-
-  router.get(
-    '/link-previews/map-image',
-    requireSession,
-    searchLimit,
-    async (req: Request, res: Response) => {
-      const parsed = mapImageQuery.safeParse(req.query)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      try {
-        const image = await renderOpenStreetMapPreview(parsed.data.lat, parsed.data.lng)
-        res.set('Cache-Control', 'private, max-age=86400')
-        res.type('image/svg+xml').status(200).send(image)
-      } catch {
-        sendError(res, 502, 'upstream_failed', 'The map preview could not be loaded.')
       }
     },
   )
@@ -297,7 +183,6 @@ export function createReferencesRouter(
       }
       const id = parsedId(res, req.params.id)
       if (id === null) return
-
       const found = await resolveReference(db, viewer(req), {
         kind: kind.data,
         id,
