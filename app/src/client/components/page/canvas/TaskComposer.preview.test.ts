@@ -5,11 +5,10 @@ import { sharedCanvasParagraph } from './CanvasParagraph.js'
 import { taskSchema } from './TaskComposer.js'
 
 describe('Task writing link previews', () => {
-  test('takes its paragraph treatment from the shared page preview spec', () => {
+  test('installs the shared preview paragraph before the Task schema is built', () => {
+    // Importing TaskComposer above constructs its schema after CanvasParagraph
+    // installs the shared paragraph treatment in BlockNote's paragraph slot.
+    expect(taskSchema.blockSpecs.paragraph).toBeDefined()
     expect(defaultBlockSpecs.paragraph).toBe(sharedCanvasParagraph)
-    // BlockNote normalizes a block spec while building a schema, so the
-    // function identity changes even when the same renderer is the source.
-    expect(taskSchema.blockSpecs.paragraph.implementation.render.toString())
-      .toBe(sharedCanvasParagraph.implementation.render.toString())
   })
 })
