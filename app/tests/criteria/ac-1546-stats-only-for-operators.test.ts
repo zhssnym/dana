@@ -1,6 +1,6 @@
 /*
 AC-1546: GET /stats answers the accounts on DANA_OPERATORS and no one else,
-and what it answers is counts: no email or page name crosses the wire.
+and what it answers is counts and one row per account, never a page's name.
 
 **Why this exists.** The route takes no id, so the ac-397 sweep never drives
 it, and ac-236 only proves it wants a session. The allowlist is the whole of
@@ -47,9 +47,9 @@ describe('AC-1546 the stats are the operators\' alone', () => {
     expect(stats.weeks).toHaveLength(12)
     expect(stats.people.total).toBeGreaterThanOrEqual(2)
     expect(stats.work_pages.total).toBeGreaterThanOrEqual(1)
-    for (const secret of [operator.email, stranger.email, PAGE]) {
-      expect(read.body).not.toContain(secret)
-    }
+    const row = stats.people_list.find((person) => person.email === stranger.email)
+    expect(row?.work_pages).toBeGreaterThanOrEqual(1)
+    expect(read.body).not.toContain(PAGE)
 
     const refused = await stranger.browser.api('/stats')
     const unknown = await stranger.browser.api('/no-such-route-ac1546')

@@ -1,6 +1,8 @@
 /*
-The operators' stats: aggregate counts only, read from rows Dana already
-keeps. Nothing new is recorded about anyone to produce them.
+The operators' stats, read from rows Dana already keeps; nothing new is
+recorded about anyone to produce them. Counts, plus one row per account with
+its email, join day, last active day and work page count, which is what the
+Privacy page tells people operators can see. No page names or content.
 
 - People: live accounts (`deleted_at IS NULL`).
 - Work pages: live `folders` rows of kind 'work', minus each account's
@@ -23,7 +25,7 @@ import { rowsOf } from '../database.js'
 const WEEKS = 12
 
 const workPages = sql`
-  SELECT f.created_at FROM folders f
+  SELECT f.owner_id, f.created_at FROM folders f
    WHERE f.kind = 'work' AND NOT f.is_default AND f.deleted_at IS NULL
      AND NOT EXISTS (SELECT 1 FROM sample_objects s WHERE s.kind = 'folder' AND s.id = f.id)`
 
@@ -62,6 +64,17 @@ export async function readStats(db: Db, sessionTtlDays: number): Promise<GetStat
           WHERE p.created_at >= w.start AND p.created_at < w.start + interval '1 week') AS new_work_pages
       FROM w ORDER BY w.start`)
 
+  const people = await rowsOf(db, sql`
+    WITH pages AS (${workPages})
+    SELECT u.email,
+      to_char(u.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS joined_on,
+      (SELECT to_char((max(s.expires_at) - ${ttl}) AT TIME ZONE 'UTC', 'YYYY-MM-DD')
+         FROM sessions s WHERE s.user_id = u.id AND s.expires_at > now()) AS last_active_on,
+      (SELECT count(*) FROM pages p WHERE p.owner_id = u.id) AS work_pages
+      FROM users u
+     WHERE u.deleted_at IS NULL
+     ORDER BY last_active_on DESC NULLS LAST, u.created_at DESC`)
+
   const t = totals ?? {}
   return {
     people: { total: num(t.people_total), new_this_week: num(t.people_week) },
@@ -71,6 +84,12 @@ export async function readStats(db: Db, sessionTtlDays: number): Promise<GetStat
       week_start: String(row.week_start),
       new_people: num(row.new_people),
       new_work_pages: num(row.new_work_pages),
+    })),
+    people_list: people.map((row) => ({
+      email: typeof row.email === 'string' ? row.email : null,
+      joined_on: String(row.joined_on),
+      last_active_on: typeof row.last_active_on === 'string' ? row.last_active_on : null,
+      work_pages: num(row.work_pages),
     })),
   }
 }

@@ -34,7 +34,7 @@ the two are never separated.
 const PAGE_COPY = {
   privacy: {
     title: 'Privacy',
-    updated: 'Updated 17 August 2026',
+    updated: 'Updated 3 October 2026',
     sections: [
       {
         heading: 'What Dana stores',
@@ -47,7 +47,8 @@ const PAGE_COPY = {
       {
         heading: 'What Dana uses it for',
         body: [
-          'Running the product you see: your lists, your calendar, sharing, invitations, and reminder emails. Nothing else.',
+          'Running the product you see: your lists, your calendar, sharing, invitations, and reminder emails.',
+          'Knowing who uses Dana. The people who run Dana can see a list of accounts: each email address, the day it joined, the day it last used Dana, and how many work pages it has made. That list shows no page names and nothing you wrote. Dana uses your data for nothing else.',
           'Dana shows your name and email to people you share a folder with, connect with, or invite; that is what sharing means here.',
         ],
       },
