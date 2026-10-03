@@ -27,6 +27,7 @@ import { CanvasSlashMenu, blockMenuTargets, headingTogglesFor } from './slash-it
 import { isSectionHeading, shelfOutlineFailure, validateCanvasOutline } from './outline.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
 import type { BlockMenuModel } from './BlockSideMenu.js'
+import { useAutomaticBlockFacets } from './BlockFacets.js'
 import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
 import { backspaceToText, contains, simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
 import type { TreeBlock } from './turn-into.js'
@@ -161,6 +162,11 @@ export function CanvasSurface({
     return () => observer.disconnect()
   }, [])
 
+  /* Facet metadata belongs to the canvas lifetime, not BlockNote's transient
+     gutter menu. Keeping this hook here makes chips present from first paint
+     and lets the side menu consume the same model when it happens to open. */
+  const automaticFacets = useAutomaticBlockFacets(editor, editable, onNotice)
+
   // What this canvas's structure admits: the persisted outline's rules, and a
   // Shelf's flat ones. A refused shape is never offered (menu) or attempted (Tab).
   const admits = useCallback((document: readonly TreeBlock[]): boolean =>
@@ -245,6 +251,7 @@ export function CanvasSurface({
       : null,
     canDuplicate: (block) => !contains(block, TASK_OR_FOLDER),
     duplicate,
+    facets: automaticFacets,
     removal: (block, ids) => {
       /* #221: a Folder row is the Shelf's membership, so it leaves through
          the membership act and never through generic Delete. */
@@ -263,7 +270,7 @@ export function CanvasSurface({
       }
       return { label: 'Delete', run: () => { remove(ids) } }
     },
-  }), [editor, headingMode, taskCreator, editable, insertBefore, requestTask, duplicate, onRemoveFolder, remove, deleteTask, trashPage])
+  }), [editor, headingMode, taskCreator, editable, insertBefore, requestTask, duplicate, automaticFacets, onRemoveFolder, remove, deleteTask, trashPage])
   const move = useCallback((ids: readonly string[], direction: -1 | 1): boolean => moveBlocksBy(editor, ids, direction), [editor])
   const selectionActions = useMemo(() => ({ remove, duplicate, admits, move }), [remove, duplicate, admits, move])
   useBlockSelectionKeys(editor, selectionActions)
