@@ -4,7 +4,7 @@ import { useCreateBlockNote } from '@blocknote/react'
 import { Link as RouterLink } from 'react-router'
 
 import type { PageBlock, PageView } from '../../../shared/pages.js'
-import { ExternalLink } from '../../lib/icons.js'
+import { Link2 } from '../../lib/icons.js'
 import { hydrateCanvas } from '../page/canvas/adapters.js'
 import { pageTheme } from '../page/canvas/BlockSideMenu.js'
 import { canvasSchema } from '../page/canvas/schema.js'
@@ -88,7 +88,7 @@ export function ConnectedBlockMirror({
           aria-label="Open source block"
           className="absolute right-0 top-0 z-20 inline-flex size-6 items-center justify-center rounded-sm bg-background/90 text-muted-foreground opacity-0 shadow-sm hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring group-hover/mirror:opacity-100 pointer-coarse:opacity-100"
         >
-          <ExternalLink size={13} aria-hidden="true" />
+          <Link2 size={13} aria-hidden="true" />
         </RouterLink>
       )}
     </div>
