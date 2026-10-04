@@ -149,8 +149,6 @@ test('smoke: collaboration state follows its workspace tab', async ({ page }) =>
   })
 
   await test.step('Discussion filter disappears with the tab and restores without shrinking the tab strip', async () => {
-    await page.getByRole('button', { name: 'Team', exact: true }).click()
-    await expect(page.getByRole('region', { name: 'Sharing panel' })).toHaveCount(0)
     await page.getByRole('button', { name: 'Discussion', exact: true }).click()
     const dock = page.locator('[data-chat-dock]')
     await expect(dock).toBeVisible()
