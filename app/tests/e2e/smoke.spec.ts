@@ -148,23 +148,55 @@ test('smoke: collaboration state follows its workspace tab', async ({ page }) =>
     await expect(page.getByRole('region', { name: 'Sharing panel' }).getByRole('heading', { name: 'Imran', exact: true })).toBeVisible()
   })
 
-  await test.step('Discussion filter disappears with the tab and restores without shrinking the tab strip', async () => {
+  await test.step('Discussion defaults full screen and restores full/sidebar state with the workspace tab', async () => {
     await page.getByRole('button', { name: 'Discussion', exact: true }).click()
-    const dock = page.locator('[data-chat-dock]')
-    await expect(dock).toBeVisible()
-    await dock.getByRole('button', { name: 'Resolved', exact: true }).click()
-    await expect(dock.getByRole('button', { name: 'Resolved', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator('[data-chat-dock]')).toHaveCount(0)
+
+    const context = page.locator('[data-discussion-context-bar]')
+    await expect(context).toBeVisible()
+    await expect(context.getByRole('heading', { name: 'Discussion', exact: true })).toBeVisible()
+    await expect(context.getByRole('button', { name: 'Open in side panel', exact: true })).toBeVisible()
+    await expect(page.getByRole('tablist', { name: 'Page tabs' })).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Resolved', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Resolved', exact: true })).toHaveAttribute('aria-pressed', 'true')
 
     const stripRight = await tabs.locator('..').evaluate((element) => element.getBoundingClientRect().right)
     const viewportWidth = page.viewportSize()?.width ?? 1280
     expect(Math.abs(viewportWidth - stripRight)).toBeLessThan(2)
 
-    await page.getByRole('tab', { name: /Today/ }).click()
-    await expect(dock).toHaveCount(0)
+    await page.getByRole('button', { name: 'Open tab' }).click()
+    await page.getByRole('textbox', { name: 'Search Dana to open a tab' }).fill('Today')
+    await page.getByRole('option', { name: /Today/ }).first().click()
+    await expect(page).toHaveURL(/\/app\/today$/)
+    await expect(context).toHaveCount(0)
 
-    await page.getByRole('tab', { name: /Groceries/ }).click()
+    const discussionTab = tabs.getByRole('tab').filter({ hasText: /Discussion|Groceries/ }).first()
+    await discussionTab.click()
+    await expect(context).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Resolved', exact: true })).toHaveAttribute('aria-pressed', 'true')
+
+    await context.getByRole('button', { name: 'Open in side panel', exact: true }).click()
+    const dock = page.locator('[data-chat-dock]')
     await expect(dock).toBeVisible()
     await expect(dock.getByRole('button', { name: 'Resolved', exact: true })).toHaveAttribute('aria-pressed', 'true')
+
+    await page.getByRole('tab', { name: /Today/ }).click()
+    await expect(dock).toHaveCount(0)
+    await discussionTab.click()
+    await expect(dock).toBeVisible()
+    await expect(dock.getByRole('button', { name: 'Resolved', exact: true })).toHaveAttribute('aria-pressed', 'true')
+
+    await dock.getByRole('button', { name: 'Open full screen', exact: true }).click()
+    await expect(context).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Resolved', exact: true })).toHaveAttribute('aria-pressed', 'true')
+
+    const back = context.getByRole('button', { name: /^Back to / }).first()
+    await expect(back).toBeVisible()
+    await back.click()
+    await expect(context).toHaveCount(0)
+    await expect(page.locator('[data-chat-dock]')).toHaveCount(0)
+    await expect(page).toHaveURL(new RegExp(`/app/folders/${seedIds.groceries}`))
   })
 })
 
