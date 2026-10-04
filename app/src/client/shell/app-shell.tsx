@@ -90,6 +90,9 @@ import { useAppearance } from './appearance.js'
 import { mirroredTheme } from '../lib/theme.js'
 import { openSearch } from './overlays.js'
 import { useModalOpen, useRightEdge } from '../components/right-edge.js'
+/* The Discussion sidebar (#546) and the room it takes. */
+import { ChatDock, useDockWidth, useWindowWidth } from '../components/chat-dock/ChatDock.js'
+import { DOCK_PAGE_MIN, DOCK_SIDEBAR_ROOM, useChatDock } from '../state/chat-dock.js'
 import { WindowBar, WindowBarActions, WindowBarLead } from '../components/window-bar.js'
 import { BreadcrumbTrail } from '../components/breadcrumb-trail.js'
 import {
@@ -368,7 +371,15 @@ export function AppShell(): React.JSX.Element {
   const update = useUpdateAffordance()
   /* What an open right-edge panel has reserved. Zero when nothing is open,
      which is almost always. */
-  const rightEdge = useRightEdge()
+  const panelEdge = useRightEdge()
+  /* The Discussion sidebar (#546) takes room beside the work where the window
+     has it, and lies over the page where it does not: a squeezed page is
+     worse than a covered edge. */
+  const dockOpen = useChatDock() !== null
+  const dockWidth = useDockWidth()
+  const windowWidth = useWindowWidth()
+  const roomy = windowWidth - dockWidth >= DOCK_PAGE_MIN + DOCK_SIDEBAR_ROOM
+  const rightEdge = panelEdge + (dockOpen && roomy ? dockWidth : 0)
   /* Whether a modal task surface is open over the page. See the wrapper below. */
   const modalOpen = useModalOpen()
   /*
@@ -607,6 +618,12 @@ export function AppShell(): React.JSX.Element {
               data-shell-scroll
               className="min-h-0 flex-1 overflow-y-auto"
             >
+              {/* The width a cover bleeds to (`100cqw` in page-cover.tsx). The
+                  scroll region is a query container too, but its width counts
+                  its own scrollbar, so a cover measured against it ran under
+                  the scrollbar and gave the page a sideways scroll. This box
+                  is the room inside the scrollbar. */}
+              <div className="@container">
               {/* An open thread reads across the full width, as a chat does. */}
               <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-4 py-4 md:px-10 md:py-6">
                 {/* 9.8: pending invites sit above every /app page; a read in
@@ -616,11 +633,16 @@ export function AppShell(): React.JSX.Element {
                 ) : null}
                 <Outlet />
               </div>
+              </div>
             </div>
           </SidebarInset>
           {groups.dialogs}
         </SidebarProvider>
       </div>
+      {/* The Discussion sidebar (#546): mounted once, so it survives
+          navigation, and outside the wrapper above, so a modal surface never
+          makes it inert. */}
+      <ChatDock />
       {/* The one notice column: toasts, the offline notice and the undo bar,
           bottom-centre. */}
       <ToastRegion clearsCapture={false}>

@@ -81,11 +81,21 @@ export function DiscussionView(props: {
   readonly personOf: PersonResolver
   readonly justStarted: boolean
   readonly onBack: () => void
+  /** Drawn inside the Discussion sidebar (#546).
+   * Nothing is put in the app's top bar; back, the title and the thread's
+   * acts sit in one row at the top of the panel, and the thread fills its
+   * container instead of measuring the page. */
+  readonly docked?: boolean
 }): React.JSX.Element {
-  const { discussionId } = props
+  const { discussionId, docked = false } = props
   const discussion = useOpenDiscussion(discussionId)
-  /* A phone's way back is drawn while the thread loads or fails too. */
-  const lead = <ThreadLead title={discussion.data?.title ?? ''} folderId={props.folderId} onBack={props.onBack} />
+  /* A phone's way back is drawn while the thread loads or fails too. In the
+     dock the loaded thread draws its own row, with its acts. */
+  const lead = docked ? (
+    discussion.data === undefined ? <DockedLead title="" onBack={props.onBack} /> : null
+  ) : (
+    <ThreadLead title={discussion.data?.title ?? ''} folderId={props.folderId} onBack={props.onBack} />
+  )
 
   if (discussion.isPending) {
     return (
@@ -122,11 +132,12 @@ function ThreadBody(props: {
   readonly personOf: PersonResolver
   readonly justStarted: boolean
   readonly onBack: () => void
+  readonly docked?: boolean
   /* A write the server refused (403, or 409 frozen): the thread changed
      under us, so read it again. */
   readonly onRefused: () => void
 }): React.JSX.Element {
-  const { discussion: d, viewer, personOf, justStarted, onBack, onRefused } = props
+  const { discussion: d, viewer, personOf, justStarted, onBack, onRefused, docked = false } = props
   const thread = useDiscussionThread(d.id)
   const reopen = useReopenDiscussion()
   const trash = useTrashFromThread()
@@ -141,7 +152,7 @@ function ThreadBody(props: {
   const [closing, setClosing] = useState(false)
   const landOnReopen = useRef(false)
   const reopenRef = useRef<HTMLButtonElement>(null)
-  const [box, height] = useFillHeight()
+  const [box, height] = useFillHeight(!docked)
   const [renaming, setRenaming] = useState(false)
   const [pointer] = useState(() => globalThis.matchMedia?.('(pointer: fine)').matches ?? false)
   /* Where the reading starts: the last read as it stood when the thread
@@ -154,12 +165,14 @@ function ThreadBody(props: {
   useEffect(() => {
     const leave = (event: KeyboardEvent): void => {
       const target = event.target as HTMLElement
+      /* In the dock an Escape with nothing focused belongs to the page. */
+      if (docked && !box.current?.contains(target)) return
       if (target !== document.body && !box.current?.contains(target) && target.closest('[data-thread-bar]') === null) return
       if (leavesThread(event)) onBack()
     }
     document.addEventListener('keydown', leave)
     return () => { document.removeEventListener('keydown', leave) }
-  }, [box, onBack])
+  }, [box, onBack, docked])
 
   const comments = thread.data?.comments
   const newest = comments?.reduce<string>((latest, c) => (c.created_at > latest ? c.created_at : latest), '') ?? null
@@ -280,10 +293,14 @@ function ThreadBody(props: {
   return (
     <div
       ref={box}
-      className="flex min-w-0 flex-col"
+      className={cn('flex min-w-0 flex-col', docked && 'min-h-0 flex-1')}
       style={height === null ? undefined : { height }}
     >
-      <WindowBarActions order={2}>{acts}</WindowBarActions>
+      {docked ? (
+        <DockedLead title={renaming ? '' : d.title} onBack={onBack}>{acts}</DockedLead>
+      ) : (
+        <WindowBarActions order={2}>{acts}</WindowBarActions>
+      )}
       {/* The topic heads the thread, so it reads as a discussion of one thing.
           On a phone the top bar already names it, so it is drawn only for a
           screen reader there; Rename takes its place while open. */}
@@ -291,7 +308,7 @@ function ThreadBody(props: {
         data-page-title={d.title}
         className={cn(
           'line-clamp-2 min-w-0 pt-4 pb-2 font-title text-[length:var(--text-h1-size)] leading-[var(--text-h1-line)] wrap-anywhere text-foreground max-md:sr-only',
-          renaming && 'sr-only',
+          (renaming || docked) && 'sr-only',
         )}
       >
         {d.title}
@@ -379,6 +396,20 @@ function ThreadLead({ title, folderId, onBack }: { readonly title: string; reado
   )
 }
 
+/* The Discussion sidebar's own row (#546) for an open
+   thread: back to the list, the title, then the thread's acts. */
+function DockedLead({ title, onBack, children }: { readonly title: string; readonly onBack: () => void; readonly children?: React.ReactNode }): React.JSX.Element {
+  return (
+    <div data-thread-bar="" className="flex min-w-0 shrink-0 items-center gap-1 pb-2">
+      <Button type="button" variant="ghost" size="icon" aria-label="Back to threads" className="-ml-1.5 shrink-0 text-muted-foreground hover:text-foreground" onClick={onBack}>
+        <ArrowLeft className="size-4" strokeWidth={1.75} aria-hidden="true" />
+      </Button>
+      <p className="min-w-0 flex-1 truncate text-sm font-title text-foreground" title={title}>{title}</p>
+      {children}
+    </div>
+  )
+}
+
 /** Escape goes back to the list unless something nearer wants it: a field's
  * own Escape (rename, resolve, an edit), an open menu or dialog, or a
  * composer that holds writing. */
@@ -398,12 +429,12 @@ function leavesThread(event: KeyboardEvent): boolean {
 
 /** The thread fills the window below where it starts, so its history
  * scrolls in its own region and the composer sits at the window's foot. */
-function useFillHeight(): [React.RefObject<HTMLDivElement | null>, number | null] {
+function useFillHeight(enabled = true): [React.RefObject<HTMLDivElement | null>, number | null] {
   const box = useRef<HTMLDivElement>(null)
   const [height, setHeight] = useState<number | null>(null)
   useLayoutEffect(() => {
     const el = box.current
-    const scroller = el?.closest<HTMLElement>('[data-shell-scroll]')
+    const scroller = enabled ? el?.closest<HTMLElement>('[data-shell-scroll]') : null
     if (!el || !scroller) return
     const measure = (): void => {
       const content = scroller.firstElementChild
@@ -415,7 +446,7 @@ function useFillHeight(): [React.RefObject<HTMLDivElement | null>, number | null
     const watch = new ResizeObserver(measure)
     watch.observe(scroller)
     return () => { watch.disconnect() }
-  }, [])
+  }, [enabled])
   return [box, height]
 }
 

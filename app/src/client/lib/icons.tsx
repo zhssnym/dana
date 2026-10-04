@@ -520,6 +520,9 @@ export const Undo2 = icon(Lu.Undo2, null)
    thread, a filled check circle for a resolved one. Neither is square, so a
    thread never reads as a task's checkbox. */
 export const MessageCircle = icon(Lu.MessageCircle, null)
+/* Discussion's own entry point (#546): two bubbles, a conversation, so it
+   never reads as another people control beside Team. */
+export const MessagesSquare = icon(Lu.MessagesSquare, null)
 export function ResolvedMark({ className }: { readonly className?: string }): React.JSX.Element {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={cn("size-4", className)}>
