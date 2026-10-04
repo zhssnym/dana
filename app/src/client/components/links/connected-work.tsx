@@ -216,7 +216,7 @@ interface PlacementItem {
 }
 
 function placementItems(rows: readonly ConnectedWorkItem[]): PlacementItem[] {
-  return rows.flatMap((row) => row.sources.length === 0
+  return rows.flatMap((row): PlacementItem[] => row.sources.length === 0
     ? [{ row, source: null }]
     : row.sources.map((source) => ({ row, source })))
 }
@@ -694,7 +694,7 @@ function usePlacementPortals(
         const promotedSourceId = promotedSourceOf(block, facetId)
         const mirrored = promotedSourceId === null && source?.kind === 'block' && source.block !== undefined && source.block !== null
         setSourceLane(content, mirrored)
-        next.push({ ref: undefined, blockId: ref.blockId, row, source, mount, promotedSourceId, mirrored } as PortalTarget)
+        next.push({ blockId: ref.blockId, row, source, mount, promotedSourceId, mirrored })
       }
       root.querySelectorAll<HTMLElement>('[data-connected-work-detail]').forEach((mount) => {
         const blockId = mount.dataset.connectedWorkDetail ?? ''
