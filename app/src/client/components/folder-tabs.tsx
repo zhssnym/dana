@@ -1,17 +1,17 @@
 /*
 A project's tabs (step 7): a row of plain text tabs and one "+". Work also
-places its Filter and View controls on this row. Each tab is a page of the project (`tab_position` set), in stored order,
-which is the drawn order: migration 0061 wrote the order the old facet row
-drew. The project root is one of them, labelled by its kind ("Work", "Doc",
-"Discussion"), since its own name is the project's and sits in the header.
+places its Filter and View controls on this row. Each stored tab is a page of
+the project (`tab_position` set), in stored order.
 
-**With one tab the tab itself is not drawn**. A Work page keeps the hairline
-for its controls and "+"; other pages keep "+" in the header (`AddTabMenu`).
+Discussion is deliberately not a horizontal tab. Its stored page remains the
+full-screen presentation and keeps the same thread/history, but the project
+header's Discussion control is its single project-level entry point. The tab
+row therefore draws Work/Doc pages only, and the "+" offers only those page
+kinds. Desk keeps the same rule and its fixed Work root.
 
-**The "+"** offers Doc and Work, and Discussion only while the project has
-none (one per project; the server answers a second 409). Desk is the deliberate
-exception: it is private Work plus documentation, so its "+" offers Doc only,
-its Work root stays first, and any legacy Discussion tab is not drawn.
+**With one visible tab the tab itself is not drawn**. A Work page keeps the
+hairline for its controls and "+"; other pages keep "+" in the header
+(`AddTabMenu`).
 
 **A tab's own acts are on the tab**: right-click it (or Shift+F10 / the menu
 key) for Rename and Delete. The root's tab has neither: its name is the
@@ -54,10 +54,10 @@ export function tabLabel(tab: TabPage): string {
   return tab.name
 }
 
-/** The kinds the "+" offers. Desk can add documentation only. */
+/** Discussion belongs to the header collaboration area, never this "+". */
 export function addableKinds(tabs: readonly TabPage[]): PageKind[] {
   if (isDeskRow(tabs)) return ['doc']
-  return tabs.some((tab) => tab.kind === 'discussion') ? ['doc', 'work'] : ['doc', 'work', 'discussion']
+  return ['doc', 'work']
 }
 
 /** The "+": a small menu of the kinds a new tab can be. */
@@ -106,7 +106,7 @@ interface TabDrag {
 }
 
 /**
- * The tab row, or nothing when the project has one tab.
+ * The tab row, or nothing when the project has one visible tab.
  *
  * Tabs are reordered by dragging them on the row itself, the way browser tabs
  * are: a mouse press that moves lifts the tab, a finger lifts it after a long
@@ -130,7 +130,7 @@ export function FolderTabs<T extends TabPage>({
   readonly onSelect: (tab: T) => void
   /** The viewer may add, rename, delete and move tabs. */
   readonly editable: boolean
-  /** The whole row in its new order, the moved tab named. */
+  /** The whole visible row in its new order, the moved tab named. */
   readonly onReorder: (dragged: T, ordered: readonly T[]) => void
   readonly onAdd: (kind: PageKind) => void
   readonly onRename: (tab: T, name: string) => void
@@ -139,16 +139,15 @@ export function FolderTabs<T extends TabPage>({
 }): React.JSX.Element | null {
   const desk = isDeskRow(tabs)
   const deskRoot = desk ? tabs.find((tab) => tab.id === tab.project_id) : undefined
-  /* 0071 preserves old Discussion rows because deleting shared history would
-     be data loss. The row simply has no Discussion surface in Desk. Keep the
-     Work root first even while a pre-0071 client cache still carries its old
-     position. */
+  /* Keep the stored Discussion page for history and full-screen rendering, but
+     never expose it as a second project-level entry point in this row. */
+  const visibleTabs = tabs.filter((tab) => tab.kind !== 'discussion')
   const rowTabs: readonly T[] = desk
     ? [
         ...(deskRoot === undefined ? [] : [deskRoot]),
-        ...tabs.filter((tab) => tab.id !== deskRoot?.id && tab.kind !== 'discussion'),
+        ...visibleTabs.filter((tab) => tab.id !== deskRoot?.id),
       ]
-    : tabs
+    : visibleTabs
   const rowEditable = editable || desk
   const mayMove = (tab: T): boolean => rowEditable && (!desk || tab.id !== deskRoot?.id)
 
