@@ -1,0 +1,29 @@
+/*
+Collaboration surfaces sit inside the application shell rather than over its
+workspace-tab chrome. The workspace tab strip is Dana's 32px row
+(`--row-height`) and only exists from the desktop breakpoint upward, so mobile
+keeps the existing full-height panels.
+*/
+@media (min-width: 48rem) {
+  [data-chat-dock][aria-label="Discussion"] {
+    top: var(--row-height);
+  }
+
+  [data-slot="sheet-content"][data-side="right"]:has([aria-label="Sharing panel"]) {
+    top: var(--row-height);
+    height: calc(100dvh - var(--row-height));
+  }
+}
+
+/* Discussion rows are separated by rhythm and hover state, not rules. The
+   existing divide utilities stay harmless for older/loading markup while this
+   surface-level rule keeps the visual treatment flat. */
+div:has(> div > [aria-label="Show threads"]) > ul {
+  gap: var(--space-row);
+}
+
+div:has(> div > [aria-label="Show threads"]) > ul > li,
+[aria-label="Loading threads"] > div {
+  border-top-width: 0;
+  border-bottom-width: 0;
+}
