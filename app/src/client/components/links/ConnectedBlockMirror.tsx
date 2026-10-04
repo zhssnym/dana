@@ -4,7 +4,7 @@ import { useCreateBlockNote } from '@blocknote/react'
 import { Link as RouterLink } from 'react-router'
 
 import type { PageBlock, PageView } from '../../../shared/pages.js'
-import { ExternalLink } from '../../lib/icons.js'
+import { OpenInNewTab } from '../../lib/icons.js'
 import { dehydrateCanvas, hydrateCanvas } from '../page/canvas/adapters.js'
 import type { CanvasDocument } from '../page/canvas/adapters.js'
 import { pageTheme } from '../page/canvas/BlockSideMenu.js'
@@ -165,7 +165,7 @@ export function ConnectedBlockMirror({
       data-source-block-id={block.id}
       onPointerDown={(event) => { event.stopPropagation() }}
       onClick={(event) => { event.stopPropagation() }}
-      onKeyDown={(event) => {
+      onKeyDownCapture={(event) => {
         event.stopPropagation()
         // One mirror is one canonical block. Structural splitting belongs in
         // the source page; Shift+Enter remains available for a soft break.
@@ -183,7 +183,7 @@ export function ConnectedBlockMirror({
           onPointerDown={(event) => { event.stopPropagation() }}
           onClick={(event) => { event.stopPropagation() }}
         >
-          <ExternalLink size={12} aria-hidden="true" />
+          <OpenInNewTab size={12} aria-hidden="true" />
         </RouterLink>
       )}
       <div className="dana-writing-canvas dana-connected-block-mirror min-w-0">
