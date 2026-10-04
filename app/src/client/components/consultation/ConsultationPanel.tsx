@@ -8,11 +8,10 @@ and `/app/outcomes/:id` (ConsultationLinkPage) resolve to this same place. A
 thread just started from the list opens with its composer focused.
 
 The stored Discussion page is deliberately hidden from the horizontal page
-strip. Below the unchanged project identity/header, one compact context bar
-establishes Discussion as the active section, gives one navigation path back
-to the exact source route, and keeps the full-screen/sidebar presentation
-switch icon-only. The filter, new-thread action and thread rows stay flat below
-that bar; there is no card-inside-card shell.
+strip. A contextual page header replaces the Work head while focused, gives
+one navigation path back to the exact source route, and keeps the full-screen/
+sidebar presentation switch icon-only. The list and a thread share that parent
+context, with the thread title heading its own conversation.
 
 The presentation/thread/filter/return state is owned by the active workspace
 tab. The URL remains canonical for an addressable full-screen thread; the tab
@@ -23,7 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 
 import { useAllPages, useFolder } from '../../api/queries.js'
-import { ArrowLeft, MessagesSquare, PanelRight } from '../../lib/icons.js'
+import { MessagesSquare, PanelRight } from '../../lib/icons.js'
 import type { PersonResolver } from '../../lib/thread.js'
 import { paths } from '../../routes.js'
 import { openDiscussionFullScreen, setChatDockFilter } from '../../state/chat-dock.js'
@@ -31,6 +30,7 @@ import { useActiveCollaboration } from '../../shell/tabs.js'
 import { DEFAULT_TAB_NAMES, projectTabs } from '../../../shared/folders.js'
 import type { Folder } from '../../../shared/folders.js'
 import { RosterTints } from '../default-avatar.js'
+import { ContextPageHeader } from '../context-page-header.js'
 import { Button } from '../ui/button.js'
 import type { ConsultationViewer } from './authority.js'
 import { DiscussionList } from './DiscussionList.js'
@@ -126,6 +126,8 @@ export function ConsultationPanel({
     : primaryPage === undefined ? paths.today : paths.folder(primaryPage.id)
   const returnTarget = discussionReturnTo(projectId) ?? fallbackTarget
   const returnLabel = sourceLabel(returnTarget, projectPages)
+  const projectName = projectPages.find((candidate) => candidate.id === projectId)?.name ?? page?.name ?? 'Work'
+  const parentLabel = projectName === returnLabel ? projectName : `${projectName} · ${returnLabel}`
 
   const open = useCallback(
     (id: string | null): void => {
@@ -144,43 +146,38 @@ export function ConsultationPanel({
   return (
     <RosterTints ids={members.map((member) => member.user.id)}>
       <section className="min-w-0" aria-label="Discussion">
-        <div
-          data-discussion-context-bar=""
-          className="mt-3 flex min-h-10 min-w-0 items-center gap-2 border-b border-border pb-2"
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            aria-label={`Back to ${returnLabel}`}
-            title={`Back to ${returnLabel}`}
-            className="max-w-[45%] shrink-0 justify-start gap-1.5 px-2 text-muted-foreground hover:text-foreground"
-            onClick={() => { leaveDiscussionFullScreen(navigate, returnTarget) }}
-          >
-            <ArrowLeft className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-            <span className="truncate">{returnLabel}</span>
-          </Button>
-          <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
-          <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
-            <MessagesSquare className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
-            <h2 className="truncate text-sm font-title text-foreground">Discussion</h2>
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Open in side panel"
-            title="Open in side panel"
-            className="shrink-0 text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              moveDiscussionToSidebar(navigate, projectId, discussionId, returnTarget)
-            }}
-          >
-            <PanelRight className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          </Button>
+        <div data-discussion-context-bar="">
+          <ContextPageHeader
+            parent={parentLabel}
+            title="Discussion"
+            backLabel={`Back to ${returnLabel}`}
+            icon={MessagesSquare}
+            compact={discussionId !== null}
+            heading={discussionId === null ? (
+              <h1 className="truncate text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-foreground">Discussion</h1>
+            ) : (
+              <span className="text-sm font-section text-foreground">Discussion</span>
+            )}
+            onBack={() => { leaveDiscussionFullScreen(navigate, returnTarget) }}
+            actions={(
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Open in side panel"
+                title="Open in side panel"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  moveDiscussionToSidebar(navigate, projectId, discussionId, returnTarget)
+                }}
+              >
+                <PanelRight className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              </Button>
+            )}
+          />
         </div>
 
-        <div className="min-w-0 pt-3">
+        <div className="min-w-0 pt-[var(--space-group)]">
           {discussionId === null ? (
             <DiscussionList
               folderId={folderId}

@@ -46,6 +46,7 @@ import {
   useResendInvite,
 } from '../api/mutations.js'
 import { Avatar, AvatarFallback } from '../components/ui/avatar.js'
+import { ContextPageHeader } from '../components/context-page-header.js'
 import { Button } from '../components/ui/button.js'
 import { Input } from '../components/ui/input.js'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../components/ui/sheet.js'
@@ -234,6 +235,7 @@ export function FolderSharingPanel({
   const teamMinWidth = Math.min(bounds.max, Math.max(bounds.min, DOCK_DEFAULT_WIDTH))
   const sidebarWidth = Math.min(bounds.max, Math.max(teamMinWidth, chosenWidth))
   const fullPage = view === 'full'
+  const SectionHeading = fullPage ? 'h2' : 'h3'
 
   useReserveRightEdge(sidebarWidth, !fullPage)
 
@@ -448,11 +450,12 @@ export function FolderSharingPanel({
     >
       <SheetContent
         side="right"
+        showCloseButton={!fullPage}
         className={cn(
           'sm:max-w-none transition-[width,max-width,left,top,height] motion-reduce:transition-none',
           fullPage ? 'border-l-0 shadow-none' : 'w-[var(--sharing-panel-width)]',
         )}
-        style={fullPage ? fullPageStyle : {
+        style={fullPage ? { ...fullPageStyle, backgroundColor: 'var(--background)' } : {
           width: `${String(sidebarWidth)}px`,
           maxWidth: `${String(sidebarWidth)}px`,
         }}
@@ -467,6 +470,34 @@ export function FolderSharingPanel({
           tabIndex={-1}
           className="flex min-h-0 flex-1 flex-col outline-none"
         >
+          {fullPage ? (
+            <div className="shrink-0 pt-5 md:pt-6">
+              <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-4 md:px-10">
+                <ContextPageHeader
+                  parent={shared}
+                  title="Team"
+                  icon={UsersRound}
+                  heading={(
+                    <SheetTitle render={<h1 />} className="truncate text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title">Team</SheetTitle>
+                  )}
+                  onBack={changePresentation}
+                  actions={(
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Open in side panel"
+                      title="Open in side panel"
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={changePresentation}
+                    >
+                      <PanelRight className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                    </Button>
+                  )}
+                />
+              </div>
+            </div>
+          ) : (
           <SheetHeader className="h-12 shrink-0 flex-row items-center gap-2 border-b border-border px-3 py-0 pr-14">
             <span
               aria-hidden="true"
@@ -515,19 +546,21 @@ export function FolderSharingPanel({
               )}
             </Button>
           </SheetHeader>
+          )}
 
           <div
             className={cn(
               'min-h-0 flex-1 overflow-y-auto',
-              fullPage ? 'px-6 py-6 sm:px-8' : 'px-3 py-4',
+              fullPage ? 'py-[var(--space-group)]' : 'px-3 py-4',
             )}
           >
-            <div className={cn('w-full', fullPage ? 'mx-auto max-w-4xl' : null)}>
+            <div className={cn('w-full', fullPage ? 'mx-auto max-w-[var(--shell-content-max)] px-4 md:px-10' : null)}>
             {openMember !== null ? (
               <MemberDetails
                 folderId={folder.id}
                 userId={openMember}
                 viewerId={viewerId}
+                fullPage={fullPage}
                 ask={confirm.ask}
                 onRemove={
                   mayRemove && openMember !== viewerId
@@ -542,7 +575,12 @@ export function FolderSharingPanel({
             ) : (
             <>
             {mayShare ? (
-              <div className="mb-[var(--space-group)] flex flex-wrap gap-[var(--space-inline)] px-2 sm:flex-nowrap">
+              <section
+                aria-label="Invite people"
+                className={cn('mb-[var(--space-group)]', fullPage && 'border-b border-border pb-[var(--space-group)]')}
+              >
+              {fullPage ? <h2 className="mb-3 text-sm font-section text-foreground">Invite people</h2> : null}
+              <div className="flex flex-wrap gap-[var(--space-inline)] sm:flex-nowrap">
                 <div className="relative min-w-0 basis-full sm:flex-1 sm:basis-auto">
                   <Input
                     role="combobox"
@@ -640,17 +678,18 @@ export function FolderSharingPanel({
                   Invite
                 </Button>
               </div>
+              </section>
             ) : null}
 
-            <h3 className="px-2 pb-1 text-sm font-medium text-foreground">Members</h3>
-            <ul role="list" className="flex flex-col gap-[var(--space-row)]">
+            <SectionHeading className={cn('text-sm font-section text-foreground', fullPage ? 'mb-3' : 'px-2 pb-1')}>Members</SectionHeading>
+            <ul role="list" className={cn('flex flex-col', fullPage ? 'divide-y divide-border overflow-hidden rounded-md border border-border' : 'gap-[var(--space-row)]')}>
               {[...folder.members]
                 .sort((a, b) => Number(b.is_owner) - Number(a.is_owner))
                 .map((member) => {
                 const name = member.user.display_name ?? 'Someone'
                 const isSelf = member.user.id === viewerId
                 return (
-                  <li key={member.user.id} className={ROW}>
+                  <li key={member.user.id} className={cn(ROW, fullPage && 'rounded-none px-3 py-2')}>
                     <PersonFace
                       id={member.user.id}
                       name={name}
@@ -700,10 +739,10 @@ export function FolderSharingPanel({
 
             {folder.pending_invites.length === 0 ? null : (
               <div className="mt-[var(--space-group)]">
-                <h3 className="px-2 pb-1 text-sm font-medium text-foreground">Pending invites</h3>
-                <ul role="list" className="flex flex-col gap-[var(--space-row)]">
+                <SectionHeading className={cn('text-sm font-section text-foreground', fullPage ? 'mb-3' : 'px-2 pb-1')}>Pending invites</SectionHeading>
+                <ul role="list" className={cn('flex flex-col', fullPage ? 'divide-y divide-border overflow-hidden rounded-md border border-border' : 'gap-[var(--space-row)]')}>
                   {folder.pending_invites.map((row) => (
-                    <li key={row.id} className={ROW}>
+                    <li key={row.id} className={cn(ROW, fullPage && 'rounded-none px-3 py-2')}>
                       <Avatar size="sm">
                         <AvatarFallback className="text-xs">@</AvatarFallback>
                       </Avatar>
@@ -743,7 +782,7 @@ export function FolderSharingPanel({
             )}
 
             {onTransfer === undefined ? null : (
-              <div className="mt-[var(--space-group)] flex flex-col items-start">
+              <div className={cn('mt-[var(--space-group)] flex flex-col items-start', fullPage && 'border-t border-border pt-3')}>
                 <Button variant="ghost" size="sm" className="font-normal text-muted-foreground" onClick={onTransfer}>
                   Transfer ownership…
                 </Button>

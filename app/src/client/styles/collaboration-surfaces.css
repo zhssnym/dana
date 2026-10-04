@@ -14,16 +14,3 @@ keeps the existing full-height panels.
     height: calc(100dvh - var(--row-height));
   }
 }
-
-/* Discussion rows are separated by rhythm and hover state, not rules. The
-   existing divide utilities stay harmless for older/loading markup while this
-   surface-level rule keeps the visual treatment flat. */
-div:has(> div > [aria-label="Show threads"]) > ul {
-  gap: var(--space-row);
-}
-
-div:has(> div > [aria-label="Show threads"]) > ul > li,
-[aria-label="Loading threads"] > div {
-  border-top-width: 0;
-  border-bottom-width: 0;
-}
