@@ -14,19 +14,22 @@ describe('Discussion presentation refinement', () => {
     expect(tabs).toContain("tabs.filter((tab) => tab.kind !== 'discussion')")
     expect(tabs).toContain("return ['doc', 'work']")
     expect(tabs).not.toContain("['doc', 'work', 'discussion']")
+    expect(tabs).toContain("if (activeStored?.kind === 'discussion') return null")
     expect(tabs).toContain('if (!rowEditable && tools === undefined) return null')
   })
 
-  test('keeps the project header active in full screen and exposes Sidebar view', () => {
+  test('keeps the project header as the full-screen presentation control', () => {
     expect(header).toContain("routePage.kind === 'discussion'")
     expect(header).toContain('aria-pressed="true"')
     expect(header).toContain('moveDiscussionToSidebar')
-    expect(fullScreen).toContain('Sidebar view')
-    expect(fullScreen).toContain('moveDiscussionToSidebar')
+    expect(fullScreen).not.toContain('Sidebar view')
+    expect(fullScreen).not.toContain('moveDiscussionToSidebar')
   })
 
   test('keeps sidebar identity compact and removes new task discussion actions for solo work', () => {
     expect(dock).toContain('<MessagesSquare')
+    expect(dock).toContain('bg-popover')
+    expect(dock).toContain('shadow-md')
     expect(dock).toContain('collaborative &&')
     expect(task).toContain('(collaborative || hasDiscussion)')
     expect(task).toContain('collaborative && mayDraw(facts, "discussion.create")')
