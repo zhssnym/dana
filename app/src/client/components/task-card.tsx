@@ -4,11 +4,13 @@ task page, no peek).
 
 Four fixed properties are always shown, in this order: Status, Assignee, Date
 (its start, reminder and repeat live inside the Date picker) and Labels. A
-collaborative page adds Discussion after Labels; Desk never does because it has
-no team conversation. Then "Blocked by" / "Blocks" lines appear once a
-relation exists (the editor's `/Blocked by` makes one). Then the task's own
-document, whose checklist items are its subtasks and which holds only what the
-person wrote. Every edit commits as it is made, so there is no Save.
+collaborative page adds Discussion after Labels; a solo project keeps only an
+existing Discussion relation so history remains reachable. Desk never does
+because it has no team conversation. Then "Blocked by" / "Blocks" lines
+appear once a relation exists (the editor's `/Blocked by` makes one). Then the
+task's own document, whose checklist items are its subtasks and which holds
+only what the person wrote. Every edit commits as it is made, so there is no
+Save.
 
 Files go in the task's document, which takes file and image blocks.
 */
@@ -29,7 +31,7 @@ import {
 } from "./task-pickers.js"
 import { SchedulePanel } from "./task-schedule-picker.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
-import { useAllPages, useMe, useTask } from "../api/queries.js"
+import { useAllPages, useFolder, useMe, useTask } from "../api/queries.js"
 import { useUpdateTask } from "../api/mutations.js"
 import { mayDraw } from "../lib/folder-authority.js"
 import { presenterToday } from "../parts/presenters.js"
@@ -243,6 +245,8 @@ function useTaskMay(taskId: string, folderId: string | null) {
   const detail = useTask(taskId).data
   const row = pages.data?.find((folder) => folder.id === folderId)
   const root = row === undefined ? undefined : pages.data?.find((folder) => folder.id === row.project_id)
+  const projectId = row?.project_id ?? null
+  const project = useFolder(projectId ?? "", projectId !== null).data
   const viewerId = me.data?.user.id ?? null
   const mine = viewerId !== null &&
     (detail?.assignees?.some((person) => person.id === viewerId)
@@ -251,6 +255,8 @@ function useTaskMay(taskId: string, folderId: string | null) {
     row === undefined
       ? null
       : { access: row.my_access, isOwner: row.is_owner, isDefault: (root ?? row).is_default }
+  const collaborative = (project?.members.length ?? 0) > 1
+  const hasDiscussion = (detail?.linked_discussions.length ?? 0) > 0
   return {
     complete:
       facts !== null &&
@@ -265,10 +271,10 @@ function useTaskMay(taskId: string, folderId: string | null) {
         : mine && facts.access === "assigned_work"
           ? ("tick" as const)
           : ("read" as const),
-    /* Discussion belongs to collaborative projects. On Desk the whole
-       property disappears, including legacy links and the empty state. */
-    showDiscussion: facts !== null && !facts.isDefault,
-    discuss: facts !== null && !facts.isDefault && mayDraw(facts, "discussion.create"),
+    /* A solo project has no new Discussion affordance. A linked historical
+       thread stays visible after teammates leave so access is never lost. */
+    showDiscussion: facts !== null && !facts.isDefault && (collaborative || hasDiscussion),
+    discuss: facts !== null && !facts.isDefault && collaborative && mayDraw(facts, "discussion.create"),
     manageFolderLabels: facts !== null && mayDraw(facts, 'label.vocabulary.manage'),
     /* A contributor may classify their own Task; only the server's locked
        assignment read can decide which one is theirs. */
