@@ -91,6 +91,22 @@ function pressedHistoryBack(event: Event): boolean {
   return target instanceof Element && target.closest('[data-history-back]') !== null
 }
 
+/**
+ * Workspace-tab controls live outside this non-modal Sheet. They must switch
+ * which tab is active without first dismissing and mutating the Team state on
+ * the tab being left. The open-tab picker is portaled, so its trigger, search
+ * input and result list are named explicitly as the same workspace-tab action.
+ */
+function workspaceTabInteraction(event: Event): boolean {
+  const target = event instanceof FocusEvent ? event.relatedTarget : event.target
+  return (
+    target instanceof Element &&
+    target.closest(
+      '[role="tab"], [aria-label="Open tab"], [aria-label="Search Dana to open a tab"], #dana-open-tab-results',
+    ) !== null
+  )
+}
+
 const ROW =
   'flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)] rounded-md px-2 py-1'
 
@@ -262,6 +278,12 @@ export function FolderSharingPanel({
     <Sheet
       open
       onOpenChange={(next, details) => {
+        /* Workspace-tab navigation hides Team by changing the active tab. Do not
+           dismiss or clear the tab-local Team/member state before that switch. */
+        if (!next && workspaceTabInteraction(details.event)) {
+          details.cancel()
+          return
+        }
         /* A press inside the confirm reads as outside this non-modal sheet;
            Team stays open under it, whichever the answer. */
         /* The top bar's back arrow, pressed with a member open, pops that
