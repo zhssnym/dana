@@ -131,14 +131,20 @@ export function updateActiveCollaboration(
   setActiveCollaboration(next)
 }
 
+function visibleBrowserPath(): string | null {
+  if (typeof window === 'undefined') return null
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`
+}
+
 /**
- * Reconcile ordinary router navigation with the working set.
+ * Commit a known destination to the active workspace tab immediately.
  *
- * If the destination is already represented by another tab, that tab becomes
- * current and takes the exact URL the navigation requested. Otherwise the
- * active tab is retargeted in place, like an address bar.
+ * Presentation transitions use this before router navigation because the
+ * TabStrip's ordinary route reconciliation is intentionally passive. Keeping
+ * this explicit path prevents a fast workspace-tab switch from observing the
+ * previous Discussion URL.
  */
-export function retarget(path: string): void {
+export function commitActiveTabRoute(path: string): void {
   const active = state.tabs.find((tab) => tab.id === state.activeId)
   if (active === undefined || active.path === path) return
 
@@ -158,6 +164,24 @@ export function retarget(path: string): void {
     tabs: state.tabs.map((tab) => (tab.id === state.activeId ? { ...tab, path } : tab)),
   }
   publish()
+}
+
+/**
+ * Reconcile ordinary router navigation with the working set.
+ *
+ * A passive effect may be left over from the route that was visible just
+ * before a workspace-tab click. Ignore that stale effect once the browser has
+ * already moved somewhere else; otherwise it can retarget the newly active
+ * tab back to an old Discussion URL.
+ *
+ * If the current router destination is already represented by another tab,
+ * that tab becomes current and takes the exact URL the navigation requested.
+ * Otherwise the active tab is retargeted in place, like an address bar.
+ */
+export function retarget(path: string): void {
+  const visible = visibleBrowserPath()
+  if (visible !== null && visible !== path) return
+  commitActiveTabRoute(path)
 }
 
 /** Add a place beside the active tab, or switch to its existing tab. */
