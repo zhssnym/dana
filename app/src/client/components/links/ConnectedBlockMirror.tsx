@@ -166,13 +166,14 @@ export function ConnectedBlockMirror({
       onPointerDown={(event) => { event.stopPropagation() }}
       onClick={(event) => { event.stopPropagation() }}
       onKeyDownCapture={(event) => {
-        event.stopPropagation()
         // One mirror is one canonical block. Structural splitting belongs in
         // the source page; Shift+Enter remains available for a soft break.
         if (editable && block.kind !== 'code' && event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault()
+          event.stopPropagation()
         }
       }}
+      onKeyDown={(event) => { event.stopPropagation() }}
     >
       {sourcePath === null ? null : (
         <RouterLink
