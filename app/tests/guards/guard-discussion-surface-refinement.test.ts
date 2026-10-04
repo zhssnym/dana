@@ -20,6 +20,11 @@ describe('Discussion surface refinement', () => {
     expect(list).not.toContain("variant={docked ? 'ghost' : 'commit'}")
   })
 
+  test('paginates within the selected Discussion state instead of filtering a mixed page', () => {
+    expect(list).toContain("const list = useDiscussions(folderId, filter, '')")
+    expect(list).not.toContain("useDiscussions(folderId, 'all', '')")
+  })
+
   test('keeps every full-screen Discussion route free of the horizontal page strip', () => {
     expect(tabs).toContain("const activeStored = tabs.find((tab) => tab.id === activeId)")
     expect(tabs).toContain("query.has('discussion')")
