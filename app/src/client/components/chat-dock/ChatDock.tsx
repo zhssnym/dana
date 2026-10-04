@@ -1,6 +1,6 @@
 /*
-The Discussion sidebar (issue #546, refined by #553): the project's Discussion
-beside the work.
+The Discussion sidebar (issue #546, refined by #553 and #560): the project's
+Discussion beside the work.
 
 Discussion has two presentations and this is one of them. The other is the
 stored Discussion page in full-screen; that page is intentionally hidden from
@@ -9,6 +9,10 @@ thread (`consultation/`) from the same server rows, so there is one Discussion
 and nothing here holds a copy of it. Which project and thread are open is
 `state/chat-dock.ts`, never the URL, so opening it never leaves the task being
 discussed.
+
+The sidebar uses the same popover surface, border and elevation language as the
+Team sidebar. Depth belongs to this outer shell only; the thread filters and
+rows inside stay flat.
 
 It follows the page: on another project's page it becomes that project's,
 on a task it opens that task's thread (once per visit, so going back to the
@@ -166,11 +170,10 @@ function Dock({
       aria-label="Discussion"
       tabIndex={-1}
       style={{ width: `${String(width)}px` }}
-      /* Under sheets, menus and dialogs (z-50), so a thread's own menu opens
-         over it. Motion answers the press that opened it, and only that:
-         `transition-none`, because `duration-150` would otherwise ease every
-         width change and a drag would trail the pointer. */
-      className="fixed top-0 right-0 bottom-0 z-40 flex max-w-full flex-col border-l border-border bg-background outline-none transition-none animate-in fade-in-0 slide-in-from-right-2 duration-150 ease-out motion-reduce:animate-none"
+      /* Match Team's sheet surface: the shell gets visual depth, not each
+         thread row. Under sheets, menus and dialogs (z-50), so a thread's own
+         menu still opens over it. */
+      className="fixed top-0 right-0 bottom-0 z-40 flex max-w-full flex-col border-l border-border bg-popover bg-clip-padding text-popover-foreground shadow-md outline-none transition-none animate-in fade-in-0 slide-in-from-right-2 duration-150 ease-out motion-reduce:animate-none"
       onKeyDown={(event) => {
         /* An open thread takes Escape back to the list first. */
         if (event.key === 'Escape' && !event.defaultPrevented && discussionId === null) {
