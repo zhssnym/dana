@@ -1,47 +1,54 @@
 /*
-The Discussion sidebar's state (issue #546).
+The Discussion sidebar's presentation adapter (issue #546, tab-scoped by
+#569).
 
-Discussion has two presentations: the full-screen Discussion tab, and this
-sidebar beside the work. Both draw the same thread from the same server rows;
-the sidebar only remembers which project and which thread it shows, never a
-copy of the conversation. Kept out of the URL so opening it never navigates
-away from the task being discussed.
+The selected project/thread/filter/presentation live on the active workspace
+tab in `shell/tabs.ts`; this module only gives Discussion callers a narrow API
+for that state. Switching workspace tabs therefore changes the visible dock
+without mutating either tab. The sidebar width is deliberately different: it is
+a shared viewer/window preference and remains here in localStorage.
 */
 import { useSyncExternalStore } from 'react'
 
+import {
+  activeCollaboration,
+  activeWorkspaceTabId,
+  setActiveCollaboration,
+  updateActiveCollaboration,
+  useActiveCollaboration,
+} from '../shell/tabs.js'
+import type { DiscussionFilter } from '../shell/tabs.js'
+
 export interface ChatDockState {
+  /** Workspace tab that owns this presentation; used to isolate local UI state. */
+  readonly workspaceTabId: string
   /** Any page of the project; the server lists the whole project's threads. */
   readonly folderId: string
   /** The open thread, or null for the project's list of threads. */
   readonly discussionId: string | null
+  /** The thread-list filter this workspace tab last used. */
+  readonly filter: DiscussionFilter
 }
 
-/** The sidebar's width limits. The upper bound also yields to the window,
- * so the work beside it always keeps room (`dockWidthBounds`). */
 export const DOCK_MIN_WIDTH = 360
 export const DOCK_MAX_WIDTH = 720
 export const DOCK_DEFAULT_WIDTH = 440
-/** The room the work keeps beside the sidebar: a readable page plus,
- * roughly, the left sidebar. Below it the sidebar lies over the page. */
 export const DOCK_PAGE_MIN = 560
 export const DOCK_SIDEBAR_ROOM = 260
 
-/* A new key; never rename it (a rename silently resets everyone's width). */
 const WIDTH_KEY = 'dana.discussion-sidebar.width'
 
-let state: ChatDockState | null = null
 let width = readWidth()
-/* Where focus was when the sidebar opened, so closing hands it back. */
-let opener: HTMLElement | null = null
-const listeners = new Set<() => void>()
+const openers = new Map<string, HTMLElement>()
+const widthListeners = new Set<() => void>()
 
-function notify(): void {
-  listeners.forEach((listener) => { listener() })
+function notifyWidth(): void {
+  widthListeners.forEach((listener) => { listener() })
 }
 
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
+function subscribeWidth(listener: () => void): () => void {
+  widthListeners.add(listener)
+  return () => widthListeners.delete(listener)
 }
 
 function readWidth(): number {
@@ -53,25 +60,76 @@ function readWidth(): number {
   }
 }
 
-/** The widths the sidebar may take in a window this wide. */
 export function dockWidthBounds(windowWidth: number): { readonly min: number; readonly max: number } {
   const max = Math.max(DOCK_MIN_WIDTH, Math.min(DOCK_MAX_WIDTH, windowWidth - DOCK_PAGE_MIN - DOCK_SIDEBAR_ROOM))
   return { min: DOCK_MIN_WIDTH, max }
 }
 
-/** Opens the sidebar, or moves the open one to another project or thread. */
-export function openChatDock(next: { readonly folderId: string; readonly discussionId?: string | null }): void {
-  if (state === null && document.activeElement instanceof HTMLElement) opener = document.activeElement
-  state = { folderId: next.folderId, discussionId: next.discussionId ?? null }
-  notify()
+export function openChatDock(next: {
+  readonly folderId: string
+  readonly discussionId?: string | null
+  readonly filter?: DiscussionFilter
+}): void {
+  const current = activeCollaboration()
+  const tabId = activeWorkspaceTabId()
+  if (
+    !(current?.kind === 'discussion' && current.presentation === 'sidebar') &&
+    document.activeElement instanceof HTMLElement
+  ) {
+    openers.set(tabId, document.activeElement)
+  }
+  const sameDiscussion = current?.kind === 'discussion' && current.folderId === next.folderId
+  setActiveCollaboration({
+    kind: 'discussion',
+    folderId: next.folderId,
+    discussionId: next.discussionId ?? null,
+    filter: next.filter ?? (sameDiscussion ? current.filter : 'open'),
+    presentation: 'sidebar',
+  })
+}
+
+export function openDiscussionFullScreen(next: {
+  readonly folderId: string
+  readonly discussionId: string | null
+}): void {
+  updateActiveCollaboration((current) => {
+    const sameDiscussion = current?.kind === 'discussion' && current.folderId === next.folderId
+    if (
+      sameDiscussion &&
+      current.presentation === 'full' &&
+      current.discussionId === next.discussionId
+    ) return current
+    return {
+      kind: 'discussion',
+      folderId: next.folderId,
+      discussionId: next.discussionId,
+      filter: sameDiscussion ? current.filter : 'open',
+      presentation: 'full',
+    }
+  })
+}
+
+export function setChatDockFilter(filter: DiscussionFilter): void {
+  updateActiveCollaboration((current) => {
+    if (current?.kind !== 'discussion' || current.filter === filter) return current
+    return { ...current, filter }
+  })
+}
+
+export function setDiscussionPresentation(presentation: 'sidebar' | 'full'): void {
+  updateActiveCollaboration((current) => {
+    if (current?.kind !== 'discussion' || current.presentation === presentation) return current
+    return { ...current, presentation }
+  })
 }
 
 export function closeChatDock(): void {
-  if (state === null) return
-  state = null
-  notify()
-  const back = opener
-  opener = null
+  const current = activeCollaboration()
+  if (current?.kind !== 'discussion') return
+  const tabId = activeWorkspaceTabId()
+  setActiveCollaboration(null)
+  const back = openers.get(tabId)
+  openers.delete(tabId)
   if (back?.isConnected === true) back.focus()
 }
 
@@ -84,14 +142,20 @@ export function setChatDockWidth(next: number): void {
   } catch {
     /* A browser that refuses storage keeps the width for this visit only. */
   }
-  notify()
+  notifyWidth()
 }
 
 export function useChatDock(): ChatDockState | null {
-  return useSyncExternalStore(subscribe, () => state, () => null)
+  const current = useActiveCollaboration()
+  if (current?.kind !== 'discussion' || current.presentation !== 'sidebar') return null
+  return {
+    workspaceTabId: activeWorkspaceTabId(),
+    folderId: current.folderId,
+    discussionId: current.discussionId,
+    filter: current.filter,
+  }
 }
 
-/** The width the person chose; `dockWidthBounds` clamps it to the window. */
 export function useChatDockWidth(): number {
-  return useSyncExternalStore(subscribe, () => width, () => DOCK_DEFAULT_WIDTH)
+  return useSyncExternalStore(subscribeWidth, () => width, () => DOCK_DEFAULT_WIDTH)
 }

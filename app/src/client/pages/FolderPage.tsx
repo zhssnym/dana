@@ -145,6 +145,7 @@ import { FOLDER_ACTION_PARAM, folderActionPath } from '../shell/app-sidebar.js'
 import { copyLink } from '../lib/object-acts.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
 import { closeChatDock, openChatDock, useChatDock } from '../state/chat-dock.js'
+import { useTeamPanelState } from '../state/collaboration.js'
 import { useDiscussions } from '../api/consultation.js'
 import { isUnread } from '../components/consultation/DiscussionList.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
@@ -392,7 +393,7 @@ function FolderPageBody({
   const createTab = useCreateTab()
   const moveTab = useMoveFolder()
   const duplicate = useDuplicateFolder()
-  const [sharing, setSharing] = useState(false)
+  const [sharing, setSharing] = useTeamPanelState(headId)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
   /* The member picked in the transfer dialog; nothing moves until its button. */

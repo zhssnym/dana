@@ -41,7 +41,8 @@ import { cn } from '../ui/utils.js'
 import { discussionPowers, mayStartDiscussion } from './authority.js'
 import type { ConsultationViewer } from './authority.js'
 
-type State = 'open' | 'resolved'
+export type DiscussionListFilter = 'open' | 'resolved'
+type State = DiscussionListFilter
 
 /** Someone else posted since this person last read the thread. */
 export function isUnread(d: Discussion, viewerId: string | null): boolean {
@@ -69,6 +70,8 @@ export function DiscussionList({
   onOpen,
   onStarted,
   docked = false,
+  filter: controlledFilter,
+  onFilterChange,
 }: {
   readonly docked?: boolean
   readonly folderId: string
@@ -78,12 +81,20 @@ export function DiscussionList({
   readonly returnTo?: string | null
   readonly onOpen: (discussionId: string) => void
   readonly onStarted: (discussionId: string) => void
+  /** Controlled by the workspace tab when present; local for legacy callers. */
+  readonly filter?: DiscussionListFilter
+  readonly onFilterChange?: (filter: DiscussionListFilter) => void
 }): React.JSX.Element {
   const list = useDiscussions(folderId, 'all', '')
   const resolve = useResolveDiscussion()
   const reopen = useReopenDiscussion()
   const keys = useRowKeys<HTMLDivElement>()
-  const [filter, setFilter] = useState<State>('open')
+  const [localFilter, setLocalFilter] = useState<State>('open')
+  const filter = controlledFilter ?? localFilter
+  const setFilter = (next: State): void => {
+    if (controlledFilter === undefined) setLocalFilter(next)
+    onFilterChange?.(next)
+  }
   const [starting, setStarting] = useState(false)
   /* A pressed mark moves its row at once; the refetch then agrees. */
   const [moved, setMoved] = useState<ReadonlyMap<string, State>>(new Map())

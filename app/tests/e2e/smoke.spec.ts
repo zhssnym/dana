@@ -4,7 +4,8 @@ from eight spec files to one (2026-09-23), trading exhaustive browser coverage
 for a leg that is short and dependable.
 
 It checks the built client against the real server and seed: sign in, capture a
-task, open a folder, and edit a Task's Labels. Finer cases belong in vitest.
+task, open a folder, edit a Task's Labels, and keep collaboration surfaces on
+the workspace tab that owns them. Finer cases belong in vitest.
 
 The runner seeds once per run (playwright.config.ts), so a task this spec
 creates carries a per-run suffix and never collides with a previous run's rows
@@ -118,6 +119,54 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
         return { stored: placed !== undefined, section: heading !== undefined && placed?.section_block_id === heading.id }
       })
       .toEqual({ stored: true, section: true })
+  })
+})
+
+test('smoke: collaboration state follows its workspace tab', async ({ page }) => {
+  await signIn(page)
+  await page.goto(`/app/folders/${seedIds.groceries}`)
+
+  const tabs = page.getByRole('tablist', { name: 'Open tabs' })
+  await expect(tabs).toBeVisible()
+
+  await test.step('Team member detail disappears with the tab and restores exactly', async () => {
+    await page.getByRole('button', { name: 'Team', exact: true }).click()
+    const team = page.getByRole('region', { name: 'Sharing panel' })
+    await expect(team).toBeVisible()
+    await team.getByRole('button', { name: 'Imran', exact: true }).click()
+    await expect(team.getByRole('heading', { name: 'Imran', exact: true })).toBeVisible()
+    await expect(page).toHaveURL(new RegExp(`member=${seedIds.imran}`))
+
+    await page.getByRole('button', { name: 'Open tab' }).click()
+    await page.getByRole('textbox', { name: 'Search Dana to open a tab' }).fill('Today')
+    await page.getByRole('option', { name: /Today/ }).first().click()
+    await expect(page).toHaveURL(/\/app\/today$/)
+    await expect(page.getByRole('region', { name: 'Sharing panel' })).toHaveCount(0)
+
+    await page.getByRole('tab', { name: /Groceries/ }).click()
+    await expect(page).toHaveURL(new RegExp(`/app/folders/${seedIds.groceries}.*member=${seedIds.imran}`))
+    await expect(page.getByRole('region', { name: 'Sharing panel' }).getByRole('heading', { name: 'Imran', exact: true })).toBeVisible()
+  })
+
+  await test.step('Discussion filter disappears with the tab and restores without shrinking the tab strip', async () => {
+    await page.getByRole('button', { name: 'Team', exact: true }).click()
+    await expect(page.getByRole('region', { name: 'Sharing panel' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Discussion', exact: true }).click()
+    const dock = page.locator('[data-chat-dock]')
+    await expect(dock).toBeVisible()
+    await dock.getByRole('button', { name: 'Resolved', exact: true }).click()
+    await expect(dock.getByRole('button', { name: 'Resolved', exact: true })).toHaveAttribute('aria-pressed', 'true')
+
+    const stripRight = await tabs.locator('..').evaluate((element) => element.getBoundingClientRect().right)
+    const viewportWidth = await page.evaluate(() => window.innerWidth)
+    expect(Math.abs(viewportWidth - stripRight)).toBeLessThan(2)
+
+    await page.getByRole('tab', { name: /Today/ }).click()
+    await expect(dock).toHaveCount(0)
+
+    await page.getByRole('tab', { name: /Groceries/ }).click()
+    await expect(dock).toBeVisible()
+    await expect(dock.getByRole('button', { name: 'Resolved', exact: true })).toHaveAttribute('aria-pressed', 'true')
   })
 })
 
