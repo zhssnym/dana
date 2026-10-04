@@ -3,7 +3,7 @@ import type { NavigateFunction } from 'react-router'
 import { openChatDock } from '../../state/chat-dock.js'
 import {
   activeCollaboration,
-  retarget,
+  commitActiveTabRoute,
   setActiveCollaboration,
   updateActiveCollaboration,
 } from '../../shell/tabs.js'
@@ -35,7 +35,7 @@ export function discussionReturnTo(projectId: string): string | null {
  * behind if the user changes workspace tabs immediately after the click.
  */
 function commitReturnRoute(targetPath: string): void {
-  retarget(targetPath)
+  commitActiveTabRoute(targetPath)
 }
 
 /**
