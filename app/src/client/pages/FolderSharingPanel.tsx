@@ -5,6 +5,9 @@ Team has two presentations over the same membership, invite and access data:
 a compact sidebar that leaves the Work visible, and a full-page presentation
 for focused management. Switching presentation never remounts a second Team
 model, so member details, invite input and permissions stay in the same state.
+The presentation itself belongs to the active workspace tab (#569), while the
+selected member remains canonical URL state (`?member=`), which workspace tabs
+already preserve as part of their exact path.
 
 The field suggests connections who are not yet members. Invite always sends a
 page invite by address, picked connection or typed address alike: the server
@@ -49,6 +52,7 @@ import type { FolderViewerFacts } from '../lib/folder-authority.js'
 import { ChevronDown, Maximize2, PanelRight, UsersRound } from '../lib/icons.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
+import { useTeamPresentation } from '../state/collaboration.js'
 import { PersonFace } from '../components/person-face.js'
 import { AccessMenu, InviteAccessPicker, MemberDetails } from './MemberDetails.js'
 import { ConfirmDialog, useConfirm } from './task-rows.js'
@@ -60,8 +64,6 @@ const SHARING_PANEL = 'Sharing panel'
 const NAME_OR_EMAIL = 'Name or email'
 
 const DAY_MS = 24 * 60 * 60 * 1000
-
-type TeamView = 'sidebar' | 'full'
 
 /** Whether 5.2's resend window has passed, read off the invite itself. */
 function resendable(lastSentAt: string): boolean {
@@ -87,6 +89,22 @@ export const MEMBER_PARAM = 'member'
 function pressedHistoryBack(event: Event): boolean {
   const target = event instanceof FocusEvent ? event.relatedTarget : event.target
   return target instanceof Element && target.closest('[data-history-back]') !== null
+}
+
+/**
+ * Workspace-tab controls live outside this non-modal Sheet. They must switch
+ * which tab is active without first dismissing and mutating the Team state on
+ * the tab being left. The open-tab picker is portaled, so its trigger, search
+ * input and result list are named explicitly as the same workspace-tab action.
+ */
+function workspaceTabInteraction(event: Event): boolean {
+  const target = event instanceof FocusEvent ? event.relatedTarget : event.target
+  return (
+    target instanceof Element &&
+    target.closest(
+      '[role="tab"], [aria-label="Open tab"], [aria-label="Search Dana to open a tab"], #dana-open-tab-results',
+    ) !== null
+  )
 }
 
 const ROW =
@@ -134,7 +152,7 @@ export function FolderSharingPanel({
   const [pickedEmail, setPickedEmail] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
-  const [view, setView] = useState<TeamView>('sidebar')
+  const [view, setView] = useTeamPresentation(folder.id)
   const surface = useRef<HTMLElement | null>(null)
   /* The member whose details replace the lists (#209), or null for the lists.
      It lives in the address (?member=) and opening one pushes an entry, so
@@ -260,6 +278,12 @@ export function FolderSharingPanel({
     <Sheet
       open
       onOpenChange={(next, details) => {
+        /* Workspace-tab navigation hides Team by changing the active tab. Do not
+           dismiss or clear the tab-local Team/member state before that switch. */
+        if (!next && workspaceTabInteraction(details.event)) {
+          details.cancel()
+          return
+        }
         /* A press inside the confirm reads as outside this non-modal sheet;
            Team stays open under it, whichever the answer. */
         /* The top bar's back arrow, pressed with a member open, pops that
@@ -414,7 +438,6 @@ export function FolderSharingPanel({
                         setOpen(true)
                         setActive((at) => (at <= 0 ? suggestions.length - 1 : at - 1))
                       } else if (event.key === 'Escape' && showList) {
-                        // Close the suggestions, not the panel.
                         event.preventDefault()
                         event.stopPropagation()
                         setOpen(false)
@@ -479,8 +502,6 @@ export function FolderSharingPanel({
 
             <h3 className="px-2 pb-1 text-sm font-medium text-foreground">Members</h3>
             <ul role="list" className="flex flex-col gap-[var(--space-row)]">
-              {/* The owner first: who holds the page is the first thing the
-                  list answers. The rest keep the server's order. */}
               {[...folder.members]
                 .sort((a, b) => Number(b.is_owner) - Number(a.is_owner))
                 .map((member) => {
@@ -494,8 +515,6 @@ export function FolderSharingPanel({
                       initials={initialsOf(name)}
                       image={member.user.avatar_url}
                     />
-                    {/* The name opens the member's details: Access,
-                        Responsibilities and their history (#209). */}
                     <button
                       type="button"
                       data-member-row={member.user.id}
@@ -508,8 +527,6 @@ export function FolderSharingPanel({
                       {isSelf ? <span className="text-muted-foreground"> (you)</span> : null}
                     </button>
                     {member.is_owner ? (
-                      /* The hidden chevron keeps Owner in the column the
-                         pickers' labels sit in. */
                       <span className="inline-flex shrink-0 items-center gap-1 px-1.5 text-xs text-muted-foreground">
                         Owner
                         {mayChange ? (
@@ -539,8 +556,6 @@ export function FolderSharingPanel({
               })}
             </ul>
 
-            {/* Below Full control the server answers [] here (R9), so this
-                list needs no gate of its own. */}
             {folder.pending_invites.length === 0 ? null : (
               <div className="mt-[var(--space-group)]">
                 <h3 className="px-2 pb-1 text-sm font-medium text-foreground">Pending invites</h3>
@@ -550,7 +565,6 @@ export function FolderSharingPanel({
                       <Avatar size="sm">
                         <AvatarFallback className="text-xs">@</AvatarFallback>
                       </Avatar>
-                      {/* The exact address, so a typo can be seen and repaired. */}
                       <p className="flex min-w-0 flex-1 flex-col">
                         <span className="truncate text-sm text-foreground">{row.email}</span>
                         <span className="truncate text-xs text-muted-foreground">
@@ -586,7 +600,6 @@ export function FolderSharingPanel({
               </div>
             )}
 
-            {/* Who else gets the page itself. Export is the project's "…" (u2). */}
             {onTransfer === undefined ? null : (
               <div className="mt-[var(--space-group)] flex flex-col items-start">
                 <Button variant="ghost" size="sm" className="font-normal text-muted-foreground" onClick={onTransfer}>

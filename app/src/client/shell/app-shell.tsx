@@ -123,7 +123,6 @@ const NO_FOLDERS: readonly Folder[] = []
 /** And for the shelves the Library reads. */
 const NO_SHELVES: readonly Shelf[] = []
 
-
 /** 10.6's update copy, transcribed. AC-100 addresses it by this name. */
 const UPDATE_AVAILABLE = 'Update available, reload'
 
@@ -482,7 +481,6 @@ export function AppShell(): React.JSX.Element {
   const activeFolderId =
     onTab !== undefined && onTab.tab_position !== null ? onTab.project_id : pathFolderId
 
-
   // F-8's other half: while the document load above is in flight, the shell
   // must not mount its pages, whose reads would each earn the same 401.
   if (signedOut) {
@@ -598,13 +596,15 @@ export function AppShell(): React.JSX.Element {
             onOpenSearch={openSearch}
           />
           {/*
-          `SidebarInset` is the `main` landmark. A right-edge panel publishes its
-          width to `components/right-edge.tsx` and this takes it off as a margin,
-          so the page narrows rather than being covered.
+          `SidebarInset` is the `main` landmark. The active workspace tab's
+          collaboration panel may reserve a right edge, but that reservation
+          starts below the workspace tab strip (#569). Expose the amount as a
+          shell variable: `WindowBar` leaves its top TabStrip full width while
+          the lower page bar and scroll region yield by the same amount.
            */}
           <SidebarInset
-            className="relative min-w-0 overflow-hidden bg-background transition-[margin] duration-150 ease-out"
-            style={{ marginRight: `${String(rightEdge)}px` }}
+            className="relative min-w-0 overflow-hidden bg-background"
+            style={{ '--collaboration-right-edge': `${String(rightEdge)}px` } as CSSProperties}
           >
             {/* `components/window-bar.tsx`: pages and the task surface portal
                 their controls into its two ends. */}
@@ -616,7 +616,8 @@ export function AppShell(): React.JSX.Element {
               ref={setContent}
               id="dana-content"
               data-shell-scroll
-              className="min-h-0 flex-1 overflow-y-auto"
+              style={{ marginRight: 'var(--collaboration-right-edge, 0px)' }}
+              className="min-h-0 flex-1 overflow-y-auto transition-[margin] duration-150 ease-out"
             >
               {/* The width a cover bleeds to (`100cqw` in page-cover.tsx). The
                   scroll region is a query container too, but its width counts

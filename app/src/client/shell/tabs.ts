@@ -11,14 +11,40 @@ A tab is keyed by its page pathname for de-duplication. Query/hash state still
 travels with the tab, so a Folder can remember the facet or open task it was
 showing without turning Purpose / Work / Results / Discussion into another
 set of application tabs.
+
+Collaboration presentation state belongs to the workspace tab for the same
+reason. Discussion or Team can be open in one tab and absent in another; only
+the active tab's state is visible. Switching tabs therefore hides a panel
+without destroying it, and switching back restores the exact panel state that
+tab owned. Sidebar width remains a separate viewer/window preference.
 */
 import { useSyncExternalStore } from 'react'
 
 import { paths } from '../routes.js'
 
+export type CollaborationPresentation = 'sidebar' | 'full'
+export type DiscussionFilter = 'open' | 'resolved'
+
+export interface DiscussionCollaborationState {
+  readonly kind: 'discussion'
+  readonly folderId: string
+  readonly discussionId: string | null
+  readonly filter: DiscussionFilter
+  readonly presentation: CollaborationPresentation
+}
+
+export interface TeamCollaborationState {
+  readonly kind: 'team'
+  readonly folderId: string
+  readonly presentation: CollaborationPresentation
+}
+
+export type CollaborationState = DiscussionCollaborationState | TeamCollaborationState
+
 export interface Tab {
   readonly id: string
   readonly path: string
+  readonly collaboration: CollaborationState | null
 }
 
 interface TabState {
@@ -40,7 +66,11 @@ export function tabKey(path: string): string {
   return path.slice(0, end)
 }
 
-const first: Tab = { id: nextId(), path: paths.today }
+function newTab(path: string): Tab {
+  return { id: nextId(), path, collaboration: null }
+}
+
+const first: Tab = newTab(paths.today)
 let state: TabState = { tabs: [first], activeId: first.id }
 
 const listeners = new Set<() => void>()
@@ -57,6 +87,44 @@ export function useTabs(): TabState {
     () => state,
     () => state,
   )
+}
+
+/** The collaboration state owned by the workspace tab currently on screen. */
+export function useActiveCollaboration(): CollaborationState | null {
+  const current = useTabs()
+  return current.tabs.find((tab) => tab.id === current.activeId)?.collaboration ?? null
+}
+
+/** Non-hook read for event handlers that must preserve the latest active state. */
+export function activeCollaboration(): CollaborationState | null {
+  return state.tabs.find((tab) => tab.id === state.activeId)?.collaboration ?? null
+}
+
+/** The active tab id, used only for tab-local focus bookkeeping. */
+export function activeWorkspaceTabId(): string {
+  return state.activeId
+}
+
+/** Replace the active workspace tab's collaboration presentation state. */
+export function setActiveCollaboration(next: CollaborationState | null): void {
+  const at = state.tabs.findIndex((tab) => tab.id === state.activeId)
+  if (at < 0) return
+  const tab = state.tabs[at]
+  if (tab === undefined || Object.is(tab.collaboration, next)) return
+  const tabs = [...state.tabs]
+  tabs[at] = { ...tab, collaboration: next }
+  state = { ...state, tabs }
+  publish()
+}
+
+/** Update the active tab without racing a render-captured collaboration value. */
+export function updateActiveCollaboration(
+  update: (current: CollaborationState | null) => CollaborationState | null,
+): void {
+  const current = activeCollaboration()
+  const next = update(current)
+  if (Object.is(current, next)) return
+  setActiveCollaboration(next)
 }
 
 /**
@@ -98,7 +166,7 @@ export function openInNewTab(path: string): string {
     return open.path
   }
 
-  const tab: Tab = { id: nextId(), path }
+  const tab = newTab(path)
   const at = state.tabs.findIndex((candidate) => candidate.id === state.activeId)
   const tabs = [...state.tabs]
   tabs.splice(at < 0 ? tabs.length : at + 1, 0, tab)
@@ -122,7 +190,7 @@ export function closeTab(id: string, emptyPath: string): string | null {
   if (at < 0) return null
 
   if (state.tabs.length === 1) {
-    const fresh: Tab = { id: nextId(), path: emptyPath }
+    const fresh = newTab(emptyPath)
     state = { tabs: [fresh], activeId: fresh.id }
     publish()
     return emptyPath
