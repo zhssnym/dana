@@ -62,7 +62,9 @@ export function useTeamPanelState(folderId: string): readonly [boolean, Dispatch
       closed = true
       return null
     })
-    if (closed && restoreFocus) restoreTeamOpener(tabId)
+    if (!closed) return
+    if (restoreFocus) restoreTeamOpener(tabId)
+    else teamOpeners.delete(tabId)
   }
   return [open, setOpen] as const
 }
