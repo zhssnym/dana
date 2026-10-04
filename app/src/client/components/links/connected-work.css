@@ -1,20 +1,20 @@
-/* Connected work mirrors one canonical block in another facet. The ordinary
-   marked paragraph persists placement/order and becomes the source lane; the
-   live canonical block occupies the flexible lane beside it. */
+/* Connected work keeps one compact provenance lane beside one canonical live
+   mirror. The authored marker persists placement/order; the canonical source
+   remains the only durable content identity. */
 .dana-writing-canvas
   .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror]) {
   --dana-connected-source-width: 200px;
   display: grid !important;
   grid-template-columns: var(--dana-connected-source-width) minmax(0, 1fr);
-  column-gap: 16px;
+  column-gap: 0;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   overflow: visible;
 }
 
-/* The canonical mirror owns the right lane. The divider is a separate single
-   resize handle in the gap, so this surface itself draws no second border. */
+/* Exactly one visible separator: the mirror lane owns a single 1px border.
+   The resize target overlays that border and never draws another line. */
 .dana-writing-canvas
   .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
   > [data-connected-work-detail] {
@@ -28,11 +28,12 @@
   min-width: 0;
   padding-inline-start: 16px;
   border: 0;
+  border-inline-start: 1px solid var(--border);
   overflow: visible;
 }
 
-/* The authored placement marker is compact provenance, not a second content
-   block. It stays one quiet line; widening the divider reveals more text. */
+/* The source marker is compact provenance, not another editable content block.
+   Widening the divider reveals more of the same single-line label. */
 .dana-writing-canvas
   .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
   > :not([data-connected-work-detail]) {
@@ -43,8 +44,15 @@
   width: 100%;
   max-width: var(--dana-connected-source-width);
   min-width: 0;
+  padding-inline-end: 12px;
   padding-block-end: 28px;
   overflow: hidden;
+}
+
+.dana-writing-canvas
+  .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
+  > [data-connected-work-source-lane] {
+  user-select: none;
 }
 
 .dana-writing-canvas
@@ -78,14 +86,13 @@
   overflow-wrap: normal;
 }
 
-/* One divider, one interaction target. Its hit area is intentionally wider
-   than the hairline while the visible separator itself remains 1px. */
+/* A generous invisible hit target straddles the one visible border. */
 .dana-writing-canvas
   [data-connected-work-detail]
   > [data-connected-work-splitter] {
   position: absolute;
   inset-block: 0;
-  left: -16px;
+  left: -8px;
   z-index: 30;
   width: 16px;
   min-height: 28px;
@@ -93,28 +100,15 @@
   touch-action: none;
   pointer-events: auto;
   outline: none;
+  background: transparent;
 }
 
 .dana-writing-canvas
-  [data-connected-work-detail]
-  > [data-connected-work-splitter]::before {
-  content: '';
-  position: absolute;
-  inset-block: 0;
-  left: 7px;
-  width: 1px;
-  background: var(--border);
-  transition: background-color var(--duration-fast) var(--ease-standard);
-}
-
-.dana-writing-canvas
-  [data-connected-work-detail]
-  > [data-connected-work-splitter]:is(:hover, :focus-visible)::before,
+  [data-connected-work-detail]:has(> [data-connected-work-splitter]:is(:hover, :focus-visible)),
 html.dana-resizing-connected-source
   .dana-writing-canvas
-  [data-connected-work-detail]
-  > [data-connected-work-splitter]::before {
-  background: var(--muted-foreground);
+  [data-connected-work-detail] {
+  border-inline-start-color: var(--muted-foreground);
 }
 
 html.dana-resizing-connected-source,
@@ -123,16 +117,13 @@ html.dana-resizing-connected-source * {
   user-select: none !important;
 }
 
-/* Multiple exact sources from one placement stay vertically ordered in the
-   mirror lane. */
 .dana-writing-canvas
   .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror])
   [data-connected-work-sources] {
-  display: grid;
+  display: block;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  gap: 0.625rem;
 }
 
 .dana-writing-canvas
@@ -147,8 +138,7 @@ html.dana-resizing-connected-source * {
   overflow: visible;
 }
 
-/* Promote and Unlink belong to the source lane, never on top of the mirror.
-   Their horizontal offset follows the per-placement source width. */
+/* Promote and Unlink belong to the source lane, never over the mirror. */
 .dana-writing-canvas
   [data-connected-work-native-source]
   > div.absolute {
@@ -159,18 +149,17 @@ html.dana-resizing-connected-source * {
   z-index: 20;
 }
 
-/* The nested BlockNote instance is only a live renderer. Pointer hit-testing
-   falls through to the parent placement block so parent handles and marquee
-   selection never confuse the mirror's internal `.bn-block` rows with the
-   actual authored block. */
+/* The nested BlockNote instance is now the live editor for the canonical
+   source block. Parent placement chrome stays outside it, while text and native
+   block interactions remain available inside the mirror. */
 .dana-connected-block-mirror {
   width: 100%;
   max-width: 100%;
   min-width: 0;
   padding: 0 !important;
   overflow: visible;
-  pointer-events: none;
-  user-select: none;
+  pointer-events: auto;
+  user-select: text;
 }
 
 .dana-connected-block-mirror .bn-container,
@@ -203,11 +192,11 @@ html.dana-resizing-connected-source * {
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  border-inline-start: 0 !important;
 }
 
-/* A mirror cannot be selected independently from its parent placement. Strip
-   both Dana and upstream BlockNote node-selection treatments, including the
-   File row's selected fill, border and generated selection layers. */
+/* A nested mirror must not inherit the parent canvas's node-selection frame.
+   Text/caret selection still works normally inside the nested editor. */
 .dana-connected-block-mirror .ProseMirror-selectednode,
 .dana-connected-block-mirror .bn-block-content.ProseMirror-selectednode,
 .dana-connected-block-mirror .ProseMirror-selectednode > .bn-block-content,
@@ -247,9 +236,8 @@ html.dana-resizing-connected-source * {
   box-shadow: none !important;
 }
 
-/* On a narrow canvas the source sits above the mirror. The draggable vertical
-   splitter disappears and one horizontal separator keeps the relationship
-   legible without squeezing either side. */
+/* Narrow canvases stack source then mirror. The vertical resize target is
+   removed and a single horizontal separator takes its place. */
 @media (max-width: 680px) {
   .dana-writing-canvas
     .bn-block-content[data-connected-work-placement='true']:has([data-connected-work-mirror]) {
@@ -274,6 +262,7 @@ html.dana-resizing-connected-source * {
     grid-row: 2;
     padding-inline-start: 0;
     padding-block-start: 8px;
+    border-inline-start: 0;
     border-block-start: 1px solid var(--border);
   }
 
