@@ -91,13 +91,14 @@ export function FolderHeader({
   const { search } = useLocation()
   const navigate = useNavigate()
   const fullScreenDiscussion = routePage !== undefined && routePage.kind === 'discussion' && !routePage.is_default
-  const projectId = fullScreenDiscussion ? routePage.project_id : null
+  const routePageId = routePage?.id ?? null
+  const projectId = fullScreenDiscussion ? routePage?.project_id ?? null : null
   /* A normal project returns to its root. If Discussion itself is the root,
      use a visible sibling page so sidebar and full-screen are never mounted
      together. */
-  const sidebarTargetId = projectId === null
+  const sidebarTargetId = projectId === null || routePageId === null
     ? null
-    : routePage.id !== projectId
+    : routePageId !== projectId
       ? projectId
       : allPages.find((page) =>
           page.project_id === projectId &&
