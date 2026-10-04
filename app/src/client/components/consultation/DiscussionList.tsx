@@ -1,28 +1,20 @@
 /*
-The Discussion tab's threads as one list, like an issues list: no groups, no
-column headers, most recent activity first as the server orders them.
+The Discussion surface is one flat thread list shared by full-screen and the
+sidebar. The two presentations differ only where width requires it: full-screen
+uses a one-line row with right-side meta, while the sidebar uses the same row
+language compressed to two lines.
 
-The list reads like an issues list: one bordered box, hairlines between rows,
-and a tinted head row with two filters on the left, "Open" (the default) and
-"Resolved", with no counts, and a small "New thread" button on the right. The
-filter lives in this component only; there is no storage key.
-Each thread is one compact line with one leading mark: a thread linked to one
-or more Tasks shows the first linked Task's state mark (linking to that Task);
-any other shows an outline speech bubble while open, a filled check once
-resolved, and pressing it resolves (without a decision) or reopens, with Undo.
-Then the title, at medium weight and cut short before the meta; an unread one
-(a post from someone else since this person last read it, the server's
-`read_at`) is heavier and nothing else marks it. On the right, small muted
-meta: the last poster and when ("Lucía Ortega · 4 days ago"), or
-"Resolved · Sep 18" once resolved. A resolved thread is the same row, muted.
-No preview, no face, no post counts (M4 §4.7).
+Open and Resolved are filters, not page tabs. They live in one compact segmented
+control with a clear selected state, while "+ New thread" is the single creation
+action beside them. The toolbar and rows sit directly on the Discussion surface:
+no bordered card around another bordered card, no tinted table head, and no
+extra empty-state frame.
 
-The keyboard path is the task lists' (`row-keys.ts`): arrows move, Enter
-opens, Space resolves or reopens. An old `?threads=closed` link still loads;
-the parameter is ignored.
-
-The list re-reads every twenty seconds while the tab is visible
-(`useDiscussions`), so new activity arrives without a reload.
+Each thread has one leading mark. A thread linked to one or more Tasks shows the
+first linked Task's state mark (linking to that Task); any other shows an outline
+speech bubble while open, a filled check once resolved, and pressing it resolves
+(without a decision) or reopens, with Undo. Unread titles are heavier. Resolved
+threads are muted. The list re-reads every twenty seconds while visible.
 */
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
@@ -59,15 +51,15 @@ export function isUnread(d: Discussion, viewerId: string | null): boolean {
   return Date.parse(last.created_at) > Date.parse(d.read_at)
 }
 
-/* One compact line: mark, title (truncating), meta on the right. */
+/* Full-screen: one compact line, with its meta on the right. */
 const ROW =
-  'grid h-9 w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-x-1 pr-3 pl-1.5 text-sm transition-colors duration-[var(--duration-fast)]'
+  'grid min-h-10 w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-x-1 rounded-sm pr-2 pl-1 text-sm transition-colors duration-[var(--duration-fast)]'
 
 const MARK = 'flex size-[var(--control-height)] items-center justify-center rounded-sm'
 
-/* The Discussion sidebar's row (#546). Two lines, no rule between rows. */
+/* Sidebar: the same thread hierarchy in two lines so the title can breathe. */
 const DOCKED_ROW =
-  'grid w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-x-1 rounded-md py-1.5 pr-2 pl-0.5 text-sm transition-colors duration-[var(--duration-fast)]'
+  'grid w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-x-1 rounded-sm py-1.5 pr-2 pl-0.5 text-sm transition-colors duration-[var(--duration-fast)]'
 
 export function DiscussionList({
   folderId,
@@ -78,8 +70,6 @@ export function DiscussionList({
   onStarted,
   docked = false,
 }: {
-  /** Drawn in the Discussion sidebar (#546), as a list of conversations:
-   * no frame, two lines a row (title, then who said what last). */
   readonly docked?: boolean
   readonly folderId: string
   readonly viewer: ConsultationViewer | null
@@ -152,7 +142,7 @@ export function DiscussionList({
   if (list.isPending || list.isError) {
     return (
       <div ref={keys} className="min-w-0">
-        {list.isPending ? <ListSkeleton docked={docked} /> : <InlineError onRetry={() => void list.refetch()} />}
+        {list.isPending ? <ListSkeleton /> : <InlineError onRetry={() => void list.refetch()} />}
       </div>
     )
   }
@@ -179,8 +169,10 @@ export function DiscussionList({
       type="button"
       aria-pressed={filter === to}
       className={cn(
-        'h-[var(--control-height)] rounded-sm px-1.5 outline-none',
-        filter === to ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+        'h-7 rounded-sm px-2 text-xs font-section outline-none transition-colors duration-[var(--duration-fast)]',
+        filter === to
+          ? 'bg-background text-foreground shadow-sm'
+          : 'text-muted-foreground hover:text-foreground',
       )}
       onClick={() => { setFilter(to) }}
     >
@@ -190,50 +182,48 @@ export function DiscussionList({
 
   return (
     <div ref={keys} className="min-w-0">
-      <div className={docked ? undefined : 'overflow-hidden rounded-md border border-border'}>
+      <div className="flex min-h-10 items-center justify-between gap-3 border-b border-border pb-2 text-sm">
         <div
-          className={cn(
-            'flex items-center justify-between gap-3 text-sm',
-            docked ? '-mx-1.5 h-9' : 'h-10 border-b border-border bg-muted pr-2 pl-1.5',
-          )}
+          role="group"
+          aria-label="Show threads"
+          className="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-muted p-0.5"
         >
-          <div role="group" aria-label="Show threads" className="flex items-center gap-1">
-            {filterButton('open', 'Open')}
-            {filterButton('resolved', 'Resolved')}
-          </div>
-          {mayStart ? (
-            <Button
-              variant={docked ? 'ghost' : 'commit'}
-              size="sm"
-              className={docked ? 'text-muted-foreground' : undefined}
-              onClick={() => {
-                setFilter('open')
-                setStarting(true)
-              }}
-            >
-              {docked ? <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" /> : null}
-              New thread
-            </Button>
-          ) : null}
+          {filterButton('open', 'Open')}
+          {filterButton('resolved', 'Resolved')}
         </div>
-        <ul className={docked ? '-mx-2 mt-1 flex flex-col gap-[var(--space-row)]' : 'flex flex-col divide-y divide-border'}>
-          {starting && mayStart ? (
-            <li>
-              <NewThread
-                folderId={folderId}
-                onDone={() => { setStarting(false) }}
-                onStarted={onStarted}
-              />
-            </li>
-          ) : null}
-          {shown.map(row)}
-          {shown.length === 0 && !starting ? (
-            <li className={cn('flex items-center px-3 text-sm text-muted-foreground', docked ? 'py-6' : 'h-9')}>
-              {filter === 'open' ? 'No open threads' : 'No resolved threads'}
-            </li>
-          ) : null}
-        </ul>
+        {mayStart ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              setFilter('open')
+              setStarting(true)
+            }}
+          >
+            <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            New thread
+          </Button>
+        ) : null}
       </div>
+      <ul className={cn('flex flex-col divide-y divide-border', docked && '-mx-2')}>
+        {starting && mayStart ? (
+          <li>
+            <NewThread
+              folderId={folderId}
+              docked={docked}
+              onDone={() => { setStarting(false) }}
+              onStarted={onStarted}
+            />
+          </li>
+        ) : null}
+        {shown.map(row)}
+        {shown.length === 0 && !starting ? (
+          <li className="flex items-center px-2 py-8 text-sm text-muted-foreground">
+            {filter === 'open' ? 'No open threads' : 'No resolved threads'}
+          </li>
+        ) : null}
+      </ul>
       {list.hasNextPage ? (
         <button
           type="button"
@@ -273,7 +263,6 @@ function ThreadRow({
   const fresh = isUnread(d, viewerId)
   const last = d.last_post ?? null
   const linkedTask = d.linked_tasks[0] ?? null
-  /* "Lucía Ortega · 4 days ago", or "Resolved · Sep 18". */
   const meta = isOpen
     ? [
         last === null ? '' : last.author_id === viewerId ? 'You' : personOf(last.author_id).name,
@@ -282,7 +271,6 @@ function ThreadRow({
         .filter((part) => part !== '')
         .join(' · ')
     : `Resolved · ${formatAgo(d.resolved_at ?? d.last_activity_at, now)}`
-  /* The dock's second line: who spoke last and what they said. */
   const said = !isOpen
     ? 'Resolved'
     : last === null
@@ -301,7 +289,7 @@ function ThreadRow({
       data-thread-state={state}
       role="link"
       aria-label={d.title}
-      className={cn(docked ? DOCKED_ROW : ROW, 'cursor-pointer', docked ? 'hover:bg-hover' : 'hover:bg-muted')}
+      className={cn(docked ? DOCKED_ROW : ROW, 'cursor-pointer hover:bg-hover')}
       onClick={(event) => {
         if ((event.target as HTMLElement).closest('button, a')) return
         onOpen(d.id)
@@ -387,13 +375,15 @@ function ThreadRow({
   )
 }
 
-/** The row the head's "New thread" opens at the top: a title, then Enter. */
+/** The row the "+ New thread" action opens at the top: a title, then Enter. */
 function NewThread({
   folderId,
+  docked,
   onDone,
   onStarted,
 }: {
   readonly folderId: string
+  readonly docked: boolean
   readonly onDone: () => void
   readonly onStarted: (discussionId: string) => void
 }): React.JSX.Element {
@@ -406,7 +396,7 @@ function NewThread({
   }
   return (
     <form
-      className={ROW}
+      className={docked ? DOCKED_ROW : ROW}
       onSubmit={(event) => {
         event.preventDefault()
         const trimmed = title.trim()
@@ -446,16 +436,11 @@ function NewThread({
   )
 }
 
-function ListSkeleton({ docked }: { readonly docked: boolean }): React.JSX.Element {
-  /* The rows' own height, so the list does not jump when it lands. */
+function ListSkeleton(): React.JSX.Element {
   return (
-    <div
-      className={docked ? 'flex flex-col' : 'flex flex-col divide-y divide-border rounded-md border border-border'}
-      aria-label="Loading threads"
-      aria-busy="true"
-    >
+    <div className="flex flex-col divide-y divide-border" aria-label="Loading threads" aria-busy="true">
       {[0, 1, 2].map((row) => (
-        <div key={row} className="flex h-9 items-center px-3">
+        <div key={row} className="flex h-10 items-center px-2">
           <Skeleton className={row === 1 ? 'h-3.5 w-2/5' : 'h-3.5 w-3/5'} />
         </div>
       ))}
