@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest'
 
 const main = readFileSync(new URL('../../src/client/main.tsx', import.meta.url), 'utf8')
 const css = readFileSync(new URL('../../src/client/styles/collaboration-surfaces.css', import.meta.url), 'utf8')
+const list = readFileSync(new URL('../../src/client/components/consultation/DiscussionList.tsx', import.meta.url), 'utf8')
 
 describe('collaboration surface shell polish', () => {
   test('loads the collaboration surface stylesheet after tokens', () => {
@@ -17,11 +18,9 @@ describe('collaboration surface shell polish', () => {
     expect(css).toContain('height: calc(100dvh - var(--row-height))')
   })
 
-  test('removes visual rules between Discussion rows', () => {
-    expect(css).toContain('div:has(> div > [aria-label="Show threads"]) > ul')
-    expect(css).toContain('gap: var(--space-row)')
-    expect(css).toContain('border-top-width: 0')
-    expect(css).toContain('border-bottom-width: 0')
-    expect(css).toContain('[aria-label="Loading threads"] > div')
+  test('keeps compact sidebar rows and gives full-page rows clear boundaries', () => {
+    expect(list).toContain("docked ? '-mx-2 gap-[var(--space-row)]' : 'divide-y divide-border'")
+    expect(list).toContain("!docked && 'overflow-hidden rounded-md border border-border'")
+    expect(css).not.toContain('div:has(> div > [aria-label="Show threads"]) > ul')
   })
 })

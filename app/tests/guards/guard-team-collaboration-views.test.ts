@@ -27,7 +27,7 @@ describe('Team collaboration views', () => {
     expect(team).toContain("const viewLabel = fullPage ? 'Open in side panel' : 'Open full page'")
     expect(team).toContain("setView(routeFullPage ? 'full' : 'sidebar')")
     expect(team).toContain('<UsersRound')
-    expect(team).toContain('max-w-4xl')
+    expect(team).toContain('max-w-[var(--shell-content-max)]')
   })
 
   test('makes the Team sidebar resizable with the shared collaboration width preference', () => {

@@ -143,7 +143,6 @@ import type { FolderAction as FolderActionName } from '../../shared/folder-actio
 import { paths } from '../routes.js'
 import { FOLDER_ACTION_PARAM, folderActionPath } from '../shell/app-sidebar.js'
 import { copyLink } from '../lib/object-acts.js'
-import { useReserveRightEdge } from '../components/right-edge.js'
 import { closeChatDock, openChatDock, useChatDock } from '../state/chat-dock.js'
 import { useTeamPanelState } from '../state/collaboration.js'
 import { useDiscussions } from '../api/consultation.js'
@@ -177,14 +176,6 @@ import type { PageView } from '../../shared/pages.js'
 import { getFolderTasksOpenResponse } from '../../shared/views.js'
 import { projectTabs, purposeTab, resultsTab } from '../../shared/folders.js'
 import type { Folder, GetFoldersResponse, PageKind } from '../../shared/folders.js'
-
-/*
-The width the sharing panel reserves at the right edge, restated from its
-`w-[var(--sharing-panel-width)]` (440px in `tokens.css`) because padding the
-shell computes has to be a number JavaScript holds. Named so a reader looking
-for the duplicate finds it named as one.
-*/
-const SHARING_PANEL_WIDTH = 440
 
 /**
  * 9.6's leave confirm, verbatim and one sentence (AC-183 turns on both).
@@ -405,11 +396,6 @@ function FolderPageBody({
 
   const connections = useConnections()
   /*
-  The sharing panel takes room rather than covering: it publishes its width
-  while open and the shell pads the page body by it (`components/right-edge`).
-  */
-  useReserveRightEdge(SHARING_PANEL_WIDTH, sharing)
-  /*
   The Discussion sidebar (#546) shares the right edge with the sharing panel,
   so opening one closes the other. Its button sits beside Team: one
   collaboration surface, two entry points. It shows once the project has a
@@ -543,7 +529,6 @@ function FolderPageBody({
     void navigate(`${paths.folder(moveThreadTo)}${query}`, { replace: true })
   }, [moveThreadTo, search, navigate])
   const threadHere = kind === 'discussion' || (threadAsked && moveThreadTo === null)
-  const threadOpen = threadHere && search.get('discussion') !== null
   useThreadScroll(id, kind === 'work' && page.data !== undefined && completedReady)
 
   /* A tab is a page of its own: choosing one goes there, in place, so Back
@@ -1100,9 +1085,9 @@ function FolderPageBody({
       {/* The page read, so a page the viewer cannot see renders 10.2's
           answer here: nonexistent, never forbidden. */}
       <PageBody query={here} isEmpty={false} emptyCopy="">
-        {/* An open thread is its own page (r9): the breadcrumb names it and
-            its head is the thread's, so the page's head and tabs step aside. */}
-        <div className={threadOpen ? 'hidden' : 'space-y-4'}>
+        {/* Focused Discussion has its own contextual head. The Work identity
+            and page tabs step aside for both the list and an open thread. */}
+        <div className={threadHere ? 'hidden' : 'space-y-4'}>
           {hasCover && !isDefault ? (
             <div className="-mt-4 md:-mt-6">
               {/* A viewer below Can edit reads the band and is offered nothing
