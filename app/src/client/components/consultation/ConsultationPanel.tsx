@@ -46,8 +46,8 @@ export function ConsultationPanel({
   /* The page's members, so no two of them wear one face here (r7). */
   const members = page?.members ?? []
   const fullScreen = page !== undefined && page.kind === 'discussion' && !page.is_default
-  const projectId = fullScreen ? page.project_id : null
-  const sidebarTargetId = projectId === null
+  const projectId = fullScreen && page !== undefined ? page.project_id : null
+  const sidebarTargetId = !fullScreen || page === undefined || projectId === null
     ? null
     : page.id !== projectId
       ? projectId
