@@ -104,7 +104,7 @@ export function activeCollaboration(): CollaborationState | null {
   return state.tabs.find((tab) => tab.id === state.activeId)?.collaboration ?? null
 }
 
-/** The active tab id, used only for tab-local focus bookkeeping. */
+/** The active tab id, used only for tab-local focus bookkeeping and route ownership. */
 export function activeWorkspaceTabId(): string {
   return state.activeId
 }
@@ -169,16 +169,19 @@ export function commitActiveTabRoute(path: string): void {
 /**
  * Reconcile ordinary router navigation with the working set.
  *
- * A passive effect may be left over from the route that was visible just
- * before a workspace-tab click. Ignore that stale effect once the browser has
- * already moved somewhere else; otherwise it can retarget the newly active
- * tab back to an old Discussion URL.
+ * `ownerId` is the workspace tab that owned the route render which scheduled
+ * this passive reconciliation. A workspace-tab click changes `activeId`
+ * synchronously before React Router changes the browser URL; without this
+ * ownership check, the previous tab's still-pending route effect can retarget
+ * the newly selected tab back to the old page. The visible-path check covers
+ * the inverse race, where the router has already advanced past an older effect.
  *
  * If the current router destination is already represented by another tab,
  * that tab becomes current and takes the exact URL the navigation requested.
  * Otherwise the active tab is retargeted in place, like an address bar.
  */
-export function retarget(path: string): void {
+export function retarget(path: string, ownerId?: string): void {
+  if (ownerId !== undefined && state.activeId !== ownerId) return
   const visible = visibleBrowserPath()
   if (visible !== null && visible !== path) return
   commitActiveTabRoute(path)
