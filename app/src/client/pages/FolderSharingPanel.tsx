@@ -106,15 +106,17 @@ function pressedHistoryBack(event: Event): boolean {
 /**
  * Workspace-tab controls live outside this non-modal Sheet. They must switch
  * which tab is active without first dismissing and mutating the Team state on
- * the tab being left. The open-tab picker is portaled, so its trigger, search
- * input and result list are named explicitly as the same workspace-tab action.
+ * the tab being left. History arrows are the same kind of workspace navigation:
+ * Back/Forward changes the Team presentation route and must not dismiss Team
+ * before the router gets to apply that history entry. The open-tab picker is
+ * portaled, so its trigger, search input and result list are named explicitly.
  */
 function workspaceTabInteraction(event: Event): boolean {
   const target = event instanceof FocusEvent ? event.relatedTarget : event.target
   return (
     target instanceof Element &&
     target.closest(
-      '[role="tab"], [aria-label="Open tab"], [aria-label="Search Dana to open a tab"], #dana-open-tab-results',
+      '[role="tab"], [aria-label="Open tab"], [aria-label="Search Dana to open a tab"], [aria-label="Go back"], [aria-label="Go forward"], #dana-open-tab-results',
     ) !== null
   )
 }
@@ -127,6 +129,46 @@ function useWindowWidth(): number {
     return () => { window.removeEventListener('resize', onResize) }
   }, [])
   return width
+}
+
+interface WorkspaceRect {
+  readonly top: number
+  readonly left: number
+  readonly width: number
+  readonly height: number
+}
+
+/**
+ * A full Team surface is portaled to `body`, so it cannot inherit the sidebar
+ * wrapper's width custom property. Measure the actual workspace instead: this
+ * follows a resized/collapsed app sidebar and the shell's own responsive layout
+ * without duplicating any of those widths here.
+ */
+function useWorkspaceRect(): WorkspaceRect | null {
+  const [rect, setRect] = useState<WorkspaceRect | null>(null)
+  useEffect(() => {
+    const node = document.getElementById('dana-content')
+    if (node === null) return undefined
+    let frame = 0
+    const measure = (): void => {
+      const box = node.getBoundingClientRect()
+      setRect({ top: box.top, left: box.left, width: box.width, height: box.height })
+    }
+    const schedule = (): void => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(measure)
+    }
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule)
+    observer?.observe(node)
+    window.addEventListener('resize', schedule)
+    return () => {
+      cancelAnimationFrame(frame)
+      observer?.disconnect()
+      window.removeEventListener('resize', schedule)
+    }
+  }, [])
+  return rect
 }
 
 const ROW =
@@ -186,6 +228,7 @@ export function FolderSharingPanel({
   const memberPushed = (location.state as { memberPushed?: boolean } | null)?.memberPushed === true
   const routeFullPage = search.get(TEAM_VIEW_PARAM) === TEAM_FULL_VALUE
   const windowWidth = useWindowWidth()
+  const workspaceRect = useWorkspaceRect()
   const chosenWidth = useChatDockWidth()
   const bounds = dockWidthBounds(windowWidth)
   const teamMinWidth = Math.min(bounds.max, Math.max(bounds.min, DOCK_DEFAULT_WIDTH))
@@ -220,7 +263,9 @@ export function FolderSharingPanel({
 
   /* Browser Back/Forward is a first-class presentation control. Expanding
      pushes `?team=full`; a POP back to the Work route restores the sidebar and
-     Forward returns to full page, all inside the same workspace tab. */
+     Forward returns to full page, all inside the same workspace tab. The route
+     is canonical for the presentation so a click only changes the URL; this
+     effect is the one place that applies that URL to tab-local Team state. */
   useEffect(() => {
     if (routeFullPage === fullPage) return
     setView(routeFullPage ? 'full' : 'sidebar')
@@ -314,7 +359,6 @@ export function FolderSharingPanel({
 
   const changePresentation = (): void => {
     if (fullPage) {
-      setView('sidebar')
       setSearch((current) => {
         const next = new URLSearchParams(current)
         next.delete(TEAM_VIEW_PARAM)
@@ -322,7 +366,6 @@ export function FolderSharingPanel({
       }, { replace: true })
       return
     }
-    setView('full')
     setSearch((current) => {
       const next = new URLSearchParams(current)
       next.set(TEAM_VIEW_PARAM, TEAM_FULL_VALUE)
@@ -340,14 +383,42 @@ export function FolderSharingPanel({
   }
 
   const desktopFull = fullPage && windowWidth >= 768
+  const fullPageStyle: React.CSSProperties = desktopFull
+    ? workspaceRect === null
+      ? {
+          top: 0,
+          left: 0,
+          width: '100vw',
+          maxWidth: 'none',
+          height: '100dvh',
+          visibility: 'hidden',
+        }
+      : {
+          top: `${String(workspaceRect.top)}px`,
+          bottom: 'auto',
+          left: `${String(workspaceRect.left)}px`,
+          right: 'auto',
+          width: `${String(workspaceRect.width)}px`,
+          maxWidth: 'none',
+          height: `${String(workspaceRect.height)}px`,
+        }
+    : {
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: '100vw',
+        maxWidth: '100vw',
+        height: '100dvh',
+      }
 
   return (
     <>
     <Sheet
       open
       onOpenChange={(next, details) => {
-        /* Workspace-tab navigation hides Team by changing the active tab. Do not
-           dismiss or clear the tab-local Team/member state before that switch. */
+        /* Workspace-tab/history navigation hides or retargets Team through the
+           owning tab. Do not dismiss and mutate Team before that navigation. */
         if (!next && workspaceTabInteraction(details.event)) {
           details.cancel()
           return
@@ -381,14 +452,7 @@ export function FolderSharingPanel({
           'sm:max-w-none transition-[width,max-width,left,top,height] motion-reduce:transition-none',
           fullPage ? 'border-l-0 shadow-none' : 'w-[var(--sharing-panel-width)]',
         )}
-        style={fullPage ? {
-          top: desktopFull ? '2rem' : '0',
-          bottom: '0',
-          left: desktopFull ? 'var(--sidebar-width)' : '0',
-          width: desktopFull ? 'calc(100vw - var(--sidebar-width))' : '100vw',
-          maxWidth: 'none',
-          height: desktopFull ? 'calc(100dvh - 2rem)' : '100dvh',
-        } : {
+        style={fullPage ? fullPageStyle : {
           width: `${String(sidebarWidth)}px`,
           maxWidth: `${String(sidebarWidth)}px`,
         }}
