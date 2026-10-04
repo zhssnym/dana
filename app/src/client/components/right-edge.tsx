@@ -19,22 +19,40 @@ task surface's is resizable and remembered, so threading a live number up
 through the shell so the shell can hand it back down is a lot of wiring for a
 fact with one owner.
 
-One number for both panels, because they share one edge. Two open at once would
-overlap each other long before the page noticed, so a single value is not a
-limitation but an honest description of the space.
+Reservations are tracked per mounted owner and the shell keeps the widest one.
+Most surfaces are mutually exclusive, but this makes transitional ownership
+safe: a page-level compatibility reservation and its live resizable panel may
+briefly coexist without one cleanup clearing the other's space.
 
 `HoldsTheDocument` and `useReserveRightEdge` below each carry their own note.
 */
 
-import { useEffect, useSyncExternalStore, type ReactNode } from "react"
+import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react"
 
 let reserved = 0
+const reservations = new Map<symbol, number>()
 const listeners = new Set<() => void>()
 
 function publish(width: number) {
   if (reserved === width) return
   reserved = width
   listeners.forEach((notify) => notify())
+}
+
+function recomputeReservation(): void {
+  let next = 0
+  for (const width of reservations.values()) next = Math.max(next, width)
+  publish(next)
+}
+
+function setReservation(owner: symbol, width: number): void {
+  reservations.set(owner, Math.round(width))
+  recomputeReservation()
+}
+
+function clearReservation(owner: symbol): void {
+  reservations.delete(owner)
+  recomputeReservation()
 }
 
 /* What the page should keep clear on its right, in pixels. */
@@ -58,8 +76,8 @@ while the dialog is.
 
 A row's due and repeat chips are controls, so a page of forty rows holds forty
 buttons named "Due date". A test that reaches for a chip page-wide and takes the
-first would find a row's, sitting behind an open dialog, and the click would
-time out against the chrome strip that covers it (AC-219, AC-220).
+first would find a row's, sitting behind an open dialog, and the click would time
+out against the chrome strip that covers it (AC-219, AC-220).
 
 **So this is the rule rather than an accommodation.** `aria-hidden` takes the
 page out of the accessible tree, which is what "modal" means and what every
@@ -113,13 +131,17 @@ hook.
 
 So the effect is written once and offered twice. `open` is the difference
 between the two shapes: a component reserves while it is mounted, a hook
-reserves while a flag says the panel is showing.
+reserves while a flag says the panel is showing. Each mounted hook owns one
+reservation, so changing or unmounting one surface cannot clear another's room.
 */
 export function useReserveRightEdge(width: number, open: boolean) {
+  const owner = useRef<symbol | null>(null)
+  if (owner.current === null) owner.current = Symbol('right-edge-reservation')
   useEffect(() => {
-    if (!open) return undefined
-    publish(Math.round(width))
-    return () => publish(0)
+    const key = owner.current
+    if (!open || key === null) return undefined
+    setReservation(key, width)
+    return () => clearReservation(key)
   }, [width, open])
 }
 
