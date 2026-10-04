@@ -6,9 +6,10 @@ Discussion has two presentations and this is one of them. The other is the
 stored Discussion page in full-screen; that page is intentionally hidden from
 the horizontal tab strip. Both presentations draw the same list and the same
 thread (`consultation/`) from the same server rows, so there is one Discussion
-and nothing here holds a copy of it. Which project and thread are open is
-`state/chat-dock.ts`, never the URL, so opening it never leaves the task being
-discussed.
+and nothing here holds a copy of it. Which project, thread, filter and
+presentation are open is workspace-tab state (`shell/tabs.ts`, adapted by
+`state/chat-dock.ts`), never global shell state, so opening it never leaves the
+task being discussed and switching tabs cannot leak the panel.
 
 The sidebar uses the same popover surface, border and elevation language as the
 Team sidebar. Depth belongs to this outer shell only; the thread filters and
@@ -16,8 +17,8 @@ rows inside stay flat.
 
 It follows the page: on another project's page it becomes that project's,
 on a task it opens that task's thread (once per visit, so going back to the
-list sticks), and on the full-screen Discussion page itself it closes, since
-that page is the other presentation of the same thing.
+list sticks), and on the full-screen Discussion page itself it switches the
+same tab-local Discussion state to its full presentation.
 
 The left edge resizes it, within limits that always leave the work room
 (`dockWidthBounds`). Where the window is too narrow for both, the shell stops
@@ -38,7 +39,9 @@ import {
   DOCK_DEFAULT_WIDTH,
   dockWidthBounds,
   openChatDock,
+  setChatDockFilter,
   setChatDockWidth,
+  setDiscussionPresentation,
   useChatDock,
   useChatDockWidth,
 } from '../../state/chat-dock.js'
@@ -75,7 +78,12 @@ export function ChatDock(): React.JSX.Element | null {
   return (
     <>
       <Follow dock={dock} />
-      <Dock key={dock.folderId} folderId={dock.folderId} discussionId={dock.discussionId} />
+      <Dock
+        key={`${dock.workspaceTabId}:${dock.folderId}`}
+        folderId={dock.folderId}
+        discussionId={dock.discussionId}
+        filter={dock.filter}
+      />
     </>
   )
 }
@@ -97,9 +105,10 @@ function Follow({ dock }: { readonly dock: ChatDockState }): null {
 
   useEffect(() => {
     if (page === undefined || page.id !== pageId) return
-    /* The full-screen view of the same Discussion: one presentation at a time. */
+    /* The full-screen view of the same Discussion: one presentation at a time,
+       but keep the tab's thread/filter state for the return trip. */
     if (page.kind === 'discussion') {
-      closeChatDock()
+      setDiscussionPresentation('full')
       return
     }
     if (docked === undefined || page.is_default || page.project_id === docked.project_id) return
@@ -120,9 +129,11 @@ function Follow({ dock }: { readonly dock: ChatDockState }): null {
 function Dock({
   folderId,
   discussionId,
+  filter,
 }: {
   readonly folderId: string
   readonly discussionId: string | null
+  readonly filter: 'open' | 'resolved'
 }): React.JSX.Element {
   /* The page it was opened from; a tab's people and name are its project's,
      as on the page's own header. */
@@ -157,11 +168,13 @@ function Dock({
   useEffect(() => { box.current?.focus({ preventScroll: true }) }, [])
 
   /* The same thread, full screen. Remember exactly what the sidebar was beside
-     so "Sidebar view" can restore that page/view rather than guessing. */
+     so "Sidebar view" can restore that page/view rather than guessing. The
+     tab-local Discussion state itself is retained and only its presentation
+     changes. */
   const fullScreen = (): void => {
     const query = discussionId === null ? 'conversation=open' : `discussion=${discussionId}`
     rememberDiscussionReturnTo(headId, `${location.pathname}${location.search}${location.hash}`)
-    closeChatDock()
+    setDiscussionPresentation('full')
     void navigate(`${paths.folder(headId)}?${query}`)
   }
 
@@ -231,6 +244,7 @@ function Dock({
             <Chat
               folderId={folderId}
               discussionId={discussionId}
+              filter={filter}
               viewer={viewer}
               personOf={personOf}
               collaborative={members.length > 1}
@@ -301,16 +315,18 @@ function ResizeEdge({ width }: { readonly width: number }): React.JSX.Element {
   )
 }
 
-/* `ConsultationPanel`, with the open thread in the sidebar's store. */
+/* `ConsultationPanel`, with the open thread/filter in the workspace tab. */
 function Chat({
   folderId,
   discussionId,
+  filter,
   viewer,
   personOf,
   collaborative,
 }: {
   readonly folderId: string
   readonly discussionId: string | null
+  readonly filter: 'open' | 'resolved'
   readonly viewer: ConsultationViewer | null
   readonly personOf: PersonResolver
   readonly collaborative: boolean
@@ -361,6 +377,8 @@ function Chat({
           viewer={viewer}
           personOf={personOf}
           returnTo={left}
+          filter={filter}
+          onFilterChange={setChatDockFilter}
           onOpen={open}
           onStarted={(id) => {
             setStarted(id)
