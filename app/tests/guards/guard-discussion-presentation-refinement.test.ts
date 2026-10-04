@@ -5,6 +5,7 @@ const read = (path: string): string => readFileSync(new URL(`../../src/client/${
 
 const tabs = read('components/folder-tabs.tsx')
 const workspaceTabs = read('shell/tabs.ts')
+const workspaceTabStrip = read('shell/TabStrip.tsx')
 const dockState = read('state/chat-dock.ts')
 const dock = read('components/chat-dock/ChatDock.tsx')
 const fullScreen = read('components/consultation/ConsultationPanel.tsx')
@@ -24,14 +25,12 @@ describe('Discussion presentation refinement', () => {
     expect(tabs).toContain('if (!rowEditable && tools === undefined) return null')
   })
 
-  test('makes project Discussion full-screen-first without changing task sidebar entry points', () => {
-    expect(dockState).toContain('next.discussionId === undefined')
-    expect(dockState).toContain("const presentation = projectEntry ? 'full' : 'sidebar'")
-    expect(dockState).toContain('returnTo: projectEntry ? currentPath()')
-    expect(header).toContain("collaboration.presentation !== 'full'")
-    expect(header).toContain("page.kind === 'discussion'")
-    expect(header).toContain("params.set('conversation', 'open')")
+  test('makes project and task Discussion sidebar-first', () => {
+    expect(dockState).toContain("presentation: 'sidebar'")
+    expect(dockState).not.toContain("projectEntry ? 'full' : 'sidebar'")
+    expect(dockState).not.toContain('returnTo: projectEntry ? currentPath()')
     expect(taskSurface).toContain('discussionId: linked.id')
+    expect(dock).toContain('aria-label="Open full screen"')
   })
 
   test('uses one Discussion context bar with navigation and an icon-only presentation switch', () => {
@@ -46,15 +45,27 @@ describe('Discussion presentation refinement', () => {
     expect(fullScreen).toContain('moveDiscussionToSidebar')
   })
 
-  test('keeps the exact return route on the workspace tab, not in module-global memory', () => {
+  test('keeps the exact return route on the workspace tab and restores sidebar context', () => {
     expect(workspaceTabs).toContain('readonly returnTo: string | null')
     expect(dock).toContain('rememberDiscussionReturnTo')
+    expect(dock).toContain('commitActiveTabRoute(target)')
     expect(dock).toContain('`${location.pathname}${location.search}${location.hash}`')
     expect(presentation).toContain('activeCollaboration()')
     expect(presentation).toContain('current.returnTo')
     expect(presentation).not.toContain('let returnTarget')
     expect(presentation).toContain('targetPath: string')
-    expect(presentation).toContain('openChatDock({ folderId: projectId, discussionId })')
+    expect(presentation).toContain('openChatDock({')
+    expect(presentation).not.toContain('setActiveCollaboration(null)')
+    expect(workspaceTabStrip).toContain("current.presentation !== 'full'")
+    expect(workspaceTabStrip).toContain('activeCollaboration.returnTo !== route')
+  })
+
+  test('uses one active collaboration icon and hierarchical full-page tab title', () => {
+    expect(workspaceTabStrip).toContain("`${identity.title} · Discussion`")
+    expect(workspaceTabStrip).toContain('icon: MessagesSquare')
+    expect(workspaceTabStrip).toContain("`${identity.title} · Team`")
+    expect(workspaceTabStrip).toContain('icon: UsersRound')
+    expect(workspaceTabStrip).toContain("collaboration?.presentation === 'full'")
   })
 
   test('keeps sidebar identity compact and removes new task discussion actions for solo work', () => {
