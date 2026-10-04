@@ -180,13 +180,13 @@ function Dock({
       }}
     >
       <ResizeEdge width={width} />
-      <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-border px-3">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground" aria-hidden="true">
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-accent text-foreground" aria-hidden="true">
           <MessagesSquare className="size-4" strokeWidth={1.75} />
         </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-sm font-title leading-4 text-foreground">Discussion</h2>
-          <p className="mt-0.5 truncate text-xs leading-4 text-muted-foreground" title={project?.name}>
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <h2 className="shrink-0 text-sm font-title text-foreground">Discussion</h2>
+          <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground" title={project?.name}>
             {project?.name ?? ''}
           </p>
         </div>
