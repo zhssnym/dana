@@ -14,7 +14,7 @@ import { useLocation, useNavigate } from 'react-router'
 
 import { useCreateFolder } from '../api/mutations.js'
 import { useAllPages, useBundle, useFolders, useShelves, useTask } from '../api/queries.js'
-import { Box, CheckCircle2, FileText, Folders, Plus, Search, Settings, Trash2, X } from '../lib/icons.js'
+import { Box, CheckCircle2, FileText, Folders, MessagesSquare, Plus, Search, Settings, Trash2, UsersRound, X } from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
 import { SHORTCUTS_RESULT, useSearchAnswer, type SearchAnswer } from '../lib/search-items.js'
 import { useSortableList } from '../lib/use-sortable-list.js'
@@ -35,8 +35,10 @@ import {
   retarget,
   selectTab,
   tabKey,
+  updateActiveCollaboration,
   useTabs,
 } from './tabs.js'
+import type { CollaborationState } from './tabs.js'
 
 const NO_FOLDERS: readonly Folder[] = []
 const NO_SHELVES: readonly Shelf[] = []
@@ -94,15 +96,22 @@ same saved resolver as their page head and sidebar row. A Task's title is the
 only piece the tab store itself does not know, so the face reads that one Task
 while its tab is open; passing null keeps the hook inert for every other
 destination.
+
+A full-page collaboration surface is still the same workspace tab. Its text
+keeps the owning place visible (`Project · Discussion` / `Project · Team`) and
+uses one icon only: the active collaboration icon. Sidebar presentations keep
+the ordinary page identity because the page remains the primary surface.
 */
 function TabFace({
   path,
+  collaboration,
   folders,
   shelves,
   focusAppearance,
   labelId,
 }: {
   readonly path: string
+  readonly collaboration: CollaborationState | null
   readonly folders: readonly Folder[]
   readonly shelves: readonly Shelf[]
   readonly focusAppearance: FocusAppearance | undefined
@@ -158,6 +167,12 @@ function TabFace({
     identity = { title: 'Trash', icon: Trash2 }
   } else {
     identity = { title: 'Dana', icon: FileText }
+  }
+
+  if (collaboration?.presentation === 'full') {
+    identity = collaboration.kind === 'discussion'
+      ? { title: `${identity.title} · Discussion`, icon: MessagesSquare }
+      : { title: `${identity.title} · Team`, icon: UsersRound }
   }
 
   const Icon = identity.icon
@@ -437,6 +452,26 @@ export function TabStrip() {
     retarget(route)
   }, [route])
 
+  const activeTab = tabs.find((tab) => tab.id === activeId)
+  const activeCollaboration = activeTab?.collaboration
+  /* Expanding Discussion pushes a real browser-history entry. On Back, the
+     router returns to the exact remembered Work/Task route; once the active
+     workspace tab has reconciled to that route, restore the same Discussion as
+     a sidebar. A committed full-screen transition has a different tab.path in
+     the navigation gap, so this cannot cancel an expansion before it lands. */
+  useEffect(() => {
+    if (
+      activeTab?.path !== route ||
+      activeCollaboration?.kind !== 'discussion' ||
+      activeCollaboration.presentation !== 'full' ||
+      activeCollaboration.returnTo !== route
+    ) return
+    updateActiveCollaboration((current) => {
+      if (current?.kind !== 'discussion' || current.presentation !== 'full') return current
+      return { ...current, presentation: 'sidebar' }
+    })
+  }, [activeCollaboration, activeTab?.path, route])
+
   const places = useMemo<readonly OpenPlace[]>(() => {
     const fixed: OpenPlace[] = navPages.map((page) => {
       const mark = focusMark(page.key, focusAppearance)
@@ -635,6 +670,7 @@ export function TabStrip() {
             >
               <TabFace
                 path={tab.path}
+                collaboration={tab.collaboration}
                 folders={folders}
                 shelves={shelves}
                 focusAppearance={focusAppearance}

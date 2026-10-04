@@ -2,7 +2,7 @@
 Team collaboration surface for the project header (#554).
 
 Team has two presentations over the same membership, invite and access data:
-a compact sidebar that leaves the Work visible, and a full-page presentation
+a resizable sidebar that leaves the Work visible, and a full-page presentation
 for focused management. Switching presentation never remounts a second Team
 model, so member details, invite input and permissions stay in the same state.
 The presentation itself belongs to the active workspace tab (#569), while the
@@ -26,9 +26,12 @@ the roster arrive as props from `FolderPage`. A member's name opens their detail
 in the same surface (`MemberDetails`, #209), which reads that one member itself.
 
 The region keeps 9.1's "Sharing panel" accessible name for its existing shell
-contract; the visible surface is Team.
+contract; the visible surface is Team. Full-page Team uses a small route marker
+so the browser-history arrows can move between the Work+sidebar state and Team
+focus without creating a second workspace tab.
 */
 import { useEffect, useId, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 
 import type { GetConnectionsResponse } from '../../shared/connections.js'
@@ -47,11 +50,18 @@ import { Button } from '../components/ui/button.js'
 import { Input } from '../components/ui/input.js'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../components/ui/sheet.js'
 import { cn } from '../components/ui/utils.js'
+import { useReserveRightEdge } from '../components/right-edge.js'
 import { mayDraw } from '../lib/folder-authority.js'
 import type { FolderViewerFacts } from '../lib/folder-authority.js'
 import { ChevronDown, Maximize2, PanelRight, UsersRound } from '../lib/icons.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
+import {
+  DOCK_DEFAULT_WIDTH,
+  dockWidthBounds,
+  setChatDockWidth,
+  useChatDockWidth,
+} from '../state/chat-dock.js'
 import { useTeamPresentation } from '../state/collaboration.js'
 import { PersonFace } from '../components/person-face.js'
 import { AccessMenu, InviteAccessPicker, MemberDetails } from './MemberDetails.js'
@@ -64,6 +74,8 @@ const SHARING_PANEL = 'Sharing panel'
 const NAME_OR_EMAIL = 'Name or email'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+const TEAM_VIEW_PARAM = 'team'
+const TEAM_FULL_VALUE = 'full'
 
 /** Whether 5.2's resend window has passed, read off the invite itself. */
 function resendable(lastSentAt: string): boolean {
@@ -94,17 +106,69 @@ function pressedHistoryBack(event: Event): boolean {
 /**
  * Workspace-tab controls live outside this non-modal Sheet. They must switch
  * which tab is active without first dismissing and mutating the Team state on
- * the tab being left. The open-tab picker is portaled, so its trigger, search
- * input and result list are named explicitly as the same workspace-tab action.
+ * the tab being left. History arrows are the same kind of workspace navigation:
+ * Back/Forward changes the Team presentation route and must not dismiss Team
+ * before the router gets to apply that history entry. The open-tab picker is
+ * portaled, so its trigger, search input and result list are named explicitly.
  */
 function workspaceTabInteraction(event: Event): boolean {
   const target = event instanceof FocusEvent ? event.relatedTarget : event.target
   return (
     target instanceof Element &&
     target.closest(
-      '[role="tab"], [aria-label="Open tab"], [aria-label="Search Dana to open a tab"], #dana-open-tab-results',
+      '[role="tab"], [aria-label="Open tab"], [aria-label="Search Dana to open a tab"], [aria-label="Go back"], [aria-label="Go forward"], #dana-open-tab-results',
     ) !== null
   )
+}
+
+function useWindowWidth(): number {
+  const [width, setWidth] = useState(() => window.innerWidth)
+  useEffect(() => {
+    const onResize = (): void => { setWidth(window.innerWidth) }
+    window.addEventListener('resize', onResize)
+    return () => { window.removeEventListener('resize', onResize) }
+  }, [])
+  return width
+}
+
+interface WorkspaceRect {
+  readonly top: number
+  readonly left: number
+  readonly width: number
+  readonly height: number
+}
+
+/**
+ * A full Team surface is portaled to `body`, so it cannot inherit the sidebar
+ * wrapper's width custom property. Measure the actual workspace instead: this
+ * follows a resized/collapsed app sidebar and the shell's own responsive layout
+ * without duplicating any of those widths here.
+ */
+function useWorkspaceRect(): WorkspaceRect | null {
+  const [rect, setRect] = useState<WorkspaceRect | null>(null)
+  useEffect(() => {
+    const node = document.getElementById('dana-content')
+    if (node === null) return undefined
+    let frame = 0
+    const measure = (): void => {
+      const box = node.getBoundingClientRect()
+      setRect({ top: box.top, left: box.left, width: box.width, height: box.height })
+    }
+    const schedule = (): void => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(measure)
+    }
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule)
+    observer?.observe(node)
+    window.addEventListener('resize', schedule)
+    return () => {
+      cancelAnimationFrame(frame)
+      observer?.disconnect()
+      window.removeEventListener('resize', schedule)
+    }
+  }, [])
+  return rect
 }
 
 const ROW =
@@ -162,6 +226,17 @@ export function FolderSharingPanel({
   const navigate = useNavigate()
   const openMember = search.get(MEMBER_PARAM)
   const memberPushed = (location.state as { memberPushed?: boolean } | null)?.memberPushed === true
+  const routeFullPage = search.get(TEAM_VIEW_PARAM) === TEAM_FULL_VALUE
+  const windowWidth = useWindowWidth()
+  const workspaceRect = useWorkspaceRect()
+  const chosenWidth = useChatDockWidth()
+  const bounds = dockWidthBounds(windowWidth)
+  const teamMinWidth = Math.min(bounds.max, Math.max(bounds.min, DOCK_DEFAULT_WIDTH))
+  const sidebarWidth = Math.min(bounds.max, Math.max(teamMinWidth, chosenWidth))
+  const fullPage = view === 'full'
+
+  useReserveRightEdge(sidebarWidth, !fullPage)
+
   const setOpenMember = (id: string | null): void => {
     if (id !== null) {
       setSearch(
@@ -185,6 +260,16 @@ export function FolderSharingPanel({
       )
     }
   }
+
+  /* Browser Back/Forward is a first-class presentation control. Expanding
+     pushes `?team=full`; a POP back to the Work route restores the sidebar and
+     Forward returns to full page, all inside the same workspace tab. The route
+     is canonical for the presentation so a click only changes the URL; this
+     effect is the one place that applies that URL to tab-local Team state. */
+  useEffect(() => {
+    if (routeFullPage === fullPage) return
+    setView(routeFullPage ? 'full' : 'sidebar')
+  }, [routeFullPage, fullPage, setView])
 
   /* Moving between Team presentations keeps the same component and state;
      focus follows the surface so keyboard interaction never stays behind it. */
@@ -270,16 +355,70 @@ export function FolderSharingPanel({
     openMember === null
       ? null
       : folder.members.find((member) => member.user.id === openMember)?.user.display_name ?? 'Someone'
-  const fullPage = view === 'full'
-  const viewLabel = fullPage ? 'Sidebar view' : 'Open full page'
+  const viewLabel = fullPage ? 'Open in side panel' : 'Open full page'
+
+  const changePresentation = (): void => {
+    if (fullPage) {
+      setSearch((current) => {
+        const next = new URLSearchParams(current)
+        next.delete(TEAM_VIEW_PARAM)
+        return next
+      }, { replace: true })
+      return
+    }
+    setSearch((current) => {
+      const next = new URLSearchParams(current)
+      next.set(TEAM_VIEW_PARAM, TEAM_FULL_VALUE)
+      return next
+    })
+  }
+
+  const clearTeamRoute = (): void => {
+    if (!search.has(TEAM_VIEW_PARAM)) return
+    setSearch((current) => {
+      const next = new URLSearchParams(current)
+      next.delete(TEAM_VIEW_PARAM)
+      return next
+    }, { replace: true })
+  }
+
+  const desktopFull = fullPage && windowWidth >= 768
+  const fullPageStyle: React.CSSProperties = desktopFull
+    ? workspaceRect === null
+      ? {
+          top: 0,
+          left: 0,
+          width: '100vw',
+          maxWidth: 'none',
+          height: '100dvh',
+          visibility: 'hidden',
+        }
+      : {
+          top: `${String(workspaceRect.top)}px`,
+          bottom: 'auto',
+          left: `${String(workspaceRect.left)}px`,
+          right: 'auto',
+          width: `${String(workspaceRect.width)}px`,
+          maxWidth: 'none',
+          height: `${String(workspaceRect.height)}px`,
+        }
+    : {
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: '100vw',
+        maxWidth: '100vw',
+        height: '100dvh',
+      }
 
   return (
     <>
     <Sheet
       open
       onOpenChange={(next, details) => {
-        /* Workspace-tab navigation hides Team by changing the active tab. Do not
-           dismiss or clear the tab-local Team/member state before that switch. */
+        /* Workspace-tab/history navigation hides or retargets Team through the
+           owning tab. Do not dismiss and mutate Team before that navigation. */
         if (!next && workspaceTabInteraction(details.event)) {
           details.cancel()
           return
@@ -298,25 +437,30 @@ export function FolderSharingPanel({
         }
         if (!next && confirm.pending === null) {
           if (openMember !== null) setOpenMember(null)
+          clearTeamRoute()
           onClose()
         }
       }}
-      /* Non-modal: Work remains usable beside the sidebar. The same root is
-         retained in full-page mode so Team stays the active header control. */
+      /* Non-modal: Work remains usable beside the sidebar. Full page still uses
+         the same root/state, but is sized to the current workspace content
+         below the desktop tab strip instead of becoming a second tab. */
       modal={false}
     >
       <SheetContent
         side="right"
         className={cn(
-          'sm:max-w-none transition-[width,max-width] motion-reduce:transition-none',
-          fullPage ? 'w-screen' : 'w-[var(--sharing-panel-width)]',
+          'sm:max-w-none transition-[width,max-width,left,top,height] motion-reduce:transition-none',
+          fullPage ? 'border-l-0 shadow-none' : 'w-[var(--sharing-panel-width)]',
         )}
-        style={{
-          width: fullPage ? '100vw' : 'min(var(--sharing-panel-width), 100vw)',
-          maxWidth: fullPage ? '100vw' : 'min(var(--sharing-panel-width), 100vw)',
+        style={fullPage ? fullPageStyle : {
+          width: `${String(sidebarWidth)}px`,
+          maxWidth: `${String(sidebarWidth)}px`,
         }}
         overlayClassName="hidden"
       >
+        {fullPage ? null : (
+          <TeamResizeEdge width={sidebarWidth} min={teamMinWidth} max={bounds.max} />
+        )}
         <section
           ref={surface}
           aria-label={SHARING_PANEL}
@@ -362,9 +506,7 @@ export function FolderSharingPanel({
               aria-label={viewLabel}
               title={viewLabel}
               className="shrink-0 text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                setView(fullPage ? 'sidebar' : 'full')
-              }}
+              onClick={changePresentation}
             >
               {fullPage ? (
                 <PanelRight className="size-4" strokeWidth={1.75} aria-hidden="true" />
@@ -616,5 +758,69 @@ export function FolderSharingPanel({
     </Sheet>
     <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />
     </>
+  )
+}
+
+function TeamResizeEdge({
+  width,
+  min,
+  max,
+}: {
+  readonly width: number
+  readonly min: number
+  readonly max: number
+}): React.JSX.Element {
+  const drag = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null)
+  const clamp = (next: number): number => Math.min(max, Math.max(min, next))
+
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.currentTarget.focus()
+    drag.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: width }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const current = drag.current
+    if (current === null || current.pointerId !== event.pointerId) return
+    setChatDockWidth(clamp(current.startWidth + current.startX - event.clientX))
+  }
+  const onPointerEnd = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    if (drag.current?.pointerId !== event.pointerId) return
+    drag.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+  }
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    const step = event.shiftKey ? 48 : 16
+    const next =
+      event.key === 'ArrowLeft' ? width + step
+        : event.key === 'ArrowRight' ? width - step
+          : event.key === 'Home' ? max
+            : event.key === 'End' ? min
+              : null
+    if (next === null) return
+    event.preventDefault()
+    setChatDockWidth(clamp(next))
+  }
+
+  return (
+    <div
+      role="separator"
+      aria-label="Resize Team"
+      aria-orientation="vertical"
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={width}
+      aria-valuetext={`${String(width)} pixels`}
+      tabIndex={0}
+      title="Resize Team"
+      className="absolute inset-y-0 -left-1 z-10 hidden w-2 cursor-col-resize touch-none outline-none md:block after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent hover:after:bg-border focus-visible:after:bg-ring"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerEnd}
+      onPointerCancel={onPointerEnd}
+      onDoubleClick={() => { setChatDockWidth(clamp(DOCK_DEFAULT_WIDTH)) }}
+      onKeyDown={onKeyDown}
+    />
   )
 }

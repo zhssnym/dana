@@ -4,7 +4,6 @@ import { openChatDock } from '../../state/chat-dock.js'
 import {
   activeCollaboration,
   commitActiveTabRoute,
-  setActiveCollaboration,
   updateActiveCollaboration,
 } from '../../shell/tabs.js'
 
@@ -39,21 +38,24 @@ function commitReturnRoute(targetPath: string): void {
 }
 
 /**
- * Leave full-screen Discussion completely and restore the saved source route.
- * The collaboration state clears after navigation has left the Discussion
- * surface so its route-seeding effect cannot immediately recreate it.
+ * Leave focused Discussion and restore the exact saved Work/Task route with the
+ * same Discussion beside it. Full page is an explicit focus mode, so its Back
+ * action returns to the sidebar context rather than closing collaboration.
  */
 export function leaveDiscussionFullScreen(
   navigate: NavigateFunction,
   targetPath: string,
 ): void {
+  const current = activeCollaboration()
   commitReturnRoute(targetPath)
   void navigate(targetPath, { replace: true })
   globalThis.requestAnimationFrame(() => {
-    const current = activeCollaboration()
-    if (current?.kind === 'discussion' && current.presentation === 'full') {
-      setActiveCollaboration(null)
-    }
+    if (current?.kind !== 'discussion') return
+    openChatDock({
+      folderId: current.folderId,
+      discussionId: current.discussionId,
+      filter: current.filter,
+    })
   })
 }
 
