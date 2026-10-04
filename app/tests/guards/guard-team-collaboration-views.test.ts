@@ -30,6 +30,14 @@ describe('Team collaboration views', () => {
     expect(team).toContain('max-w-4xl')
   })
 
+  test('keeps Team focus bookkeeping on the owning workspace tab', () => {
+    expect(collaboration).toContain('const teamOpeners = new Map<string, HTMLElement>()')
+    expect(collaboration).toContain('activeWorkspaceTabId()')
+    expect(collaboration).toContain('rememberTeamOpener(tabId)')
+    expect(collaboration).toContain('restoreTeamOpener(tabId)')
+    expect(collaboration).not.toContain('export function openTeamPanel(')
+  })
+
   test('keeps the project header entry and its existing teammate label transition', () => {
     expect(folderPage).toContain('aria-expanded={sharing}')
     expect(folderPage).toContain("{members.length <= 1 ? 'Add teammates' : 'Team'}")

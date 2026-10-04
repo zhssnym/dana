@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   activeCollaboration,
   activeWorkspaceTabId,
+  closeTab,
   openInNewTab,
   retarget,
   selectTab,
@@ -72,5 +73,19 @@ describe('workspace-tab collaboration state', () => {
       presentation: 'full',
     })
     retarget(pathB)
+
+    /* Closing the active Team tab selects its neighbour without leaking Team
+       into it; tab A resumes the exact Discussion state it owned. */
+    expect(closeTab(tabB, '/app/today')).toBe(pathA)
+    retarget(pathA)
+    expect(activeWorkspaceTabId()).toBe(tabA)
+    expect(activeCollaboration()).toEqual({
+      kind: 'discussion',
+      folderId: 'project-a',
+      discussionId: 'thread-a',
+      filter: 'resolved',
+      presentation: 'full',
+      returnTo: pathA,
+    })
   })
 })
