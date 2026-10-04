@@ -1,17 +1,19 @@
 /*
-The Discussion sidebar (issue #546): the project's Discussion beside the work.
+The Discussion sidebar (issue #546, refined by #553): the project's Discussion
+beside the work.
 
 Discussion has two presentations and this is one of them. The other is the
-full-screen Discussion tab, which is unchanged; both draw the same list and
-the same thread (`consultation/`) from the same server rows, so there is one
-Discussion and nothing here holds a copy of it. Which project and thread are
-open is `state/chat-dock.ts`, never the URL, so opening it never leaves the
-task being discussed.
+stored Discussion page in full-screen; that page is intentionally hidden from
+the horizontal tab strip. Both presentations draw the same list and the same
+thread (`consultation/`) from the same server rows, so there is one Discussion
+and nothing here holds a copy of it. Which project and thread are open is
+`state/chat-dock.ts`, never the URL, so opening it never leaves the task being
+discussed.
 
 It follows the page: on another project's page it becomes that project's,
 on a task it opens that task's thread (once per visit, so going back to the
-list sticks), and on the Discussion tab itself it closes, since that page is
-the full-screen view of the same thing.
+list sticks), and on the full-screen Discussion page itself it closes, since
+that page is the other presentation of the same thing.
 
 The left edge resizes it, within limits that always leave the work room
 (`dockWidthBounds`). Where the window is too narrow for both, the shell stops
@@ -24,7 +26,7 @@ import { useMatch, useNavigate } from 'react-router'
 import { useDiscussTask } from '../../api/consultation.js'
 import { useConnections, useFolder, useMe, useTask } from '../../api/queries.js'
 import { viewerFacts } from '../../lib/folder-authority.js'
-import { Maximize2, X } from '../../lib/icons.js'
+import { Maximize2, MessagesSquare, X } from '../../lib/icons.js'
 import type { PersonResolver } from '../../lib/thread.js'
 import { paths } from '../../routes.js'
 import {
@@ -148,7 +150,7 @@ function Dock({
      a thread then moves it on to its composer. */
   useEffect(() => { box.current?.focus({ preventScroll: true }) }, [])
 
-  /* The same thread, full screen: the project's Discussion tab. */
+  /* The same thread, full screen: the project's stored Discussion page. */
   const fullScreen = (): void => {
     const query = discussionId === null ? 'conversation=open' : `discussion=${discussionId}`
     closeChatDock()
@@ -178,11 +180,16 @@ function Dock({
       }}
     >
       <ResizeEdge width={width} />
-      <header className="flex h-12 shrink-0 items-center gap-1 border-b border-border pr-2 pl-4">
-        <h2 className="shrink-0 text-sm font-title text-foreground">Discussion</h2>
-        <p className="min-w-0 flex-1 truncate pl-1 text-sm text-muted-foreground" title={project?.name}>
-          {project?.name ?? ''}
-        </p>
+      <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-border px-3">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground" aria-hidden="true">
+          <MessagesSquare className="size-4" strokeWidth={1.75} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-sm font-title leading-4 text-foreground">Discussion</h2>
+          <p className="mt-0.5 truncate text-xs leading-4 text-muted-foreground" title={project?.name}>
+            {project?.name ?? ''}
+          </p>
+        </div>
         <Button
           type="button"
           variant="ghost"
@@ -208,13 +215,19 @@ function Dock({
       </header>
 
       <RosterTints ids={members.map((member) => member.user.id)}>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-4 pt-4">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-3 pt-3">
           {failed !== null ? (
             <InlineError onRetry={() => void failed.refetch()} />
           ) : project === undefined ? (
             <SkeletonList />
           ) : (
-            <Chat folderId={folderId} discussionId={discussionId} viewer={viewer} personOf={personOf} />
+            <Chat
+              folderId={folderId}
+              discussionId={discussionId}
+              viewer={viewer}
+              personOf={personOf}
+              collaborative={members.length > 1}
+            />
           )}
         </div>
       </RosterTints>
@@ -287,21 +300,28 @@ function Chat({
   discussionId,
   viewer,
   personOf,
+  collaborative,
 }: {
   readonly folderId: string
   readonly discussionId: string | null
   readonly viewer: ConsultationViewer | null
   readonly personOf: PersonResolver
+  readonly collaborative: boolean
 }): React.JSX.Element {
   const [started, setStarted] = useState<string | null>(null)
   /* The thread last left, whose row takes focus when the list returns. */
   const [left, setLeft] = useState<string | null>(null)
   const open = (id: string | null): void => { openChatDock({ folderId, discussionId: id }) }
-  /* On a task with no thread yet, the list offers to start one. */
+  /* A task may start a thread only while this is actually collaborative.
+     Existing threads remain reachable after the roster becomes solo. */
   const taskId = useRouteTask()
   const task = useTask(taskId).data
   const discuss = useDiscussTask()
-  const unspoken = task !== undefined && !task.folder.is_default && task.linked_discussions.length === 0
+  const unspoken =
+    collaborative &&
+    task !== undefined &&
+    !task.folder.is_default &&
+    task.linked_discussions.length === 0
 
   if (discussionId === null) {
     return (
