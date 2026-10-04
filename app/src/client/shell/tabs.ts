@@ -16,7 +16,9 @@ Collaboration presentation state belongs to the workspace tab for the same
 reason. Discussion or Team can be open in one tab and absent in another; only
 the active tab's state is visible. Switching tabs therefore hides a panel
 without destroying it, and switching back restores the exact panel state that
-tab owned. Sidebar width remains a separate viewer/window preference.
+tab owned. Discussion's full-screen return path is part of that same state so
+one workspace tab can never overwrite another tab's source context. Sidebar
+width remains a separate viewer/window preference.
 */
 import { useSyncExternalStore } from 'react'
 
@@ -31,6 +33,8 @@ export interface DiscussionCollaborationState {
   readonly discussionId: string | null
   readonly filter: DiscussionFilter
   readonly presentation: CollaborationPresentation
+  /** Exact page/view/query/hash Discussion should return beside or back to. */
+  readonly returnTo: string | null
 }
 
 export interface TeamCollaborationState {
@@ -50,6 +54,11 @@ export interface Tab {
 interface TabState {
   readonly tabs: readonly Tab[]
   readonly activeId: string
+}
+
+interface PendingRoute {
+  readonly tabId: string
+  readonly path: string
 }
 
 let counter = 0
@@ -72,6 +81,14 @@ function newTab(path: string): Tab {
 
 const first: Tab = newTab(paths.today)
 let state: TabState = { tabs: [first], activeId: first.id }
+/*
+ * Selecting a workspace tab and React Router drawing that tab are two separate
+ * synchronous/async steps. Keep the destination between them so a passive
+ * effect left from the previous route cannot write its old address into the
+ * newly selected tab. The same handoff protects explicit Discussion
+ * full/sidebar transitions that commit a source route before navigation.
+ */
+let pendingRoute: PendingRoute | null = null
 
 const listeners = new Set<() => void>()
 function publish(): void {
@@ -127,14 +144,16 @@ export function updateActiveCollaboration(
   setActiveCollaboration(next)
 }
 
-/**
- * Reconcile ordinary router navigation with the working set.
- *
- * If the destination is already represented by another tab, that tab becomes
- * current and takes the exact URL the navigation requested. Otherwise the
- * active tab is retargeted in place, like an address bar.
- */
-export function retarget(path: string): void {
+function visibleBrowserPath(): string | null {
+  if (typeof window === 'undefined') return null
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`
+}
+
+function expectRoute(path: string): void {
+  pendingRoute = { tabId: state.activeId, path }
+}
+
+function applyRoute(path: string): void {
   const active = state.tabs.find((tab) => tab.id === state.activeId)
   if (active === undefined || active.path === path) return
 
@@ -156,12 +175,52 @@ export function retarget(path: string): void {
   publish()
 }
 
+/**
+ * Commit a known destination to the active workspace tab immediately.
+ *
+ * Presentation transitions use this before router navigation because the
+ * TabStrip's ordinary route reconciliation is intentionally passive. The
+ * destination remains pending until the router reports that exact address,
+ * so an older passive effect cannot undo the commit in the gap between them.
+ */
+export function commitActiveTabRoute(path: string): void {
+  applyRoute(path)
+  expectRoute(path)
+}
+
+/**
+ * Reconcile ordinary router navigation with the working set.
+ *
+ * A tab selection or explicit presentation transition may already have chosen
+ * the next address while React Router still displays the previous one. Until
+ * the router reaches that pending destination, ignore every older route
+ * effect. The visible-path check covers the inverse race, where the browser
+ * has already advanced past an older passive effect.
+ *
+ * If the current router destination is already represented by another tab,
+ * that tab becomes current and takes the exact URL the navigation requested.
+ * Otherwise the active tab is retargeted in place, like an address bar.
+ */
+export function retarget(path: string): void {
+  if (pendingRoute !== null) {
+    if (state.activeId !== pendingRoute.tabId || path !== pendingRoute.path) return
+    const visible = visibleBrowserPath()
+    if (visible !== null && visible !== path) return
+    pendingRoute = null
+  }
+
+  const visible = visibleBrowserPath()
+  if (visible !== null && visible !== path) return
+  applyRoute(path)
+}
+
 /** Add a place beside the active tab, or switch to its existing tab. */
 export function openInNewTab(path: string): string {
   const key = tabKey(path)
   const open = state.tabs.find((tab) => tabKey(tab.path) === key)
   if (open !== undefined) {
     state = { ...state, activeId: open.id }
+    expectRoute(open.path)
     publish()
     return open.path
   }
@@ -171,6 +230,7 @@ export function openInNewTab(path: string): string {
   const tabs = [...state.tabs]
   tabs.splice(at < 0 ? tabs.length : at + 1, 0, tab)
   state = { tabs, activeId: tab.id }
+  expectRoute(path)
   publish()
   return path
 }
@@ -180,6 +240,7 @@ export function selectTab(id: string): string {
   const tab = state.tabs.find((candidate) => candidate.id === id)
   if (tab === undefined) return state.tabs[0]?.path ?? paths.today
   state = { ...state, activeId: id }
+  expectRoute(tab.path)
   publish()
   return tab.path
 }
@@ -192,6 +253,7 @@ export function closeTab(id: string, emptyPath: string): string | null {
   if (state.tabs.length === 1) {
     const fresh = newTab(emptyPath)
     state = { tabs: [fresh], activeId: fresh.id }
+    expectRoute(emptyPath)
     publish()
     return emptyPath
   }
@@ -206,6 +268,7 @@ export function closeTab(id: string, emptyPath: string): string | null {
   const neighbour = tabs[at] ?? tabs[at - 1]
   if (neighbour === undefined) return null
   state = { tabs, activeId: neighbour.id }
+  expectRoute(neighbour.path)
   publish()
   return neighbour.path
 }
