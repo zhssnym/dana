@@ -3,6 +3,7 @@ import type { NavigateFunction } from 'react-router'
 import { openChatDock } from '../../state/chat-dock.js'
 import {
   activeCollaboration,
+  retarget,
   setActiveCollaboration,
   updateActiveCollaboration,
 } from '../../shell/tabs.js'
@@ -28,6 +29,16 @@ export function discussionReturnTo(projectId: string): string | null {
 }
 
 /**
+ * Commit the exact route to the active workspace tab before asking the router
+ * to draw it. TabStrip also reconciles route changes, but that happens in a
+ * passive effect; presentation switches must not leave a stale Discussion URL
+ * behind if the user changes workspace tabs immediately after the click.
+ */
+function commitReturnRoute(targetPath: string): void {
+  retarget(targetPath)
+}
+
+/**
  * Leave full-screen Discussion completely and restore the saved source route.
  * The collaboration state clears after navigation has left the Discussion
  * surface so its route-seeding effect cannot immediately recreate it.
@@ -36,6 +47,7 @@ export function leaveDiscussionFullScreen(
   navigate: NavigateFunction,
   targetPath: string,
 ): void {
+  commitReturnRoute(targetPath)
   void navigate(targetPath, { replace: true })
   globalThis.requestAnimationFrame(() => {
     const current = activeCollaboration()
@@ -47,10 +59,11 @@ export function leaveDiscussionFullScreen(
 
 /**
  * Move the one Discussion presentation back beside the page it came from.
- * Navigation happens first so the sidebar and full-screen presentation are
- * never mounted at the same time. The target is a complete in-app path rather
- * than only a Folder id because Discussion may have been expanded beside a
- * Task or a particular Work/Doc page with its own query state.
+ * The tab's address is committed synchronously, then navigation happens before
+ * the sidebar opens so full-screen and sidebar presentations are never drawn
+ * together. The target is a complete in-app path rather than only a Folder id
+ * because Discussion may have been expanded beside a Task or a particular
+ * Work/Doc page with its own query state.
  */
 export function moveDiscussionToSidebar(
   navigate: NavigateFunction,
@@ -58,6 +71,7 @@ export function moveDiscussionToSidebar(
   discussionId: string | null,
   targetPath: string,
 ): void {
+  commitReturnRoute(targetPath)
   void navigate(targetPath, { replace: true })
   globalThis.requestAnimationFrame(() => {
     openChatDock({ folderId: projectId, discussionId })
