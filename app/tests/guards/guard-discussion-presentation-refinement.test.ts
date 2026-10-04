@@ -11,6 +11,7 @@ const fullScreen = read('components/consultation/ConsultationPanel.tsx')
 const header = read('components/folder-head.tsx')
 const presentation = read('components/consultation/presentation.ts')
 const task = read('components/task-card.tsx')
+const taskSurface = read('components/task-surface.tsx')
 
 describe('Discussion presentation refinement', () => {
   test('keeps Discussion out of the horizontal page strip and add menu', () => {
@@ -30,7 +31,7 @@ describe('Discussion presentation refinement', () => {
     expect(header).toContain("collaboration.presentation !== 'full'")
     expect(header).toContain("page.kind === 'discussion'")
     expect(header).toContain("params.set('conversation', 'open')")
-    expect(task).toContain('discussionId: linked.id')
+    expect(taskSurface).toContain('discussionId: linked.id')
   })
 
   test('uses one Discussion context bar with navigation and an icon-only presentation switch', () => {
