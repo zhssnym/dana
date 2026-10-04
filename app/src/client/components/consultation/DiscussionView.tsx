@@ -81,7 +81,7 @@ export function DiscussionView(props: {
   readonly personOf: PersonResolver
   readonly justStarted: boolean
   readonly onBack: () => void
-  /** PROTOTYPE (experimental/chat-side-panel): drawn inside the chat dock.
+  /** Drawn inside the Discussion sidebar (#546).
    * Nothing is put in the app's top bar; back, the title and the thread's
    * acts sit in one row at the top of the panel, and the thread fills its
    * container instead of measuring the page. */
@@ -396,7 +396,7 @@ function ThreadLead({ title, folderId, onBack }: { readonly title: string; reado
   )
 }
 
-/* PROTOTYPE (experimental/chat-side-panel): the dock's own row for an open
+/* The Discussion sidebar's own row (#546) for an open
    thread: back to the list, the title, then the thread's acts. */
 function DockedLead({ title, onBack, children }: { readonly title: string; readonly onBack: () => void; readonly children?: React.ReactNode }): React.JSX.Element {
   return (

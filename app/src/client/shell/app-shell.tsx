@@ -372,9 +372,6 @@ export function AppShell(): React.JSX.Element {
   /* What an open right-edge panel has reserved. Zero when nothing is open,
      which is almost always. */
   const panelEdge = useRightEdge()
-  /* PROTOTYPE (chat dock): the dock takes room as well, beside whatever a
-     right-edge panel reserved. On a phone it covers the page instead: there
-     is no room to give. */
   /* The Discussion sidebar (#546) takes room beside the work where the window
      has it, and lies over the page where it does not: a squeezed page is
      worse than a covered edge. */

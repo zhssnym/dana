@@ -65,7 +65,7 @@ const ROW =
 
 const MARK = 'flex size-[var(--control-height)] items-center justify-center rounded-sm'
 
-/* PROTOTYPE (chat dock): the dock's row. Two lines, no rule between rows. */
+/* The Discussion sidebar's row (#546). Two lines, no rule between rows. */
 const DOCKED_ROW =
   'grid w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-x-1 rounded-md py-1.5 pr-2 pl-0.5 text-sm transition-colors duration-[var(--duration-fast)]'
 
@@ -78,7 +78,7 @@ export function DiscussionList({
   onStarted,
   docked = false,
 }: {
-  /** PROTOTYPE (chat dock): drawn in the dock, as a list of conversations:
+  /** Drawn in the Discussion sidebar (#546), as a list of conversations:
    * no frame, two lines a row (title, then who said what last). */
   readonly docked?: boolean
   readonly folderId: string
