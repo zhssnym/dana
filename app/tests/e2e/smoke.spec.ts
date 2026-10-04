@@ -158,7 +158,7 @@ test('smoke: collaboration state follows its workspace tab', async ({ page }) =>
     await expect(dock.getByRole('button', { name: 'Resolved', exact: true })).toHaveAttribute('aria-pressed', 'true')
 
     const stripRight = await tabs.locator('..').evaluate((element) => element.getBoundingClientRect().right)
-    const viewportWidth = await page.evaluate(() => window.innerWidth)
+    const viewportWidth = page.viewportSize()?.width ?? 1280
     expect(Math.abs(viewportWidth - stripRight)).toBeLessThan(2)
 
     await page.getByRole('tab', { name: /Today/ }).click()
