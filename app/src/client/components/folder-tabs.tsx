@@ -9,9 +9,10 @@ header's Discussion control is its single project-level entry point. The tab
 row therefore draws Work/Doc pages only, and the "+" offers only those page
 kinds. Desk keeps the same rule and its fixed Work root.
 
-**With one visible tab the tab itself is not drawn**. A Work page keeps the
-hairline for its controls and "+"; other pages keep "+" in the header
-(`AddTabMenu`).
+**With one visible tab the tab itself is not drawn**. Its add control still
+remains available when the viewer can edit, even if a hidden stored Discussion
+page means the project technically has more than one stored tab. Work also
+keeps its Filter/View controls on the same hairline.
 
 **A tab's own acts are on the tab**: right-click it (or Shift+F10 / the menu
 key) for Rename and Delete. The root's tab has neither: its name is the
@@ -39,7 +40,6 @@ import {
 } from './ui/dropdown-menu.js'
 import { Tab, TabList } from './ui/tabs.js'
 import { cn } from './ui/utils.js'
-import { DiscussionTabName } from './consultation/DiscussionTabName.js'
 
 type TabPage = Pick<Folder, 'id' | 'project_id' | 'kind' | 'name' | 'tab_position'> &
   Partial<Pick<Folder, 'is_default'>>
@@ -106,7 +106,7 @@ interface TabDrag {
 }
 
 /**
- * The tab row, or nothing when the project has one visible tab.
+ * The tab row, or only its controls when the project has one visible tab.
  *
  * Tabs are reordered by dragging them on the row itself, the way browser tabs
  * are: a mouse press that moves lifts the tab, a finger lifts it after a long
@@ -234,13 +234,19 @@ export function FolderTabs<T extends TabPage>({
     else if (at.right > box.right) row.scrollLeft += at.right - box.right
   }, [activeId])
 
-  /* One tab is not a choice. Work still needs its controls on the hairline. */
-  if (rowTabs.length < 2) return tools === undefined ? null : (
-    <div className="flex min-w-0 items-end justify-end gap-2 border-b border-border">
-      {rowEditable && rowTabs.length === 1 ? <AddTabMenu tabs={rowTabs} onAdd={onAdd} /> : null}
-      <div className="flex shrink-0 items-center border-l border-border pl-2 pb-0.5">{tools}</div>
-    </div>
-  )
+  /* One visible tab is not a choice, but its add control must not disappear
+     just because a stored Discussion page is hidden from this row. */
+  if (rowTabs.length < 2) {
+    if (!rowEditable && tools === undefined) return null
+    return (
+      <div className="flex min-w-0 items-end justify-end gap-2 border-b border-border">
+        {rowEditable && rowTabs.length === 1 ? <AddTabMenu tabs={rowTabs} onAdd={onAdd} /> : null}
+        {tools === undefined ? null : (
+          <div className="flex shrink-0 items-center border-l border-border pl-2 pb-0.5">{tools}</div>
+        )}
+      </div>
+    )
+  }
   const active = rowTabs.find((tab) => tab.id === activeId)
 
   function moveFocus(tab: T, direction: -1 | 1): void {
@@ -429,7 +435,7 @@ export function FolderTabs<T extends TabPage>({
                   'after:absolute after:inset-y-1.5 after:-right-2 after:w-0.5 after:rounded-full after:bg-primary',
               )}
             >
-              {tab.kind === 'discussion' ? <DiscussionTabName folderId={tab.id} name={label} /> : label}
+              {label}
             </Tab>
           )
         })}
