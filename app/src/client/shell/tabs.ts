@@ -56,6 +56,11 @@ interface TabState {
   readonly activeId: string
 }
 
+interface PendingRoute {
+  readonly tabId: string
+  readonly path: string
+}
+
 let counter = 0
 function nextId(): string {
   counter += 1
@@ -76,6 +81,14 @@ function newTab(path: string): Tab {
 
 const first: Tab = newTab(paths.today)
 let state: TabState = { tabs: [first], activeId: first.id }
+/*
+ * Selecting a workspace tab and React Router drawing that tab are two separate
+ * synchronous/async steps. Keep the destination between them so a passive
+ * effect left from the previous route cannot write its old address into the
+ * newly selected tab. The same handoff protects explicit Discussion
+ * full/sidebar transitions that commit a source route before navigation.
+ */
+let pendingRoute: PendingRoute | null = null
 
 const listeners = new Set<() => void>()
 function publish(): void {
@@ -104,7 +117,7 @@ export function activeCollaboration(): CollaborationState | null {
   return state.tabs.find((tab) => tab.id === state.activeId)?.collaboration ?? null
 }
 
-/** The active tab id, used only for tab-local focus bookkeeping and route ownership. */
+/** The active tab id, used only for tab-local focus bookkeeping. */
 export function activeWorkspaceTabId(): string {
   return state.activeId
 }
@@ -136,15 +149,11 @@ function visibleBrowserPath(): string | null {
   return `${window.location.pathname}${window.location.search}${window.location.hash}`
 }
 
-/**
- * Commit a known destination to the active workspace tab immediately.
- *
- * Presentation transitions use this before router navigation because the
- * TabStrip's ordinary route reconciliation is intentionally passive. Keeping
- * this explicit path prevents a fast workspace-tab switch from observing the
- * previous Discussion URL.
- */
-export function commitActiveTabRoute(path: string): void {
+function expectRoute(path: string): void {
+  pendingRoute = { tabId: state.activeId, path }
+}
+
+function applyRoute(path: string): void {
   const active = state.tabs.find((tab) => tab.id === state.activeId)
   if (active === undefined || active.path === path) return
 
@@ -167,24 +176,42 @@ export function commitActiveTabRoute(path: string): void {
 }
 
 /**
+ * Commit a known destination to the active workspace tab immediately.
+ *
+ * Presentation transitions use this before router navigation because the
+ * TabStrip's ordinary route reconciliation is intentionally passive. The
+ * destination remains pending until the router reports that exact address,
+ * so an older passive effect cannot undo the commit in the gap between them.
+ */
+export function commitActiveTabRoute(path: string): void {
+  applyRoute(path)
+  expectRoute(path)
+}
+
+/**
  * Reconcile ordinary router navigation with the working set.
  *
- * `ownerId` is the workspace tab that owned the route render which scheduled
- * this passive reconciliation. A workspace-tab click changes `activeId`
- * synchronously before React Router changes the browser URL; without this
- * ownership check, the previous tab's still-pending route effect can retarget
- * the newly selected tab back to the old page. The visible-path check covers
- * the inverse race, where the router has already advanced past an older effect.
+ * A tab selection or explicit presentation transition may already have chosen
+ * the next address while React Router still displays the previous one. Until
+ * the router reaches that pending destination, ignore every older route
+ * effect. The visible-path check covers the inverse race, where the browser
+ * has already advanced past an older passive effect.
  *
  * If the current router destination is already represented by another tab,
  * that tab becomes current and takes the exact URL the navigation requested.
  * Otherwise the active tab is retargeted in place, like an address bar.
  */
-export function retarget(path: string, ownerId?: string): void {
-  if (ownerId !== undefined && state.activeId !== ownerId) return
+export function retarget(path: string): void {
+  if (pendingRoute !== null) {
+    if (state.activeId !== pendingRoute.tabId || path !== pendingRoute.path) return
+    const visible = visibleBrowserPath()
+    if (visible !== null && visible !== path) return
+    pendingRoute = null
+  }
+
   const visible = visibleBrowserPath()
   if (visible !== null && visible !== path) return
-  commitActiveTabRoute(path)
+  applyRoute(path)
 }
 
 /** Add a place beside the active tab, or switch to its existing tab. */
@@ -193,6 +220,7 @@ export function openInNewTab(path: string): string {
   const open = state.tabs.find((tab) => tabKey(tab.path) === key)
   if (open !== undefined) {
     state = { ...state, activeId: open.id }
+    expectRoute(open.path)
     publish()
     return open.path
   }
@@ -202,6 +230,7 @@ export function openInNewTab(path: string): string {
   const tabs = [...state.tabs]
   tabs.splice(at < 0 ? tabs.length : at + 1, 0, tab)
   state = { tabs, activeId: tab.id }
+  expectRoute(path)
   publish()
   return path
 }
@@ -211,6 +240,7 @@ export function selectTab(id: string): string {
   const tab = state.tabs.find((candidate) => candidate.id === id)
   if (tab === undefined) return state.tabs[0]?.path ?? paths.today
   state = { ...state, activeId: id }
+  expectRoute(tab.path)
   publish()
   return tab.path
 }
@@ -223,6 +253,7 @@ export function closeTab(id: string, emptyPath: string): string | null {
   if (state.tabs.length === 1) {
     const fresh = newTab(emptyPath)
     state = { tabs: [fresh], activeId: fresh.id }
+    expectRoute(emptyPath)
     publish()
     return emptyPath
   }
@@ -237,6 +268,7 @@ export function closeTab(id: string, emptyPath: string): string | null {
   const neighbour = tabs[at] ?? tabs[at - 1]
   if (neighbour === undefined) return null
   state = { tabs, activeId: neighbour.id }
+  expectRoute(neighbour.path)
   publish()
   return neighbour.path
 }
