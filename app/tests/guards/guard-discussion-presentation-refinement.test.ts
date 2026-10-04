@@ -4,6 +4,8 @@ import { describe, expect, test } from 'vitest'
 const read = (path: string): string => readFileSync(new URL(`../../src/client/${path}`, import.meta.url), 'utf8')
 
 const tabs = read('components/folder-tabs.tsx')
+const workspaceTabs = read('shell/tabs.ts')
+const dockState = read('state/chat-dock.ts')
 const dock = read('components/chat-dock/ChatDock.tsx')
 const fullScreen = read('components/consultation/ConsultationPanel.tsx')
 const header = read('components/folder-head.tsx')
@@ -21,19 +23,35 @@ describe('Discussion presentation refinement', () => {
     expect(tabs).toContain('if (!rowEditable && tools === undefined) return null')
   })
 
-  test('keeps the project header as the full-screen presentation control', () => {
-    expect(header).toContain("routePage.kind === 'discussion' || discussionAsked")
-    expect(header).toContain('aria-current="page"')
-    expect(header).toContain('Sidebar view')
-    expect(header).toContain('discussionReturnTo(projectId)')
-    expect(header).toContain('moveDiscussionToSidebar')
-    expect(fullScreen).not.toContain('Sidebar view')
+  test('makes project Discussion full-screen-first without changing task sidebar entry points', () => {
+    expect(dockState).toContain('next.discussionId === undefined')
+    expect(dockState).toContain("const presentation = projectEntry ? 'full' : 'sidebar'")
+    expect(dockState).toContain('returnTo: projectEntry ? currentPath()')
+    expect(header).toContain("collaboration.presentation !== 'full'")
+    expect(header).toContain("page.kind === 'discussion'")
+    expect(header).toContain("params.set('conversation', 'open')")
+    expect(task).toContain('discussionId: linked.id')
   })
 
-  test('returns from full screen to the exact sidebar page and thread', () => {
+  test('uses one Discussion context bar with navigation and an icon-only presentation switch', () => {
+    expect(header).not.toContain('Sidebar view')
+    expect(header).not.toContain('aria-current="page"')
+    expect(fullScreen).toContain('data-discussion-context-bar')
+    expect(fullScreen).toContain('Back to ${returnLabel}')
+    expect(fullScreen).toContain('Open in side panel')
+    expect(fullScreen).toContain('<PanelRight')
+    expect(fullScreen).not.toContain('Sidebar view')
+    expect(fullScreen).toContain('leaveDiscussionFullScreen')
+    expect(fullScreen).toContain('moveDiscussionToSidebar')
+  })
+
+  test('keeps the exact return route on the workspace tab, not in module-global memory', () => {
+    expect(workspaceTabs).toContain('readonly returnTo: string | null')
     expect(dock).toContain('rememberDiscussionReturnTo')
     expect(dock).toContain('`${location.pathname}${location.search}${location.hash}`')
-    expect(presentation).toContain('interface DiscussionReturnTarget')
+    expect(presentation).toContain('activeCollaboration()')
+    expect(presentation).toContain('current.returnTo')
+    expect(presentation).not.toContain('let returnTarget')
     expect(presentation).toContain('targetPath: string')
     expect(presentation).toContain('openChatDock({ folderId: projectId, discussionId })')
   })
