@@ -34,6 +34,7 @@ import { viewerFacts } from '../../lib/folder-authority.js'
 import { Maximize2, MessagesSquare, X } from '../../lib/icons.js'
 import type { PersonResolver } from '../../lib/thread.js'
 import { paths } from '../../routes.js'
+import { commitActiveTabRoute } from '../../shell/tabs.js'
 import {
   closeChatDock,
   DOCK_DEFAULT_WIDTH,
@@ -168,14 +169,18 @@ function Dock({
   useEffect(() => { box.current?.focus({ preventScroll: true }) }, [])
 
   /* The same thread, full screen. Remember exactly what the sidebar was beside
-     so "Sidebar view" can restore that page/view rather than guessing. The
-     tab-local Discussion state itself is retained and only its presentation
-     changes. */
+     so returning restores that page/view rather than guessing. Commit the
+     destination to the workspace tab before publishing the full presentation:
+     this prevents a source-route effect from mistaking the expansion handoff
+     for browser Back and collapsing it immediately. */
   const fullScreen = (): void => {
     const query = discussionId === null ? 'conversation=open' : `discussion=${discussionId}`
-    rememberDiscussionReturnTo(headId, `${location.pathname}${location.search}${location.hash}`)
+    const source = `${location.pathname}${location.search}${location.hash}`
+    const target = `${paths.folder(headId)}?${query}`
+    rememberDiscussionReturnTo(headId, source)
+    commitActiveTabRoute(target)
     setDiscussionPresentation('full')
-    void navigate(`${paths.folder(headId)}?${query}`)
+    void navigate(target)
   }
 
   const failed = here.isError ? here : head.isError ? head : null

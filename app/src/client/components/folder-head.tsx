@@ -18,17 +18,15 @@ it), and only while the page has none; once there is a cover the band's own
 picker changes or removes it. `FolderCoverDialog` below is kept for the
 sidebar's `?folder-action=cover` link.
 
-Discussion has one project-level control here. A fresh project-level entry is
-full-screen-first (#570): `openChatDock` records that intent in the active
-workspace tab, then this header resolves the project's stored Discussion page
-and moves the router there. Once full-screen Discussion is active, the project
-header keeps only project identity/actions; Discussion's section identity,
-return navigation and presentation icon live in its own compact context bar.
+Discussion has one project-level control here. It opens the sidebar by default
+(#575); the explicit expand action owns full-page navigation and browser
+history. This header only recognizes when a full-screen Discussion URL is on
+screen so the project-level Discussion trigger is not duplicated there.
 */
-import { useEffect, useRef, useState } from 'react'
-import { useLocation, useMatch, useNavigate } from 'react-router'
+import { useRef, useState } from 'react'
+import { useLocation, useMatch } from 'react-router'
 
-import { useAllPages, useFolder } from '../api/queries.js'
+import { useFolder } from '../api/queries.js'
 import type { LucideIcon } from '../lib/icons.js'
 import {
   coverPhotoPicker,
@@ -37,8 +35,6 @@ import {
   savePageIdentity,
   usePageIdentity,
 } from '../lib/page-identity.js'
-import { paths } from '../routes.js'
-import { useActiveCollaboration } from '../shell/tabs.js'
 import { FolderCoverPicker } from './folder-cover.js'
 import { AddCoverAction } from './page-cover.js'
 import { T_FAST } from './task-row.js'
@@ -88,48 +84,13 @@ export function FolderHeader({
   const caretAt = useRef<number | null>(null)
   const routeId = useMatch('/app/folders/:id')?.params.id ?? null
   const routePage = useFolder(routeId ?? '', routeId !== null).data
-  const allPages = useAllPages(routeId !== null).data ?? []
   const location = useLocation()
-  const navigate = useNavigate()
-  const collaboration = useActiveCollaboration()
   const query = new URLSearchParams(location.search)
   const discussionAsked = query.has('discussion') || query.get('conversation') === 'open'
   const fullScreenDiscussion =
     routePage !== undefined &&
     !routePage.is_default &&
     (routePage.kind === 'discussion' || discussionAsked)
-  const projectId = routePage?.is_default === false ? routePage.project_id : null
-
-  /* A fresh project-level Discussion press records `presentation: full` before
-     it changes the URL. Resolve the hidden stored Discussion page here so the
-     ordinary project action does not need a second navigation implementation.
-     Task-specific entry points pass an explicit thread id to `openChatDock`,
-     remain sidebar presentation and never enter this path. */
-  useEffect(() => {
-    if (
-      routePage === undefined ||
-      projectId === null ||
-      fullScreenDiscussion ||
-      collaboration?.kind !== 'discussion' ||
-      collaboration.presentation !== 'full' ||
-      (collaboration.folderId !== projectId && collaboration.folderId !== routePage.id)
-    ) return
-
-    const discussionPage = allPages.find((page) =>
-      page.project_id === projectId && page.kind === 'discussion'
-    )
-    const params = new URLSearchParams()
-    if (collaboration.discussionId === null) params.set('conversation', 'open')
-    else params.set('discussion', collaboration.discussionId)
-    void navigate(`${paths.folder(discussionPage?.id ?? projectId)}?${params.toString()}`)
-  }, [
-    allPages,
-    collaboration,
-    fullScreenDiscussion,
-    navigate,
-    projectId,
-    routePage,
-  ])
 
   const glyph = (
     <Icon className="size-7" style={{ color }} strokeWidth={1.5} aria-hidden="true" />
