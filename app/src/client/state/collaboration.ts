@@ -22,13 +22,18 @@ function rememberTeamOpener(tabId: string): void {
   if (active instanceof HTMLElement) teamOpeners.set(tabId, active)
 }
 
+function closeStartedInsideTeam(): boolean {
+  if (typeof document === 'undefined') return false
+  const active = document.activeElement
+  if (!(active instanceof Element)) return false
+  const sheet = active.closest('[data-slot="sheet-content"]')
+  return sheet?.querySelector('[aria-label="Sharing panel"]') !== null
+}
+
 function restoreTeamOpener(tabId: string): void {
   const opener = teamOpeners.get(tabId)
   teamOpeners.delete(tabId)
-  if (opener?.isConnected !== true) return
-  globalThis.requestAnimationFrame(() => {
-    if (opener.isConnected) opener.focus()
-  })
+  if (opener?.isConnected === true) opener.focus()
 }
 
 /**
@@ -50,13 +55,14 @@ export function useTeamPanelState(folderId: string): readonly [boolean, Dispatch
       })
       return
     }
+    const restoreFocus = closeStartedInsideTeam()
     let closed = false
     updateActiveCollaboration((current) => {
       if (current?.kind !== 'team' || current.folderId !== folderId) return current
       closed = true
       return null
     })
-    if (closed) restoreTeamOpener(tabId)
+    if (closed && restoreFocus) restoreTeamOpener(tabId)
   }
   return [open, setOpen] as const
 }
