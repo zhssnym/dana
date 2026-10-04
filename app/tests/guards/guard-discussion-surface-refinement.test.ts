@@ -20,9 +20,11 @@ describe('Discussion surface refinement', () => {
     expect(list).not.toContain("variant={docked ? 'ghost' : 'commit'}")
   })
 
-  test('keeps full-screen Discussion free of the horizontal page strip', () => {
+  test('keeps every full-screen Discussion route free of the horizontal page strip', () => {
     expect(tabs).toContain("const activeStored = tabs.find((tab) => tab.id === activeId)")
-    expect(tabs).toContain("if (activeStored?.kind === 'discussion') return null")
+    expect(tabs).toContain("query.has('discussion')")
+    expect(tabs).toContain("query.get('conversation') === 'open'")
+    expect(tabs).toContain('if (discussionFullScreen) return null')
   })
 
   test('matches the Team sidebar shell depth without carding thread rows', () => {

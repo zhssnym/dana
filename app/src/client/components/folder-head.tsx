@@ -18,17 +18,17 @@ it), and only while the page has none; once there is a cover the band's own
 picker changes or removes it. `FolderCoverDialog` below is kept for the
 sidebar's `?folder-action=cover` link.
 
-Issue #553 keeps Discussion's project-level entry in this header even while
-its full-screen presentation is open. `FolderPage` deliberately omits its
-normal sidebar toggle on the Discussion page; this component restores the same
-control there as an active button, rather than letting the hidden horizontal
-tab become a second entry point.
+Discussion has one project-level control here. Full screen is presentation
+state, not a page kind: a stored Discussion page and a Work/Doc route carrying
+`?conversation=open` / `?discussion=` both make Discussion active, hide the
+ordinary sidebar toggle supplied by FolderPage, and expose one explicit
+`Sidebar view` action that returns to the page the sidebar came from.
 */
 import { useRef, useState } from 'react'
 import { useLocation, useMatch, useNavigate } from 'react-router'
 
 import { useAllPages, useFolder } from '../api/queries.js'
-import { MessagesSquare, type LucideIcon } from '../lib/icons.js'
+import { MessagesSquare, PanelRight, type LucideIcon } from '../lib/icons.js'
 import {
   coverPhotoPicker,
   coverTiersFor,
@@ -36,7 +36,8 @@ import {
   savePageIdentity,
   usePageIdentity,
 } from '../lib/page-identity.js'
-import { moveDiscussionToSidebar } from './consultation/presentation.js'
+import { paths } from '../routes.js'
+import { discussionReturnTo, moveDiscussionToSidebar } from './consultation/presentation.js'
 import { FolderCoverPicker } from './folder-cover.js'
 import { AddCoverAction } from './page-cover.js'
 import { T_FAST } from './task-row.js'
@@ -88,24 +89,45 @@ export function FolderHeader({
   const routeId = useMatch('/app/folders/:id')?.params.id ?? null
   const routePage = useFolder(routeId ?? '', routeId !== null).data
   const allPages = useAllPages(routeId !== null).data ?? []
-  const { search } = useLocation()
+  const location = useLocation()
   const navigate = useNavigate()
-  const fullScreenDiscussion = routePage !== undefined && routePage.kind === 'discussion' && !routePage.is_default
+  const query = new URLSearchParams(location.search)
+  const discussionAsked = query.has('discussion') || query.get('conversation') === 'open'
+  const fullScreenDiscussion =
+    routePage !== undefined &&
+    !routePage.is_default &&
+    (routePage.kind === 'discussion' || discussionAsked)
   const routePageId = routePage?.id ?? null
   const projectId = fullScreenDiscussion ? routePage?.project_id ?? null : null
-  /* A normal project returns to its root. If Discussion itself is the root,
-     use a visible sibling page so sidebar and full-screen are never mounted
-     together. */
-  const sidebarTargetId = projectId === null || routePageId === null
+  const openDiscussionId = fullScreenDiscussion ? query.get('discussion') : null
+
+  /* A full-screen route reached from the sidebar returns to the exact page or
+     Task remembered before expansion. Direct links have no memory: a routed
+     Work/Doc simply drops Discussion-only query state, while a stored
+     Discussion page falls back to the project root (or a visible sibling when
+     Discussion itself is the project root). */
+  const withoutDiscussion = new URLSearchParams(location.search)
+  withoutDiscussion.delete('discussion')
+  withoutDiscussion.delete('conversation')
+  withoutDiscussion.delete('outcome')
+  const cleanQuery = withoutDiscussion.size === 0 ? '' : `?${withoutDiscussion.toString()}`
+  const currentPageFallback = `${location.pathname}${cleanQuery}${location.hash}`
+  const fallbackPageId = projectId === null || routePageId === null
     ? null
-    : routePageId !== projectId
-      ? projectId
-      : allPages.find((page) =>
-          page.project_id === projectId &&
-          page.kind !== 'discussion' &&
-          page.tab_position !== null
-        )?.id ?? null
-  const openDiscussionId = fullScreenDiscussion ? new URLSearchParams(search).get('discussion') : null
+    : routePage?.kind !== 'discussion'
+      ? routePageId
+      : routePageId !== projectId
+        ? projectId
+        : allPages.find((page) =>
+            page.project_id === projectId &&
+            page.kind !== 'discussion' &&
+            page.tab_position !== null
+          )?.id ?? null
+  const fallbackTarget = routePage?.kind === 'discussion'
+    ? fallbackPageId === null ? null : paths.folder(fallbackPageId)
+    : currentPageFallback
+  const sidebarTarget = projectId === null ? null : discussionReturnTo(projectId) ?? fallbackTarget
+
   const glyph = (
     <Icon className="size-7" style={{ color }} strokeWidth={1.5} aria-hidden="true" />
   )
@@ -210,23 +232,32 @@ export function FolderHeader({
         )}
         <div className="mt-1 flex shrink-0 items-center gap-1">
           {fullScreenDiscussion ? (
-            <Button
-              type="button"
-              variant="ghost"
-              aria-pressed="true"
-              title={sidebarTargetId === null ? 'Discussion' : 'Move Discussion to sidebar'}
-              className="bg-hover text-foreground"
-              disabled={sidebarTargetId === null || projectId === null}
-              onClick={() => {
-                if (projectId === null || sidebarTargetId === null) return
-                moveDiscussionToSidebar(navigate, projectId, openDiscussionId, sidebarTargetId)
-              }}
-            >
-              <MessagesSquare className="size-4" strokeWidth={1.75} aria-hidden="true" />
-              Discussion
-            </Button>
+            <>
+              <span
+                aria-current="page"
+                className="inline-flex h-[var(--control-height)] items-center gap-2 rounded-md bg-hover px-2 text-sm text-foreground"
+              >
+                <MessagesSquare className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                Discussion
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={sidebarTarget === null || projectId === null}
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  if (projectId === null || sidebarTarget === null) return
+                  moveDiscussionToSidebar(navigate, projectId, openDiscussionId, sidebarTarget)
+                }}
+              >
+                <PanelRight className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                Sidebar view
+              </Button>
+            </>
           ) : null}
-          {actions}
+          <div className={cn('contents', fullScreenDiscussion && '[&>button[aria-pressed]]:hidden')}>
+            {actions}
+          </div>
         </div>
       </div>
     </header>
