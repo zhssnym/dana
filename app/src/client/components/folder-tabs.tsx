@@ -7,7 +7,8 @@ Discussion is deliberately not a horizontal tab. Its stored page remains the
 full-screen presentation and keeps the same thread/history, but the project
 header's Discussion control is its single project-level entry point. The tab
 row therefore draws Work/Doc pages only, and the "+" offers only those page
-kinds. Desk keeps the same rule and its fixed Work root.
+kinds. Desk keeps the same rule and its fixed Work root. While the stored
+Discussion page itself is active, the whole horizontal strip steps aside.
 
 **With one visible tab the tab itself is not drawn**. Its add control still
 remains available when the viewer can edit, even if a hidden stored Discussion
@@ -139,6 +140,7 @@ export function FolderTabs<T extends TabPage>({
 }): React.JSX.Element | null {
   const desk = isDeskRow(tabs)
   const deskRoot = desk ? tabs.find((tab) => tab.id === tab.project_id) : undefined
+  const activeStored = tabs.find((tab) => tab.id === activeId)
   /* Keep the stored Discussion page for history and full-screen rendering, but
      never expose it as a second project-level entry point in this row. */
   const visibleTabs = tabs.filter((tab) => tab.kind !== 'discussion')
@@ -233,6 +235,10 @@ export function FolderTabs<T extends TabPage>({
     if (at.left < box.left) row.scrollLeft -= box.left - at.left
     else if (at.right > box.right) row.scrollLeft += at.right - box.right
   }, [activeId])
+
+  /* Full-screen Discussion owns the body below the project header. The page
+     strip would only repeat navigation that belongs to the Work surface. */
+  if (activeStored?.kind === 'discussion') return null
 
   /* One visible tab is not a choice, but its add control must not disappear
      just because a stored Discussion page is hidden from this row. */
