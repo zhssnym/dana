@@ -33,6 +33,15 @@ describe('Discussion presentation refinement', () => {
     expect(dock).toContain('aria-label="Open full screen"')
   })
 
+  test('gives explicit expand sole ownership of full-page navigation', () => {
+    expect(dock).toContain('commitActiveTabRoute(target)')
+    expect(dock).toContain('void navigate(target)')
+    expect(header).not.toContain("collaboration.presentation !== 'full'")
+    expect(header).not.toContain('useActiveCollaboration')
+    expect(header).not.toContain('useNavigate')
+    expect(header).not.toContain('discussionPage = allPages.find')
+  })
+
   test('uses one Discussion context bar with navigation and an icon-only presentation switch', () => {
     expect(header).not.toContain('Sidebar view')
     expect(header).not.toContain('aria-current="page"')
