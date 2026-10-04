@@ -244,7 +244,30 @@ export const invite = z.object({
 })
 export type Invite = z.infer<typeof invite>
 
-export const postInvitesResponse = z.object({ invite })
+/* The 201 success shape. Kept separate because decline/cancel/resend always
+   return this wrapper, while POST /invites itself also has the conversion arm. */
+const postInvitesCreatedResponse = z.object({ invite })
+
+/*
+The other answer POST /invites can give, 7.5's instant share. converted_to_share
+is the literal true, since a body reporting false would be reporting the 201
+case, which has its own status.
+*/
+export const postInvitesConversionResponse = z.object({
+  converted_to_share: z.literal(true),
+  membership: folderMember,
+})
+export type PostInvitesConversionResponse = z.infer<
+  typeof postInvitesConversionResponse
+>
+
+/* POST /invites has two valid success bodies. The client parses the endpoint
+   through this union so an instant share is a successful mutation and gets
+   the same cache invalidation/refetch as a created invite. */
+export const postInvitesResponse = z.union([
+  postInvitesCreatedResponse,
+  postInvitesConversionResponse,
+])
 export type PostInvitesResponse = z.infer<typeof postInvitesResponse>
 
 /*
@@ -254,20 +277,6 @@ wrapper, the notation 7.5 writes for both of its lists.
 */
 export const getInvitesSentResponse = z.array(invite)
 export type GetInvitesSentResponse = z.infer<typeof getInvitesSentResponse>
-
-/*
-The other answer POST /invites can give, 7.5's instant share. converted_to_share
-is the literal true, since a body reporting false would be reporting the 201
-case, which has its own status; the status is what separates the two answers,
-so a client picks the shape by status rather than narrowing a union by key.
-*/
-export const postInvitesConversionResponse = z.object({
-  converted_to_share: z.literal(true),
-  membership: folderMember,
-})
-export type PostInvitesConversionResponse = z.infer<
-  typeof postInvitesConversionResponse
->
 
 /*
 GET /invites/pending, 7.5 field for field: [{id, inviter:
@@ -337,6 +346,6 @@ patchFolderResponse and patchFolderMyMembershipResponse are both the Folder
 object: an endpoint's response is its own promise, and naming them apart is
 what lets one of the three move later without dragging the others.
 */
-export const declineInviteResponse = postInvitesResponse
-export const cancelInviteResponse = postInvitesResponse
-export const resendInviteResponse = postInvitesResponse
+export const declineInviteResponse = postInvitesCreatedResponse
+export const cancelInviteResponse = postInvitesCreatedResponse
+export const resendInviteResponse = postInvitesCreatedResponse
