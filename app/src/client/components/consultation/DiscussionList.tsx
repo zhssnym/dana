@@ -6,9 +6,8 @@ language compressed to two lines.
 
 Open and Resolved are filters, not page tabs. They live in one compact segmented
 control with a clear selected state, while "+ New thread" is the single creation
-action beside them. The toolbar and rows sit directly on the Discussion surface:
-no bordered card around another bordered card, no tinted table head, and no
-extra empty-state frame.
+action beside them. Full page gives the list one bounded issues-list surface;
+the sidebar keeps rows flat where a box would crowd them.
 
 Each thread has one leading mark. A thread linked to one or more Tasks shows the
 first linked Task's state mark (linking to that Task); any other shows an outline
@@ -192,8 +191,8 @@ export function DiscussionList({
   )
 
   return (
-    <div ref={keys} className="min-w-0">
-      <div className="flex min-h-10 items-center justify-between gap-3 border-b border-border pb-2 text-sm">
+    <div ref={keys} className={cn('min-w-0', !docked && 'overflow-hidden rounded-md border border-border')}>
+      <div className={cn('flex min-h-10 items-center justify-between gap-3 border-b border-border text-sm', docked ? 'pb-2' : 'bg-muted px-3 py-2')}>
         <div
           role="group"
           aria-label="Show threads"
@@ -204,9 +203,9 @@ export function DiscussionList({
         </div>
         {mayStart ? (
           <Button
-            variant="ghost"
+            variant={docked ? 'ghost' : 'default'}
             size="sm"
-            className="shrink-0 text-muted-foreground hover:text-foreground"
+            className={cn('shrink-0', docked && 'text-muted-foreground hover:text-foreground')}
             onClick={() => {
               setFilter('open')
               setStarting(true)
@@ -217,7 +216,7 @@ export function DiscussionList({
           </Button>
         ) : null}
       </div>
-      <ul className={cn('flex flex-col divide-y divide-border', docked && '-mx-2')}>
+      <ul className={cn('flex flex-col', docked ? '-mx-2 gap-[var(--space-row)]' : 'divide-y divide-border')}>
         {starting && mayStart ? (
           <li>
             <NewThread

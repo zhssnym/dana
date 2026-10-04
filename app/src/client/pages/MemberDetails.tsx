@@ -54,6 +54,7 @@ export function MemberDetails({
   folderId,
   userId,
   viewerId,
+  fullPage = false,
   ask,
   onRemove,
 }: {
@@ -61,6 +62,7 @@ export function MemberDetails({
   readonly userId: string
   /** Who is looking, so their own row confirms before lowering itself. */
   readonly viewerId: string | null
+  readonly fullPage?: boolean
   readonly ask: AskConfirm
   /** Remove this member, the list row's own act; absent where not offered. */
   readonly onRemove?: ((name: string) => void) | undefined
@@ -82,24 +84,26 @@ export function MemberDetails({
     )
   }
   const name = member.user.display_name ?? 'Someone'
+  const Heading = fullPage ? 'h2' : 'h3'
 
   return (
-    <div className="flex flex-col gap-[var(--space-group)]">
-      <div>
-        <div className="flex items-center gap-[var(--space-inline)] px-2">
+    <div className={cn('flex flex-col', fullPage ? 'gap-0' : 'gap-[var(--space-group)]')}>
+      <div className={cn(fullPage && 'border-b border-border pb-[var(--space-group)]')}>
+        <div className={cn('flex items-center gap-[var(--space-inline)]', !fullPage && 'px-2')}>
           <PersonFace
             id={member.user.id}
             name={name}
             initials={initialsOf(name)}
             image={member.user.avatar_url}
+            className={fullPage ? 'size-[var(--row-height)] data-[size=sm]:size-[var(--row-height)]' : undefined}
           />
-          <h3 className="min-w-0 flex-1 truncate text-sm font-title text-foreground">{name}</h3>
+          <Heading className={cn('min-w-0 flex-1 truncate font-title text-foreground', fullPage ? 'text-[length:var(--text-h2-size)] leading-[var(--text-h2-line)]' : 'text-sm')}>{name}</Heading>
           {member.is_owner ? <span className="text-sm text-muted-foreground">Owner</span> : null}
         </div>
       </div>
 
-      <section aria-label="Access">
-        <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)] px-2">
+      <section aria-label="Access" className={cn(fullPage && 'border-b border-border py-[var(--space-group)]')}>
+        <div className={cn('flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)]', !fullPage && 'px-2')}>
           <h3 className="flex-1 text-sm font-section text-foreground">Access</h3>
           <AccessMenu
             folderId={folderId}
@@ -118,7 +122,7 @@ export function MemberDetails({
           />
         </div>
         {member.viewer_may_change_self_edit_grant ? (
-          <label className="flex min-h-[var(--row-height)] cursor-pointer items-center gap-[var(--space-inline)] px-2 text-sm text-foreground">
+          <label className={cn('flex min-h-[var(--row-height)] cursor-pointer items-center gap-[var(--space-inline)] text-sm text-foreground', !fullPage && 'px-2')}>
             <Checkbox
               checked={member.can_edit_own_responsibilities}
               disabled={grant.isPending}
@@ -129,24 +133,26 @@ export function MemberDetails({
             Can edit their own responsibilities
           </label>
         ) : member.can_edit_own_responsibilities ? (
-          <p className="px-2 text-sm text-muted-foreground">Can edit their own responsibilities</p>
+          <p className={cn('text-sm text-muted-foreground', !fullPage && 'px-2')}>Can edit their own responsibilities</p>
         ) : null}
       </section>
 
       {/* Not keyed by revision: a refetch after someone else's save must not
           throw away the draft being written. */}
-      <Responsibilities
-        folderId={folderId}
-        userId={userId}
-        content={member.responsibility.content}
-        revision={member.responsibility.revision}
-        mayEdit={member.viewer_may_edit_responsibility}
-        onStale={() => {
-          void details.refetch()
-        }}
-      />
+      <div className={cn(fullPage && 'border-b border-border py-[var(--space-group)]')}>
+        <Responsibilities
+          folderId={folderId}
+          userId={userId}
+          content={member.responsibility.content}
+          revision={member.responsibility.revision}
+          mayEdit={member.viewer_may_edit_responsibility}
+          onStale={() => {
+            void details.refetch()
+          }}
+        />
+      </div>
 
-      <section aria-label="History">
+      <section aria-label="History" className={cn(fullPage && 'pt-[var(--space-group)]')}>
         <div className="flex items-center gap-[var(--space-inline)] px-2">
           <h3 className={`${HEADING} flex-1`}>History</h3>
           <Button
