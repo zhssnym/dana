@@ -14,6 +14,7 @@ describe('Discussion presentation refinement', () => {
     expect(tabs).toContain("tabs.filter((tab) => tab.kind !== 'discussion')")
     expect(tabs).toContain("return ['doc', 'work']")
     expect(tabs).not.toContain("['doc', 'work', 'discussion']")
+    expect(tabs).toContain('if (!rowEditable && tools === undefined) return null')
   })
 
   test('keeps the project header active in full screen and exposes Sidebar view', () => {
