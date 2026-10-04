@@ -1,26 +1,48 @@
 import type { NavigateFunction } from 'react-router'
 
 import { openChatDock } from '../../state/chat-dock.js'
-
-interface DiscussionReturnTarget {
-  readonly projectId: string
-  readonly path: string
-}
+import {
+  activeCollaboration,
+  setActiveCollaboration,
+  updateActiveCollaboration,
+} from '../../shell/tabs.js'
 
 /*
- * Expanding the sidebar into full screen leaves the Work/Task route. Keep that
- * presentation-only return target in memory so moving Discussion back to the
- * sidebar restores exactly what was beside it. A direct full-screen link has
- * no remembered target and uses the caller's safe fallback instead.
+ * Expanding the sidebar into full screen leaves the Work/Task route. The exact
+ * source path lives with the active workspace tab's Discussion state, rather
+ * than in module-global memory, so two workspace tabs can never overwrite one
+ * another's return context.
  */
-let returnTarget: DiscussionReturnTarget | null = null
-
 export function rememberDiscussionReturnTo(projectId: string, path: string): void {
-  returnTarget = { projectId, path }
+  updateActiveCollaboration((current) => {
+    if (current?.kind !== 'discussion' || current.folderId !== projectId || current.returnTo === path) {
+      return current
+    }
+    return { ...current, returnTo: path }
+  })
 }
 
 export function discussionReturnTo(projectId: string): string | null {
-  return returnTarget?.projectId === projectId ? returnTarget.path : null
+  const current = activeCollaboration()
+  return current?.kind === 'discussion' && current.folderId === projectId ? current.returnTo : null
+}
+
+/**
+ * Leave full-screen Discussion completely and restore the saved source route.
+ * The collaboration state clears after navigation has left the Discussion
+ * surface so its route-seeding effect cannot immediately recreate it.
+ */
+export function leaveDiscussionFullScreen(
+  navigate: NavigateFunction,
+  targetPath: string,
+): void {
+  void navigate(targetPath, { replace: true })
+  globalThis.requestAnimationFrame(() => {
+    const current = activeCollaboration()
+    if (current?.kind === 'discussion' && current.presentation === 'full') {
+      setActiveCollaboration(null)
+    }
+  })
 }
 
 /**
@@ -36,7 +58,6 @@ export function moveDiscussionToSidebar(
   discussionId: string | null,
   targetPath: string,
 ): void {
-  returnTarget = null
   void navigate(targetPath, { replace: true })
   globalThis.requestAnimationFrame(() => {
     openChatDock({ folderId: projectId, discussionId })
