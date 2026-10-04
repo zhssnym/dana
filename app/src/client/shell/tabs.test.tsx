@@ -11,13 +11,14 @@ import {
 
 describe('workspace-tab collaboration state', () => {
   it('keeps Discussion and Team presentation state on the tab that owns it', () => {
-    retarget('/app/folders/project-a')
+    retarget('/app/folders/project-a?view=board#focus')
     setActiveCollaboration({
       kind: 'discussion',
       folderId: 'project-a',
       discussionId: 'thread-a',
       filter: 'resolved',
-      presentation: 'sidebar',
+      presentation: 'full',
+      returnTo: '/app/folders/project-a?view=board#focus',
     })
     const tabA = activeWorkspaceTabId()
     expect(activeCollaboration()).toEqual({
@@ -25,7 +26,8 @@ describe('workspace-tab collaboration state', () => {
       folderId: 'project-a',
       discussionId: 'thread-a',
       filter: 'resolved',
-      presentation: 'sidebar',
+      presentation: 'full',
+      returnTo: '/app/folders/project-a?view=board#focus',
     })
 
     openInNewTab('/app/folders/project-b')
@@ -40,13 +42,14 @@ describe('workspace-tab collaboration state', () => {
     })
     retarget('/app/folders/project-b?member=member-b')
 
-    expect(selectTab(tabA)).toBe('/app/folders/project-a')
+    expect(selectTab(tabA)).toBe('/app/folders/project-a?view=board#focus')
     expect(activeCollaboration()).toEqual({
       kind: 'discussion',
       folderId: 'project-a',
       discussionId: 'thread-a',
       filter: 'resolved',
-      presentation: 'sidebar',
+      presentation: 'full',
+      returnTo: '/app/folders/project-a?view=board#focus',
     })
 
     expect(selectTab(tabB)).toBe('/app/folders/project-b?member=member-b')
