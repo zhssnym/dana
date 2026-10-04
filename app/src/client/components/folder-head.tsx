@@ -1,9 +1,9 @@
 /*
 The folder's header: at most two rows.
 
-Row one is the mark, the name and, at the far right, the folder's only two
-controls: "Share" and one "…". There is no progress count (round 7): nobody
-measures a page by how many tasks are done.
+Row one is the mark, the name and, at the far right, the folder's compact
+project controls. There is no progress count (round 7): nobody measures a page
+by how many tasks are done.
 
 **No description line** (round 2): a page's Purpose tab is where its "why" is
 written. A description already stored stays in the data and is simply not
@@ -17,10 +17,18 @@ rows with nothing pressable (issue #228, AC-011): a heading and a glyph.
 it), and only while the page has none; once there is a cover the band's own
 picker changes or removes it. `FolderCoverDialog` below is kept for the
 sidebar's `?folder-action=cover` link.
+
+Issue #553 keeps Discussion's project-level entry in this header even while
+its full-screen presentation is open. `FolderPage` deliberately omits its
+normal sidebar toggle on the Discussion page; this component restores the same
+control there as an active button, rather than letting the hidden horizontal
+tab become a second entry point.
 */
 import { useRef, useState } from 'react'
+import { useLocation, useMatch, useNavigate } from 'react-router'
 
-import type { LucideIcon } from '../lib/icons.js'
+import { useAllPages, useFolder } from '../api/queries.js'
+import { MessagesSquare, type LucideIcon } from '../lib/icons.js'
 import {
   coverPhotoPicker,
   coverTiersFor,
@@ -28,10 +36,12 @@ import {
   savePageIdentity,
   usePageIdentity,
 } from '../lib/page-identity.js'
+import { moveDiscussionToSidebar } from './consultation/presentation.js'
 import { FolderCoverPicker } from './folder-cover.js'
 import { AddCoverAction } from './page-cover.js'
 import { T_FAST } from './task-row.js'
 import { IconPicker } from './page/IconPicker.js'
+import { Button } from './ui/button.js'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog.js'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover.js'
 import { cn } from './ui/utils.js'
@@ -66,7 +76,7 @@ export function FolderHeader({
   readonly onPickIdentity: (next: { icon?: string; color?: string }) => void
   /** Clears the icon back to the plain page glyph; without it the picker offers no Remove. */
   readonly onRemoveIcon?: () => void
-  /** "3 of 7 done", or null when the folder has no finite work. */
+  /** The page/project actions supplied by FolderPage. */
   readonly actions: React.ReactNode
   /** The page's cover storage name; with it, an editor gets "Add cover". */
   readonly coverKey?: string
@@ -75,6 +85,26 @@ export function FolderHeader({
   /* Where a click on the heading landed, as a text offset, so the field opens
      with the caret there; null (the `?folder-action=rename` path) selects all. */
   const caretAt = useRef<number | null>(null)
+  const routeId = useMatch('/app/folders/:id')?.params.id ?? null
+  const routePage = useFolder(routeId ?? '', routeId !== null).data
+  const allPages = useAllPages(routeId !== null).data ?? []
+  const { search } = useLocation()
+  const navigate = useNavigate()
+  const fullScreenDiscussion = routePage !== undefined && routePage.kind === 'discussion' && !routePage.is_default
+  const projectId = fullScreenDiscussion ? routePage.project_id : null
+  /* A normal project returns to its root. If Discussion itself is the root,
+     use a visible sibling page so sidebar and full-screen are never mounted
+     together. */
+  const sidebarTargetId = projectId === null
+    ? null
+    : routePage.id !== projectId
+      ? projectId
+      : allPages.find((page) =>
+          page.project_id === projectId &&
+          page.kind !== 'discussion' &&
+          page.tab_position !== null
+        )?.id ?? null
+  const openDiscussionId = fullScreenDiscussion ? new URLSearchParams(search).get('discussion') : null
   const glyph = (
     <Icon className="size-7" style={{ color }} strokeWidth={1.5} aria-hidden="true" />
   )
@@ -177,7 +207,26 @@ export function FolderHeader({
             {name}
           </h1>
         )}
-        <div className="mt-1 flex shrink-0 items-center gap-1">{actions}</div>
+        <div className="mt-1 flex shrink-0 items-center gap-1">
+          {fullScreenDiscussion ? (
+            <Button
+              type="button"
+              variant="ghost"
+              aria-pressed="true"
+              title={sidebarTargetId === null ? 'Discussion' : 'Move Discussion to sidebar'}
+              className="bg-hover text-foreground"
+              disabled={sidebarTargetId === null || projectId === null}
+              onClick={() => {
+                if (projectId === null || sidebarTargetId === null) return
+                moveDiscussionToSidebar(navigate, projectId, openDiscussionId, sidebarTargetId)
+              }}
+            >
+              <MessagesSquare className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              Discussion
+            </Button>
+          ) : null}
+          {actions}
+        </div>
       </div>
     </header>
   )
