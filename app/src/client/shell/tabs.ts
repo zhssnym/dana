@@ -16,7 +16,9 @@ Collaboration presentation state belongs to the workspace tab for the same
 reason. Discussion or Team can be open in one tab and absent in another; only
 the active tab's state is visible. Switching tabs therefore hides a panel
 without destroying it, and switching back restores the exact panel state that
-tab owned. Sidebar width remains a separate viewer/window preference.
+tab owned. Discussion's full-screen return path is part of that same state so
+one workspace tab can never overwrite another tab's source context. Sidebar
+width remains a separate viewer/window preference.
 */
 import { useSyncExternalStore } from 'react'
 
@@ -31,6 +33,8 @@ export interface DiscussionCollaborationState {
   readonly discussionId: string | null
   readonly filter: DiscussionFilter
   readonly presentation: CollaborationPresentation
+  /** Exact page/view/query/hash Discussion should return beside or back to. */
+  readonly returnTo: string | null
 }
 
 export interface TeamCollaborationState {
