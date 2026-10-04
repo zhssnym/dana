@@ -1,6 +1,10 @@
 /*
-9.6's sharing panel, opened by the page header's Share button: one "Name or
-email" field with one Invite button, the member list, and the pending invites.
+Team collaboration surface for the project header (#554).
+
+Team has two presentations over the same membership, invite and access data:
+a compact sidebar that leaves the Work visible, and a full-page presentation
+for focused management. Switching presentation never remounts a second Team
+model, so member details, invite input and permissions stay in the same state.
 
 The field suggests connections who are not yet members. Invite always sends a
 page invite by address, picked connection or typed address alike: the server
@@ -16,10 +20,10 @@ Access), which is what an owner needs, not when they joined. Resend is shown
 only once it is allowed (24 hours after the last send); the server's 429 is the
 rule (r7: a disabled Resend was a dead control most of the time it was seen). The folder detail and
 the roster arrive as props from `FolderPage`. A member's name opens their details
-in the same sheet (`MemberDetails`, #209), which reads that one member itself.
+in the same surface (`MemberDetails`, #209), which reads that one member itself.
 
-The region "Sharing panel" (9.1) sits inside the sheet, because a dialog cannot
-also be the region its controls are addressed within.
+The region keeps 9.1's "Sharing panel" accessible name for its existing shell
+contract; the visible surface is Team.
 */
 import { useEffect, useId, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
@@ -42,12 +46,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../components/ui/s
 import { cn } from '../components/ui/utils.js'
 import { mayDraw } from '../lib/folder-authority.js'
 import type { FolderViewerFacts } from '../lib/folder-authority.js'
+import { ChevronDown, Maximize2, PanelRight, UsersRound } from '../lib/icons.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
-import { ConfirmDialog, useConfirm } from './task-rows.js'
 import { PersonFace } from '../components/person-face.js'
-import { ChevronDown } from '../lib/icons.js'
 import { AccessMenu, InviteAccessPicker, MemberDetails } from './MemberDetails.js'
+import { ConfirmDialog, useConfirm } from './task-rows.js'
 
 /** 9.1's sections table for this page. */
 const SHARING_PANEL = 'Sharing panel'
@@ -56,6 +60,8 @@ const SHARING_PANEL = 'Sharing panel'
 const NAME_OR_EMAIL = 'Name or email'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+type TeamView = 'sidebar' | 'full'
 
 /** Whether 5.2's resend window has passed, read off the invite itself. */
 function resendable(lastSentAt: string): boolean {
@@ -128,6 +134,8 @@ export function FolderSharingPanel({
   const [pickedEmail, setPickedEmail] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
+  const [view, setView] = useState<TeamView>('sidebar')
+  const surface = useRef<HTMLElement | null>(null)
   /* The member whose details replace the lists (#209), or null for the lists.
      It lives in the address (?member=) and opening one pushes an entry, so
      the top bar's back arrow returns to the lists rather than leaving the page. */
@@ -159,6 +167,13 @@ export function FolderSharingPanel({
       )
     }
   }
+
+  /* Moving between Team presentations keeps the same component and state;
+     focus follows the surface so keyboard interaction never stays behind it. */
+  useEffect(() => {
+    surface.current?.focus({ preventScroll: true })
+  }, [view])
+
   /* Leaving a member's details puts focus back on that member's row. */
   const lastMember = useRef<string | null>(null)
   useEffect(() => {
@@ -233,7 +248,12 @@ export function FolderSharingPanel({
   }
   const mayShare = mayAdd || mayInvite
   const shared = projectName ?? folder.name
-  const sheetTitle = mayShare ? `Share ${shared}` : `Members of ${shared}`
+  const openMemberName =
+    openMember === null
+      ? null
+      : folder.members.find((member) => member.user.id === openMember)?.user.display_name ?? 'Someone'
+  const fullPage = view === 'full'
+  const viewLabel = fullPage ? 'Sidebar view' : 'Open full page'
 
   return (
     <>
@@ -241,7 +261,7 @@ export function FolderSharingPanel({
       open
       onOpenChange={(next, details) => {
         /* A press inside the confirm reads as outside this non-modal sheet;
-           Share stays open under it, whichever the answer. */
+           Team stays open under it, whichever the answer. */
         /* The top bar's back arrow, pressed with a member open, pops that
            member's entry: the sheet stays, showing the lists again. */
         if (
@@ -257,32 +277,47 @@ export function FolderSharingPanel({
           onClose()
         }
       }}
-      /* Non-modal (DES-154, DES-186): the page stays usable beside it. */
+      /* Non-modal: Work remains usable beside the sidebar. The same root is
+         retained in full-page mode so Team stays the active header control. */
       modal={false}
     >
-      {/* The width token, inline because the primitive's max-width class wins
-          by stylesheet order; never wider than the screen. */}
       <SheetContent
         side="right"
-        className="w-[var(--sharing-panel-width)] sm:max-w-none"
+        className={cn(
+          'sm:max-w-none transition-[width,max-width] motion-reduce:transition-none',
+          fullPage ? 'w-screen' : 'w-[var(--sharing-panel-width)]',
+        )}
         style={{
-          width: 'min(var(--sharing-panel-width), 100vw)',
-          maxWidth: 'min(var(--sharing-panel-width), 100vw)',
+          width: fullPage ? '100vw' : 'min(var(--sharing-panel-width), 100vw)',
+          maxWidth: fullPage ? '100vw' : 'min(var(--sharing-panel-width), 100vw)',
         }}
         overlayClassName="hidden"
       >
-        <section aria-label={SHARING_PANEL} className="flex min-h-0 flex-1 flex-col">
-          <SheetHeader className="border-b border-border px-5 py-4 pr-16">
-            <SheetTitle className="flex min-w-0 items-center gap-1 text-sm font-title">
-              {/* With a member open the title is a trail, its first crumb the
-                  way back to the lists, as the top bar's trail is for pages. */}
+        <section
+          ref={surface}
+          aria-label={SHARING_PANEL}
+          tabIndex={-1}
+          className="flex min-h-0 flex-1 flex-col outline-none"
+        >
+          <SheetHeader className="h-12 shrink-0 flex-row items-center gap-2 border-b border-border px-3 py-0 pr-14">
+            <span
+              aria-hidden="true"
+              className="flex size-7 shrink-0 items-center justify-center rounded-md bg-accent text-foreground"
+            >
+              <UsersRound className="size-4" strokeWidth={1.75} />
+            </span>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <SheetTitle className="shrink-0 text-sm font-title">Team</SheetTitle>
               {openMember === null ? (
-                sheetTitle
+                <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground" title={shared}>
+                  {shared}
+                </p>
               ) : (
                 <>
+                  <span aria-hidden="true" className="shrink-0 text-quiet-foreground">/</span>
                   <button
                     type="button"
-                    className="min-w-0 max-w-[60%] truncate rounded-sm text-muted-foreground hover:text-foreground"
+                    className="shrink-0 rounded-sm text-sm text-muted-foreground hover:text-foreground"
                     onClick={() => {
                       setOpenMember(null)
                     }}
@@ -290,15 +325,38 @@ export function FolderSharingPanel({
                     Members
                   </button>
                   <span aria-hidden="true" className="shrink-0 text-quiet-foreground">/</span>
-                  <span className="min-w-0 flex-1 truncate">
-                    {folder.members.find((member) => member.user.id === openMember)?.user.display_name ?? 'Someone'}
+                  <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                    {openMemberName}
                   </span>
                 </>
               )}
-            </SheetTitle>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={viewLabel}
+              title={viewLabel}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setView(fullPage ? 'sidebar' : 'full')
+              }}
+            >
+              {fullPage ? (
+                <PanelRight className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              ) : (
+                <Maximize2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              )}
+            </Button>
           </SheetHeader>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+          <div
+            className={cn(
+              'min-h-0 flex-1 overflow-y-auto',
+              fullPage ? 'px-6 py-6 sm:px-8' : 'px-3 py-4',
+            )}
+          >
+            <div className={cn('w-full', fullPage ? 'mx-auto max-w-4xl' : null)}>
             {openMember !== null ? (
               <MemberDetails
                 folderId={folder.id}
@@ -538,6 +596,7 @@ export function FolderSharingPanel({
             )}
             </>
             )}
+            </div>
           </div>
         </section>
       </SheetContent>
