@@ -68,7 +68,8 @@ import { CanvasSlashMenu, blockMenuTargets } from './slash-items.js'
 import { CanvasWriter } from './saving.js'
 import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
-import type { BlockMenuModel } from './BlockSideMenu.js'
+import type { AnyEditor, BlockMenuModel } from './BlockSideMenu.js'
+import { useBlockFacets } from './BlockFacets.js'
 import { createCanvasCallout } from './CanvasCallout.js'
 import { queryKeys } from '../../../api/keys.js'
 import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
@@ -387,6 +388,15 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
     },
   })
   editorRef.current = editor
+  /* Task writing is a separate BlockNote surface from CanvasSurface. It must
+     own the facet controller for its whole lifetime too; the hover side menu
+     only consumes this model and never owns relationship visibility. */
+  const facets = useBlockFacets(
+    editor as unknown as AnyEditor,
+    folderId ?? undefined,
+    access === 'edit',
+    setError,
+  )
   /* Tick mode: one item's tick, written as one `put_block` of the stored item
      and the stored outline, then the session reopens on the answer. Set during
      render so the boxes drawn at mount find it. */
@@ -436,8 +446,9 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
     turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, false) },
     canDuplicate: () => true,
     duplicate: (ids) => { duplicateBlocks(editor, ids) },
+    facets,
     removal: (_block, ids) => ({ label: 'Delete', run: () => { editor.removeBlocks([...ids]) } }),
-  }), [editor])
+  }), [editor, facets])
   const selectionActions = useMemo(() => ({ remove: (ids: readonly string[]) => { editor.removeBlocks([...ids]) }, duplicate: menu.duplicate }), [editor, menu])
   useBlockSelectionKeys(editor, selectionActions)
   useBlockAnchor(editor, true)
