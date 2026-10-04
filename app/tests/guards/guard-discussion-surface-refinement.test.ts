@@ -8,15 +8,15 @@ const dock = read('components/chat-dock/ChatDock.tsx')
 const tabs = read('components/folder-tabs.tsx')
 
 describe('Discussion surface refinement', () => {
-  test('uses compact filters instead of a nested list card', () => {
+  test('keeps compact sidebar filters and gives the full-page list a bounded surface', () => {
     expect(list).toContain('aria-label="Show threads"')
     expect(list).toContain('rounded-md bg-muted p-0.5')
     expect(list).toContain("bg-background text-foreground shadow-sm")
-    expect(list).toContain("variant=\"ghost\"")
+    expect(list).toContain("variant={docked ? 'ghost' : 'default'}")
     expect(list).toContain('<Plus className="size-4"')
     expect(list).toContain('New thread')
-    expect(list).toContain("'flex flex-col divide-y divide-border'")
-    expect(list).not.toContain('overflow-hidden rounded-md border border-border')
+    expect(list).toContain("docked ? '-mx-2 gap-[var(--space-row)]' : 'divide-y divide-border'")
+    expect(list).toContain("!docked && 'overflow-hidden rounded-md border border-border'")
     expect(list).not.toContain("variant={docked ? 'ghost' : 'commit'}")
   })
 
