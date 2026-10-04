@@ -84,12 +84,12 @@ export function DiscussionList({
   readonly filter?: DiscussionListFilter
   readonly onFilterChange?: (filter: DiscussionListFilter) => void
 }): React.JSX.Element {
-  const list = useDiscussions(folderId, 'all', '')
   const resolve = useResolveDiscussion()
   const reopen = useReopenDiscussion()
   const keys = useRowKeys<HTMLDivElement>()
   const [localFilter, setLocalFilter] = useState<State>('open')
   const filter = controlledFilter ?? localFilter
+  const list = useDiscussions(folderId, filter, '')
   const setFilter = (next: State): void => {
     if (controlledFilter === undefined) setLocalFilter(next)
     onFilterChange?.(next)
