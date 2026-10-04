@@ -123,7 +123,7 @@ import {
 } from '../components/ui/dialog.js'
 /* The empty-state icon goes to `PageBody`, whose `StateIcon` is typed on the
    raw lucide component. */
-import { Folder as FolderIcon, UsersRound } from '../lib/icons.js'
+import { Folder as FolderIcon, MessagesSquare, UsersRound } from '../lib/icons.js'
 
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -144,6 +144,9 @@ import { paths } from '../routes.js'
 import { FOLDER_ACTION_PARAM, folderActionPath } from '../shell/app-sidebar.js'
 import { copyLink } from '../lib/object-acts.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
+import { closeChatDock, openChatDock, useChatDock } from '../state/chat-dock.js'
+import { useDiscussions } from '../api/consultation.js'
+import { isUnread } from '../components/consultation/DiscussionList.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { AddTabMenu, FolderTabs } from '../components/folder-tabs.js'
 import { ProjectPicker } from '../components/project-picker.js'
@@ -405,6 +408,21 @@ function FolderPageBody({
   while open and the shell pads the page body by it (`components/right-edge`).
   */
   useReserveRightEdge(SHARING_PANEL_WIDTH, sharing)
+  /*
+  The Discussion sidebar (#546) shares the right edge with the sharing panel,
+  so opening one closes the other. Its button sits beside Team: one
+  collaboration surface, two entry points. It shows once the project has a
+  teammate, and stays while any thread exists, so removing teammates never
+  hides a conversation that already happened.
+  */
+  const dock = useChatDock()
+  const dockOpen = dock !== null
+  const threads = useDiscussions(headId, 'all', '')
+  const threadRows = threads.data?.pages.flatMap((batch) => batch.discussions) ?? []
+  const unreadThreads = threadRows.some((discussion) => discussion.state === 'open' && isUnread(discussion, basis.viewerId))
+  useEffect(() => {
+    if (sharing) closeChatDock()
+  }, [sharing])
 
   const detail = folder.data
   const scheduled = open.data?.scheduled ?? []
@@ -996,6 +1014,29 @@ function FolderPageBody({
       {/* This is the project's people surface, not external sharing. The label
           invites the solo creator to add teammates, then settles to Team once
           another member exists. */}
+      {isDefault || kind === 'discussion' || (members.length <= 1 && threadRows.length === 0) ? null : (
+        <Button
+          variant="ghost"
+          aria-pressed={dockOpen}
+          className={cn('text-muted-foreground', dockOpen && 'bg-hover text-foreground')}
+          onClick={() => {
+            if (dockOpen) {
+              closeChatDock()
+              return
+            }
+            setSharing(false)
+            openChatDock({ folderId: headId })
+          }}
+        >
+          <MessagesSquare className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          Discussion
+          {unreadThreads && !dockOpen ? (
+            <span className="size-1.5 rounded-full bg-primary">
+              <span className="sr-only">New messages</span>
+            </span>
+          ) : null}
+        </Button>
+      )}
       {isDefault ? null : (
         <Button
           variant="ghost"

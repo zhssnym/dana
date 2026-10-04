@@ -65,6 +65,10 @@ const ROW =
 
 const MARK = 'flex size-[var(--control-height)] items-center justify-center rounded-sm'
 
+/* The Discussion sidebar's row (#546). Two lines, no rule between rows. */
+const DOCKED_ROW =
+  'grid w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-x-1 rounded-md py-1.5 pr-2 pl-0.5 text-sm transition-colors duration-[var(--duration-fast)]'
+
 export function DiscussionList({
   folderId,
   viewer,
@@ -72,7 +76,11 @@ export function DiscussionList({
   returnTo = null,
   onOpen,
   onStarted,
+  docked = false,
 }: {
+  /** Drawn in the Discussion sidebar (#546), as a list of conversations:
+   * no frame, two lines a row (title, then who said what last). */
+  readonly docked?: boolean
   readonly folderId: string
   readonly viewer: ConsultationViewer | null
   readonly personOf: PersonResolver
@@ -144,7 +152,7 @@ export function DiscussionList({
   if (list.isPending || list.isError) {
     return (
       <div ref={keys} className="min-w-0">
-        {list.isPending ? <ListSkeleton /> : <InlineError onRetry={() => void list.refetch()} />}
+        {list.isPending ? <ListSkeleton docked={docked} /> : <InlineError onRetry={() => void list.refetch()} />}
       </div>
     )
   }
@@ -158,6 +166,7 @@ export function DiscussionList({
         now={now}
         personOf={personOf}
         viewerId={viewerId}
+        docked={docked}
         onOpen={onOpen}
         onToggle={() => { toggle(d) }}
       />
@@ -181,26 +190,33 @@ export function DiscussionList({
 
   return (
     <div ref={keys} className="min-w-0">
-      <div className="overflow-hidden rounded-md border border-border">
-        <div className="flex h-10 items-center justify-between gap-3 border-b border-border bg-muted pr-2 pl-1.5 text-sm">
+      <div className={docked ? undefined : 'overflow-hidden rounded-md border border-border'}>
+        <div
+          className={cn(
+            'flex items-center justify-between gap-3 text-sm',
+            docked ? '-mx-1.5 h-9' : 'h-10 border-b border-border bg-muted pr-2 pl-1.5',
+          )}
+        >
           <div role="group" aria-label="Show threads" className="flex items-center gap-1">
             {filterButton('open', 'Open')}
             {filterButton('resolved', 'Resolved')}
           </div>
           {mayStart ? (
             <Button
-              variant="commit"
+              variant={docked ? 'ghost' : 'commit'}
               size="sm"
+              className={docked ? 'text-muted-foreground' : undefined}
               onClick={() => {
                 setFilter('open')
                 setStarting(true)
               }}
             >
+              {docked ? <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" /> : null}
               New thread
             </Button>
           ) : null}
         </div>
-        <ul className="flex flex-col divide-y divide-border">
+        <ul className={docked ? '-mx-2 mt-1 flex flex-col gap-[var(--space-row)]' : 'flex flex-col divide-y divide-border'}>
           {starting && mayStart ? (
             <li>
               <NewThread
@@ -212,7 +228,7 @@ export function DiscussionList({
           ) : null}
           {shown.map(row)}
           {shown.length === 0 && !starting ? (
-            <li className="flex h-9 items-center px-3 text-sm text-muted-foreground">
+            <li className={cn('flex items-center px-3 text-sm text-muted-foreground', docked ? 'py-6' : 'h-9')}>
               {filter === 'open' ? 'No open threads' : 'No resolved threads'}
             </li>
           ) : null}
@@ -239,9 +255,11 @@ function ThreadRow({
   now,
   personOf,
   viewerId,
+  docked,
   onOpen,
   onToggle,
 }: {
+  readonly docked: boolean
   readonly discussion: Discussion
   readonly state: State
   readonly may: boolean
@@ -264,6 +282,12 @@ function ThreadRow({
         .filter((part) => part !== '')
         .join(' · ')
     : `Resolved · ${formatAgo(d.resolved_at ?? d.last_activity_at, now)}`
+  /* The dock's second line: who spoke last and what they said. */
+  const said = !isOpen
+    ? 'Resolved'
+    : last === null
+      ? 'No messages yet'
+      : `${last.author_id === viewerId ? 'You' : personOf(last.author_id).name}: ${last.preview === '' ? 'Picture' : last.preview}`
   const mark = isOpen ? (
     <MessageCircle className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
   ) : (
@@ -277,7 +301,7 @@ function ThreadRow({
       data-thread-state={state}
       role="link"
       aria-label={d.title}
-      className={cn(ROW, 'cursor-pointer hover:bg-muted')}
+      className={cn(docked ? DOCKED_ROW : ROW, 'cursor-pointer', docked ? 'hover:bg-hover' : 'hover:bg-muted')}
       onClick={(event) => {
         if ((event.target as HTMLElement).closest('button, a')) return
         onOpen(d.id)
@@ -318,17 +342,47 @@ function ThreadRow({
       ) : (
         <span className={MARK}>{mark}</span>
       )}
-      <span
-        title={d.title}
-        className={cn(
-          'min-w-0 truncate',
-          isOpen ? 'text-foreground' : 'text-muted-foreground',
-          fresh ? 'font-title' : 'font-section',
-        )}
-      >
-        {d.title}
-      </span>
-      <span className="pl-3 text-xs whitespace-nowrap text-muted-foreground">{meta}</span>
+      {docked ? (
+        <>
+          <span className="flex min-w-0 flex-col">
+            <span
+              title={d.title}
+              className={cn(
+                'truncate',
+                isOpen ? 'text-foreground' : 'text-muted-foreground',
+                fresh ? 'font-title' : 'font-section',
+              )}
+            >
+              {d.title}
+            </span>
+            <span className="truncate text-xs text-muted-foreground">{said}</span>
+          </span>
+          <span className="flex flex-col items-end gap-1 self-start pt-0.5 pl-3">
+            <span className="text-xs whitespace-nowrap text-muted-foreground">
+              {formatAgo(isOpen ? (last?.created_at ?? d.last_activity_at) : (d.resolved_at ?? d.last_activity_at), now)}
+            </span>
+            {fresh ? (
+              <span className="size-1.5 rounded-full bg-primary">
+                <span className="sr-only">New messages</span>
+              </span>
+            ) : null}
+          </span>
+        </>
+      ) : (
+        <>
+          <span
+            title={d.title}
+            className={cn(
+              'min-w-0 truncate',
+              isOpen ? 'text-foreground' : 'text-muted-foreground',
+              fresh ? 'font-title' : 'font-section',
+            )}
+          >
+            {d.title}
+          </span>
+          <span className="pl-3 text-xs whitespace-nowrap text-muted-foreground">{meta}</span>
+        </>
+      )}
     </div>
   )
 }
@@ -392,11 +446,11 @@ function NewThread({
   )
 }
 
-function ListSkeleton(): React.JSX.Element {
+function ListSkeleton({ docked }: { readonly docked: boolean }): React.JSX.Element {
   /* The rows' own height, so the list does not jump when it lands. */
   return (
     <div
-      className="flex flex-col divide-y divide-border rounded-md border border-border"
+      className={docked ? 'flex flex-col' : 'flex flex-col divide-y divide-border rounded-md border border-border'}
       aria-label="Loading threads"
       aria-busy="true"
     >
