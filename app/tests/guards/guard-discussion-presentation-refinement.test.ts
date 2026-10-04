@@ -7,6 +7,7 @@ const tabs = read('components/folder-tabs.tsx')
 const dock = read('components/chat-dock/ChatDock.tsx')
 const fullScreen = read('components/consultation/ConsultationPanel.tsx')
 const header = read('components/folder-head.tsx')
+const presentation = read('components/consultation/presentation.ts')
 const task = read('components/task-card.tsx')
 
 describe('Discussion presentation refinement', () => {
@@ -14,16 +15,27 @@ describe('Discussion presentation refinement', () => {
     expect(tabs).toContain("tabs.filter((tab) => tab.kind !== 'discussion')")
     expect(tabs).toContain("return ['doc', 'work']")
     expect(tabs).not.toContain("['doc', 'work', 'discussion']")
-    expect(tabs).toContain("if (activeStored?.kind === 'discussion') return null")
+    expect(tabs).toContain('const discussionFullScreen =')
+    expect(tabs).toContain("query.get('conversation') === 'open'")
+    expect(tabs).toContain('if (discussionFullScreen) return null')
     expect(tabs).toContain('if (!rowEditable && tools === undefined) return null')
   })
 
   test('keeps the project header as the full-screen presentation control', () => {
-    expect(header).toContain("routePage.kind === 'discussion'")
-    expect(header).toContain('aria-pressed="true"')
+    expect(header).toContain("routePage.kind === 'discussion' || discussionAsked")
+    expect(header).toContain('aria-current="page"')
+    expect(header).toContain('Sidebar view')
+    expect(header).toContain('discussionReturnTo(projectId)')
     expect(header).toContain('moveDiscussionToSidebar')
     expect(fullScreen).not.toContain('Sidebar view')
-    expect(fullScreen).not.toContain('moveDiscussionToSidebar')
+  })
+
+  test('returns from full screen to the exact sidebar page and thread', () => {
+    expect(dock).toContain('rememberDiscussionReturnTo')
+    expect(dock).toContain('`${location.pathname}${location.search}${location.hash}`')
+    expect(presentation).toContain('interface DiscussionReturnTarget')
+    expect(presentation).toContain('targetPath: string')
+    expect(presentation).toContain('openChatDock({ folderId: projectId, discussionId })')
   })
 
   test('keeps sidebar identity compact and removes new task discussion actions for solo work', () => {
