@@ -121,11 +121,34 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
   })
 })
 
-test('smoke: assign and remove a label on the Task page', async ({ page }) => {
+test('smoke: task page completion toggle and Labels', async ({ page }) => {
   await signIn(page)
   await page.goto('/app')
   await page.getByRole('navigation').getByRole('link', { name: /Groceries/ }).first().click()
   await taskRow(page, 'Buy milk').first().click()
+
+  await test.step('the title state mark completes and reopens the task', async () => {
+    const taskId = new URL(page.url()).pathname.split('/').at(-1)
+    expect(taskId).toBeTruthy()
+    const complete = page.getByRole('checkbox', { name: 'Complete task', exact: true })
+    await expect(complete).toBeVisible()
+    const completing = page.waitForResponse(
+      (response) => response.request().method() === 'POST' && response.url().includes(`/tasks/${taskId}/complete`),
+    )
+    await complete.click()
+    expect((await completing).status()).toBe(200)
+    await expect(page.getByRole('checkbox', { name: 'Mark as not done', exact: true })).toBeVisible()
+    await page.reload()
+    const reopen = page.getByRole('checkbox', { name: 'Mark as not done', exact: true })
+    await expect(reopen).toBeVisible()
+    const reopening = page.waitForResponse(
+      (response) => response.request().method() === 'POST' && response.url().includes(`/tasks/${taskId}/uncomplete`),
+    )
+    await reopen.click()
+    expect((await reopening).status()).toBe(200)
+    await expect(page.getByRole('checkbox', { name: 'Complete task', exact: true })).toBeVisible()
+  })
+
   const label = `Browser label ${Date.now()}`
   await page.getByRole('button', { name: 'Labels: Add labels' }).click()
   await page.getByRole('button', { name: 'Create label' }).click()
