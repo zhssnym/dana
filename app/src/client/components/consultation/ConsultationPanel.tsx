@@ -29,6 +29,7 @@ import { paths } from '../../routes.js'
 import { openDiscussionFullScreen, setChatDockFilter } from '../../state/chat-dock.js'
 import { useActiveCollaboration } from '../../shell/tabs.js'
 import { DEFAULT_TAB_NAMES, projectTabs } from '../../../shared/folders.js'
+import type { Folder } from '../../../shared/folders.js'
 import { RosterTints } from '../default-avatar.js'
 import { Button } from '../ui/button.js'
 import type { ConsultationViewer } from './authority.js'
@@ -52,7 +53,7 @@ function folderIdFromPath(path: string): string | null {
 
 function sourceLabel(
   path: string,
-  pages: ReturnType<typeof projectTabs>,
+  pages: readonly Folder[],
 ): string {
   if (path.startsWith('/app/tasks/')) return 'Task'
   const folderId = folderIdFromPath(path)
