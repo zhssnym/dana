@@ -8,7 +8,7 @@ behind that same "…" rather than taking a row at the end of the page.
 import { InlineTextarea } from "./ui/inline-field.js"
 import { useEffect, useRef, useState } from "react"
 
-import { MessageSquare, X } from "../lib/icons.js"
+import { MessagesSquare, X } from "../lib/icons.js"
 import { TITLE_REQUIRED, tooLong } from "./task-copy.js"
 /* 10.3's number for the field, from the shared contract rather than restated. */
 import { TASK_TITLE_LIMIT } from "../../shared/tasks.js"
@@ -20,8 +20,7 @@ import { copyTaskLink, duplicateTask } from "../tasks/task-acts.js"
 import { cn } from "./ui/utils.js"
 import { Button } from "./ui/button.js"
 import { StateMark } from "./thread/timeline/state.js"
-import { prefetchTask, useTask } from "../api/queries.js"
-/* PROTOTYPE (chat dock): the task's way into its conversation. */
+import { prefetchTask, useFolder, useTask } from "../api/queries.js"
 import { useDiscussTask } from "../api/consultation.js"
 import { closeChatDock, openChatDock, useChatDock } from "../state/chat-dock.js"
 import { useQueryClient } from "@tanstack/react-query"
@@ -148,33 +147,39 @@ function TaskMenu({
 }
 
 /*
-PROTOTYPE (chat dock): opens the task's conversation in the dock, beside the
-task. A linked discussion opens as it is; a task with none gets its own made
-(or found) by POST /tasks/:id/discussion first. A task outside a project (no
-folder, or the default one) has no project chat, so it draws nothing.
+The task's way into its Discussion (#546): the same thread, in the sidebar
+beside the task, so the task stays on screen and editable. A linked thread
+opens as it is; a task with none gets its own made (or found) by POST
+/tasks/:id/discussion first. It shows once the task's project has a
+teammate, or the task already has a thread, so a conversation that happened
+never becomes unreachable. A task outside a project draws nothing.
 */
-function OpenChat({ taskId }: { taskId: string }) {
+function OpenDiscussion({ taskId }: { taskId: string }) {
   const detail = useTask(taskId)
   const discuss = useDiscussTask()
   const dockOpen = useChatDock() !== null
   const folder = detail.data?.folder
+  const page = useFolder(folder?.id ?? "", folder !== undefined && !folder.is_default)
+  const projectId = page.data?.project_id ?? null
+  const project = useFolder(projectId ?? "", projectId !== null)
   if (detail.data === undefined || folder === undefined || folder.is_default) return null
   const linked = detail.data.linked_discussions[0]
+  const teammates = (project.data?.members.length ?? 0) > 1
+  if (linked === undefined && !teammates) return null
 
-  function open(): void {
+  function toggle(): void {
     if (folder === undefined) return
-    /* One control, two states: it closes the dock it opened. */
     if (dockOpen) {
       closeChatDock()
       return
     }
     if (linked !== undefined) {
-      openChatDock({ folderId: folder.id, section: "chat", discussionId: linked.id })
+      openChatDock({ folderId: folder.id, discussionId: linked.id })
       return
     }
     discuss.mutate(taskId, {
       onSuccess: ({ discussion }) => {
-        openChatDock({ folderId: folder.id, section: "chat", discussionId: discussion.id })
+        openChatDock({ folderId: folder.id, discussionId: discussion.id })
       },
     })
   }
@@ -184,13 +189,14 @@ function OpenChat({ taskId }: { taskId: string }) {
       type="button"
       variant="ghost"
       size="icon"
-      aria-label={dockOpen ? "Close chat" : "Open chat"}
-      title={dockOpen ? "Close chat" : "Open chat"}
-      aria-expanded={dockOpen}
+      aria-label={dockOpen ? "Close discussion" : "Discuss this task"}
+      title={dockOpen ? "Close discussion" : "Discuss this task"}
+      aria-pressed={dockOpen}
+      className={dockOpen ? "bg-hover text-foreground" : undefined}
       disabled={discuss.isPending}
-      onClick={open}
+      onClick={toggle}
     >
-      <MessageSquare className="size-4" strokeWidth={1.75} aria-hidden="true" />
+      <MessagesSquare className="size-4" strokeWidth={1.75} aria-hidden="true" />
     </Button>
   )
 }
@@ -226,7 +232,7 @@ export function TaskView({
           />
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <OpenChat taskId={props.id} />
+          <OpenDiscussion taskId={props.id} />
           <TaskMenu
             id={props.id}
             title={task.title}

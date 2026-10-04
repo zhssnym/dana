@@ -32,7 +32,7 @@ import { ApiError, getPlain, mutateApi, OfflineError } from '../api/http.js'
 import { queryKeys } from '../api/keys.js'
 import { writeFailureMessage } from '../api/queryClient.js'
 import { showToast } from '../state/toasts.js'
-/* PROTOTYPE (chat dock): a task opens its conversation in the dock. */
+/* Discussion sidebar (#546): a task opens its conversation in the dock. */
 import { openChatDock } from '../state/chat-dock.js'
 import { paths } from '../routes.js'
 import { Plus, X } from '../lib/icons.js'
@@ -124,10 +124,10 @@ function TaskDiscussionPicker({
     .filter((discussion) => !discussion.is_general && !linkedIds.has(discussion.id))
     .slice(0, INITIAL_LIMIT)
   const busy = detail.isPending || discuss.isPending || create.isPending || update.isPending || working !== null
-  /* PROTOTYPE (chat dock): was a navigation to the thread's own page; the
+  /* Discussion sidebar (#546): was a navigation to the thread's own page; the
      task now stays where it is and the thread opens beside it. */
   const openThread = (id: string): void => {
-    openChatDock({ folderId, section: 'chat', discussionId: id })
+    openChatDock({ folderId, discussionId: id })
   }
 
   const settled = (): void => {

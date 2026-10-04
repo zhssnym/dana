@@ -123,7 +123,7 @@ import {
 } from '../components/ui/dialog.js'
 /* The empty-state icon goes to `PageBody`, whose `StateIcon` is typed on the
    raw lucide component. */
-import { Folder as FolderIcon, UsersRound } from '../lib/icons.js'
+import { Folder as FolderIcon, MessagesSquare, UsersRound } from '../lib/icons.js'
 
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -144,8 +144,7 @@ import { paths } from '../routes.js'
 import { FOLDER_ACTION_PARAM, folderActionPath } from '../shell/app-sidebar.js'
 import { copyLink } from '../lib/object-acts.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
-/* PROTOTYPE (chat dock): Team opens the dock; its Manage team opens sharing. */
-import { closeChatDock, onManageTeam, openChatDock, useChatDock } from '../state/chat-dock.js'
+import { closeChatDock, openChatDock, useChatDock } from '../state/chat-dock.js'
 import { useDiscussions } from '../api/consultation.js'
 import { isUnread } from '../components/consultation/DiscussionList.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
@@ -409,17 +408,18 @@ function FolderPageBody({
   while open and the shell pads the page body by it (`components/right-edge`).
   */
   useReserveRightEdge(SHARING_PANEL_WIDTH, sharing)
-  /* PROTOTYPE (chat dock): the dock and the sharing panel share the right
-     edge, so one closes the other. The dock is the project's, whichever of
-     its tabs is showing. */
+  /*
+  The Discussion sidebar (#546) shares the right edge with the sharing panel,
+  so opening one closes the other. Its button sits beside Team: one
+  collaboration surface, two entry points. It shows once the project has a
+  teammate, and stays while any thread exists, so removing teammates never
+  hides a conversation that already happened.
+  */
   const dock = useChatDock()
-  const dockHere = dock !== null
-  /* PROTOTYPE (chat dock): whether the project has a thread with something
-     new in it, which the Team button marks. */
-  const threads = useDiscussions(headId, 'open', '')
-  const unreadThreads = (threads.data?.pages.flatMap((batch) => batch.discussions) ?? [])
-    .some((discussion) => isUnread(discussion, basis.viewerId))
-  useEffect(() => onManageTeam(() => { setSharing(true) }), [])
+  const dockOpen = dock !== null
+  const threads = useDiscussions(headId, 'all', '')
+  const threadRows = threads.data?.pages.flatMap((batch) => batch.discussions) ?? []
+  const unreadThreads = threadRows.some((discussion) => discussion.state === 'open' && isUnread(discussion, basis.viewerId))
   useEffect(() => {
     if (sharing) closeChatDock()
   }, [sharing])
@@ -522,30 +522,26 @@ function FolderPageBody({
     (filteredLabel?.archived === false && (filteredLabel.scope === 'personal' || gates?.applyLabel === true))
   /* The Desk's row is drawn even with Work alone, so its "+" can add a Doc
      back after the last one went to Trash (spec 9.14). */
-  /* PROTOTYPE (chat dock): conversations are the project's, in the dock, so
-     the Discussion tab is not drawn among the pages. */
-  const shownTabs = onTab ? tabs.filter((tab) => tab.kind !== 'discussion') : []
-  /* A thread's address: `?discussion=` (ConsultationLinkPage, a notification,
-     an old link) or a notification's `?conversation=open`. PROTOTYPE (chat
-     dock): on a project it opens the dock at that thread and the parameter
-     goes; a visit to the Discussion tab itself lands on the project's first
-     page with the dock open. The Desk has no dock and draws its thread here. */
+  const shownTabs = onTab ? tabs : []
+  const discussionTab = tabs.find((tab) => tab.kind === 'discussion')
+  /* A thread's address: `?discussion=` (ConsultationLinkPage, Discuss, an
+     old link) or a notification's `?conversation=open` about the page's own
+     thread, never on Desk. On a project with a Discussion tab it moves there;
+     otherwise (the Desk, a project without one) the thread is drawn here. */
   const threadAsked =
     search.get('discussion') !== null || (search.get('conversation') === 'open' && !isDefault)
-  const onDiscussionTab = kind === 'discussion'
-  const landing = onDiscussionTab ? (tabs.find((tab) => tab.kind !== 'discussion')?.id ?? null) : id
-  const toDock = detail !== undefined && !isDefault && landing !== null && (threadAsked || onDiscussionTab)
+  const moveThreadTo =
+    threadAsked && kind !== 'discussion' && discussionTab !== undefined && discussionTab.id !== id
+      ? discussionTab.id
+      : null
   useEffect(() => {
-    if (!toDock || landing === null) return
-    openChatDock({ folderId: headId, section: 'chat', discussionId: search.get('discussion') })
+    if (moveThreadTo === null) return
     const next = new URLSearchParams(search)
-    next.delete('discussion')
     next.delete('conversation')
-    next.delete('outcome')
     const query = next.size === 0 ? '' : `?${next.toString()}`
-    void navigate(`${paths.folder(landing)}${query}`, { replace: true })
-  }, [toDock, landing, headId, search, navigate])
-  const threadHere = !toDock && (onDiscussionTab || threadAsked)
+    void navigate(`${paths.folder(moveThreadTo)}${query}`, { replace: true })
+  }, [moveThreadTo, search, navigate])
+  const threadHere = kind === 'discussion' || (threadAsked && moveThreadTo === null)
   const threadOpen = threadHere && search.get('discussion') !== null
   useThreadScroll(id, kind === 'work' && page.data !== undefined && completedReady)
 
@@ -1018,30 +1014,41 @@ function FolderPageBody({
       {/* This is the project's people surface, not external sharing. The label
           invites the solo creator to add teammates, then settles to Team once
           another member exists. */}
+      {isDefault || kind === 'discussion' || (members.length <= 1 && threadRows.length === 0) ? null : (
+        <Button
+          variant="ghost"
+          aria-pressed={dockOpen}
+          className={cn('text-muted-foreground', dockOpen && 'bg-hover text-foreground')}
+          onClick={() => {
+            if (dockOpen) {
+              closeChatDock()
+              return
+            }
+            setSharing(false)
+            openChatDock({ folderId: headId })
+          }}
+        >
+          <MessagesSquare className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          Discussion
+          {unreadThreads && !dockOpen ? (
+            <span className="size-1.5 rounded-full bg-primary">
+              <span className="sr-only">New messages</span>
+            </span>
+          ) : null}
+        </Button>
+      )}
       {isDefault ? null : (
         <Button
           variant="ghost"
-          /* PROTOTYPE (chat dock): Team toggles the dock, the project's chat
-             and people. Alone, it opens on People, where teammates are added. */
-          aria-expanded={dockHere}
+          aria-expanded={sharing}
           className="text-muted-foreground"
           onClick={() => {
-            if (dockHere) {
-              closeChatDock()
-            } else {
-              setSharing(false)
-              openChatDock({ folderId: headId, section: members.length <= 1 ? 'people' : 'chat' })
-            }
+            setSharing(!sharing)
             dropParam(MEMBER_PARAM)
           }}
         >
           <UsersRound className="size-4" strokeWidth={1.75} aria-hidden="true" />
           {members.length <= 1 ? 'Add teammates' : 'Team'}
-          {unreadThreads && !dockHere ? (
-            <span className="size-1.5 rounded-full bg-primary">
-              <span className="sr-only">New messages</span>
-            </span>
-          ) : null}
         </Button>
       )}
       {/*
