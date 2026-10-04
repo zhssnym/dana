@@ -358,6 +358,17 @@ function Tiles({ files }: { readonly files: readonly CommentFile[] }): React.JSX
 
 /** A picture in a 280px card, its name and size under it in one muted line. */
 function ImageTile({ file }: { readonly file: CommentFile }): React.JSX.Element {
+  const [failed, setFailed] = useState(false)
+  if (failed) {
+    return (
+      <div className="mt-1.5 inline-flex max-w-full min-w-0 items-center gap-2 rounded-md border border-border px-2 py-1.5 text-xs whitespace-normal">
+        <FileText className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+        <span className="min-w-0 truncate text-foreground">{file.name}</span>
+        <span className="ml-auto shrink-0 text-muted-foreground">Image unavailable · {readableSize(file.bytes)}</span>
+      </div>
+    )
+  }
+
   return (
     <a
       href={fileSrc(file.id)}
@@ -370,6 +381,7 @@ function ImageTile({ file }: { readonly file: CommentFile }): React.JSX.Element 
         alt={file.name}
         loading="lazy"
         className="h-auto max-h-64 w-full bg-muted object-contain"
+        onError={() => { setFailed(true) }}
         {...(file.width !== null && file.height !== null ? { width: file.width, height: file.height } : {})}
       />
       <span className="flex gap-2 border-t border-border px-2.5 py-1.5 text-xs text-muted-foreground">

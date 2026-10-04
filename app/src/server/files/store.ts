@@ -11,6 +11,7 @@ and a row whose bytes are gone is an operational fact the route reports as
 not-found rather than a crash.
 */
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 
 export interface ObjectStore {
@@ -19,7 +20,24 @@ export interface ObjectStore {
   remove(id: string): Promise<void>
 }
 
+function underTemporaryDirectory(root: string): boolean {
+  const temporary = path.resolve(os.tmpdir())
+  const resolved = path.resolve(root)
+  return resolved === temporary || resolved.startsWith(`${temporary}${path.sep}`)
+}
+
 export function createDiskStore(root: string): ObjectStore {
+  /*
+   * The production default in server/index.ts used to fall back to
+   * <tmp>/dana-files when DANA_FILES_DIR was absent. That makes uploads look
+   * successful while their database rows outlive the bytes across a deploy or
+   * restart. Keep the temporary store for development/tests, but never let a
+   * production process silently accept ephemeral storage.
+   */
+  if (process.env.NODE_ENV === 'production' && underTemporaryDirectory(root)) {
+    throw new Error('DANA_FILES_DIR must point to persistent storage in production')
+  }
+
   let readied: Promise<void> | undefined
   const ready = (): Promise<void> => {
     readied ??= mkdir(root, { recursive: true }).then(() => undefined)
