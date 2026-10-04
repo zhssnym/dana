@@ -25,7 +25,7 @@ reserving room and the sidebar lies over the page instead (`app-shell.tsx`).
 */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
-import { useMatch, useNavigate } from 'react-router'
+import { useLocation, useMatch, useNavigate } from 'react-router'
 
 import { useDiscussTask } from '../../api/consultation.js'
 import { useConnections, useFolder, useMe, useTask } from '../../api/queries.js'
@@ -46,6 +46,7 @@ import type { ChatDockState } from '../../state/chat-dock.js'
 import type { ConsultationViewer } from '../consultation/authority.js'
 import { DiscussionList } from '../consultation/DiscussionList.js'
 import { DiscussionView } from '../consultation/DiscussionView.js'
+import { rememberDiscussionReturnTo } from '../consultation/presentation.js'
 import { RosterTints } from '../default-avatar.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
 import { Button } from '../ui/button.js'
@@ -133,6 +134,7 @@ function Dock({
   const viewerId = useMe().data?.user.id ?? null
   const connections = useConnections()
   const navigate = useNavigate()
+  const location = useLocation()
   const width = useDockWidth()
   const box = useRef<HTMLElement | null>(null)
 
@@ -154,9 +156,11 @@ function Dock({
      a thread then moves it on to its composer. */
   useEffect(() => { box.current?.focus({ preventScroll: true }) }, [])
 
-  /* The same thread, full screen: the project's stored Discussion page. */
+  /* The same thread, full screen. Remember exactly what the sidebar was beside
+     so "Sidebar view" can restore that page/view rather than guessing. */
   const fullScreen = (): void => {
     const query = discussionId === null ? 'conversation=open' : `discussion=${discussionId}`
+    rememberDiscussionReturnTo(headId, `${location.pathname}${location.search}${location.hash}`)
     closeChatDock()
     void navigate(`${paths.folder(headId)}?${query}`)
   }
