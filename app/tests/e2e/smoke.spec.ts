@@ -133,7 +133,7 @@ test('smoke: collaboration state follows its workspace tab', async ({ page }) =>
     await page.getByRole('button', { name: 'Team', exact: true }).click()
     const team = page.getByRole('region', { name: 'Sharing panel' })
     await expect(team).toBeVisible()
-    await expect(team.getByRole('separator', { name: 'Resize Team' })).toBeVisible()
+    await expect(page.getByRole('separator', { name: 'Resize Team' })).toBeVisible()
     await team.getByRole('button', { name: 'Imran', exact: true }).click()
     await expect(team.getByRole('heading', { name: 'Imran', exact: true })).toBeVisible()
     await expect(page).toHaveURL(new RegExp(`member=${seedIds.imran}`))
