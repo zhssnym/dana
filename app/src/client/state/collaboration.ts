@@ -1,11 +1,40 @@
 import type { Dispatch, SetStateAction } from 'react'
 
 import {
-  setActiveCollaboration,
+  activeWorkspaceTabId,
   updateActiveCollaboration,
   useActiveCollaboration,
 } from '../shell/tabs.js'
 import type { CollaborationPresentation } from '../shell/tabs.js'
+
+/*
+ * Team is a non-modal side surface, so it has no Dialog trigger primitive to
+ * return focus to for us. Keep the opener with the workspace tab that owns the
+ * Team presentation: switching tabs leaves it untouched, switching back keeps
+ * the same close destination, and closing Team never focuses a control from an
+ * unrelated tab.
+ */
+const teamOpeners = new Map<string, HTMLElement>()
+
+function rememberTeamOpener(tabId: string): void {
+  if (typeof document === 'undefined') return
+  const active = document.activeElement
+  if (active instanceof HTMLElement) teamOpeners.set(tabId, active)
+}
+
+function closeStartedInsideTeam(): boolean {
+  if (typeof document === 'undefined') return false
+  const active = document.activeElement
+  if (!(active instanceof Element)) return false
+  const sheet = active.closest('[data-slot="sheet-content"]')
+  return sheet?.querySelector('[aria-label="Sharing panel"]') !== null
+}
+
+function restoreTeamOpener(tabId: string): void {
+  const opener = teamOpeners.get(tabId)
+  teamOpeners.delete(tabId)
+  if (opener?.isConnected === true) opener.focus()
+}
 
 /**
  * React-state-shaped adapter for Team's open flag. FolderPage can keep its
@@ -17,16 +46,25 @@ export function useTeamPanelState(folderId: string): readonly [boolean, Dispatch
   const open = collaboration?.kind === 'team' && collaboration.folderId === folderId
   const setOpen: Dispatch<SetStateAction<boolean>> = (next) => {
     const resolved = typeof next === 'function' ? next(open) : next
+    const tabId = activeWorkspaceTabId()
     if (resolved) {
+      if (!open) rememberTeamOpener(tabId)
       updateActiveCollaboration((current) => {
         if (current?.kind === 'team' && current.folderId === folderId) return current
         return { kind: 'team', folderId, presentation: 'sidebar' }
       })
       return
     }
-    updateActiveCollaboration((current) =>
-      current?.kind === 'team' && current.folderId === folderId ? null : current,
-    )
+    const restoreFocus = closeStartedInsideTeam()
+    let closed = false
+    updateActiveCollaboration((current) => {
+      if (current?.kind !== 'team' || current.folderId !== folderId) return current
+      closed = true
+      return null
+    })
+    if (!closed) return
+    if (restoreFocus) restoreTeamOpener(tabId)
+    else teamOpeners.delete(tabId)
   }
   return [open, setOpen] as const
 }
@@ -47,9 +85,4 @@ export function useTeamPresentation(
     })
   }
   return [view, setView] as const
-}
-
-/** Explicit helper for callers that need to replace another collaboration panel. */
-export function openTeamPanel(folderId: string): void {
-  setActiveCollaboration({ kind: 'team', folderId, presentation: 'sidebar' })
 }
