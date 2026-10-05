@@ -65,6 +65,17 @@ These pass every test when they are wrong. Look for them in your diff.
 - **Storage keys.** Never rename a `localStorage` or `sessionStorage` key. A rename resets
   that setting for all users.
 
+## Writing
+
+- Write technical text in Simplified Technical English (ASD-STE100): docs, comments,
+  commit messages, PR and issue text. Use short sentences, active voice and no
+  contractions.
+- Write only what is necessary. Make the text as long as the change needs: a small fix
+  gets a one-line commit message and a short PR description.
+- Do not repeat what the diff or the code shows. Write the reason, the risk, and what you
+  checked.
+- Code, commands, file paths and quoted errors stay as they are.
+
 ## Code
 
 - Keep the diff small. Do not add abstractions, options or refactors that the change does
