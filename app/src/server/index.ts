@@ -23,6 +23,7 @@ import type { ErrorTracker } from './observability/error-tracker.js'
 import { createApplicationLogger } from './observability/logger.js'
 import { createRequestErrorHandler } from './observability/request-errors.js'
 import { createDiskStore } from './files/store.js'
+import { resolveObjectStore } from './files/store.js'
 import type { ObjectStore } from './files/store.js'
 import { createBundleRouter } from './routes/bundle.js'
 import { createConnectionsRouter } from './routes/connections.js'
@@ -140,11 +141,11 @@ export interface AppOptions {
   sampleWorkspace?: boolean
 }
 
-/** The production store over DANA_FILES_DIR, or the OS temp path when that
- * is unset. Construction does no I/O (11.10); the directory is made at the
- * first put. Named so createApp's default and main() resolve one way: the
- * boot passes one instance to both the application and the scheduler, the
- * purge and DELETE /me removing objects from the store uploads land in. */
+/** createApp's store when none is passed: a disk store over DANA_FILES_DIR,
+ * or the OS temp path when that is unset, which is the test default.
+ * Construction does no I/O (11.10); the directory is made at the first put.
+ * The boot never uses this: main() passes `resolveObjectStore()`, R2 in
+ * production, to both the application and the scheduler (issue #550). */
 function defaultDiskStore(): ObjectStore {
   return createDiskStore(
     process.env.DANA_FILES_DIR !== undefined && process.env.DANA_FILES_DIR !== ''
@@ -936,7 +937,8 @@ async function main(): Promise<void> {
   const runtimeSecurityLog = createSecurityLogger(runtimeLogger)
   // One store instance for the whole process: the application serves and
   // deletes through it, and the scheduler's purge removes from it (11.7).
-  const fileStore = defaultDiskStore()
+  // R2 in production; boot refuses storage a deploy would wipe (issue #550).
+  const fileStore = resolveObjectStore()
   const app = createApp(
     hasClientBuild
       ? {
