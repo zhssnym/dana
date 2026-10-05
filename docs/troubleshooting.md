@@ -59,7 +59,7 @@ These give no error and no red test. Read your diff for them before opening a PR
 - **You added a foreign key into `files(id)`.** The reclaim sweep will delete a file that the
   new column still points at. Add the matching `NOT EXISTS` arm to `fileIsUnreferenced()` in
   `app/src/server/domain/files.ts`, then update the list in
-  `app/tests/guards/guard-reclaim-reference-arms.test.ts`, which fails by design until you do.
+  `app/tests/data-loss/file-reclaim-spares-references.test.ts`, which fails by design until you do.
   References that aren't foreign keys (such as `users.avatar_url`) are invisible to that guard.
 
 ### Request fields
@@ -85,11 +85,11 @@ These give no error and no red test. Read your diff for them before opening a PR
 - **A new route that takes an id serves rows to anyone signed in.** There is no authorization
   chokepoint, whatever spec 10.2 says. Authorization is hand-written `accessOf(...)` gates, plus
   membership checks inside SQL `FROM` clauses. Write the gate yourself, and add the route's row
-  to `app/tests/criteria/ac-397-authorization-sweep.test.ts` saying what a stranger gets.
-- **ac-397 is green, but an id-bearing route is still open.** ac-397 only drives ids in the
+  to `app/tests/security/authorization-sweep.test.ts` saying what a stranger gets.
+- **The authorization sweep is green, but an id-bearing route is still open.** The sweep only drives ids in the
   **path**. An id taken from the query string or the body is invisible to it
   (`GET /events?folder=` is the standing example), and so is a router mounted inside another
-  router. `app/tests/criteria/ac-236-structural-guard-sweep.test.ts` checks **authentication**
+  router. `app/tests/security/session-and-csrf-sweep.test.ts` checks **authentication**
   (session and CSRF) only, never who may see what.
 
 ### Storage keys
@@ -137,9 +137,9 @@ All commands run from `app/`. From the repository root there is no `package.json
   is translated (it's French on Hassan's PC). Assert the SQLSTATE, the constraint name, or the
   column field instead; `expectRejectedWith` in `app/tests/support/helpers.ts` does this.
 - **Vitest says "No test files found", or `ERR_LOAD_URL`.** In Vitest 4, positional arguments
-  are substring filters, not regexes, so `"ac-(059|06[0-9])"` matches nothing. And
-  `--reporter=basic` no longer exists. To run one criterion by number, use
-  `npx vitest run -t "AC-042"`.
+  are substring filters, not regexes, so `"auth(orization|-sweep)"` matches nothing. And
+  `--reporter=basic` no longer exists. To run one test by title, use
+  `npx vitest run -t "<words from the title>"`.
 - **Your focused tests are green, but something else broke.** Changes under `app/src/shared/`
   or `app/src/server/domain/` reach tests nobody was thinking about. Scope the suite while you
   iterate, then run all of it before you say you're done.

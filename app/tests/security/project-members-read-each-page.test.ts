@@ -1,5 +1,5 @@
 /*
-AC-1528: a project member reads every tab and sub-page of the project, a
+a project member reads every tab and sub-page of the project, a
 stranger gets 404 on each, and a member removed from the project gets 404 on
 all of them at once (step 8, spec 4.4, 10.2). Membership rows live on the
 project root alone, so this is the access resolver's join: it goes red when
@@ -34,8 +34,8 @@ async function statuses(actor: Actor, ids: readonly string[]): Promise<number[]>
   return found
 }
 
-describe('AC-1528 a project member reads every page of it', () => {
-  test('AC-1528: every tab and sub-page to a member, none to a stranger, none once removed', async () => {
+describe('a project member reads every page of it', () => {
+  test('every tab and sub-page to a member, none to a stranger, none once removed', async () => {
     const [owner, member, stranger] = (await cast.of(app)) as [Actor, Actor, Actor]
     const made = await owner.browser.json('/folders', 'POST', { name: 'ac1528 trip', kind: null })
     expectStatus(made, 201, 'an unpicked project')

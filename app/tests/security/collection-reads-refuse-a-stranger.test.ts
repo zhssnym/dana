@@ -1,5 +1,5 @@
 /*
-AC-366: given one person's shelf, when another person asks for it by id,
+given one person's shelf, when another person asks for it by id,
 then every 7.16 shelf route answers 404 and nothing about it is disclosed.
 
 **Why this criterion exists.** `shelfView` scopes on user_id and every shelf
@@ -69,8 +69,8 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-366 a shelf is private by construction', () => {
-  test('AC-366: the owner reads their own shelf and its page', async () => {
+describe('a shelf is private by construction', () => {
+  test('the owner reads their own shelf and its page', async () => {
     const { owner, shelfId } = await stage()
     const identity = await owner.browser.json(`/shelves/${shelfId}`, 'GET')
     expectStatus(identity, 200, 'the owner reads the shelf (spec 7.16)')
@@ -86,7 +86,7 @@ describe('AC-366 a shelf is private by construction', () => {
     ).toEqual([])
   })
 
-  test('AC-366: every shelf route refuses another person by id, 404', async () => {
+  test('every shelf route refuses another person by id, 404', async () => {
     const { stranger, shelfId } = await stage()
     const attempts: readonly [string, string, unknown][] = [
       [`/shelves/${shelfId}`, 'GET', undefined],
@@ -110,7 +110,7 @@ describe('AC-366 a shelf is private by construction', () => {
     }
   })
 
-  test('AC-366: the refusals changed nothing', async () => {
+  test('the refusals changed nothing', async () => {
     const { owner, shelfId } = await stage()
     const identity = await owner.browser.json(`/shelves/${shelfId}`, 'GET')
     expectStatus(identity, 200, 'the shelf survives every refused write (spec 10.2)')

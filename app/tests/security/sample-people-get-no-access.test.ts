@@ -1,5 +1,5 @@
 /*
-AC-1176: Given an account that kept its sample workspace, when it is deleted
+Given an account that kept its sample workspace, when it is deleted
 (DELETE /me), then no page is handed to a sample person: the sample people
 are members of every sample page, but nobody can sign in as them, so 8.9's
 transfer and 8.10 step 2 look past them and the pages go with the account.
@@ -32,7 +32,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-1176 sample people never inherit a page', () => {
+describe('sample people never inherit a page', () => {
   test('deleting an account that kept its sample leaves no page owned by a sample person', async () => {
     const [departing] = await cast.of(app)
     if (departing === undefined) throw new Error('cast must produce one actor')

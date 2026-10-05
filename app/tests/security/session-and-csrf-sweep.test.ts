@@ -1,5 +1,5 @@
 /*
-AC-236: structural: every mutating route on the mounted application answers
+structural: every mutating route on the mounted application answers
 401 with no session and 403 with a session but no X-CSRF-Token, and every
 reading route answers 401 with no session unless it is one of three named
 public reads, all enumerated over the router rather than sampled.
@@ -197,7 +197,7 @@ function addressable(path: string): string {
   return path.replace(/:[A-Za-z_]+/g, '00000000-0000-4000-8000-000000000000')
 }
 
-describe('AC-236 every mutating route is behind the whole chain', () => {
+describe('every mutating route is behind the whole chain', () => {
   test('bare answers 401 and session-without-token answers 403, on every route', async () => {
     const [sweeper] = (await cast.of(app)) as [Actor]
     const routes = mutatingRoutes(app.application)

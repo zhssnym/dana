@@ -1,5 +1,5 @@
 /*
-AC-1523: people belong to the project (step 8, spec 4.4, 7.4). A membership
+people belong to the project (step 8, spec 4.4, 7.4). A membership
 act named on any page of a project -- a tab or a sub-page -- acts on the
 project: an add, a preset change, a removal and an invite are stored on the
 project root, and no page but the root holds a membership row. When the
@@ -41,8 +41,8 @@ async function stored(projectId: string): Promise<unknown[]> {
   return found.map((row) => [row.folder_id, row.user_id, row.access])
 }
 
-describe("AC-1523 a project's tabs have its people", () => {
-  test('AC-1523: an add, a preset change, a removal and an invite named on a tab or a sub-page land on the project', async () => {
+describe("a project's tabs have its people", () => {
+  test('an add, a preset change, a removal and an invite named on a tab or a sub-page land on the project', async () => {
     const [owner, member, third] = (await cast.of(app)) as [Actor, Actor, Actor]
     const made = await owner.browser.json('/folders', 'POST', { name: 'ac1523 trip', kind: null })
     expectStatus(made, 201, 'an unpicked project')
@@ -87,7 +87,7 @@ describe("AC-1523 a project's tabs have its people", () => {
       WHERE folder_id = ${project}::uuid AND user_id = ${member.id}::uuid`)).toEqual([])
   }, 60_000)
 
-  test("AC-1523: a removed owner's pages all follow the project's heir", async () => {
+  test("a removed owner's pages all follow the project's heir", async () => {
     const [, , , leaver, heir, viewer] = (await cast.of(app)) as [Actor, Actor, Actor, Actor, Actor, Actor]
     const made = await leaver.browser.json('/folders', 'POST', { name: 'ac1523 heir', kind: null })
     expectStatus(made, 201, 'an unpicked project')

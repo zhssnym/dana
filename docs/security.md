@@ -49,7 +49,7 @@ file.
 - A bad or absent CSRF token gets 403.
 - Every GET without a session gets 401. The only public routes are the health probe, the two
   sign-in routes and the CSP report endpoint.
-- The test `app/tests/criteria/ac-236-structural-guard-sweep.test.ts` checks these rules on
+- The test `app/tests/security/session-and-csrf-sweep.test.ts` checks these rules on
   every mounted route. A new public route needs an entry there with its reason.
 
 ## Authorization
@@ -69,7 +69,7 @@ Rules for ids:
 - Never trust a `folder_id`, `task_id`, `user_id` or `file_id` from the client without a
   gate. Database constraints are the last defence, not the first.
 - An id in the query string or the body needs its own gate in the handler that reads it.
-- The test `app/tests/criteria/ac-397-authorization-sweep.test.ts` calls each route with an
+- The test `app/tests/security/authorization-sweep.test.ts` calls each route with an
   id in its path as a signed-in stranger. Each new route of this kind needs a row in its
   table. The sweep cannot see ids in the query string or the body.
 

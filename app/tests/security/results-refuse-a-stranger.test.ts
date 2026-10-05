@@ -1,5 +1,5 @@
 /*
-AC-875: given a project's Results tab (a Doc page since step 7), when its
+given a project's Results tab (a Doc page since step 7), when its
 members write and read its document and name it by Dana Link, then a stranger is answered 404 on the
 document read, the document write and the link, a Can-view member may read but
 not write, and no refused write leaves a row.
@@ -81,8 +81,8 @@ const blocksIn = (pageId: string) =>
          WHERE folder_id = ${pageId}::uuid`,
   )
 
-describe('AC-875 the Results document and link refuse a stranger', () => {
-  test('AC-875: members read, editors write, strangers see nothing', async () => {
+describe('the Results document and link refuse a stranger', () => {
+  test('members read, editors write, strangers see nothing', async () => {
     const [owner, viewer, stranger] = (await cast.of(app)) as [
       Actor,
       Actor,

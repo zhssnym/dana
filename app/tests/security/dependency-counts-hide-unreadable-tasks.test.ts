@@ -1,5 +1,5 @@
 /*
-AC-865: a task row's `blocked_by_count` and `blocks_count` count blockers that
+a task row's `blocked_by_count` and `blocks_count` count blockers that
 are not completed (pending and abandoned alike) and dependents while the task
 itself is not completed, and never count an edge whose other end the viewer
 cannot read — on the folder page, on search, and on the task's own detail.
@@ -62,8 +62,8 @@ function countsOf(cards: Card[], id: string) {
   }
 }
 
-describe('AC-865: row dependency counts', () => {
-  test('AC-865: counts unresolved readable edges only, on lists and on the detail', async () => {
+describe('row dependency counts', () => {
+  test('counts unresolved readable edges only, on lists and on the detail', async () => {
     const [viewer, stranger] = await cast.of(app)
     if (viewer === undefined || stranger === undefined) {
       throw new Error('cast must produce two actors')

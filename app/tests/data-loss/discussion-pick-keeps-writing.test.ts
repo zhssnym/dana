@@ -1,5 +1,5 @@
 /*
-AC-1525: an unpicked project root that already holds a sub-page or a task is
+an unpicked project root that already holds a sub-page or a task is
 never picked as a Discussion, which draws threads only and refuses writing:
 `POST /folders/:id/tabs {kind:'discussion'}` answers 409 and the root stays
 unpicked with its home block and task. An empty root may still be picked as
@@ -37,8 +37,8 @@ async function rootKind(id: string): Promise<unknown> {
   return (await rows(app.db, sql`SELECT kind FROM folders WHERE id = ${id}::uuid`))[0]?.kind
 }
 
-describe('AC-1525 a Discussion pick never hides writing', () => {
-  test('AC-1525: a root holding a sub-page or a task refuses Discussion and keeps both', async () => {
+describe('a Discussion pick never hides writing', () => {
+  test('a root holding a sub-page or a task refuses Discussion and keeps both', async () => {
     const [owner] = (await cast.of(app)) as [Actor]
 
     const withPage = await unpicked(owner, 'ac1525 page')

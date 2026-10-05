@@ -1,5 +1,5 @@
 /*
-AC-397: structural: every route on the mounted application whose path carries
+structural: every route on the mounted application whose path carries
 a resource id is driven as a signed-in person with no relationship to the
 thing that id names, and answers 404 — or 403 where 5.4 grants visibility and
 withholds the act — enumerated over the router rather than sampled, with the
@@ -2252,7 +2252,7 @@ function snippet(response: RawResponse): string {
  * The criterion
  * ------------------------------------------------------------------ */
 
-describe('AC-397 every id-bearing route refuses a stranger', () => {
+describe('every id-bearing route refuses a stranger', () => {
   test('the enumeration and the table describe the same surface', async () => {
     const routes = idBearingRoutes(app.application)
 

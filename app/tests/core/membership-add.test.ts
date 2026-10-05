@@ -1,5 +1,5 @@
 /*
-AC-024: given a member holding Full control adds from their roster, then 201
+given a member holding Full control adds from their roster, then 201
 and one share-grant email is sent to the target; given a member holding Can
 edit or below, then 403, no membership is created and no email is sent.
 
@@ -124,8 +124,8 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-024: a Full-control roster add admits the target and mails them once', () => {
-  test('AC-024: a Full-control member who is not the owner adds from their own roster, 201', async () => {
+describe('a Full-control roster add admits the target and mails them once', () => {
+  test('a Full-control member who is not the owner adds from their own roster, 201', async () => {
     const { adder, target, folderId } = await stage()
     const entry = await folderInList(adder, folderId)
     expect(
@@ -171,7 +171,7 @@ describe('AC-024: a Full-control roster add admits the target and mails them onc
     ).toBe('string')
   })
 
-  test('AC-024: exactly one share-grant email went to the target', async () => {
+  test('exactly one share-grant email went to the target', async () => {
     const { owner, adder, target } = await stage()
     const grants = app.emails.shareGrants()
     expect(
@@ -186,7 +186,7 @@ describe('AC-024: a Full-control roster add admits the target and mails them onc
     ).toBe(0)
   })
 
-  test('AC-024: the target now reads the folder', async () => {
+  test('the target now reads the folder', async () => {
     const { target, folderId } = await stage()
     const entry = await folderInList(target, folderId)
     expect(
@@ -200,7 +200,7 @@ describe('AC-024: a Full-control roster add admits the target and mails them onc
     expect(entry?.is_owner, 'the target is no owner (spec 7.0)').toBe(false)
   })
 
-  test('AC-024: a Can-edit member adding from their own roster is refused 403', async () => {
+  test('a Can-edit member adding from their own roster is refused 403', async () => {
     /* The half of the rewritten rule that is a refusal, on a folder of its
        own so that the counts above stay this criterion's. The actor may
        change every piece of this folder's Work; accepted R8A stops them
@@ -230,7 +230,7 @@ describe('AC-024: a Full-control roster add admits the target and mails them onc
     ).toBeUndefined()
   })
 
-  test('AC-024 adversarial: the members listing reflects the add', async () => {
+  test('adversarial: the members listing reflects the add', async () => {
     const { owner, folderId } = await stage()
     const response = await owner.browser.api(`/folders/${folderId}`)
     expectStatus(
@@ -262,7 +262,7 @@ describe('AC-024: a Full-control roster add admits the target and mails them onc
     }
   })
 
-  test('AC-024 adversarial: the owner adding from their roster works the same way', async () => {
+  test('adversarial: the owner adding from their roster works the same way', async () => {
     const { owner, ownersFriend, folderId } = await stage()
     app.emails.clear()
     const response = await addMember(owner, folderId, ownersFriend.id)
@@ -278,7 +278,7 @@ describe('AC-024: a Full-control roster add admits the target and mails them onc
     ).toBe(1)
   })
 
-  test('AC-024: invariants hold afterwards', async () => {
+  test('invariants hold afterwards', async () => {
     const { owner, adder, target, ownersFriend, editor, editorsFriend, folderId } =
       await stage()
     await expectFolderInvariants(

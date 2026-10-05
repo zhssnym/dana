@@ -1,5 +1,5 @@
 /*
-AC-231: given an upload declaring an image kind with mime image/svg+xml,
+given an upload declaring an image kind with mime image/svg+xml,
 then 422; and given a raster upload whose bytes carry an HTML tail behind a
 valid image, then what is served back is re-encoded with no tail surviving.
 
@@ -39,7 +39,7 @@ const SVG_DOCUMENT = Buffer.from(
 
 const HTML_TAIL = '<html><script>document.title="ac231-owned"</script></html>'
 
-describe('AC-231 image kinds admit raster only, and raster is re-encoded', () => {
+describe('image kinds admit raster only, and raster is re-encoded', () => {
   test('image/svg+xml is refused 422 for an image kind', async () => {
     const [owner] = (await cast.of(app)) as [Actor]
     const folderId = await createFolder(owner, 's14 ac231 svg')

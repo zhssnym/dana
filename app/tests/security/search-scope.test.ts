@@ -1,5 +1,5 @@
 /*
-AC-057: given a query matching tasks in accessible and inaccessible folders
+given a query matching tasks in accessible and inaccessible folders
 across all three statuses, then search returns only accessible rows grouped
 pending, abandoned, completed.
 
@@ -185,8 +185,8 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-057: search is scoped to accessible folders and ordered by status', () => {
-  test('AC-057: the whole sequence is status_rank, updated_at descending, id descending', async () => {
+describe('search is scoped to accessible folders and ordered by status', () => {
+  test('the whole sequence is status_rank, updated_at descending, id descending', async () => {
     const { viewer, expected } = await stage()
     const body = await search(viewer, tz, NEEDLE)
     expect(
@@ -195,7 +195,7 @@ describe('AC-057: search is scoped to accessible folders and ordered by status',
     ).toEqual(expected)
   })
 
-  test('AC-057: the three statuses arrive in the order the criterion names', async () => {
+  test('the three statuses arrive in the order the criterion names', async () => {
     const { viewer } = await stage()
     const body = await search(viewer, tz, NEEDLE)
     const ranks = body.rows.map((row) =>
@@ -211,7 +211,7 @@ describe('AC-057: search is scoped to accessible folders and ordered by status',
     ).toEqual(ranks)
   })
 
-  test('AC-057: no row from an inaccessible folder appears', async () => {
+  test('no row from an inaccessible folder appears', async () => {
     const { viewer, hiddenPending, hiddenCompleted } = await stage()
     const body = await search(viewer, tz, NEEDLE)
     const found = idsOf(body.rows)
@@ -229,7 +229,7 @@ describe('AC-057: search is scoped to accessible folders and ordered by status',
     ).toEqual([])
   })
 
-  test('AC-057: the same rows are findable by the account that owns them', async () => {
+  test('the same rows are findable by the account that owns them', async () => {
     const { stranger, hiddenPending, hiddenCompleted } = await stage()
     const body = await search(stranger, tz, NEEDLE)
     expect(
@@ -238,7 +238,7 @@ describe('AC-057: search is scoped to accessible folders and ordered by status',
     ).toEqual([hiddenPending, hiddenCompleted])
   })
 
-  test('AC-057 adversarial: the match is a substring, not a prefix', async () => {
+  test('adversarial: the match is a substring, not a prefix', async () => {
     const { viewer, expected } = await stage()
     const body = await search(viewer, tz, NEEDLE.slice(4, 12))
     expect(
@@ -247,7 +247,7 @@ describe('AC-057: search is scoped to accessible folders and ordered by status',
     ).toEqual(expected)
   })
 
-  test('AC-057 adversarial: the match ignores case, in both directions', async () => {
+  test('adversarial: the match ignores case, in both directions', async () => {
     const { viewer, expected, mixedCase } = await stage()
     const shouted = await search(viewer, tz, NEEDLE.toUpperCase())
     expect(
@@ -261,7 +261,7 @@ describe('AC-057: search is scoped to accessible folders and ordered by status',
     ).toContain(mixedCase)
   })
 
-  test('AC-057 adversarial: a needle only in the notes is found', async () => {
+  test('adversarial: a needle only in the notes is found', async () => {
     const { viewer, notesOnly } = await stage()
     const body = await search(viewer, tz, 'lives only in the notes')
     expect(
@@ -270,7 +270,7 @@ describe('AC-057: search is scoped to accessible folders and ordered by status',
     ).toEqual([notesOnly])
   })
 
-  test('AC-057 adversarial: a non-matching row is not swept in', async () => {
+  test('adversarial: a non-matching row is not swept in', async () => {
     const { viewer, noMatch } = await stage()
     const body = await search(viewer, tz, NEEDLE)
     expect(
@@ -279,7 +279,7 @@ describe('AC-057: search is scoped to accessible folders and ordered by status',
     ).not.toContain(noMatch)
   })
 
-  test('AC-057: the expected sequence is the one the fixture\'s own rows produce', async () => {
+  test('the expected sequence is the one the fixture\'s own rows produce', async () => {
     const { expected } = await stage()
     expect(
       await q8OrderOf(app.db, expected),
@@ -287,7 +287,7 @@ describe('AC-057: search is scoped to accessible folders and ordered by status',
     ).toEqual(expected)
   })
 
-  test('AC-057: the fixture satisfies section 3', async () => {
+  test('the fixture satisfies section 3', async () => {
     const { viewer, stranger, mineId, theirsId, expected, hiddenPending } =
       await stage()
     await expectTaskInvariants(

@@ -1,5 +1,5 @@
 /*
-AC-825: given the exact file "Save as workflow" writes from a composed folder
+given the exact file "Save as workflow" writes from a composed folder
 page, when it is imported and the imported folder is saved again, then the
 second file is byte for byte the first less its placeholders — and saving that
 one again is byte for byte itself, however many times round.
@@ -98,7 +98,7 @@ afterAll(async () => {
 
 const NAME = 'ac825 the whole page'
 
-describe('AC-825 export, import, export again, and the bytes are the same', () => {
+describe('export, import, export again, and the bytes are the same', () => {
   test('a page holding every kind that travels round trips exactly', async () => {
     const [author, reader] = (await cast.of(app)) as [Actor, Actor]
     const sourceId = await createFolder(author, NAME)
