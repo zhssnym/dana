@@ -103,12 +103,6 @@ These pass every test when they are wrong. Look for them in your diff.
 - Add new traps to `docs/troubleshooting.md`: symptom, cause, fix.
 - Do not add other documents. Notes and open questions go in the issue or the PR.
 
-## Decisions
-
-Imran decides product and design. Hassan decides technical things. For an obvious
-decision, decide and write it in the PR. Ask only when the decision is really theirs.
-`AGREEMENT.md` is the agreement between the two.
-
 ## Claude Code
 
 - Claude Code reads this file only when no `CLAUDE.md` exists. Do not create a
