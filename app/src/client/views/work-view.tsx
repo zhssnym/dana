@@ -1,14 +1,8 @@
 /*
-Work has one document and four presentations. Thread is the progressive reading
-of that document; Freeform draws its writing without the rail, Board groups
-its canonical Tasks, and Calendar projects their schedules.
-
-The default is a device preference, separate from the view someone chooses on
-a particular Work. A switch is kept for this session only, per page, so it can
-never become document data or make two versions of the Work. A page with no
-session choice follows the preferred default. The old `dana.folder-view` key is
-retired in `view-mode.ts` and is deliberately not reused here.
-*/
+ * Work has one document and four presentations: Thread, Freeform, Board and Calendar. The default is a device
+ * preference; a switch lasts this session, per page, and never enters the document. The retired
+ * `dana.folder-view` key is not reused.
+ */
 import { useCallback, useSyncExternalStore } from 'react'
 import { useLocation } from 'react-router'
 
@@ -57,8 +51,7 @@ export function writeDefaultWorkView(view: WorkView): void {
     // The preference still applies to this session when storage is unavailable.
   }
   for (const listener of defaultListeners) listener()
-  /* Open Works with no deliberate switch follow the new preference. A Work
-     already switched keeps that explicit session choice. */
+  /* Open Works with no switch follow the new preference; switched ones keep their choice. */
   for (const workId of workListeners.keys()) {
     if (!currentByWork.has(workId)) emitWork(workId)
   }
@@ -99,8 +92,7 @@ export function useWorkView(workId: string): [WorkView, (view: WorkView) => void
   return [view, setView]
 }
 
-/** The Work currently on screen. Path is presentation identity only; the
- * choice never enters the page document or server contract. */
+/** The path is presentation identity only; the choice never enters the document or server contract. */
 export function useCurrentWorkView(): [WorkView, (view: WorkView) => void] {
   const { pathname } = useLocation()
   return useWorkView(pathname)

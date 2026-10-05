@@ -1,16 +1,7 @@
 /*
-One member of a page, opened from the sharing panel's member list (#209): their
-Access, what they are responsible for, whether they may write that themselves,
-and the history of all three.
-
-Access and Responsibilities are two different things and stay two things here
-(#209 R5): Access is what the member may do, one of the six presets;
-Responsibilities are a document saying what they look after, and grant nothing.
-
-Every control is drawn from the server's own `viewer_may_*` answer for this
-viewer and this member, which only decides what is worth drawing. The routes
-decide again on every write.
-*/
+ * One member of a page, opened from the sharing panel: Access, Responsibilities, and their history. Controls
+ * follow the server's `viewer_may_*` answers; the routes check again on every write.
+ */
 import { useState } from 'react'
 
 import { FOLDER_ACCESS_LABELS, FOLDER_ACCESS_PRESETS } from '../../shared/folder-access.js'
@@ -44,8 +35,7 @@ import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
 import type { ConfirmLabels } from './task-rows.js'
 
-/** The panel's one confirm (`useConfirm().ask`), shared so a confirm opened
- * here is the panel's and the panel knows not to close under it. */
+/** The panel's one confirm, shared so the panel knows not to close under it. */
 export type AskConfirm = (message: string, run: () => void, labels?: ConfirmLabels) => void
 
 const HEADING = 'pb-1 text-sm font-medium text-foreground'
@@ -137,8 +127,7 @@ export function MemberDetails({
         ) : null}
       </section>
 
-      {/* Not keyed by revision: a refetch after someone else's save must not
-          throw away the draft being written. */}
+      {/* Not keyed by revision: a refetch after someone else's save must not throw away the draft. */}
       <div className={cn(fullPage && 'border-b border-border py-[var(--space-group)]')}>
         <Responsibilities
           folderId={folderId}
@@ -184,13 +173,9 @@ export function MemberDetails({
 }
 
 /*
-A member's Access as a picker: the one control both the member list and the
-details use, so changing someone's Access is two clicks from the list. Remove,
-when offered, sits under the presets rather than as a button on every row.
-Without the right to change it, it is the label and nothing to press. On the
-viewer's own row any change lowers them below Full control, after which they
-cannot change it back, so it asks first.
-*/
+ * A member's Access as a picker, used by the list and the details. Without the right to change it, a label. On
+ * the viewer's own row any change drops them below Full control for good, so it asks first.
+ */
 export function AccessMenu({
   folderId,
   userId,
@@ -274,8 +259,7 @@ export function AccessMenu({
   )
 }
 
-/* The Access an invite grants, picked beside the Invite button. Presets only,
-   and nothing is sent until Invite. */
+/* Presets only; nothing is sent until Invite. */
 export function InviteAccessPicker({
   value,
   onChange,
@@ -351,8 +335,7 @@ function Responsibilities({
         },
         onError: (error) => {
           if (error instanceof ApiError && error.status === 422) setProblem(error.message)
-          // Someone saved first: the toast says so, the draft stays, and the
-          // next Save is made against what they saved.
+          // Someone saved first: the toast says so, the draft stays, and the next Save goes against theirs.
           if (error instanceof ApiError && error.status === 409) onStale()
         },
       },
@@ -464,8 +447,7 @@ function Runs({ content }: { readonly content: RichContent }): React.JSX.Element
   )
 }
 
-/* The sentence for one history entry, built from who acted, on whom, and what
-   changed (#230: never from the generic activity text). */
+/* Built from who acted, on whom and what changed, never from the generic activity text. */
 function historySentence(item: MemberHistoryEntry): string {
   if (item.kind === 'access') {
     const e = item.entry

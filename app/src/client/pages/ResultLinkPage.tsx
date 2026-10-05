@@ -1,12 +1,4 @@
-/*
-A native Result's Dana Link, `/app/results/:id` (#213).
-
-Not a page of its own: a Result is a block of its Folder's Results tab, so
-this reads where it lives and replaces itself with that page's address
-(since step 7 the Results tab is a page), `?result=<id>`, which the Result block scrolls to
-(`CanvasResult`). `replace`, so back never bounces off this hop. A Result the
-viewer cannot open is the same not-found a missing one is.
-*/
+/* `/app/results/:id`: find the Result's page and replace with its address plus `?result=<id>`. */
 import { useQuery } from '@tanstack/react-query'
 import { Navigate, useParams } from 'react-router'
 

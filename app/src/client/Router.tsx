@@ -1,17 +1,7 @@
 /*
-9.1's route table as a router, in React Router's library mode and nothing else.
-
-11.15 records that importing loader, action or framework-mode APIs is a
-defect, and this file is where that would happen if it happened anywhere. So
-the routing is `BrowserRouter`, `Routes` and `Route`: components, no data
-APIs, nothing that could grow a loader by accident. Data belongs to the query
-layer, and the query layer is `api/`.
-
-`/app` lands on Today. Retired paths redirect with `replace`, so the old
-address does not sit in the history behind the new one and the back button
-does not bounce off it. A page's list, board and calendar are `?mode=`, not
-routes.
-*/
+ * The route table (spec 9.1) in React Router library mode: no loaders, actions or data APIs (11.15). Retired
+ * paths redirect with `replace`, so the back button does not bounce off them.
+ */
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 
 import { useFolders } from './api/queries.js'
@@ -35,12 +25,7 @@ import { TrashPage } from './pages/TrashPage.js'
 import { paths, retiredPaths } from './routes.js'
 import { AppShell } from './shell/app-shell.js'
 
-/**
- * `/app/desk`: Desk is the default folder, so its address is that folder's.
- * The id is data (the folder carrying `is_default`, which INV-2 keeps), so this
- * waits for the folder list the shell is already reading, and falls back to
- * Today if the read fails rather than stranding the person on a blank page.
- */
+/** Desk is the default folder: wait for the folder list, then go to that folder, or to Today if the read fails. */
 function DeskRedirect(): React.JSX.Element | null {
   const folders = useFolders()
   if (folders.isPending) return null
@@ -65,28 +50,25 @@ export function Router(): React.JSX.Element {
           <Route path="desk" element={<DeskRedirect />} />
           <Route path="trash" element={<TrashPage />} />
           <Route path="folders/:id" element={<FolderPage />} />
-          {/* A stable Purpose Dana Link enters through its facet identity,
-              then resolves into the owning Folder without changing hide state. */}
+          {/* A facet link resolves into its owning folder without changing hide state. */}
           <Route path="facets/:id" element={<FacetEntryPage />} />
           <Route path="shelves/:id" element={<ShelfPage />} />
           {/* Matched before the retired bare "/app/tasks" redirect below. */}
           <Route path="tasks/:id" element={<TaskPage />} />
-          {/* #320's Dana Link addresses: each resolves its Folder and
-              replaces itself with the Consultation facet's URL state. */}
+          {/* Each Dana Link resolves its folder, then replaces itself with the Consultation URL state. */}
           <Route path="discussions/:id" element={<DiscussionLinkPage />} />
           <Route path="outcomes/:id" element={<OutcomeLinkPage />} />
-          {/* #213: a native Result opens its Folder's Results tab at the block. */}
+          {/* A native Result opens its folder's Results tab at the block. */}
           <Route path="results/:id" element={<ResultLinkPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="settings/archived-work" element={<ArchivedWorkPage />} />
           <Route path="stats" element={<StatsPage />} />
-          {/* People lives in Settings now; the old address still lands there. */}
+          {/* The old People address lands in Settings. */}
           <Route path="people" element={<Navigate to={`${paths.settings}#people`} replace />} />
           {retiredPaths.map(({ from, to }) => (
             <Route
               key={from}
-              // The table's paths are absolute and this Route is nested, so
-              // the child path is what follows "/app/".
+              // The table's paths are absolute and this Route is nested, so strip "/app/".
               path={from.slice('/app/'.length)}
               element={<Navigate to={to} replace />}
             />

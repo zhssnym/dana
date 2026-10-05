@@ -1,16 +1,7 @@
 /*
-The one place notices appear: bottom-centre of the window, one column, one
-look (the dark notice). Toasts from `toasts.ts` stack here, and the shell
-passes the offline notice and the undo bar in as `children` so they sit in the
-same column.
-
-Every notice is its text and, at most, one text action. None has an icon or a
-dismiss control: toasts and the undo bar expire, and the offline notice lasts
-exactly as long as the connection is down.
-
-`clearsCapture` lifts the column above the phone's floating add button where
-that button is drawn.
-*/
+ * The one notice column, bottom-centre: toasts, plus the offline notice and undo bar passed as `children`. No
+ * icons or dismiss controls. `clearsCapture` lifts it above the phone's floating add button.
+ */
 import { useEffect, useSyncExternalStore, type ReactNode } from 'react'
 
 import { cn } from '../components/ui/utils.js'
@@ -21,11 +12,10 @@ import type { Toast } from './toasts.js'
 /** Long enough to read twice; short enough not to outlive the page. */
 const TOAST_LIFETIME_MS = 8_000
 
-/** The one look every notice in the column shares. */
 export const NOTICE =
   'pointer-events-auto flex min-h-[var(--row-height)] max-w-full items-center gap-2 rounded-md bg-foreground px-3 py-1 text-sm text-background shadow-md duration-150 ease-out animate-in fade-in slide-in-from-bottom-1'
 
-/** A notice's one text action, in the notice's colours (`size="sm"`). */
+/** A notice's text action, in the notice's colours (`size="sm"`). */
 export const NOTICE_BUTTON = '-mr-1.5 shrink-0 text-background hover:bg-background/15 active:bg-background/20'
 
 export function ToastRegion({

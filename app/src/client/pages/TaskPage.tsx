@@ -1,15 +1,4 @@
-/*
-/app/tasks/:id, a task's one page and its own address (7.17, 9.1; M4).
-
-Every way into a task lands here: a row, a canvas task block, Today, search,
-the calendar, a copied link, a notification and a Dana Link. It sits in the
-folder page's reading column, inside the app's shell and sidebar. On a phone
-it carries a close that goes back where the person came from; everywhere
-else the browser's Back does that, and the thread restores its place.
-
-The 10.2 not-found discipline holds: an id this viewer cannot read renders
-`PageBody`'s 404 copy.
-*/
+/* A task's one page and address. On a phone it draws a close; elsewhere the browser's Back does that. */
 import { useLocation, useNavigate, useParams } from 'react-router'
 
 import { surfaceTask, useTaskEditing } from '../components/task-editing.js'
@@ -36,8 +25,7 @@ export function TaskPage(): React.JSX.Element {
   const detail = editing.detail
 
   function leave(): void {
-    /* Back where the person came from, or the folder when there is no
-       "from" (a link opened cold). */
+    /* Back where the person came from, or the folder for a link opened cold. */
     if (window.history.length > 1) void navigate(-1)
     else if (detail !== undefined) void navigate(paths.folder(detail.folder.id))
     else void navigate(paths.today)
@@ -58,8 +46,7 @@ export function TaskPage(): React.JSX.Element {
               {...(phone ? { onClose: leave } : {})}
               task={{
                 ...surfaceTask(id, editing.concept),
-                /* Delete, to Trash with Undo; the page then leaves, its
-                   subject gone. Status carries drop. */
+                /* To Trash with Undo; the page then leaves. */
                 onDelete: () => {
                   acts.onDelete(detail)
                   leave()

@@ -1,8 +1,4 @@
-/*
-Surface dates outside a task row: Done headings, People and sharing metadata,
-elapsed time. Every civil-date form comes from `lib/dates.ts`, the one
-formatter; this module only keeps the surface-specific wrappers.
-*/
+/* Dates outside a task row: Done headings, people metadata and elapsed time. Built on `lib/dates.ts`. */
 import {
   addDays,
   dayBefore,
@@ -16,27 +12,17 @@ import {
 
 export { addDays, dayBefore, daysBetween, formatDayHeading, formatMonthHeading, weekStart }
 
-/**
- * Compact metadata date: "4 Aug" this year, "4 Aug 2025" otherwise. Without
- * `today` the year always rides along.
- */
+/** "4 Aug" this year, "4 Aug 2025" otherwise. Without `today` the year is always shown. */
 export function formatCompactDate(date: string, today = ''): string {
   return formatDate(date, today)
 }
 
-/**
- * A metadata instant as a day word: "today", "yesterday", then "4 Aug".
- * Reads the instant's UTC date, which is coarse and fine for joined and sent
- * stamps.
- */
+/** "today", "yesterday", then "4 Aug". Uses the instant's UTC date, which is fine for these stamps. */
 export function formatRelativeDay(instant: string, today: string): string {
   return formatDayInline(instant.slice(0, 10), today)
 }
 
-/**
- * An instant as elapsed time: "just now", "5 minutes ago", "3 hours ago",
- * then a date after a week. Elapsed time needs no timezone.
- */
+/** "just now", "5 minutes ago", "3 hours ago", then a date after a week. */
 export function formatAgo(instant: string, now: number): string {
   const at = Date.parse(instant)
   if (Number.isNaN(at)) return ''

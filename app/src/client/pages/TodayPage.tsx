@@ -1,17 +1,4 @@
-/*
-Today, at /app/today: 6 Q1's open list (GET /views/focus, when=on_today and
-group=today, which sorts the rows under the headings below), carried-over
-work first, then the
-"New task" row. No View menu (M4): no grouping, no sort and no "Show
-completed"; a task ticked here goes when the list refreshes.
-
-The "Today" group only holds what is due today (or undated) and not yet
-started. A started task (a start date today or earlier) that is not overdue is
-under "Started"; an overdue task is under "Carried over" at the top whether or
-not it has started. A row here although its date is later and not started
-says why: "Added to Today" when the person pulled it in. Upcoming starts
-tomorrow, so none of these groups is said twice.
-*/
+/* Today: carried-over work first, then today's groups, then "New task". The server picks each row's group. */
 import type { TaskCard } from '../../shared/tasks.js'
 
 import { useFocusView } from '../api/queries.js'
@@ -35,9 +22,9 @@ export function TodayPage(): React.JSX.Element {
   const actions = useRowActions()
   const confirm = useConfirm()
   const basis = useRowBasis()
-  /* One Tab stop for the page's rows; arrows, Enter and Space (`row-keys.ts`). */
+  /* One Tab stop for the page's rows (`row-keys.ts`). */
   const keys = useRowKeys<HTMLDivElement>()
-  /* 9.13's first-run offer takes the place of Today's empty state. */
+  /* Spec 9.13's first-run offer replaces Today's empty state. */
   const mayBeFresh = useMayBeFresh()
 
   const groups = view.data?.groups ?? []
@@ -49,7 +36,7 @@ export function TodayPage(): React.JSX.Element {
   useNoStoredLabel(place)
   const context = { ...basis, showPullMarker: true }
 
-  /* `day`: under the "Today" heading a row keeps only its time, as on Upcoming. */
+  /* `day`: under the "Today" heading a row keeps only its time. */
   const rows = (tasks: readonly TaskCard[], day = false): React.JSX.Element => (
     <TaskRows
       tasks={tasks}
@@ -60,10 +47,7 @@ export function TodayPage(): React.JSX.Element {
     />
   )
 
-  /* Why each row is here, the server's answer (server/views/focus.ts).
-     Overdue work is "Carried over", started or not. Started work that is not
-     late is "Started" (AC-1010): a range begun last week and due Friday is
-     under way, not left over. */
+  /* Overdue work is "Carried over", started or not. Started work not yet late is "Started" (AC-1010). */
   const carriedShown = group('carried')
   const dueToday = group('today')
   const started = group('started')
@@ -78,8 +62,7 @@ export function TodayPage(): React.JSX.Element {
       truncated={view.data?.truncated ?? false}
     >
       <div className="space-y-6">
-        {/* AC-097 reads "Carried over". With nothing carried, the day is
-            one list and needs no heading. */}
+        {/* AC-097 reads "Carried over". With nothing carried, the day needs no heading. */}
         {carriedShown.length === 0 ? null : (
           <PlaceGroup name="Carried over" heading="Carried over">
             {rows(carriedShown)}
@@ -128,11 +111,9 @@ export function TodayPage(): React.JSX.Element {
       <SampleStrip />
       <PlaceHead place={place} controls={null} />
 
-      {/* Rows bleed their padding into the gutter: a checkbox, a heading and
-          the title share one left edge. */}
+      {/* Rows bleed their padding into the gutter so checkbox, heading and title share one left edge. */}
       <div className="-mx-1.5 space-y-6">
-        {/* A fresh account's own first act comes before the offer of an
-            example; otherwise "New task" closes the list. */}
+        {/* A fresh account's own first act comes before the offer of an example. */}
         {mayBeFresh ? (
           <StarterOffer body={pageBody} quickAdd={quickAdd} />
         ) : (

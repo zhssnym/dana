@@ -1,12 +1,4 @@
-/*
-Whether Dana can reach its server, as a hook.
-
-The judgment lives in `connectivity.ts`, which says why `navigator.onLine`
-cannot answer this on its own. Exactly one thing in this client subscribes,
-and it is the layout: 9.1's banner is global and persistent while offline, so
-a page that asked would be a page with its own offline treatment, which is the
-thing the shared states exist to prevent.
-*/
+/* Whether Dana can reach its server, as a hook. Only the layout subscribes: the banner is global. */
 import { useSyncExternalStore } from 'react'
 
 import { isOnline, subscribeToConnectivity } from './connectivity.js'

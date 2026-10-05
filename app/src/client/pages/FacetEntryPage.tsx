@@ -1,9 +1,4 @@
-/*
-/app/facets/:id, the Dana Link address of a Purpose or Results tab from
-before step 7. Migration 0061 made each such facet a page with the facet's
-own id, so the address is that page's: one replace, no server read. A page
-the viewer cannot open answers there as any other does.
-*/
+/* An old facet address. Migration 0061 gave each facet's page the facet's id, so this only redirects. */
 import { Navigate, useParams } from 'react-router'
 
 import { paths } from '../routes.js'

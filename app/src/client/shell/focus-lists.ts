@@ -1,16 +1,8 @@
 /*
-The Focus lists under the sidebar's Focus heading. Today and Upcoming for
-everyone, and Assigned only for a viewer on a page that has another member,
-because for someone alone it is every task they have (M4). The rest (Important,
-Overdue, No date, All open) are lists a viewer adds from the heading's "+":
-filters over the open tasks of every page, drawn by `pages/FocusListPage.tsx`
-at `/app/lists/<key>`. Every one of them is GET /views/focus: the server
-filters and groups (`server/views/focus.ts`), and a page draws what it gets.
-
-The viewer's choice and order live on the account (`focus_lists`, migration
-0050). A key left out is a hidden list, and the "+" offers it back. Each list
-also carries its own identity, an icon, colour and cover (#353, #355).
-*/
+ * The sidebar's Focus lists: Today and Upcoming for everyone, Assigned only for a viewer with a shared page,
+ * plus lists added from "+". All read GET /views/focus. The choice and order live on the account
+ * (`focus_lists`).
+ */
 import { useEffect } from 'react'
 
 import { DEFAULT_FOCUS_LISTS, FOCUS_LISTS } from '../../shared/bundle.js'
@@ -38,7 +30,6 @@ export interface FocusMark {
   readonly color?: string
 }
 
-/** What each added list asks GET /views/focus for. */
 export const FOCUS_ASKS: Partial<Record<FocusListKey, FocusAsk>> = {
   important: { when: 'any', important: true, group: 'none' },
   overdue: { when: 'overdue', group: 'none' },
@@ -67,12 +58,7 @@ export function focusList(key: FocusListKey): FocusList {
   return { key, ...TABLE[key], isDefault: DEFAULT_FOCUS_LISTS.includes(key) }
 }
 
-/**
- * The one resolver for a Focus destination's mark. An absent override keeps
- * Dana's native icon and graphite colour; a stored icon is resolved through
- * the same manifest Pages and Collections use. Every compact surface asks this
- * function rather than inventing its own Focus icon map.
- */
+/** The one resolver for a Focus list's mark. No override keeps the native icon and graphite colour. */
 export function focusMark(
   key: FocusListKey,
   appearance: FocusAppearance | undefined,
@@ -86,10 +72,8 @@ export function focusMark(
 }
 
 /**
- * Durable native-place cover rows that represent each Focus destination.
- * `anytime` is the former No date page and `all` the former All open page, so
- * those existing per-viewer stores keep serving the renamed Focus lists.
- * Issue #353 added `overdue`, so every Focus list now has the same cover path.
+ * The cover store key per list. `anytime` and `all` are the old No date and All open keys, kept so stored
+ * covers still apply.
  */
 export function focusIdentityKey(key: FocusListKey): string {
   switch (key) {
@@ -106,7 +90,6 @@ export function focusIdentityKey(key: FocusListKey): string {
   }
 }
 
-/** Every list the "+" can offer, in its order, less the ones already shown. */
 export function focusOffers(shown: readonly FocusListKey[]): readonly FocusList[] {
   return FOCUS_LISTS.filter((key) => !shown.includes(key)).map(focusList)
 }
@@ -115,18 +98,14 @@ export function isFocusKey(value: string | undefined): value is FocusListKey {
   return (FOCUS_LISTS as readonly string[]).includes(value ?? '')
 }
 
-/**
- * Which of the viewer's stored lists the sidebar draws: all of them, less
- * Assigned for a viewer with no page shared with anyone (M4).
- */
+/** All stored lists, less Assigned for a viewer with no shared page. */
 export function focusRows(lists: readonly FocusListKey[], shared: boolean): readonly FocusList[] {
   return lists.filter((key) => shared || key !== 'assignments').map(focusList)
 }
 
 /**
- * The Focus pages keep no View settings (M4: no Group by, Sort, Label or
- * Show completed). A Label narrowing stored by an older client would still
- * put that Label on every task made here, unseen, so it is cleared.
+ * Focus pages have no View settings, so clear a Label filter an older client stored: it would otherwise label
+ * every task made here, unseen.
  */
 export function useNoStoredLabel(place: Pick<Place, 'filter' | 'setFilter'>): void {
   const { filter, setFilter } = place

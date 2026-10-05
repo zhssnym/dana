@@ -1,11 +1,7 @@
 /*
-Where a page's View settings live: one entry per page, in `sessionStorage`,
-so they survive a reload and a return to the page but never follow a person to
-another page or another tab. Calendar owns a separate Task-filter entry because
-its default is Open; clearing or changing that filter must remain a deliberate
-Calendar choice without changing Thread, Freeform or Board. Storage that throws
-costs the setting, not the page.
-*/
+ * A page's View settings, one entry per page in `sessionStorage`. Calendar keeps its own Task filter (default
+ * Open). Storage that throws costs the setting, not the page.
+ */
 import { useCallback, useSyncExternalStore } from 'react'
 
 import { NO_FILTER, NO_TASK_FILTER, settleFilter, settleTaskFilter } from './filter.js'
@@ -20,7 +16,7 @@ const CALENDAR_DEFAULT_TASK_FILTER: TaskFilter = {
   statuses: ['pending'],
 }
 
-/* `useSyncExternalStore` needs a stable reference per page until it changes. */
+/* `useSyncExternalStore` needs a stable reference per page. */
 const cache = new Map<string, PageFilter>()
 const listeners = new Set<() => void>()
 const taskCache = new Map<string, TaskFilter>()
@@ -99,10 +95,7 @@ function subscribeTaskFilter(listener: () => void): () => void {
   }
 }
 
-/**
- * One Work filter for Thread, Freeform and Board, plus Calendar's own filter.
- * Calendar starts at Status = Open only when it has no stored choice yet.
- */
+/** Calendar starts at Status = Open only when it has no stored choice. */
 export function useTaskFilter(
   page: string,
 ): [TaskFilter, (next: TaskFilter) => void] {

@@ -1,13 +1,7 @@
 /*
-The operators' stats, at /app/stats. It's in no menu: the server answers 404
-to everyone not on DANA_OPERATORS, and this page then shows the ordinary Not
-found, so it looks to them like any address that does not exist.
-
-The growth of people carries the screen; activity and work pages sit under
-it, then one row per account: email, joined, last active, work pages. Never a
-page's name or content. The Privacy page tells people operators see exactly
-this, so the two change together.
-*/
+ * Operator stats, in no menu. The server answers 404 to non-operators, which shows the ordinary Not found. The
+ * Privacy page says what operators see, so the two change together.
+ */
 import { useState } from 'react'
 
 import type { GetStatsResponse, StatsPerson } from '../../shared/stats.js'
@@ -56,11 +50,7 @@ function growth(total: number, weeks: readonly { week_start: string, added: numb
   return points
 }
 
-/*
-A running total over the last 12 weeks. The line is an SVG stretched to the
-box (non-scaling stroke); everything with a shape or a letter is HTML over it,
-so nothing distorts at any width. Pointing at a week reads it out above.
-*/
+/* The line is an SVG stretched to the box (non-scaling stroke); text is HTML over it, so nothing distorts. */
 function GrowthChart({ points, tall = false, label }: {
   readonly points: readonly GrowthPoint[]
   readonly tall?: boolean
@@ -131,7 +121,6 @@ function GrowthChart({ points, tall = false, label }: {
   )
 }
 
-/* How many of everyone: a count, and a bar that is that share of all people. */
 function Share({ label, value, of }: {
   readonly label: string
   readonly value: number
@@ -248,8 +237,7 @@ function Stats({ stats }: { readonly stats: GetStatsResponse }): React.JSX.Eleme
 export function StatsPage(): React.JSX.Element {
   const stats = useStats()
   if (stats.error instanceof ApiError && stats.error.status === 404) return <NotFoundPage />
-  // No heading until the server has answered, so the page says nothing to
-  // someone it is about to tell "not found".
+  // No heading until the server answers, so a non-operator sees nothing before "not found".
   if (stats.isPending) return <SkeletonList />
   return (
     <Screen title="Stats" description="Every account on Dana, and how much each uses it. No page names or content.">

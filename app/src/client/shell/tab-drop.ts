@@ -1,50 +1,28 @@
 /*
-A sidebar row dragged out of the sidebar, and onto the tab strip.
-
-A page, a collection or a Focus list can be picked up in the sidebar and taken
-anywhere on screen. Inside the sidebar the drag is the ordinary reorder. Once
-the pointer leaves it, the row comes loose: it stays in its own place, and a
-card shaped like a tab, with the row's mark and name, follows the pointer
-freely (`TabDragCard` in TabStrip.tsx). Brought over the tab strip, the card
-settles into a ghost tab at the slot it would take, and letting go there opens
-it as a tab at that slot. Let go anywhere else outside the sidebar and nothing
-happens.
-
-The sidebar's rows are sorted by `lib/use-sortable-list.ts`, which asks its
-owner two questions about anywhere outside the list: `onOver` while the
-pointer moves and `onDropAt` on release. The sidebar's lists answer them with
-`sidebarDragOver` and `sidebarDropAt`.
-
-The ghost's slot is worked out from the real tabs' positions with the ghost's
-own width taken back out, so the ghost pushing tabs aside never moves the slot
-it was computed from.
-*/
+ * A sidebar row dragged out of the sidebar onto the tab strip. Outside the sidebar a tab-shaped card follows
+ * the pointer; over the strip it becomes a ghost tab, and release opens it there. The ghost's own width is
+ * taken out of the slot math.
+ */
 import { useSyncExternalStore } from 'react'
 
 import type { SortableItemState } from '../lib/use-sortable-list.js'
 import { openTabAt } from './tabs.js'
 
-/** What a sidebar list's `onOver` answers once the row has left the sidebar:
- * the list stops proposing a slot of its own. */
+/** What a list's `onOver` answers once the row has left the sidebar, so the list stops proposing a slot. */
 export const TAB_STRIP = 'tab-strip'
 
 export interface TabDrag {
-  /** The place the dragged row opens. */
   readonly path: string
-  /** Where the pointer is. */
   readonly x: number
   readonly y: number
-  /** Over the tab strip: the slot the new tab would take. Null when the row
-   * is loose elsewhere on screen. */
+  /** The slot over the tab strip; null when the row is loose elsewhere. */
   readonly slot: number | null
 }
 
 interface Strip {
   /** The whole bar: a row released anywhere on it opens a tab. */
   readonly bar: HTMLElement
-  /** The tabs themselves, for the slot. */
   readonly list: HTMLElement
-  /** Shows the place the new tab names. */
   readonly go: (path: string) => void
 }
 
@@ -58,13 +36,11 @@ function publish(next: TabDrag | null): void {
   listeners.forEach((listener) => { listener() })
 }
 
-/** The tab strip registers itself while mounted. */
 export function registerTabStrip(next: Strip | null): void {
   strip = next
   if (next === null) publish(null)
 }
 
-/** The row in the air outside the sidebar, for the card and the ghost. */
 export function useTabDrag(): TabDrag | null {
   return useSyncExternalStore(
     (listener) => {
@@ -76,15 +52,11 @@ export function useTabDrag(): TabDrag | null {
   )
 }
 
-/** Forget the drag: it ended, or came back into the sidebar. */
 export function clearTabDrop(): void {
   publish(null)
 }
 
-/**
- * A sidebar row's drag state, with the carried row kept in its own place once
- * it has left the sidebar: the card carries the drag from there.
- */
+/** Once the row has left the sidebar it stays in its place; the card carries the drag from there. */
 export function heldForTab(state: SortableItemState, overKey: string | null): SortableItemState {
   return overKey === TAB_STRIP && state.isActive ? { ...state, offset: 0 } : state
 }
@@ -100,7 +72,7 @@ function inSidebar(x: number, y: number): boolean {
   return [...document.querySelectorAll('[data-sidebar="sidebar"]')].some((element) => inside(element, x, y))
 }
 
-/** The slot a release at `x` takes: the open tabs whose middle is left of it. */
+/** The open tabs whose middle is left of `x`. */
 function slotAt(list: HTMLElement, x: number): number {
   const ghost = list.querySelector<HTMLElement>('[data-tab-ghost]')
   const ghostWidth = ghost?.getBoundingClientRect().width ?? 0
@@ -108,7 +80,7 @@ function slotAt(list: HTMLElement, x: number): number {
   let index = 0
   for (const tab of tabs) {
     const rect = tab.getBoundingClientRect()
-    /* A tab after the ghost sits one ghost further right than it will. */
+    /* A tab after the ghost sits one ghost-width further right than it will. */
     const after = ghost !== null && (ghost.compareDocumentPosition(tab) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
     const middle = rect.left + rect.width / 2 - (after ? ghostWidth : 0)
     if (middle < x) index += 1
@@ -117,9 +89,7 @@ function slotAt(list: HTMLElement, x: number): number {
 }
 
 /**
- * Asked while a sidebar row is in the air (`onOver`). Inside the sidebar it
- * answers null and the reorder goes on as ever. Outside it, the row is loose:
- * the card follows the point, settling into a ghost tab over the strip, and
+ * Inside the sidebar: null, and the reorder goes on. Outside: the card follows, a ghost tab over the strip, and
  * the answer is `TAB_STRIP`.
  */
 export function sidebarDragOver(point: { x: number; y: number }, path: string | null): string | null {
@@ -133,9 +103,8 @@ export function sidebarDragOver(point: { x: number; y: number }, path: string | 
 }
 
 /**
- * Asked on release (`onDropAt`). True whenever the row was let go outside the
- * sidebar, so the sidebar leaves its order alone; on the tab strip it also
- * opens the row as a tab at its slot and shows it.
+ * True whenever released outside the sidebar, so the sidebar keeps its order; on the strip it also opens the
+ * tab.
  */
 export function sidebarDropAt(point: { x: number; y: number }, path: string | null): boolean {
   const target = strip

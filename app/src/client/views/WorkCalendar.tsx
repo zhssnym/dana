@@ -13,7 +13,6 @@ import { useRowActions } from '../parts/useRowActions.js'
 import { PlaceGroup } from './usePlace.js'
 import { taskMatchesFilter, type TaskFilter } from './filter.js'
 
-/** The shared calendar, scoped to this Work's canonical Tasks and filter. */
 export default function WorkCalendar({ folderId, tasks, filter, context, canCreate }: {
   readonly folderId: string
   readonly tasks: readonly TaskCard[]

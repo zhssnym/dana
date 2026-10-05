@@ -1,21 +1,7 @@
 /*
-The shelf page, bound through the adapter seam. What is worth knowing:
-
-- **A shelf is keyed by id, never by name** (11.15): the screen takes `id`
-  beside `name`, and `shelfKey` is `lib/shelf-acts.ts`'s `shelf:<id>`.
-- **The body is the composer** (#221): writing and the native Folder rows are
-  `components/page/canvas/ShelfCanvas.tsx`, the Folder canvas's BlockNote
-  surface over the Shelf's revisioned document, handed in as `children`.
-- **The identity is `lib/page-identity.ts`'s shelf half**, and the picker is
-  this client's `IconPicker`: 4.3 and 4.18 store a key and `icon-manifest.ts` is
-  the one place a key becomes a glyph, so `folderPageMark` is `markIcon` here.
-- **The header is the page head** (round 3): `FolderHeader`, the same mark,
-  title and "…" every page wears (covers are a project's alone, M4), so a collection does not
-  read as a different kind of screen. No description line, the rule for every
-  page since round 2; a stored description stays in the data, undrawn.
-- **Rename lives in the title only**: click it, Enter or blur commits,
-  Escape puts the name back (AC-203).
-*/
+ * The shelf page. A shelf is keyed by id, never by name. The body is the shelf canvas, passed as `children`.
+ * Rename lives in the title: Enter or blur commits, Escape restores (AC-203).
+ */
 
 import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router"
@@ -42,29 +28,26 @@ export function ShelfPage({
   onDuplicate,
   onDelete,
 }: {
-  /* Seam 2. */
   id: string
   name: string
-  /* The composer: writing and the native Folder rows (#221), which
-     `components/page/canvas/ShelfCanvas.tsx` owns. */
   children: ReactNode
   onRename?: (next: string) => void
-  /* The acts the shell can perform on this shelf. Absent ones simply do not
-     draw, which is the contract's own safety property. */
+  /* Absent acts are not drawn. */
   onCopyLink?: () => void
   onDuplicate?: () => void
   onDelete?: () => void
 }) {
   const key = shelfKey(id)
   const identity = useFolderIdentity(key)
-  /* Seam 4. */
   const Mark = markIcon(identity.glyph ?? null)
 
   const [historyOpen, setHistoryOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
 
-  /* History or inline rename asked for by the Library (`?shelf-action=...`):
-     open it here and drop the act from the address, so Back does not repeat it. */
+  /*
+   * History or rename asked for by the Library (`?shelf-action=`): open it and drop the act so Back does not
+   * repeat it.
+   */
   const [search, setSearch] = useSearchParams()
   const action = search.get(SHELF_ACTION_PARAM)
   useEffect(() => {
@@ -121,7 +104,7 @@ export function ShelfPage({
         onOpenChange={setHistoryOpen}
       />
 
-      {/* The page's writing, folder rows among them (#221). */}
+      {/* The page's writing, folder rows among them. */}
       <section>{children}</section>
     </div>
   )

@@ -1,12 +1,7 @@
 /*
-A Focus list the viewer added, at /app/lists/<key> (round 8): Important,
-Overdue, No date or All open. Each is a saved filter over the open tasks of
-every page (GET /views/focus), drawn with the place-page parts every list uses:
-the same rows and keyboard path. Its head carries the list's own identity,
-mark and cover (#353, #355). No View menu (M4): no board, grouping, sort or
-"Show completed". No "New task" row: a filter such as Overdue has no value a
-new task could carry to land in it.
-*/
+ * A Focus list the viewer added (Important, Overdue, No date, All open): a saved filter over GET /views/focus.
+ * No "New task" row: a filter such as Overdue has no value a new task could carry.
+ */
 import { Navigate, useParams } from 'react-router'
 
 import { useFocusView, useMultiMemberFolderIds } from '../api/queries.js'
