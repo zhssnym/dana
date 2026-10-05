@@ -15,15 +15,13 @@ import '../page/canvas/canvas.css'
 export type ConnectedMirrorRecord = CanvasDocument['blocks'][number]
 
 /**
- * One connected block has one canonical identity. The mirror uses Dana's
- * normal canvas renderer, but edits are committed back to that canonical block
- * through the source document's ordinary transaction path. There is never a
- * second durable copy.
+ * A live mirror of one connected block. Edits go back to the canonical block
+ * through the source document's transaction path; there is no second copy.
  */
 export function mirroredBlockInput(block: PageBlock, width: number) {
   const isolated: PageBlock = {
     ...block,
-    // The mirror shows the exact block, not its source document hierarchy.
+    // Show the block alone, not its source hierarchy.
     section_block_id: null,
     list_parent_block_id: null,
   }
@@ -49,9 +47,10 @@ function canonicalRecord(block: PageBlock): ConnectedMirrorRecord {
   }
 }
 
-/** The nested editor may edit the source block's authored content, but it may
- * not silently turn one connected source into another kind or change placement
- * facts that belong to the source page (parents, media identity or width). */
+/**
+ * The mirror may edit content, but not change the block's kind or its placement
+ * facts (parents, media, width).
+ */
 function editedRecord(
   editor: ReturnType<typeof useCreateBlockNote>,
   block: PageBlock,
@@ -112,9 +111,8 @@ export function ConnectedBlockMirror({
     return () => resize.disconnect()
   }, [])
 
-  /* A successful mirror save comes back through Connected work. Do not replace
-     the nested editor when it already equals that canonical response; doing so
-     would needlessly move the caret after every save. */
+  // Skip replacing the editor when it already equals the saved block, or the caret
+  // jumps after every save.
   useEffect(() => {
     const current = editedRecord(editor, block, width)
     if (current !== null && JSON.stringify(current) === JSON.stringify(canonicalRecord(block))) return
@@ -166,8 +164,7 @@ export function ConnectedBlockMirror({
       onPointerDown={(event) => { event.stopPropagation() }}
       onClick={(event) => { event.stopPropagation() }}
       onKeyDownCapture={(event) => {
-        // One mirror is one canonical block. Structural splitting belongs in
-        // the source page; Shift+Enter remains available for a soft break.
+        // One mirror is one block: Enter would split it. Shift+Enter still adds a soft break.
         if (editable && block.kind !== 'code' && event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault()
           event.stopPropagation()

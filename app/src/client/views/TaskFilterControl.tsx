@@ -1,9 +1,4 @@
-/*
-One compact Task filter. The state and predicates live in `filter.ts`; this
-file draws one focused picker at a time so Work never turns into a settings
-tree. The Work-view control sits immediately after it with the same compact
-button treatment; both presentations keep this same filter definition.
-*/
+/* One compact Task filter. State and predicates live in `filter.ts`; one picker is open at a time. */
 import { useState } from 'react'
 
 import { Button } from '../components/ui/button.js'

@@ -1,13 +1,5 @@
-/*
-A route marked for removal writes one line when it is hit, then answers as it
-always has. The architecture's step 1 removes routes no client calls; this
-line is how a release proves that before they go: zero `retired_route_hit`
-lines in the Render logs, then the removal ships.
-
-It goes after `requireSession` on each route, so an anonymous hit is still a
-bare 401 and writes nothing. The name is a fixed label written in the source,
-never a value from the request.
-*/
+// Logs `retired_route_hit` for a route marked for removal; zero hits in the logs means it can go.
+// Mount it after `requireSession`, so anonymous hits stay a bare 401. The name is a source label.
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
 
 import type { SecurityLogger } from '../security/log.js'

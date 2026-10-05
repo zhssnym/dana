@@ -1,15 +1,5 @@
-/*
-A member's Responsibilities document (#209, #230) as the plain text its editor
-shows, and back.
-
-The editor is one textarea, so the document's whole vocabulary has a way to be
-typed: "# " to "### " for a heading, "- " for a bullet (two spaces before it
-per level, three levels), anything else a paragraph; **bold**, _italic_ and
-[text](link) inside a line. Blank lines separate nothing and are dropped.
-
-A mention has no spelling here, so a mention run comes back as its plain text.
-Nothing on the client writes a mention into this document today.
-*/
+// A member's Responsibilities document as textarea text, and back: "# " headings,
+// "- " bullets (two spaces per level), **bold**, _italic_, [text](link).
 import type { RichContent } from '../../shared/rich-content.js'
 import {
   MAX_RESPONSIBILITY_BULLET_DEPTH,
@@ -43,7 +33,7 @@ export function documentToText(doc: ResponsibilityDocument | null): string {
     .join('\n')
 }
 
-/* Bold outside, then italic, then a link, which is the order runText writes. */
+// The order runText writes: bold outside, then italic, then a link.
 const INLINE = /\*\*(.+?)\*\*|_(.+?)_|\[([^\]]+)\]\(([^)\s]+)\)/g
 
 function runsOf(

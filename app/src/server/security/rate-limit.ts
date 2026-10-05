@@ -1,10 +1,6 @@
 /*
-The in-memory limits from spec 10.4. A single set is created per Express
-application and shared by all of its routers, so the general mutation quota
-is per user across the whole API rather than once per route file.
-
-This deliberately assumes one running application instance. A scale-out to
-multiple instances must replace the stores with one shared counter store.
+The 10.4 in-memory limits, one set per app shared by all routers. Assumes a
+single instance; a scale-out needs a shared counter store.
 */
 import type { Request, RequestHandler } from 'express'
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit'
@@ -22,46 +18,12 @@ export const RATE_LIMIT_POLICY = {
   invitePerDay: 20,
   searchPerMinute: 30,
   mutationsPerMinute: 120,
-  /*
-  7.22's data export, added 2026-09-04 with the endpoint (issue #77) and
-  written into 10.4's sentence in the same change.
-
-  **It is the first limit here on a read, and the ground is cost rather than
-  abuse.** Every other GET in this API answers one page of one surface; this
-  one walks nine tables for one person and builds the whole document in
-  memory before a byte goes out. Five per hour is far above what the act is
-  for — a person exports when they are leaving, or once out of curiosity —
-  and far below what it would take to make the endpoint a way of loading the
-  process.
-  */
+  /* The one limit on a read: an export builds the whole document in memory. */
   exportPerHour: 5,
-  /*
-  10.4's CSP-report row (issue #99). The only limit here keyed on an address
-  rather than on a user, because the caller is a browser posting a violation
-  report of its own accord and has no session to key on.
-
-  Thirty a minute is chosen from both ends. A real breakage on a cold load
-  produces one report per refused resource, and the shell loads a handful,
-  so thirty leaves a wide margin above the case the endpoint exists to
-  catch; and thirty bounds what a stranger can spend of a free-tier Sentry
-  quota, which is the case it must not become.
-  */
+  /* Keyed on address: browsers post CSP reports without a session. */
   cspReportsPerMinute: 30,
-  /*
-  10.4's two sign-in rows (issue #168), and the only limits here besides the
-  CSP one that are keyed on an address rather than on a user — necessarily,
-  because both routes precede any session by definition and there is nothing
-  else to key on.
-
-  Twenty a minute each is chosen from both ends. A person retrying a sign-in
-  produces a handful, and a browser that loops a redirect produces a handful
-  more, so twenty leaves a wide margin above every honest case; and twenty
-  bounds what an unauthenticated stranger can make this process spend, which
-  for the begin is state, nonce and PKCE plus a cookie write, and for the
-  callback is an outbound token exchange against Google. The callback is the
-  one that matters: it is the only route in this API that makes a request to
-  a third party on an unauthenticated caller's say-so.
-  */
+  /* Keyed on address: sign-in precedes any session. The callback makes an
+     outbound token exchange on an unauthenticated caller's request. */
   signInBeginsPerMinute: 20,
   signInCallbacksPerMinute: 20,
 } as const
@@ -182,9 +144,7 @@ export function createRateLimits(
       requestPropertyName: 'searchRateLimit',
       keyFor,
     }),
-    /** 7.22, and the only limiter here with no `skip`: the route it guards
-     * is a GET, so the SAFE_METHODS skip the mutation quota carries would
-     * turn this one off entirely. */
+    /** No `skip`: the route is a GET, so the SAFE_METHODS skip would disable it. */
     dataExport: limiter({
       windowMs: HOUR_MS,
       limit: configured.exportPerHour,
@@ -193,35 +153,11 @@ export function createRateLimits(
       keyFor,
     }),
     /*
-    Keyed on the caller's address rather than on `keyFor`, which reads the
-    session: a CSP report arrives without one, so every report in the
-    deployment would otherwise share the key `no-session` and the first
-    thirty reports a minute anywhere would exhaust it.
-
-    `ipKeyGenerator` is express-rate-limit's own and collapses an IPv6
-    address to its default /56 prefix, so one client cannot walk a subnet to
-    reset the count. It keys on whatever it is handed, which here is `req.ip`.
-
-    **This bucket is per client, not per deployment (issue #153).**
-    `createApp` sets `trust proxy` to 1, so `req.ip` is the address Render's
-    edge appended to `X-Forwarded-For` and this limiter buckets per client in
-    production as it does under test — **on the reading that the edge
-    appends that header, which 11.11 records as near-certain, undocumented,
-    and failing permissively rather than neutrally if it is wrong.** Read
-    that before relying on this bucket. Changing `trust proxy` moves every
-    limiter at once, so it is never a change to make inside this one
-    (AC-410 states the addresses; nothing checks them).
-
-    **Two things about the library that the fix does not buy, said here
-    because they read as safety nets and are not.** Its `trustProxy` and
-    `xForwardedForHeader` validations — the ones that refuse a `trust proxy`
-    of `true` and warn when the header arrives without the setting — run
-    inside its *own* default key generator, and every limiter in this file
-    supplies its own. Verified in the installed 8.6.2 on 2026-09-04 rather
-    than recalled. So neither ever fired on the defect #153 fixes, and neither
-    would fire if somebody wrote `true` tomorrow; `index.ts` carries the
-    reason that must not happen, and this is the note that nothing enforces
-    it. Nothing here should be read as identifying a visitor either way.
+    Keyed on req.ip, not the session (reports have none). ipKeyGenerator folds
+    IPv6 to a /56 so one client cannot walk a subnet. Per client only because
+    `trust proxy` is 1 (index.ts). The library's own trust-proxy validations
+    run only in its default key generator, which no limiter here uses, so
+    nothing would warn if `trust proxy` became `true`.
     */
     cspReports: limiter({
       windowMs: MINUTE_MS,
@@ -231,24 +167,8 @@ export function createRateLimits(
       keyFor: (req) => ipKeyGenerator(req.ip ?? 'unknown'),
     }),
     /*
-    The two sign-in doors (issue #168, 10.4's two new rows).
-
-    **They carried no limiter at all until 2026-09-04**, which is older than
-    every limit above: `keyFor` reads the session and both of these precede
-    one, so there was nothing for the general mutation quota to key on and
-    they were simply left out. Both are GETs as well, so the quota's
-    SAFE_METHODS skip would have turned it off even if they had carried it.
-
-    Keyed on the address for the CSP row's reason, with the same
-    `ipKeyGenerator`, and **separately rather than as one bucket**: a person
-    who is being redirected back and forth spends the callback and not the
-    begin, and one shared counter would let a stranger hammering one door
-    lock a real visitor out of the other. Two counters cost one map.
-
-    This is the second thing #153 bought. Before `trust proxy`, an
-    address-keyed limit here would have been one bucket for every visitor
-    behind Render's edge, which for a sign-in route is not a limit but an
-    outage.
+    Separate buckets for begin and callback, so hammering one door cannot lock
+    a real visitor out of the other. Keyed on address like the CSP limiter.
     */
     signInBegins: limiter({
       windowMs: MINUTE_MS,
@@ -267,8 +187,7 @@ export function createRateLimits(
   }
 }
 
-/** Keeps router constructors usable in their focused unit tests. createApp
- * supplies a real limiter set in every running application. */
+/** A pass-through for router unit tests; createApp always supplies real limiters. */
 export function optionalLimit(handler: RequestHandler | undefined): RequestHandler {
   return handler ?? ((_req, _res, next) => next())
 }

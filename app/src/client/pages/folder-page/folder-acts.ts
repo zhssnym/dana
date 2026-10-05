@@ -12,9 +12,7 @@ import type { PageView } from '../../../shared/pages.js'
 import type { TaskCard } from '../../../shared/tasks.js'
 import type { Folder, GetFolderResponse, GetFoldersResponse, PageKind } from '../../../shared/folders.js'
 
-/**
- * 9.6's leave confirm, verbatim and one sentence (AC-183 turns on both).
- */
+/** AC-183 pins this sentence verbatim. */
 function leaveFolderConfirm(name: string): string {
   return (
     `Leave ${name}? You lose access to it, and anything in it assigned to ` +
@@ -68,17 +66,11 @@ export function folderActs({
 }): FolderActs {
   const { remove, restore, archive, restoreArchived, patch, leave, createTab, moveTab } = mutations
   function doDelete(): void {
-    /* 9.6: to Trash for every member at once, the undo bar, no
-       confirmation, an owner with other members included (Hassan: delete
-       never asks; M2 retired AC-283's question). Handing the page on first
-       stays in the "…" as Transfer ownership. The inverse is 7.13's restore. */
+    /* To Trash for every member at once, with Undo and no confirmation. */
     const name = detail?.name ?? ''
     setLeftId(id)
-    /* Leave first: the delete's invalidation would otherwise refetch every
-       read of this page against a folder that now answers 404. The promise
-       outlives this page, which a mutate() callback would not; a failure is
-       the mutation cache's toast. */
-    // Lands on the page it sat in, as in Notion; a top-level page on Today.
+    /* Leave first, or the delete's invalidation refetches this page against a 404.
+       mutateAsync, because the promise must outlive this page; failures toast. */
     const parent = detail?.parent_folder_id
     navigate(parent ? paths.folder(parent) : paths.today)
     remove.mutateAsync(headId).then(
@@ -101,7 +93,6 @@ export function folderActs({
     )
   }
 
-  /* The tab row's "+": a tab of that kind after the last, then go to it. */
   function addTab(tabKind: PageKind): void {
     const had = new Set(tabs.map((tab) => tab.id))
     createTab.mutate({ folderId: id, kind: tabKind }, {
@@ -116,8 +107,7 @@ export function folderActs({
     patch.mutate({ id: tab.id, body: { name } })
   }
 
-  /* Like every delete: to Trash at once, with Undo. Leaving the tab on
-     screen goes to the project first, so nothing reads it after it is gone. */
+  /* Deleting the open tab goes to the project first, so nothing reads it after it is gone. */
   function removeTab(tab: Folder): void {
     if (tab.id === id) {
       setLeftId(id)
@@ -134,8 +124,7 @@ export function folderActs({
   }
 
   function reorderTabs(dragged: Folder, ordered: readonly Folder[]): void {
-    /* The row takes its new order at once: each tab of the project keyed in
-       the dropped order. The refetch after the move replaces it. */
+    /* Optimistic order until the refetch after the move replaces it. */
     const key = queryKeys.allPages()
     const previous = cache.getQueryData<GetFoldersResponse>(key)
     if (previous !== undefined) {

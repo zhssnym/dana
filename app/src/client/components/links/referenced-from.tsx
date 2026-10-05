@@ -1,10 +1,5 @@
-/*
-"Referenced from" (#214): the documents that link here, as the reader can
-open them. Live, never stored — the server scans on read and answers only
-sources this reader may open. Small and collapsible, and absent altogether
-while nothing references the target, so it costs a page nothing until it has
-something to say.
-*/
+// "Referenced from": documents that link here and this reader can open. Hidden while
+// nothing references the target.
 import { useQuery } from '@tanstack/react-query'
 import { Link as RouterLink } from 'react-router'
 
@@ -23,14 +18,13 @@ export function ReferencedFrom({ kind, id, className = '' }: {
     queryKey: queryKeys.backlinks(kind, id),
     queryFn: () => backlinksOf(kind, id),
     retry: false,
-    /* Live on every opening: the app's default is never stale, and nothing
-       invalidates this when a link to here is written in another document,
-       so a cached "nothing yet" would outlive the link that answers it. */
+    // Nothing invalidates this when another document adds a link here, so never serve
+    // a cached "nothing yet".
     staleTime: 0,
   })
   const rows = query.data?.results ?? []
   if (rows.length === 0) return null
-  // One place is shown where it stands; only a list needs opening.
+  // One place is shown inline; only a list needs opening.
   if (rows.length === 1 && query.data?.truncated !== true) {
     return (
       <div className={`flex min-w-0 max-w-full items-center overflow-hidden gap-1 text-sm text-muted-foreground ${className}`} data-referenced-from>

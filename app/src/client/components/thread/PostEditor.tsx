@@ -1,38 +1,6 @@
-/*
-The post composer (W-C): the page canvas's editor, for a thread.
-
-**The schema is the canvas's own, less the pages-only blocks** (Task, the
-Shelf's folder row, diagram) — the post contract (`shared/comments.ts`) has no
-kind for any of them — so the slash menu (`slash-items.tsx`, surface
-`document`: flat headings, no Task, no Section) cannot offer one. Nothing of
-the canvas is forked: the block specs, the slash menu, the formatting toolbar,
-the file panel and the `@` menu (people, then pages) are the canvas's.
-
-**Files.** An image pasted, dropped or picked uploads at once through
-`POST /files` (the canvas's upload), and the block holds its served URL; the
-post then names the id in its content and in `file_ids`, which the server
-requires.
-
-**Keys.** A new post (no `initial`) takes Slack's keys: Enter sends and
-Shift+Enter keeps BlockNote's line break. Enter falls through to the editor
-while an IME is composing, while a slash or `@` menu is open, when the caret is
-in a list item or a code block, when the key came from outside this editor
-(a portaled popover such as the file panel's URL field), and on a touch-first
-device, where Enter is a newline and the Send button sends. Editing a post
-(`initial` given) keeps the editor's keys: Enter makes a new block and Esc
-cancels. Ctrl/Cmd+Enter always sends or saves. In a new post, Esc calls
-`onCancel` (the thread's "cancel the reply") only while the post is empty.
-
-**A new post is a chat field** (`Composer.tsx` puts it in a thread): one
-pill-round box that grows with the writing up to a cap and then scrolls,
-Attach at its start and a round Send at its end that is there only while
-there is something to send. Both stay at the box's foot as it grows. The
-`@` menu opens by typing `@`; there is no separate button for it.
-A new post with its own button row (`renderActions`, the issue page) keeps
-GitHub's keys instead: Enter is a new line and Ctrl/Cmd+Enter comments.
-
-Default export: `React.lazy` keeps BlockNote out of the page's own chunk.
-*/
+// The post composer: the canvas editor less the pages-only blocks. A new chat post sends on
+// Enter (not in an IME, menu, list, code block, or on touch); editing keeps the editor's
+// keys. Default export so `React.lazy` keeps BlockNote out of the page chunk.
 import { useEffect, useRef, useState } from 'react'
 import { BlockNoteSchema } from '@blocknote/core'
 import { en } from '@blocknote/core/locales'
@@ -57,7 +25,7 @@ import { editorBlocksOf, editorBlocksOfBody, fileUrl, postContentOf } from './ad
 import type { LooseBlock } from './adapters.js'
 import '../page/canvas/canvas.css'
 
-/* The canvas's blocks without the pages-only three. */
+// The canvas's blocks without the pages-only three.
 const { danaTask: _task, danaFolder: _folder, diagram: _diagram, ...postBlockSpecs } = canvasSchema.blockSpecs
 const postSchema = BlockNoteSchema.create({
   blockSpecs: postBlockSpecs,
@@ -67,7 +35,7 @@ const postSchema = BlockNoteSchema.create({
 
 const SLASH = { surface: 'post', media: true } as const
 
-/* Where Enter belongs to the editor, not to Send. */
+// Where Enter belongs to the editor, not to Send.
 const ENTER_KEEPS = new Set(['bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem', 'codeBlock'])
 
 function touchFirst(): boolean {
@@ -77,22 +45,20 @@ function touchFirst(): boolean {
 export interface PostEditorProps {
   /** Where an upload is stored (the thread's folder). */
   readonly folderId: string
-  /** Editing an existing post: its content (or its plain body when older). */
+  /** Editing an existing post: its content, or its plain body when older. */
   readonly initial?: { readonly content: PostContent | null | undefined; readonly body: string | null; readonly files: readonly CommentFile[] }
   readonly placeholder?: string
   readonly submitLabel?: string
   readonly autoFocus?: boolean
-  /** Bumped by the thread to put the cursor here (Reply). */
+  /** Bumped by the thread to focus the field (Reply). */
   readonly focusSignal?: number
   /** Resolves when posted; a rejection keeps the writing. */
   readonly onSubmit: (content: PostContent) => Promise<unknown>
   readonly onCancel?: () => void
   readonly label?: string
   /**
-   * A new post's own button row, drawn under the editor in place of the
-   * inline Send (the Linear task page's "Mark done" and "Post"). `submit`
-   * is the one send path, and resolves once the post is on the server or
-   * refused.
+   * A new post's own button row, in place of the inline Send. `submit` resolves once the
+   * post is on the server or refused.
    */
   readonly renderActions?: (api: { readonly submit: () => Promise<boolean>; readonly empty: boolean; readonly busy: boolean }) => React.ReactNode
 }
@@ -167,22 +133,19 @@ export default function PostEditor({
   }
 
   async function submit(): Promise<boolean> {
-    /* A second Enter while a post is on its way sends too (the first one's
-       words have already left the editor); only an edit waits. */
+    // A second Enter while a post is on its way sends too; only an edit waits.
     if (busy && editing) return false
     const content = read()
     if (content === null) return false
     setBusy(true)
     setError('')
-    /* A new post leaves the composer the moment it is sent, as in Slack, so
-       whatever is typed while it is on its way stays and is never wiped (r5).
-       A refusal puts the sent words back ahead of anything typed since. */
+    // A new post leaves the composer at once, so typing meanwhile is kept. A refusal puts
+    // the sent words back ahead of anything typed since.
     const sent = editing ? null : editor.document
     if (sent !== null) {
       editor.replaceBlocks(editor.document, [{ type: 'paragraph' }])
       setEmpty(true)
-      /* A pressed "Post" disables itself as the composer empties, which would
-         drop focus to the page; the cursor goes back to the composer instead. */
+      // The pressed Post disables itself as the composer empties; keep focus in the composer.
       editor.focus()
     }
     try {
@@ -220,22 +183,21 @@ export default function PostEditor({
   const chat = !editing && renderActions === undefined
   const picker = useRef<HTMLInputElement>(null)
 
-  /* The chat field is a pill while it holds one line; grown taller, its
-     corners drop to the card radius so the writing is not clipped. */
+  // A pill while it holds one line; taller, its corners drop to the card radius.
   const scroller = useRef<HTMLDivElement>(null)
   const [tall, setTall] = useState(false)
   useEffect(() => {
     const el = scroller.current
     if (!chat || el === null || typeof ResizeObserver === 'undefined') return
     const watch = new ResizeObserver(() => {
-      /* One line of body text is 20px; BlockNote adds a few px around it. */
+      // One line of body text is 20px; BlockNote adds a few px around it.
       setTall(el.offsetHeight > 32)
     })
     watch.observe(el)
     return () => { watch.disconnect() }
   }, [chat])
 
-  /** The composer's Attach: each picked file uploads and joins the post as its own block. */
+  /** Each picked file uploads and joins the post as its own block. */
   async function attach(list: FileList | null): Promise<void> {
     for (const file of Array.from(list ?? [])) {
       const kind = mediaKindOf(file.type)
@@ -245,14 +207,13 @@ export default function PostEditor({
         if (last !== undefined) editor.insertBlocks([{ type: kind, props } as never], last, 'after')
         setEmpty(false)
       } catch {
-        /* `upload` has already said why, under the box. */
+        // `upload` has already said why, under the box.
       }
     }
     editor.focus()
   }
 
-  /* Attach, in the new-post row and the edit row alike: an edited post can
-     gain a file without paste or drop (a phone has neither handy). */
+  // An edited post can gain a file too: a phone has no paste or drop handy.
   const pickerInput = (
     <input
       ref={picker}
@@ -280,7 +241,7 @@ export default function PostEditor({
     <div
       ref={scroller}
       className={cn('dana-writing-canvas dana-post-editor min-w-0 overflow-y-auto', height)}
-      /* BlockNote's placeholder never reaches the canvas paragraph; canvas.css draws this one. */
+      // BlockNote's placeholder never reaches the canvas paragraph; canvas.css draws this one.
       style={{ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties}
     >
       <BlockNoteView
@@ -311,7 +272,7 @@ export default function PostEditor({
     <div
       ref={host}
       className="min-w-0"
-      /* The thread reads this: Escape in an empty new post leaves it. */
+      // The thread reads this: Escape in an empty new post leaves it.
       data-post-editor={editing ? 'edit' : 'new'}
       onKeyDownCapture={(event) => {
         if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
@@ -323,12 +284,12 @@ export default function PostEditor({
           event.stopPropagation()
           if (!empty) void submit()
         } else if (event.key === 'Escape' && onCancel !== undefined && !event.defaultPrevented) {
-          /* BlockNote's own menus close on their Escape first. */
+          // BlockNote's own menus close on their Escape first.
           const menu = document.querySelector('.bn-suggestion-menu, .bn-formatting-toolbar')
           if (menu !== null) return
           if (editing) onCancel()
           else if (empty) {
-            /* Spent here: the thread's own Escape (leave) waits for the next one. */
+            // Spent here: the thread's own Escape (leave) waits for the next one.
             event.preventDefault()
             event.stopPropagation()
             onCancel()
@@ -337,8 +298,7 @@ export default function PostEditor({
       }}
     >
       {chat ? (
-        /* A chat field: Attach, the writing, and Send once there is something
-           to send, the two buttons at the foot as the writing grows. */
+        // Attach, the writing, and Send once there is something to send.
         <div
           className={cn(
             'flex min-h-11 min-w-0 items-end border border-border bg-background focus-within:border-ring md:gap-1 md:p-1',
@@ -364,7 +324,7 @@ export default function PostEditor({
               aria-label={submitLabel}
               title={submitLabel}
               className="size-11 rounded-full md:size-8"
-              /* The cursor stays in the writing; on a phone the keyboard stays up. */
+              // Keep focus in the writing, so a phone's keyboard stays up.
               onMouseDown={(event) => { event.preventDefault() }}
               onClick={() => {
                 void submit()
@@ -376,10 +336,10 @@ export default function PostEditor({
         </div>
       ) : (
       <div className="min-w-0 rounded-lg border border-border bg-background focus-within:border-quiet-foreground">
-        {/* The padding lives here: canvas.css zeroes the canvas's own left padding on phones. */}
+        {/* The padding lives here: canvas.css zeroes the canvas's left padding on phones. */}
         <div
           className={cn('min-w-0 px-3', editing ? 'pt-2' : 'min-h-24 cursor-text py-2')}
-          /* The issue composer's box is taller than its one line: a click anywhere in it writes. */
+          // The issue composer's box is taller than one line: a click anywhere in it writes.
           onMouseDown={
             renderActions === undefined
               ? undefined

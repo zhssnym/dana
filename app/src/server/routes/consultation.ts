@@ -1,10 +1,8 @@
 /*
-The 7.28 surface: a Folder's Consultation (issue #320) -- Discussions, their
-Outcomes, Trash lifecycle, and issue #497's explicit Discussion ↔ Task links.
-
-Every id-bearing Discussion mutation resolves the Discussion's Folder and
-membership before reading its body. Domain functions re-resolve authority
-under the row lock. The refusal order remains 404, 422, 403, 409.
+The 7.28 Consultation routes: Discussions, Outcomes, Trash and Task links.
+Mutations resolve the Discussion's Folder and membership before reading the
+body; the domain re-checks authority under the row lock. Refusal order:
+404, 422, 403, 409.
 */
 import type { Request, Response, Router } from 'express'
 
@@ -103,9 +101,7 @@ export function createConsultationRouter(
     res.status(status).json((outcome as { kind: 'ok'; value: T }).value)
   }
 
-  /** Discussion existence/membership gate before a mutation body or a second
-   * endpoint id is interpreted. The domain repeats the authority decision in
-   * the transaction that writes. */
+  /** 404 gate before any body or second id is read; the domain re-checks authority. */
   const visibleDiscussion = async (
     req: Request,
     res: Response,
@@ -204,8 +200,7 @@ export function createConsultationRouter(
     },
   )
 
-  /** Issue #497 canonical add-link operation. Duplicate pairs are idempotent:
-   * 201 when this call made the edge, 200 when it was already present. */
+  /** Add a link: 201 when created, 200 when it already existed. */
   router.post(
     '/discussions/:id/tasks',
     requireSession,
@@ -235,9 +230,7 @@ export function createConsultationRouter(
     },
   )
 
-  /** Issue #497 canonical unlink. It is deliberately idempotent and carries
-   * no body, so an authorized Discussion editor can remove a durable edge
-   * after the Task moved or entered Trash without probing the Task. */
+  /** Unlink: idempotent and bodiless, so a stale edge can be removed without probing the Task. */
   router.delete(
     '/discussions/:id/tasks/:taskId',
     requireSession,
@@ -329,9 +322,7 @@ export function createConsultationRouter(
     },
   )
 
-  /** Current task UI compatibility: create/reuse the Discussion this route
-   * made in the Task's current Folder. It no longer means a Task can have only
-   * one linked Discussion. */
+  /** Creates or reuses the Discussion this route made for the Task; a Task may have others. */
   router.post(
     '/tasks/:id/discussion',
     requireSession,

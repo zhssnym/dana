@@ -1,13 +1,4 @@
-/*
-9.7's Settings page, at /app/settings.
-
-**This file owns the route wiring and server reads.** The visible layout is
-`components/settings-page-content.tsx`, which receives what it needs instead of
-opening a second settings query inside presentation code. What the page adds is
-7.1's `DELETE /me`, whose body carries the
-literal the person typed and after which there is nothing left to navigate a
-signed-in client to.
-*/
+/* Settings: route wiring and server reads. The layout is `components/settings-page-content.tsx`. */
 import { useState } from 'react'
 
 import { mutateApi } from '../api/http.js'
@@ -19,10 +10,9 @@ import { paths } from '../routes.js'
 
 export function SettingsPage(): React.JSX.Element {
   const bundle = useBundle()
-  /* Item 60: the sample workspace's row, over the same hook as the strip. */
   const sample = useSampleActs()
   const [deleting, setDeleting] = useState(false)
-  /* Removal lives here alone, behind a question (M4). */
+  /* Removal lives here alone, behind a question. */
   const [removingSample, setRemovingSample] = useState(false)
 
   return (
@@ -66,8 +56,7 @@ export function SettingsPage(): React.JSX.Element {
           onCancel={() => setDeleting(false)}
           onContinue={() => {
             setDeleting(false)
-            /* 7.1 requires the literal string in the body, and the server runs
-               8.10 and destroys every session. */
+            /* The server needs the typed literal in the body, then destroys every session. */
             void mutateApi(null, {
               method: 'DELETE',
               path: '/me',

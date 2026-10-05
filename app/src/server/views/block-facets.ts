@@ -88,11 +88,7 @@ interface BlockFacetSource {
   actorAssigned: (actorId: string) => boolean
 }
 
-/**
- * Lock the page_block alone, then resolve its owner separately. Keeping the
- * row lock off the nullable joins matters on Postgres and also makes the two
- * source shapes explicit: a page block or a Task-document block, never Shelf.
- */
+/** Lock the page_block row alone (no nullable joins), then resolve its owner. */
 async function sourceOf(tx: Executor, blockId: string): Promise<BlockFacetSource | null> {
   const blocks = await rowsOf(
     tx,

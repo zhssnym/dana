@@ -1,5 +1,5 @@
-/* One live Dana Link treatment for editable canvases and read-only posts.
- * Kept separate from the BlockNote inline spec so post lists do not load the editor. */
+// The live Dana Link chip, kept apart from the BlockNote spec so post lists do not
+// load the editor.
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
@@ -37,10 +37,8 @@ function markedConnectedPlacement(href: string): boolean {
 }
 
 /**
- * Install the source/mirror divider on the actual placement block. The Dana
- * Link can mount before Connected work marks the block and portals its detail
- * lane, so watch that host instead of requiring everything to exist on the
- * first effect pass.
+ * The link can mount before Connected work marks its block, so watch the host
+ * instead of expecting everything on the first pass.
  */
 export function installConnectedSourceSplitter(source: HTMLAnchorElement): () => void {
   const placement = source.closest<HTMLElement>('.bn-block-content')
@@ -135,8 +133,7 @@ export function installConnectedSourceSplitter(source: HTMLAnchorElement): () =>
   }
 }
 
-/** The placement's source Dana Link already owns navigation, so it also owns
- * the one source-lane interaction: the adjustable divider. */
+/** The source link owns navigation, so it also owns the divider. */
 function useConnectedSourceSplitter(
   anchor: React.RefObject<HTMLAnchorElement | null>,
   enabled: boolean,
@@ -164,9 +161,7 @@ export function DanaLinkChip({ href, stored }: { readonly href: string; readonly
 
   useConnectedSourceSplitter(anchor, markedConnectedPlacement(href))
 
-  /* #488 exact-source arrival. The link itself knows which BlockNote block it
-     sits in, so it can honour `#block-<id>` without a second global navigation
-     registry. Discussion posts already own `#post-<id>` in ThreadPosts. */
+  // Honour `#block-<id>` from the link itself; posts handle `#post-<id>` in ThreadPosts.
   useEffect(() => {
     let timer: number | undefined
     const reveal = (): void => {
@@ -194,8 +189,7 @@ export function DanaLinkChip({ href, stored }: { readonly href: string; readonly
       </span>
     )
   }
-  // Offline, the document's own words are the best we have; they are the
-  // author's text, which this reader can already read in the page.
+  // Offline, fall back to the stored text, which this reader can already see in the page.
   const resolved = query.data?.label ?? (offline ? stored : '')
   const label = referenceDisplayLabel(target.kind, resolved)
   const classes = `${target.kind === 'facet' ? `${CHIP} ${FACET}` : CHIP}${arrived ? ` ${ARRIVED}` : ''}`

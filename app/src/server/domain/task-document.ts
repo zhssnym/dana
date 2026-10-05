@@ -1,41 +1,6 @@
-/*
-A Task's document (issue #221, the Task half of M1-B4).
-
-**Storage.** 4.17's `page_blocks`, homed by `task_id` (migration 0031), the
-same store a Folder page, a Shelf page and a facet document use. The write
-contract is 7.16's document transaction, unchanged, over the Task's own
-blocks; the read is 7.16's `PageView` with an always-empty `task_placements`,
-because a Task document holds no Task rows (#221: "do not nest Task rows
-inside Task content").
-
-**What a Task document refuses that a Folder page admits**: `create_task`, a
-`section` block (Sections are Main's; a Task document uses heading1-3), a
-and a `folder_ref` block. Since migration 0038 a Task document nests blocks
-like every other home (`document-outline.ts`).
-
-**`notes` and the document, and why nothing is lost between them.** The
-deployed client edits `tasks.notes` as one string, so both stay:
-
-- The document is authoritative once it exists, and `tasks.notes` is its
-  plain-text projection: every text-bearing block's text except a checklist
-  item's, in document order, joined with '\n', cut to the column's 10000
-  characters. Checklist items are the task's subtasks (migration 0060). Every document write
-  rewrites it, so search, cards and the deployed textarea keep reading text.
-- A Task with notes and no document (created by a path that writes only
-  `notes`: the deployed client's POST, a workflow import, the sample) is given
-  one, lazily and under the Task row's lock, the first time its document is
-  read or written. `notesParagraphs` is the one conversion; migration 0031's
-  backfill runs the same algorithm in SQL.
-- A legacy `notes` write (PATCH /tasks/:id) against a Task that has a
-  document is `legacyNotesWrite` below. If the document is still a plain
-  mirror of `notes` (only paragraphs, no rich content, no files, and its
-  whole text, uncut, fits the 10000-character column, so `notes` holds every
-  character of it) the write replaces it. Otherwise
-  the document keeps every block and the written text is **appended** as new
-  paragraphs -- only the part after the stored notes when the write extends
-  them, the whole text otherwise. Appending can repeat text; it can never drop
-  any, which is the rule.
-*/
+// A Task's document: page_blocks homed by task_id. It refuses tasks, sections and folder_ref blocks.
+// `tasks.notes` is its plain-text projection, rewritten on every write. A Task with notes but no document gets one
+// lazily. A legacy notes write replaces a plain mirror, otherwise appends: it may repeat text, never drop any.
 import { sql } from 'drizzle-orm'
 import type {
   DocumentTransaction,
@@ -51,19 +16,13 @@ import { fileReclaimedAt } from './document-outline.js'
 import { initialKeys, keyBetween } from './fractional-index.js'
 import { syncMentions } from './mentions.js'
 
-/** 4.17's paragraph ceiling and 4.5's notes ceiling, in code points, which is
- * what Postgres's `char_length` counts. */
+/** Ceilings in code points, which is what Postgres's `char_length` counts. */
 const PARAGRAPH_MAX = 4000
 const NOTES_MAX = 10000
 
 /**
- * A note as paragraph texts, exactly as migration 0031 converts it.
- *
- * A note of up to 4000 characters is one paragraph whose text is the note,
- * line breaks included as hard breaks. A longer one is cut at the last line
- * break inside each 4000-character window, and that break becomes the
- * boundary, so `texts.join('\n') === notes`. Only a single line over 4000
- * characters is cut mid-line.
+ * A note as paragraph texts, matching migration 0031. Up to 4000 characters is one paragraph; a longer note
+ * is cut at the last line break in each window, so `texts.join('\n') === notes`.
  */
 export function notesParagraphs(notes: string): string[] {
   let rest = Array.from(notes)
@@ -84,9 +43,7 @@ export function notesParagraphs(notes: string): string[] {
   }
 }
 
-/** The plain-text projection of a document: `tasks.notes` after a write.
- * Checklist items are skipped: they are the task's subtasks (migration 0060),
- * and an export or workflow carries them as `steps`. */
+/** `tasks.notes` after a write. Checklist items are skipped: they are the task's subtasks. */
 export function notesProjection(
   blocks: readonly { readonly kind?: unknown; readonly text?: unknown }[],
 ): string | null {
@@ -144,9 +101,7 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
   }
 }
 
-/** The revision. The Task id is inside the hash for the facet's reason: the
- * receipts table is keyed (actor, folder, mutation), so a mutation id reused
- * across two documents of one folder must read as `stale`, never `replayed`. */
+/** The Task id is hashed in: a mutation id reused across two documents of one folder must read as `stale`. */
 async function revisionOf(tx: Executor, taskId: string): Promise<string> {
   const blocks = await rowsOf(
     tx,
@@ -174,9 +129,7 @@ async function appendParagraphs(
   texts: readonly string[],
 ): Promise<void> {
   if (texts.length === 0) return
-  // `position` carries the order to `relayout`: these rows have no
-  // page_position yet and share one `updated_at`, so without it they would be
-  // ordered by their random ids.
+  // `position` carries the order to `relayout`; these rows share one `updated_at` and would sort by random id.
   for (const [index, text] of texts.entries()) {
     await tx.execute(
       sql`INSERT INTO page_blocks (task_id, kind, position, text)
@@ -185,7 +138,6 @@ async function appendParagraphs(
   }
 }
 
-/** Re-keys the whole document in its current order after an insert. */
 async function relayout(tx: Executor, taskId: string): Promise<void> {
   const rows = await rowsOf(
     tx,
@@ -201,12 +153,7 @@ async function relayout(tx: Executor, taskId: string): Promise<void> {
   }
 }
 
-/**
- * Gives a Task with notes and no document its document. **The caller holds
- * the Task row `FOR UPDATE`**, which is what keeps two first reads from
- * writing the paragraphs twice. Idempotent: a Task with any block, or with no
- * notes, is left alone.
- */
+/** Gives a Task with notes and no document its document. The caller holds the Task row FOR UPDATE. Idempotent. */
 export async function materializeNotesLocked(tx: Executor, taskId: string): Promise<void> {
   const rows = await rowsOf(
     tx,
@@ -222,7 +169,6 @@ export async function materializeNotesLocked(tx: Executor, taskId: string): Prom
   await relayout(tx, taskId)
 }
 
-/** Whether the read path must take the Task row lock to materialize. */
 export async function needsMaterializing(tx: Executor, taskId: string): Promise<boolean> {
   const rows = await rowsOf(
     tx,
@@ -233,11 +179,7 @@ export async function needsMaterializing(tx: Executor, taskId: string): Promise<
   return rows[0]?.needed === true
 }
 
-/**
- * A legacy `notes` write against a Task, called by PATCH /tasks/:id before it
- * writes the row and **under the Task row's lock**. Returns the value the
- * `notes` column is to hold. See the header for the rule.
- */
+/** A legacy `notes` write, under the Task row's lock. Returns what the `notes` column should hold. */
 export async function legacyNotesWrite(
   tx: Executor,
   taskId: string,
@@ -247,17 +189,12 @@ export async function legacyNotesWrite(
   const storedText = str(rows[0]?.notes) ?? ''
   const nextText = next ?? ''
   const blocks = await blockRows(tx, taskId)
-  // No document yet: `notes` is still the only home, and the document is
-  // made from it when it is first asked for.
+  // No document yet: it is made from `notes` when first asked for.
   if (blocks.length === 0) return next
   if (nextText === storedText) return next
   const texts = blocks.map((b) => str(b.text))
-  // Replaceable only when `notes` holds every character of the document: all
-  // plain paragraphs whose UNCUT text fits the column. A longer document's
-  // `notes` is a cut projection, so replacing it would erase the tail; and a
-  // short plain document whose text differs from `notes` is one the deploy
-  // overlap left behind (the old server wrote `notes` alone), so `notes` is
-  // the newer copy and replacing loses nothing.
+  // Replace only when `notes` holds every character of the document: plain paragraphs whose uncut text fits.
+  // A longer document's `notes` is cut, so replacing would erase the tail.
   const plainMirror =
     blocks.every(
       (b) =>
@@ -286,13 +223,7 @@ export async function legacyNotesWrite(
   ])
 }
 
-/**
- * Copies one Task's document onto another (duplicate, the folder duplicate,
- * recurrence). `mapFile` rewrites a media block's file for a copy that lands
- * in another folder; without it the copy names the same file, which is right
- * inside one folder (a file read twice is one row, as the folder duplicate
- * already does for a picture placed twice).
- */
+/** Copies a Task's document onto another. `mapFile` rewrites media files for a copy into another folder. */
 export async function copyTaskDocument(
   tx: Executor,
   fromTaskId: string,
@@ -334,7 +265,6 @@ export async function copyTaskDocument(
   }
 }
 
-/** The body `appendChecklist` would build holds more than a page's 500 blocks. */
 export class ChecklistCapRefusal extends Error {
   constructor() {
     super('A task holds at most 500 blocks, its notes and checklist items together.')
@@ -343,12 +273,8 @@ export class ChecklistCapRefusal extends Error {
 }
 
 /**
- * Appends checklist items (the task's subtasks) after the last block of a
- * Task's document, then rewrites `notes`. The notes are materialized first:
- * a task with notes and no blocks would otherwise lose them, because the
- * document is only built from `notes` while it has no blocks. **The caller
- * holds the Task row** (or has just inserted it). Throws `ChecklistCapRefusal`,
- * before writing any item, when the body would pass 500 blocks.
+ * Appends checklist items after the last block, then rewrites `notes`. Materializes notes first so they are not lost.
+ * The caller holds the Task row. Throws `ChecklistCapRefusal` before writing when the body would pass 500 blocks.
  */
 export async function appendChecklist(
   tx: Executor,
@@ -378,8 +304,7 @@ export async function appendChecklist(
   )
 }
 
-/** A Task's checklist items in reader order: 7.6's `steps`, now a read-only
- * projection of the body. `position` is the item's index. */
+/** Checklist items in reader order: 7.6's `steps`, a read-only projection. `position` is the index. */
 export async function taskChecklist(
   executor: Executor,
   taskId: string,
@@ -398,7 +323,7 @@ export async function taskChecklist(
   }))
 }
 
-/** JSON with sorted keys: a jsonb value comes back in its own key order. */
+/** JSON with sorted keys: jsonb comes back in its own key order. */
 function canonical(value: unknown): string {
   return JSON.stringify(value, (_key, inner: unknown) =>
     inner !== null && typeof inner === 'object' && !Array.isArray(inner)
@@ -408,15 +333,8 @@ function canonical(value: unknown): string {
 }
 
 /**
- * Whether a document transaction only ticks or unticks checklist items this
- * Task already holds: every `put_block` names an existing checklist item of
- * this Task and changes nothing but its tick, nothing is created or deleted,
- * and the one outline is the current one. `step.toggle` admits exactly this
- * when `task.edit` is refused (Assigned work ticks its own task's subtasks).
- *
- * Rich content counts as unchanged when it is equal, or when the item stores
- * none and the write carries its text as plain runs (a migrated step, drawn
- * and saved back by the editor).
+ * Whether a transaction only ticks or unticks existing checklist items. `step.toggle` admits this when `task.edit`
+ * is refused. Rich content counts as unchanged when equal, or when stored as none and sent as plain runs.
  */
 export async function isChecklistTickOnly(
   tx: Executor,
@@ -426,17 +344,12 @@ export async function isChecklistTickOnly(
   return (await checklistTicks(tx, taskId, body)) !== null
 }
 
-/** A checklist item whose tick a document transaction changes. */
 export interface ChecklistTick {
   readonly text: string
   readonly checked: boolean
 }
 
-/**
- * The ticks a tick-only transaction (`isChecklistTickOnly`) changes, in the
- * order it sends them, or null when the transaction does anything else. The
- * task's history names each one, as it named a step's tick before 0060.
- */
+/** The ticks a tick-only transaction changes, in order, or null when it does anything else. */
 export async function checklistTicks(
   tx: Executor,
   taskId: string,
@@ -479,8 +392,7 @@ export async function checklistTicks(
           op.rich_content.runs.every((run) => Object.keys(run).length === 1) &&
             op.rich_content.runs.map((run) => run.text).join('') === op.text))
     if (!sameRich) return null
-    // Compared against what the write stores: `applyFlatBody` keeps a
-    // missing tick as false, so a null is an untick of a ticked item.
+    // `applyFlatBody` stores a missing tick as false, so null is an untick.
     const was = row.checked === true
     const next = op.checked ?? false
     if (next !== was) ticks.push({ text: op.text ?? '', checked: next })
@@ -488,8 +400,7 @@ export async function checklistTicks(
   return outlines === 1 ? ticks : null
 }
 
-/** A refusal from the Task document applier: `stale` is 409, `not_found`
- * 404, `forbidden` 403 and `invalid` the 422 naming `field`. */
+/** `stale` is 409, `not_found` 404, `forbidden` 403 and `invalid` the 422 naming `field`. */
 export class TaskDocumentRefusal extends Error {
   constructor(
     readonly outcome: 'stale' | 'not_found' | 'invalid' | 'forbidden',
@@ -501,13 +412,8 @@ export class TaskDocumentRefusal extends Error {
 }
 
 /**
- * 7.16's document transaction over one Task's blocks. **The caller has
- * gated, holds the folder then the Task row `FOR UPDATE`, and passes the
- * Task's current folder** (the receipt key and the file scope). This is the
- * facet applier's shape (`domain/facets.ts`), including the three defences
- * its adversarial review added: the scope check reads every id the operations
- * name, deletions are derived from the Task's own rows, and every statement
- * that writes carries `AND task_id`.
+ * 7.16's document transaction over one Task's blocks. The caller has gated, holds the folder then the Task row
+ * FOR UPDATE, and passes the Task's current folder.
  */
 export async function applyTaskDocumentLocked(
   tx: Executor,
@@ -570,11 +476,8 @@ export async function applyTaskDocumentLocked(
          WHERE id = ${taskId}::uuid`,
   )
   const committed = await revisionOf(tx, taskId)
-  // `created_task_ids` holds an object, not an array, on a Task document's
-  // receipt. pages.ts reads an array-valued receipt on a folder as "the
-  // Folder page itself is on the document path" and shuts the deployed
-  // client's legacy block writer; a Task document's write says nothing about
-  // the Folder page, so its receipt must not count (no scope column exists).
+  // An object, not an array: pages.ts reads an array-valued folder receipt as "the Folder page uses
+  // the document path" and shuts the legacy block writer. This receipt says nothing about the Folder page.
   await tx.execute(
     sql`INSERT INTO page_document_receipts
           (actor_id, folder_id, mutation_id, payload_hash, committed_revision, created_task_ids)

@@ -1,5 +1,3 @@
-/* The floating bar that acts on selected task rows. */
-
 import { FolderPlus } from "../../lib/icons.js"
 import { FolderMark } from "../folder-mark.js"
 import { folderLibrary } from "../../lib/folder-library.js"

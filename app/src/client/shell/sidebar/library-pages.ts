@@ -1,4 +1,3 @@
-/* What the Library column draws from the viewer's folders and shelves. */
 import type { Folder } from '../../../shared/folders.js'
 import type { Shelf } from '../../../shared/shelves.js'
 
@@ -17,10 +16,7 @@ export function inboxOf(folders: readonly Folder[]): Folder | null {
   return folders.find((folder) => folder.is_default) ?? null
 }
 
-/* Tabs are project-internal navigation, not Library rows. A true sub-page may
-   live directly under a tab, so removing the tab must lift that parent edge to
-   the project root. This mirrors the server's old-client projection, but only
-   for the sidebar surface that deliberately keeps Tabs separate. */
+/* Drops tabs, and lifts a sub-page whose parent is a tab onto the project root. */
 export function libraryPages(folders: readonly Folder[]): Folder[] {
   const tabProjects = new Map(
     folders

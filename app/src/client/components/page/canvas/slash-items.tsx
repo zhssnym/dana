@@ -1,33 +1,6 @@
-/*
-The one slash menu, for every canvas: a Folder's Work, Purpose and Results, a
-Task body and a Shelf. Each canvas renders `<CanvasSlashMenu>` with the surface
-it is, and its `/` menu is the registry's list for that page kind
-(`SLASH_MENUS` below): only what the page is for.
-
-- `work` (Folder Main): Thread keeps the focused Text, Heading 1-3 and Task
-  menu. Freeform exposes the same Work document's full existing canvas
-  vocabulary: writing, Task, Page, lists/checklist/toggle, quote/callout/code,
-  divider, Media/File, Diagram and Dana Link. No second document or block
-  system is introduced.
-- `document` (a Doc page, step 7): Text, flat headings, Checklist, Page and
-  Media. A Doc never offers Task creation; Tasks belong to Work pages.
-  `plain` (a canvas with no headings) has the same list less Heading.
-- `task`: Text, headings, Checklist (an item is one of the Task's subtasks),
-  Blocked by and Media.
-- `shelf`: unchanged until Shelves are decided.
-- `post`: no `/` menu.
-
-Everything else a page stores is still made by its markdown shortcut or by
-Turn into, and blocks already stored still render and save. Each row is an
-icon box, the name, and the markdown shortcut that makes the same block on
-this surface, muted on the right.
-
-Every surface nests any block under a writing block (0038); Tab does it.
-
-Typed turn-into: `/turn h1`, `/turn toggle`, `/turnbullet` convert the block
-the cursor is in, keeping its text, and its children where the target holds
-them (otherwise they follow it). Cmd/Ctrl+/ opens the same list for the block.
-*/
+// The one slash menu for every canvas. Each surface offers only what its page kind is
+// for (`SLASH_MENUS`); other kinds stay reachable by markdown shortcut or Turn into.
+// `/turn …` converts the block at the cursor; Cmd/Ctrl+/ opens the same list.
 import { useEffect, useMemo, useRef } from 'react'
 import type { JSX } from 'react'
 import { SuggestionMenuController, getDefaultReactSlashMenuItems, useComponentsContext } from '@blocknote/react'
@@ -53,15 +26,15 @@ export type { CanvasSurfaceKind } from './markdown.js'
 
 export interface SlashContext {
   readonly surface: CanvasSurfaceKind
-  /** Work only: the canvas's authoritative Task creation. */
+  /** Work only: the canvas's authoritative task creation. */
   readonly onCreateTask?: () => void
-  /** Doc/Work pages: a sub-page made here (step 7). */
+  /** Doc and Work pages: a sub-page made here. */
   readonly onCreatePage?: () => void
-  /** Task only: opens the Blocked by picker by the properties; inserts nothing. */
+  /** Task only: opens the Blocked by picker; inserts nothing. */
   readonly onCreateBlocker?: () => void
-  /** False where no file can be stored (a Task outside a Folder). */
+  /** False where no file can be stored (a task outside a folder). */
   readonly media?: boolean
-  /** The Results tab alone offers Result (#213). */
+  /** Only the Results tab offers Result. */
   readonly results?: boolean
 }
 
@@ -76,11 +49,8 @@ const TURN_TRIGGER = '⁣turn'
 
 const has = (editor: AnyEditor, type: string): boolean => type in editor.schema.blockSchema
 
-/* ------------------------------------------------------------ turn into */
-
-/* The targets are the block menu's own (`turn-into.ts`), so the typed `/turn …`
-   list and the ⋮⋮ menu's Turn into cannot disagree; only the words that find
-   each one live here. */
+// The targets are the block menu's own (`turn-into.ts`), so the two lists cannot
+// disagree; only the search words live here.
 const TURN_ALIASES: Record<TurnKey, readonly string[]> = {
   text: ['text', 'paragraph', 'plain', 'p'],
   h1: ['h1', '#', 'heading 1', 'title'],
@@ -97,7 +67,6 @@ const TURN_ALIASES: Record<TurnKey, readonly string[]> = {
   code: ['code', '```', 'snippet'],
   result: ['result', 'outcome', 'finding', 'deliverable'],
 }
-/** One icon family (Lucide), one size, for every block kind the menus name. */
 const HEADING_ICONS: Record<1 | 2 | 3, LucideIcon> = { 1: Heading1, 2: Heading2, 3: Heading3 }
 const KIND_ICONS: Record<string, LucideIcon> = {
   paragraph: Type, bulletListItem: List, numberedListItem: ListOrdered, toggleListItem: ListCollapse,
@@ -113,16 +82,14 @@ function kindIcon(type: string, level?: 1 | 2 | 3): JSX.Element | undefined {
   return Icon === undefined ? undefined : glyph(Icon)
 }
 
-/** How a surface stores a heading: a Section (`true`) or a presentation
- * heading (`false`; the Task composer's headings are presentation too). */
+/** How a surface stores a heading: a Section (`true`) or a presentation heading (`false`). */
 function headingTogglesOf(surface: CanvasSurfaceKind): boolean {
   return surface === 'work' || surface === 'shelf'
 }
 
 /**
- * How `block` becomes `target` here: `true` a Section, `false` a presentation
- * heading, `undefined` where the surface has one kind. A Work heading is a
- * Section where one of that level stands, and a presentation heading elsewhere.
+ * How `block` becomes `target` here. A Work heading is a Section where one of that
+ * level can stand, else a presentation heading.
  */
 export function headingTogglesFor(editor: AnyEditor, block: TreeBlock, target: TurnTarget): boolean {
   const surface = surfaceOf(editor)
@@ -131,12 +98,12 @@ export function headingTogglesFor(editor: AnyEditor, block: TreeBlock, target: T
   return validateCanvasOutline(section) === null
 }
 
-/** Every heading as a presentation heading (the Task surface's only kind). */
+/** Every heading as a presentation heading, the task surface's only kind. */
 function presentationOnly(blocks: readonly TreeBlock[]): TreeBlock[] {
   return blocks.map((block) => ({ ...block, props: block.type === 'heading' ? { ...block.props, presentation: true } : block.props, children: presentationOnly(block.children) }))
 }
 
-/** The targets this block may become here: offered only when the result is a shape the page stores. */
+/** Offered only when the result is a shape the page stores. */
 export function turnTargetsFor(editor: AnyEditor, block: TreeBlock): TurnTarget[] {
   if (!TEXT_TYPES.has(block.type) && block.type !== 'toggleListItem') return []
   const surface = surfaceOf(editor)
@@ -149,8 +116,8 @@ export function turnTargetsFor(editor: AnyEditor, block: TreeBlock): TurnTarget[
     if (target.type === 'toggleListItem' && !TOGGLE_SURFACES.has(surface)) return false
     if (target.toggle === true && !TOGGLE_HEADING_SURFACES.has(surface)) return false
     const simulated = simulate(document, block.id, target, toggles)
-    // A Task has no Sections: a heading pasted in with a fold but no
-    // `presentation` (HTML <details>) is still a presentation heading there.
+    // A task has no sections: a pasted folding heading without `presentation` is still
+    // a presentation heading there.
     const next = surface === 'task' ? presentationOnly(simulated) : simulated
     return validateCanvasOutline(next) === null && !(surface === 'shelf' && shelfOutlineFailure(next))
   })
@@ -163,8 +130,7 @@ export function blockMenuTargets(editor: AnyEditor, block: TreeBlock): TurnTarge
   return TURN_TARGETS.filter((target) => isCurrent(block, target) || own.some((allowed) => allowed.key === target.key))
 }
 
-/* Cmd/Ctrl+/ over picked blocks (`block-selection.ts`): the list is for all of
-   them, opened at the end of the first one's text, and they stay picked. */
+// Cmd/Ctrl+/ over picked blocks: the list applies to all of them, and they stay picked.
 const turnScope = new WeakMap<object, readonly string[]>()
 
 function turnItems(editor: AnyEditor): Item[] {
@@ -172,7 +138,7 @@ function turnItems(editor: AnyEditor): Item[] {
   const ids = scope ?? [editor.getTextCursorPosition().block.id]
   const blocks = ids.flatMap((id) => { const block = editor.getBlock(id) as TreeBlock | undefined; return block !== undefined && (TEXT_TYPES.has(block.type) || block.type === 'toggleListItem') ? [block] : [] })
   const own = blocks.map((block) => turnTargetsFor(editor, block))
-  // A kind every picked block may become (or already is), and not all already are.
+  // A kind every picked block may become or already is, and not all already are.
   const targets = TURN_TARGETS.filter((target) =>
     blocks.length > 0 &&
     blocks.every((block, index) => own[index]!.some((allowed) => allowed.key === target.key) || isCurrent(block, target)) &&
@@ -190,8 +156,6 @@ function turnItems(editor: AnyEditor): Item[] {
   }))
 }
 
-/* ------------------------------------------------------------ insert */
-
 type SlashCommand = 'text' | 'heading' | 'checklist' | 'task' | 'page' | 'blocked_by' | 'media' | 'bullet' | 'numbered' | 'toggle' | 'quote' | 'callout' | 'divider' | 'code' | 'file' | 'diagram' | 'link'
 
 const THREAD_WORK_MENU: readonly SlashCommand[] = ['text', 'heading', 'task']
@@ -201,11 +165,7 @@ const FREEFORM_WORK_MENU: readonly SlashCommand[] = [
 ]
 const DOC_MENU: readonly SlashCommand[] = ['text', 'heading', 'checklist', 'page', 'media']
 
-/*
-The `/` menu each page home shows (the approved model's slash-command table):
-what that kind of page is for, and nothing else. Markdown shortcuts and Turn
-into still make every kind the home stores; these are only what is offered.
-*/
+// The `/` menu each page home shows: what that kind of page is for, nothing else.
 const SLASH_MENUS: Readonly<Record<BlockHome, readonly SlashCommand[]>> = {
   work: THREAD_WORK_MENU,
   doc: DOC_MENU,
@@ -222,12 +182,8 @@ export function slashHomeOf(surface: CanvasSurfaceKind, results: boolean): Block
 }
 
 /**
- * #382: Thread and Freeform are presentations of the same Work document. The
- * thread presentation owns the `.dana-thread` wrapper; Freeform deliberately
- * omits it (#380). A slash menu is only queried while the mounted editor is
- * connected, so that wrapper is the presentation boundary without putting a
- * view preference into document data. Detached editors (unit helpers) keep the
- * conservative Thread menu.
+ * Thread and Freeform are views of one Work document; only the thread view has the
+ * `.dana-thread` wrapper. A detached editor keeps the Thread menu.
  */
 function slashCommands(editor: AnyEditor, home: BlockHome): readonly SlashCommand[] {
   if (home !== 'work') return SLASH_MENUS[home]
@@ -236,7 +192,6 @@ function slashCommands(editor: AnyEditor, home: BlockHome): readonly SlashComman
   return freeform ? FREEFORM_WORK_MENU : THREAD_WORK_MENU
 }
 
-/** The `/` menu for this surface: the registry's list for its home, in order. */
 export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item[] {
   const { surface, onCreateTask, onCreatePage, onCreateBlocker, media = true, results = false } = context
   const home = slashHomeOf(surface, results)
@@ -255,18 +210,16 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
 
   const commands: Record<SlashCommand, () => void> = {
     text: () => { add('Basic blocks', 'Text', ['text', 'paragraph', 'plain', 'p'], insert('paragraph'), kindIcon('paragraph')) },
-    // Headings, by what the surface stores.
     heading: () => {
       if (surface === 'work') {
         const canvas = editor
         const cursor = canvas.getTextCursorPosition().block
-        // The line as it will be once the menu clears its `/query`: empty, it
-        // becomes the Section; written, the Section follows it.
+        // The line as it will be once the menu clears its `/query`: empty, it becomes the
+        // Section; written, the Section follows it.
         const written = Array.isArray(cursor.content) ? cursor.content.map((run) => run.type === 'text' ? run.text : '*').join('') : '*'
         const empty = written.replace(/\/[^/]*$/, '').trim() === ''
         for (const level of [1, 2, 3] as const) {
-          // A Section where one of this level may stand, exactly as `#` makes one
-          // (`markdown.ts`); a presentation heading elsewhere.
+          // A Section where one of this level may stand, exactly as `#` makes one.
           const section = sectionPlace(canvas.document, cursor, level, !empty) !== null
           add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading', ...(section ? ['section'] : [])], section ? () => {
             // The query is already cleared: an empty line becomes the Section.
@@ -282,11 +235,8 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
         }
       }
     },
-    /*
-    A checklist block. Inside a Task its items are the Task's subtasks (0060),
-    and `[]` + space makes one there too. `[]` + space still makes no to-do on
-    a Doc (`legacyCheckList`): the menu is the one way to start one.
-    */
+    // Inside a task its checklist items are subtasks, and `[]` + space makes one. On a Doc
+    // `[]` makes no to-do, so the menu is the one way.
     checklist: () => {
       if (surface === 'task') {
         if (has(editor, 'checkListItem')) add('Basic blocks', 'Checklist', ['checklist', 'check', 'subtask', 'step', 'todo', 'to-do', 'checkbox', '[]'], insert('checkListItem'), glyph(ListChecks), { hint: '[]' })
@@ -294,18 +244,13 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
         add('Basic blocks', 'Checklist', ['checklist', 'check', 'todo', 'to-do', 'checkbox'], insert('checkListItem'), glyph(ListChecks))
       }
     },
-    /*
-    The arrow wrapper is load-bearing. `SuggestionMenuController` calls
-    `item.onItemClick(editor)` although the type says `() => void`, so handing
-    `onCreateTask` itself gave it the editor as its optional block (#204, #234).
-    Task answers "todo" and "checkbox" too: it is what a to-do became.
-    */
+    // The arrow wrapper is required: the controller calls `onItemClick(editor)`, which
+    // would reach `onCreateTask` as its optional block.
     task: () => { if (surface === 'work' && onCreateTask !== undefined) add('Basic blocks', 'Task', ['task', 'todo', 'to-do', 'checkbox', 'action', '[]'], () => { onCreateTask() }, glyph(CheckCircle2), { hint: '[]' }) },
     page: () => { if (onCreatePage !== undefined) add('Basic blocks', 'Page', ['page', 'sub-page', 'subpage', 'child page'], () => { onCreatePage() }, glyph(FileText)) },
     blocked_by: () => { if (onCreateBlocker !== undefined) add('Basic blocks', 'Blocked by', ['blocked', 'blocked by', 'waits', 'waits on', 'depends', 'dependency'], () => { onCreateBlocker() }, glyph(Workflow)) },
-    /* Upstream's item opens the file panel on the new block (`CanvasFilePanel`).
-       Media is one command (#220): an empty image block whose chosen file
-       decides image, audio or video. */
+    // Media is one command: an empty image block whose chosen file decides image, audio
+    // or video.
     media: () => {
       const image = byKey('image')
       if (media && image !== undefined) add('Media', 'Media', ['media', 'img', 'image', 'picture', 'photo', 'audio', 'sound', 'music', 'video', 'movie'], () => { image.onItemClick() }, glyph(ImageIcon))
@@ -313,7 +258,7 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     bullet: () => { add('Basic blocks', 'Bulleted list', ['bullet', 'bulleted', '-', '*', 'ul', 'unordered'], insert('bulletListItem'), kindIcon('bulletListItem'), { hint: '-' }) },
     numbered: () => { add('Basic blocks', 'Numbered list', ['num', 'numbered', '1.', 'ol', 'ordered'], insert('numberedListItem'), kindIcon('numberedListItem'), { hint: '1.' }) },
     toggle: () => { if (toggles) add('Basic blocks', 'Toggle', ['toggle', 'collapsible', 'details', '>'], insert('toggleListItem'), kindIcon('toggleListItem'), { hint: '>' }) },
-    // `>` is the toggle list's where there is one, and the quote's elsewhere (`markdown.ts`).
+    // `>` is the toggle's where there is one, and the quote's elsewhere.
     quote: () => { add('Basic blocks', 'Quote', ['quote', 'blockquote', '"'], insert('quote'), kindIcon('quote'), { hint: toggles ? '"' : '>' }) },
     callout: () => { if (has(editor, 'callout')) add('Basic blocks', 'Callout', ['callout', 'note', 'tip', 'info'], insert('callout'), kindIcon('callout')) },
     divider: () => { if (has(editor, 'divider')) add('Basic blocks', 'Divider', ['div', 'divider', '---', 'hr', 'line', 'separator'], insert('divider'), kindIcon('divider'), { hint: '---' }) },
@@ -332,8 +277,6 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
   return items
 }
 
-/* ------------------------------------------------------------ filter */
-
 function score(item: Item, query: string): number {
   const title = item.title.toLowerCase()
   const words = [title, ...(item.aliases ?? []).map((alias) => alias.toLowerCase())]
@@ -343,7 +286,7 @@ function score(item: Item, query: string): number {
   if (title.split(/\s+/).some((word) => word.startsWith(query))) return 60
   if (words.some((word) => word.includes(query))) return 40
   const compact = query.replace(/\s+/g, '')
-  // A subsequence ("hd2", "bltd") still finds its item, last.
+  // A subsequence ("hd2") still finds its item, last.
   const subsequence = (word: string): boolean => { let at = 0; for (const char of word) if (char === compact[at]) at += 1; return at === compact.length }
   return compact.length > 1 && words.some((word) => subsequence(word.replace(/\s+/g, ''))) ? 10 : 0
 }
@@ -374,16 +317,8 @@ export function slashItemsFor(editor: AnyEditor, context: SlashContext, query: s
   return filterSlashItems(canvasSlashItems(editor, context), query)
 }
 
-/* ------------------------------------------------------------ menu */
-
-/*
-A query that matches nothing says "No results" (one muted row) and keeps the
-menu open while the person may still be mistyping; it closes after a space or
-NO_RESULT_KEYS more keys. BlockNote closes its own menu three keys after the
-last query that had rows, which read as a menu closing on its own, so a miss
-answers one marker row (never picked: Enter closes the menu, keeping the
-text) and the closing is ours.
-*/
+// A miss shows one "No results" row and closes after a space or NO_RESULT_KEYS more
+// keys. BlockNote would close three keys after the last hit, which felt random.
 const NO_RESULT_KEYS = 5
 const NO_RESULTS = 'No results'
 const misses = new WeakMap<object, number>()
@@ -404,12 +339,8 @@ function withNoResults(editor: AnyEditor, query: string, items: DefaultReactSugg
   return [{ title: NO_RESULTS, onItemClick: () => {}, size: 'small', noResults: true } as DefaultReactSuggestionItem]
 }
 
-/*
-One row: a fixed icon box, the name, and the shortcut hint, on one centre line
-(`slash-menu.css`). Upstream's item copies its class onto the icon and label
-wrappers too, which is how the old rows' icons and labels drifted apart, so
-the row is drawn here; the controller still owns the keys and the choice.
-*/
+// Drawn here because upstream's item copies its class onto the icon and label
+// wrappers; the controller still owns the keys and the choice.
 function SlashRow({ item, index, selected, onPick }: { readonly item: DefaultReactSuggestionItem & { hint?: string }; readonly index: number; readonly selected: boolean; readonly onPick: () => void }): JSX.Element {
   const row = useRef<HTMLDivElement>(null)
   useEffect(() => { if (selected) row.current?.scrollIntoView({ block: 'nearest' }) }, [selected])
@@ -428,7 +359,6 @@ function SlashRow({ item, index, selected, onPick }: { readonly item: DefaultRea
   </div>
 }
 
-/** The canvas's menu, grouped, saying "No results" for a miss. */
 function CanvasSuggestionList(props: SuggestionMenuProps<DefaultReactSuggestionItem>): JSX.Element {
   const Components = useComponentsContext()!
   const { items, selectedIndex, onItemClick, loadingState } = props
@@ -472,7 +402,7 @@ export function CanvasSlashMenu({ editor, context }: { readonly editor: AnyEdito
       if (event.key !== '/' || !(event.metaKey || event.ctrlKey) || event.altKey) return
       const picked = blockSelection(editor)
       if (picked.length > 0) {
-        // Picked blocks: the same list, for all of them, opened at the first one's text.
+        // Picked blocks: the same list for all of them, opened at the first one's text.
         const anchor = picked.find((id) => Array.isArray(editor.getBlock(id)?.content))
         if (anchor === undefined) return
         event.preventDefault()
@@ -506,7 +436,7 @@ export function CanvasSlashMenu({ editor, context }: { readonly editor: AnyEdito
   const getItems = useMemo(() => async (query: string) => withNoResults(editor, query, slashItemsFor(editor, context, query)), [editor, context])
   const getTurnItems = useMemo(() => async (query: string) => withNoResults(editor, query, filterSlashItems(turnItems(editor), query)), [editor])
   return <>
-    {/* A post has no `/` menu: a slash there is a slash (and/or). Cmd/Ctrl+/ still turns a block. */}
+    {/* A post has no `/` menu, so a slash stays a slash. Cmd/Ctrl+/ still turns a block. */}
     {slashHomeOf(surface, results) === null ? null : <SuggestionMenuController triggerCharacter="/" getItems={getItems} suggestionMenuComponent={CanvasSuggestionList} />}
     <SuggestionMenuController triggerCharacter={TURN_TRIGGER} getItems={getTurnItems} suggestionMenuComponent={CanvasSuggestionList} />
   </>

@@ -1,16 +1,11 @@
-/*
-A list's View settings: how it is grouped, how it is sorted, whether completed
-tasks show, and at most one Label to show only (#208). The Label is the one
-narrowing, and the page says so beside its View menu with a way to clear it.
-Nothing here asks the server for anything.
-*/
+/* A list's View settings: grouping, sort, completed, and at most one Label to show. No server reads. */
 import { formatDay, parseCivilDate } from '../lib/dates.js'
 import type { TaskCard, TaskStatus } from '../../shared/tasks.js'
 
-/** The person axis's own value for "nobody", which is not a user id. */
+/** The person axis's value for "nobody", not a user id. */
 export const UNASSIGNED = 'unassigned'
 
-/* `section` is the folder page's own arrangement and no other page's. */
+/* `section` is the folder page's own arrangement. */
 export type GroupBy = 'none' | 'folder' | 'person' | 'date' | 'section'
 
 export type SortBy = 'manual' | 'due' | 'title' | 'created'
@@ -19,8 +14,7 @@ export interface PageFilter {
   readonly groupBy: GroupBy
   readonly sort: SortBy
   readonly showCompleted: boolean
-  /** A Label's id: only tasks wearing it show. Kept by id, never by name, so
-      two Labels called the same thing stay two. */
+  /** By id, never by name, so two Labels with one name stay two. */
   readonly label: string | null
 }
 
@@ -31,25 +25,19 @@ export const NO_FILTER: PageFilter = {
   label: null,
 }
 
-/*
-The Task narrowing shared by Work and any later Freeform, Board or Calendar
-surface. It is deliberately separate from `PageFilter`: that type arranges a
-Focus list, while this one only answers whether one Task is visible. A filter
-therefore cannot move a Task, change its Section, or choose a different order.
-*/
+/* Whether one Task is visible on a Work surface; it never moves or reorders a Task. */
 export type ScheduleFilter = 'any' | 'with' | 'without' | 'overdue' | 'today' | 'date'
 
 export interface TaskFilter {
-  /** Empty means every status. Values within this axis combine as OR. */
+  /** Empty means every status. Values within an axis combine as OR. */
   readonly statuses: readonly TaskStatus[]
-  /** Empty means anyone; `UNASSIGNED` is the explicit nobody value. */
+  /** Empty means anyone; `UNASSIGNED` is the explicit nobody. */
   readonly assignees: readonly string[]
   readonly schedule: ScheduleFilter
-  /** The chosen civil day when `schedule` is `date`. */
   readonly date: string | null
   readonly important: boolean
   readonly repeating: boolean
-  /** One Label id, kept by identity rather than display name. */
+  /** By id, not display name. */
   readonly label: string | null
 }
 
@@ -66,7 +54,7 @@ export const NO_TASK_FILTER: TaskFilter = {
 const TASK_STATUSES: readonly TaskStatus[] = ['pending', 'completed', 'abandoned']
 const SCHEDULE_FILTERS: readonly ScheduleFilter[] = ['any', 'with', 'without', 'overdue', 'today', 'date']
 
-/** A stored definition from this or an older client, with unknown values dropped. */
+/** Unknown values from older clients are dropped. */
 export function settleTaskFilter(stored: unknown): TaskFilter {
   if (typeof stored !== 'object' || stored === null) return NO_TASK_FILTER
   const record = stored as Record<string, unknown>
@@ -92,7 +80,6 @@ export function settleTaskFilter(stored: unknown): TaskFilter {
   }
 }
 
-/** Whether any Task axis narrows the surface. */
 export function taskFilterActive(filter: TaskFilter): boolean {
   return (
     filter.statuses.length > 0 ||
@@ -127,7 +114,7 @@ function matchesSchedule(
   }
 }
 
-/** Pure, non-mutating AND across axes; values chosen within one axis are OR. */
+/** Pure: AND across axes, OR within one. */
 export function taskMatchesFilter(
   task: TaskCard,
   filter: TaskFilter,
@@ -167,7 +154,6 @@ const SCHEDULE_CHIP: Readonly<Record<Exclude<ScheduleFilter, 'any'>, string>> = 
   date: 'One date',
 }
 
-/** One removable chip per active axis, the same model every future view can draw. */
 export function taskFilterChips(
   filter: TaskFilter,
   personName: (id: string) => string,
@@ -223,9 +209,8 @@ const GROUPS: readonly GroupBy[] = ['none', 'folder', 'person', 'date', 'section
 const SORTS: readonly SortBy[] = ['manual', 'due', 'title', 'created']
 
 /**
- * A stored filter read back. Older clients stored due ranges, people and
- * switches the View menu no longer offers; they are dropped here so nobody is
- * left behind a narrowing they cannot see or undo.
+ * Drops settings older clients stored that the View menu no longer offers, so nobody is stuck behind a hidden
+ * filter.
  */
 export function settleFilter(stored: unknown): PageFilter {
   if (typeof stored !== 'object' || stored === null) return NO_FILTER
@@ -242,7 +227,6 @@ export function settleFilter(stored: unknown): PageFilter {
   }
 }
 
-/** Whether a task wears the Label a filter names; every task when none. */
 export function wearsLabel(task: TaskCard, label: string | null): boolean {
   if (label === null) return true
   return [...(task.labels?.personal ?? []), ...(task.labels?.folder ?? [])].some(

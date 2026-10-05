@@ -1,37 +1,10 @@
 /*
-The 7.1 auth and account surface plus 7.2's settings pair, mounted by the boot
-file under /api/v1.
-
-The handshake, in the order 11.6 fixes it:
-
-  GET  /auth/google           state, nonce, PKCE S256, tz into the pending
-                              record, redirect to the issuer
-  GET  /auth/google/callback  validate all three single-use, refuse an
-                              unverified email or a claimed one with the two
-                              9.2 pages, provision or adopt, sync the zone,
-                              issue a fresh session
-  POST /auth/logout           destroy this session, not the person's others
-  GET/PATCH/DELETE /me        the account endpoints, behind session then CSRF
-
-Three rules run through every handler here.
-
-**Nothing the request carries can move a redirect.** The authorization URL
-comes from the configured issuer and the redirect_uri from the configured
-origin, so a crafted Host, X-Forwarded-Host, or return parameter changes
-neither. The callback URL handed to openid-client is rebuilt the same way,
-which also keeps the redirect_uri in the token exchange identical to the one
-in the authorization request (the library derives it from that URL).
-
-**No Google token is ever written.** The access, refresh, and ID tokens exist
-as locals inside the callback and are never stored, logged, or put in a
-cookie; what survives the callback is a user id and the claims that 7.1 names.
-
-**A refusal answers a browser, not a client.** The callback is a redirect
-target a person lands on, so the 7.0 JSON envelope would arrive as text on a
-blank screen. The two refusals section 9 gives copy for render the 9.2 pages,
-an unverified email and an email another account already holds; every other
-one returns to the landing page with a marker rather than inventing copy
-section 9 owns. The account endpoints, which clients call, use the envelope.
+The 7.1 auth and account routes. Rules for every handler:
+- Nothing in the request can move a redirect: the authorization URL, the
+  redirect_uri and the callback URL all come from configuration.
+- Google tokens are never stored, logged or put in a cookie.
+- Callback refusals answer a browser: the two 9.2 pages, or the landing page
+  with a marker. Only the account endpoints use the JSON envelope.
 */
 import { Router } from 'express'
 import type { Request, Response } from 'express'
@@ -93,21 +66,15 @@ export interface AuthRouterOptions {
   auth?: AuthConfig
   rateLimits?: RateLimits
   securityLog?: SecurityLogger
-  /** The object store: DELETE /me removes the deleted account's objects
-   * after the 8.10 transaction commits (step 6a). Optional for the same reason as dbClient: a route-presence
-   * probe constructs the application bare. */
+  /** DELETE /me removes the account's stored objects after the 8.10 transaction commits. */
   fileStore?: ObjectStore
-  /** 7.20: whether a brand-new account is written the sample workspace
-   * at its first sign-in. createApp decides the default. */
+  /** 7.20: write the sample workspace at a new account's first sign-in. */
   sampleWorkspace?: boolean
 }
 
 /*
-Built at runtime from pieces so no resolvable import names the module. 11.15
-records why: tsc emits a tsconfig-excluded file whenever any import can be
-resolved to it, a literal dynamic import() included, and tsconfig.build.json
-excludes exactly this path. The loader treats a failed load as the route not
-existing, which is what a production build produces.
+Built from pieces so no import resolves to the module: tsc would otherwise emit
+the file tsconfig.build.json excludes (11.15). A failed load means no route.
 */
 const DEV_LOGIN_SPECIFIER = ['./dev', 'login.js'].join('-')
 
@@ -121,7 +88,7 @@ interface DevLoginModule {
   ): Promise<void>
 }
 
-// Section 4.1 and 10.3's bounds on the columns Google's claims land in.
+// Column bounds (4.1, 10.3) for Google's claims.
 const MAX_EMAIL = 320
 const MAX_DISPLAY_NAME = 200
 const MAX_AVATAR_URL = 2000
@@ -131,7 +98,6 @@ function clamp(value: unknown, limit: number): string | null {
   return value.length <= limit ? value : value.slice(0, limit)
 }
 
-/** Issues a fresh identifier, stores its digest, and sets both cookies. */
 export async function establishSession(
   db: Db,
   res: Response,
@@ -142,15 +108,7 @@ export async function establishSession(
   setSessionCookies(res, token, csrfTokenFor(token))
 }
 
-/**
- * The 9.2 pages, the only two this module renders, for the two refusals
- * section 9 gives copy for.
- *
- * Both answer 403 and neither establishes anything. 7.0's taxonomy puts them
- * there together: the person is who they say they are and the act is refused,
- * which is what 403 means, and neither is a 404, the resource in each case
- * being their own address.
- */
+/** The two 9.2 pages, both 403. Neither establishes anything. */
 function refuseUnverified(res: Response): void {
   clearPendingCookie(res)
   res.status(403).type('html').send(unverifiedEmailPage())
@@ -161,10 +119,7 @@ function refuseClaimedEmail(res: Response): void {
   res.status(403).type('html').send(emailAlreadyClaimedPage())
 }
 
-/**
- * Every other refusal. Back to the landing page with a marker, inventing no
- * copy: a browser is what lands here, and section 9 owns what it reads.
- */
+/** Every other refusal: back to the landing page with a marker. */
 function refuse(res: Response): void {
   clearPendingCookie(res)
   res.redirect(303, SIGN_IN_FAILED_TARGET)
@@ -174,30 +129,19 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
   const router = Router()
   const pending = new PendingAuthorizations()
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
-  /* The two sign-in doors carried no limiter at all until issue #168, which
-     is older than every other limit: the general quota keys on the session
-     and both of these precede one, so there was nothing to key on and they
-     were left out. They are keyed on the caller's address instead, which
-     only became per-client with issue #153's one trusted proxy hop. */
+  /* Keyed on the caller's address: there is no session yet. Per-client only
+     because of the single trusted proxy hop (index.ts). */
   const signInBeginLimit = optionalLimit(options.rateLimits?.signInBegins)
   const signInCallbackLimit = optionalLimit(options.rateLimits?.signInCallbacks)
   const securityLog = options.securityLog ?? createSecurityLogger()
 
-  // Configuration is resolved once per application, and lazily: an
-  // application constructed without auth configuration (the AC-114 probe, a
-  // health-only boot) must still build, and only a request that needs the
-  // issuer may fail.
+  // Resolved lazily, so an app built without auth config still builds.
   let client: OidcClient | undefined
   const oidc = (): OidcClient => {
     client ??= new OidcClient(options.auth ?? authConfigFromEnvironment())
     return client
   }
 
-  /*
-   * 11.10: routes that touch the database require options.dbClient and fail
-   * only when called without it, which is what lets a route-presence probe
-   * construct the application bare.
-   */
   const database = (res: Response): Db | null => {
     if (options.dbClient === undefined) {
       sendError(
@@ -223,9 +167,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     const config = oidc()
     const configuration = await config.configure()
 
-    // 7.1: an unparseable zone is treated as absent rather than answered 422,
-    // a deliberate deviation from the 10.3 rule so a stale zone database can
-    // never lock anyone out of sign-in.
+    // 7.1: an unparseable zone is ignored, not 422, so sign-in never locks anyone out.
     const reported = req.query.tz
     const timezone =
       typeof reported === 'string' && isIanaTimezone(reported) ? reported : undefined
@@ -235,8 +177,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     const codeVerifier = randomPKCECodeVerifier()
     const codeChallenge = await calculatePKCECodeChallenge(codeVerifier)
 
-    // The zone rides the pending record and nothing else: never redirect_uri,
-    // never any redirect target (7.1, 11.6).
+    // The zone rides only the pending record, never a redirect target (7.1, 11.6).
     const id = pending.create({ state, nonce, codeVerifier, timezone })
     setPendingCookie(res, id)
 
@@ -255,8 +196,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     const db = database(res)
     if (db === null) return
 
-    // Single use, and bound to this browser: the record is reachable only
-    // through the cookie the authorization request set (AC-105).
+    // Single use and bound to this browser through the pending cookie (AC-105).
     const record = pending.take(readCookie(req, PENDING_COOKIE))
     if (record === undefined) {
       refuse(res)
@@ -266,16 +206,14 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     const config = oidc()
     const configuration = await config.configure()
 
-    // The provider's own refusal path, which every cancelled consent screen
-    // walks: answered as a refusal, never as a 500.
+    // A cancelled consent screen arrives as `error`: a refusal, not a 500.
     if (typeof req.query.error === 'string') {
       refuse(res)
       return
     }
 
-    // Rebuilt from configuration, never from the request's Host: this is both
-    // the AC-109 guard and what keeps the redirect_uri in the token exchange
-    // identical to the authorization request's.
+    // Rebuilt from configuration, never from Host (AC-109); it also keeps the
+    // token exchange's redirect_uri identical to the authorization request's.
     const currentUrl = new URL(callbackUrl(config.config))
     currentUrl.search = new URL(req.originalUrl, config.config.appOrigin).search
 
@@ -293,9 +231,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       }
       claims = verified as unknown as Record<string, unknown>
     } catch {
-      // A wrong state, a mismatched nonce, a bad signature, an expired or
-      // foreign token: all one outcome, and none of them a 5xx, because every
-      // one of them is attacker-reachable input.
+      // All one outcome and never a 5xx: every case is attacker-reachable input.
       refuse(res)
       return
     }
@@ -306,15 +242,12 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       refuse(res)
       return
     }
-    // 7.1 and 10.1: an unverified email is refused with the 9.2 page, and no
-    // rows are created.
+    // An unverified email gets the 9.2 page and creates no rows.
     if (claims.email_verified !== true) {
       refuseUnverified(res)
       return
     }
-    // 10.3 caps a stored email at 320 characters, and an address is an
-    // identifier: it cannot be trimmed to fit the way a display name can, so
-    // one that does not fit is a refusal rather than a mangled account.
+    // An email cannot be trimmed to fit like a display name, so refuse.
     if (email.length > MAX_EMAIL) {
       refuse(res)
       return
@@ -323,11 +256,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     const identity: GoogleIdentity = {
       sub,
       email,
-      // Section 4.1's CHECK constraints bound both of these, and neither is
-      // this API's input to validate: they arrive from Google. Clamping keeps
-      // an unusually long profile from turning a legitimate sign-in into a
-      // constraint violation, and both columns are nullable and cosmetic, so
-      // clamping costs nothing an account depends on.
+      // Clamped: long Google profiles must not fail sign-in on a CHECK. Both are cosmetic.
       displayName: clamp(claims.name, MAX_DISPLAY_NAME),
       avatarUrl: clamp(claims.picture, MAX_AVATAR_URL),
     }
@@ -340,39 +269,16 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       await syncTimezone(db, user, record.timezone)
     } catch (error) {
       /*
-      A provisioning fault rolls the whole transaction back (AC-005), and the
-      person still needs an answer.
-
-      One case is answered with words rather than with the landing page's bare
-      marker: a google_sub Dana has never seen, carrying a verified email a
-      live account already holds. 10.1 (issue #17) is that Dana refuses and
-      never joins the two accounts, and that the refusal explains itself. `provisionUser`
-      throws it by name; the second read below catches the same collision when
-      two brand-new subjects raced each other to one address, which the first
-      read cannot see from inside its own transaction and which arrives here
-      as an ordinary unique violation. The re-read costs one query on a path
-      that has already failed, and it is how this handler tells the two apart
-      without reading a driver's error text, where 11.15 records that bound
-      parameters live.
-
-      Everything else stays exactly as it was: refused, logged, and returned
-      to the landing page with the marker, inventing no copy section 9 has not
-      written.
+      Provisioning rolled back (AC-005). An email already held by another live
+      account gets the claimed-email page; Dana never joins the two (10.1). The
+      re-read below also catches two new subjects racing for one address, which
+      surfaces as a unique violation, without reading driver error text.
       */
       const claimed =
         error instanceof EmailAlreadyClaimedError ||
-        // One predicate, shared with the read inside the transaction, because
-        // the two are asking the same question and were briefly written as two
-        // different rules: this site read `addressClaimed` alone, which showed
-        // the claimed-email page to a returning person whose address at Google
-        // had moved onto a live account and who then met any unrelated fault.
-        // syncTimezone is inside this same try, so that is reachable.
+        // Same predicate as inside the transaction, so both apply one rule.
         isEmailCollision(
-          // The second look is itself a database call, on a path a database
-          // fault is the likeliest reason for reaching. It answers "not a
-          // collision" rather than throwing, because a throw here would turn a
-          // handled refusal into a 500 on the one endpoint a person meets
-          // before they have an account.
+          // A failed re-read means "not a collision", never a 500 before sign-up.
           await emailStanding(db, identity).catch(() => ({
             subjectKnown: false,
             addressClaimed: false,
@@ -395,8 +301,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       provisioned: user.created,
     })
 
-    // Into the app (7.1), which 10.6 fixes at /app, and on this origin by
-    // construction (AC-109).
+    // Into the app (10.6), on this origin by construction (AC-109).
     res.redirect(303, '/app')
   })
 
@@ -410,9 +315,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       if (db === null) return
       const session = sessionOf(req)
       if (session !== undefined) {
-        // One session. 10.1 draws the singular against account deletion's
-        // plural, so signing out here must not touch the person's other
-        // clients.
+        // Only this session: other clients stay signed in (10.1).
         await destroySession(db, session.token)
         securityLog.authEvent('sign_out', { userId: session.userId })
       }
@@ -420,10 +323,6 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       res.status(204).end()
     },
   )
-
-  /* ---------------------------------------------------------------- *
-   * The account endpoints
-   * ---------------------------------------------------------------- */
 
   router.get('/me', requireSession, async (req: Request, res: Response) => {
     const db = database(res)
@@ -451,31 +350,14 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      // 7.1: the literal confirm string, else 422 naming the field.
       const parsed = parseBody(deleteMeBody, req, res, securityLog)
       if (parsed === null) return
       const userId = sessionOf(req)?.userId ?? ''
       /*
-      **Ownership succession, before anything is deleted** (issue #228; #209
-      R6 section 3).
-
-      8.10 step 2 hands every owned shared folder to "the remaining member
-      with the earliest join, ties to the lower user id". That was reasonable
-      under a flat membership model and is unsafe under an explicit one:
-      joining first is not evidence that anybody intended you to hold custody,
-      and R6 says in terms not to silently promote an arbitrary member.
-
-      So the interactive path refuses instead. Each owned shared folder must be
-      resolved first -- transfer ownership to an eligible successor, or delete
-      the folder -- and only then may the account go. The 409 names the folders
-      and says which of them already have somebody who could take them, so the
-      client can offer the two different next steps rather than one dead end.
-
-      **The automatic transfer is deliberately left in
-      `deleteAccountData`.** R6 keeps a non-interactive forced-removal path as
-      a distinct audited recovery rather than weakening the ordinary rule, and
-      that function is where such a path would enter. Nothing reaches it
-      through this route any more; its own test still pins its behaviour.
+      Owned shared folders must be transferred or deleted first: no silent
+      succession on the interactive path (#228). The 409 lists them and whether
+      each has an eligible successor. deleteAccountData keeps the automatic
+      transfer for a future forced-removal path; nothing reaches it from here.
       */
       const blocking = await ownedSharedFolders(db, userId)
       if (blocking.length > 0) {
@@ -507,40 +389,17 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * The settings endpoints (7.2) were retired by issue #113.
-   *
-   * `GET` and `PATCH /me/settings` answered the three v1 page flags and
-   * nothing else. 7.23's `/settings` bundle is the settings surface now,
-   * and it was already the only one the client used for everything but
-   * those three; keeping a second endpoint alive for them meant two
-   * contracts over one row of `user_settings`, which is the thing 4.19
-   * asked not to have. The retirement annotation and what it does not do
-   * are 7.2's.
-   *
-   * **The three columns are not dropped and this is not a data change.**
-   * They stay stored and `domain/bundle.ts` still derives them into
-   * `pinned_views` while that column is null, which is what keeps a v1
-   * account's sidebar the sidebar it had. The `settings` key of `GET /me`
-   * still carries them too, as 7.1 and AC-116 state. What went is the pair
-   * of endpoints that *wrote* them,
-   * so nothing in this application writes those columns any more.
-   * ---------------------------------------------------------------- */
+  /* The 7.2 /me/settings endpoints were retired (#113); `/settings` replaced
+     them. The three columns are still stored and read. */
 
-  /* ---------------------------------------------------------------- *
-   * The development login (11.6)
-   * ---------------------------------------------------------------- */
-
-  // Read at createApp() call time, never at module load (11.6), which is what
-  // lets one process construct applications with and without it.
+  // Read at createApp() time, never at module load (11.6).
   if (process.env.DANA_DEV_LOGIN === '1') {
     router.post('/auth/dev-login', async (req: Request, res: Response) => {
       let module: DevLoginModule
       try {
         module = (await import(DEV_LOGIN_SPECIFIER)) as DevLoginModule
       } catch {
-        // A production build excludes the module, so the load fails and the
-        // route does not exist, whatever the environment variable says.
+        // A production build excludes the module, so the route does not exist.
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
@@ -559,5 +418,4 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
   return router
 }
 
-/** Re-exported so the boot file's scheduler wiring has one import (11.7). */
 export { pruneExpiredSessions } from './sessions.js'

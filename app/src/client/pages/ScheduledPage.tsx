@@ -1,11 +1,7 @@
 /*
-Upcoming, at /app/scheduled: dated work from tomorrow on (GET /views/focus,
-when=upcoming, over 6 Q3's rows), under a
-ladder of date headings, then the "New task" row, which dates its task
-tomorrow so it stays on this page. What is late, started or due today is on
-Today and is not said again here (M4). No View menu: the one choice left is
-list or calendar, a single button beside the title.
-*/
+ * Upcoming: dated work from tomorrow on, under date headings. "New task" dates its task tomorrow so it stays
+ * here.
+ */
 import { Button } from '../components/ui/button.js'
 import { CalendarDays, List } from '../lib/icons.js'
 
@@ -29,7 +25,7 @@ export function ScheduledPage(): React.JSX.Element {
   const actions = useRowActions()
   const confirm = useConfirm()
   const basis = useRowBasis()
-  /* One Tab stop for the page's rows; arrows, Enter and Space (`row-keys.ts`). */
+  /* One Tab stop for the page's rows (`row-keys.ts`). */
   const keys = useRowKeys<HTMLDivElement>()
   const multiMemberFolderIds = useMultiMemberFolderIds()
 
@@ -37,8 +33,7 @@ export function ScheduledPage(): React.JSX.Element {
   const place = usePlace(SPINE, rows)
   useNoStoredLabel(place)
   const context = { ...basis, multiMemberFolderIds }
-  /* Someone else's started work stays here (server/views/focus.ts) under Today's word
-     for it, "Started", not the ladder's "In progress". */
+  /* Someone else's started work stays here under Today's word, "Started". */
   const groups = ladderRungs(rows, place.today).map((group) =>
     group.key === 'started' ? { ...group, name: 'Started' } : group,
   )
@@ -63,17 +58,14 @@ export function ScheduledPage(): React.JSX.Element {
       <PlaceHead place={place} controls={toggle} />
 
       {calendar ? (
-        /* The month grid shows every dated task, today and past days
-           included: a calendar with blank cells before tomorrow would read
-           as nothing due. The list starts tomorrow for the viewer's own work (server/views/focus.ts). */
+        /* The month grid shows every dated task, past days included; the list starts tomorrow. */
         <PlannedCalendar
           onCreate={(title, date) => {
             place.capture(title, { due_date: date })
           }}
         />
       ) : (
-        /* Rows bleed their padding into the gutter: a checkbox, a heading
-           and the title share one left edge. */
+        /* Rows bleed their padding into the gutter so checkbox, heading and title share one left edge. */
         <div className="-mx-1.5">
           <PageBody
             query={view}
@@ -87,8 +79,7 @@ export function ScheduledPage(): React.JSX.Element {
                 <PlaceGroup key={group.key} name={group.name} heading={group.name}>
                   <TaskRows
                     tasks={group.rows}
-                    /* What the date heading says, a row does not repeat: under
-                       "Tomorrow" a row keeps only its time. */
+                    /* Under a date heading a row keeps only its time. */
                     given={{ day: group.date !== null }}
                     context={context}
                     actions={actions}

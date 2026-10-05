@@ -1,32 +1,5 @@
-/*
-Structured input rounds (issue #321): "Ask for input" inside a Discussion.
-The contract is `shared/consultation-input.ts`; storage is migration 0030.
-
-## The refusal order
-
-**404, then 422, then 403, then 409**, the facets order (routes/facets.ts):
-the Discussion must exist in a Folder the viewer is a member of (else 404,
-10.2), then the body must be well formed for the round's mode (422), then
-`mayPerform` (403), then the row state -- a resolved or trashed Discussion, a
-closed round, a second open round (409).
-
-## Every decision runs under the Discussion's row lock
-
-Each mutation opens one transaction, takes `FOR UPDATE` on the Discussion
-row, and resolves access **inside it** (`accessOf(tx, ...)`), so:
-
-- the preset and the creator binding a gate reads are the ones the write
-  sees: a member downgraded below Can comment a moment ago cannot respond,
-  and a creator downgraded loses stewardship at once (#321 "authorship alone
-  does not preserve mutation power after an Access downgrade");
-- the Discussion's own state (open/resolved/trashed) cannot change between
-  the check and the write: resolving (U10's transaction) takes the same lock
-  and closes the open round through `onDiscussionResolved`, so a response
-  either lands before the resolve or is refused after it, never beside it.
-
-Every write to a round's state happens under that lock too, which is why a
-round's state is read without a lock of its own.
-*/
+// Structured input rounds in a Discussion. Refusal order: 404, 422, 403, 409.
+// Every mutation locks the Discussion row and resolves access inside that lock, so the check and write agree.
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
@@ -59,10 +32,6 @@ const invalid = (field: string, message: string) =>
   ({ kind: 'invalid', field, message }) as const
 const conflict = (message: string) => ({ kind: 'conflict', message }) as const
 
-/* ------------------------------------------------------------------ *
- * Serialization
- * ------------------------------------------------------------------ */
-
 function toIso(value: unknown): string {
   return value instanceof Date
     ? value.toISOString()
@@ -88,13 +57,7 @@ function responseFromRow(row: Record<string, unknown>): InputResponse {
   }
 }
 
-/**
- * The rounds of one Discussion (or one round of it), newest first, with
- * their options, every current response and the choose counts.
- *
- * It trusts its caller to have decided the viewer may read the Discussion:
- * it is reached only after `discussion.read`.
- */
+/** A Discussion's rounds, newest first, with options, responses and counts. The caller already checked `discussion.read`. */
 async function roundsOf(
   executor: Executor,
   viewerId: string,
@@ -141,8 +104,7 @@ async function roundsOf(
     const roundResponses = responses
       .filter((response) => String(response.round_id) === id)
       .map(responseFromRow)
-    /* Plain counts and nothing derived from them: no winner, no ranking,
-       no threshold (#321 test 8). */
+    /* Plain counts only: no winner, ranking or threshold. */
     const choiceCounts =
       mode === 'choose'
         ? roundOptions.map((option) => ({
@@ -170,10 +132,6 @@ async function roundsOf(
   })
 }
 
-/* ------------------------------------------------------------------ *
- * The Discussion under its lock
- * ------------------------------------------------------------------ */
-
 interface DiscussionFacts {
   id: string
   folderId: string
@@ -183,11 +141,7 @@ interface DiscussionFacts {
   facts: FolderActorFacts
 }
 
-/**
- * The Discussion and the viewer's facts in its Folder, or null for "no such
- * Discussion, or not a member of its Folder" -- one answer, 404 (10.2).
- * `accessOf` also answers null for a Folder in Trash.
- */
+/** The Discussion and the viewer's facts, or null for missing or not a member: one 404 (10.2). */
 async function discussionFor(
   tx: Executor,
   viewerId: string,
@@ -215,8 +169,7 @@ async function discussionFor(
   }
 }
 
-/** The Discussion a round belongs to, read without a lock: a round never
- * moves between Discussions, so this is only the key to lock by. */
+/** Read without a lock: a round never changes Discussion, so this is only the key to lock by. */
 async function discussionOfRound(
   executor: Executor,
   roundId: string,
@@ -229,9 +182,7 @@ async function discussionOfRound(
   return row === undefined ? null : String(row.discussion_id)
 }
 
-/** 409 for a Discussion that no longer takes input: resolved (#321 "round
- * creation/response mutation is refused on a resolved Discussion") or in
- * Trash. */
+/** 409 for a resolved or trashed Discussion. */
 function closedToInput(discussion: DiscussionFacts) {
   if (discussion.trashed) return conflict('This discussion is in Trash.')
   if (discussion.state === 'resolved') return conflict('This discussion is resolved.')
@@ -253,10 +204,6 @@ function violates(error: unknown, constraint: string): boolean {
   if (e.code === '23505' && e.constraint === constraint) return true
   return e.cause !== undefined && violates(e.cause, constraint)
 }
-
-/* ------------------------------------------------------------------ *
- * Reads
- * ------------------------------------------------------------------ */
 
 export async function listInputRounds(
   db: Db,
@@ -284,10 +231,6 @@ export async function getInputRound(
   const [round] = await roundsOf(db, viewerId, discussionId, roundId)
   return round === undefined ? notFound : { kind: 'ok', value: round }
 }
-
-/* ------------------------------------------------------------------ *
- * Open and close
- * ------------------------------------------------------------------ */
 
 export async function openInputRound(
   db: Db,
@@ -320,8 +263,7 @@ export async function openInputRound(
     const closed = closedToInput(discussion)
     if (closed !== null) return closed
 
-    /* The read under the lock answers the ordinary case; the partial unique
-       index is the guarantee, and is caught by its name. */
+    /* The read under the lock covers the usual case; the partial unique index is the guarantee. */
     const open = await rowsOf(
       tx,
       sql`SELECT 1 AS present FROM discussion_input_rounds
@@ -392,10 +334,6 @@ export async function closeInputRound(
   })
 }
 
-/* ------------------------------------------------------------------ *
- * One's own response
- * ------------------------------------------------------------------ */
-
 interface LockedRound {
   mode: InputMode
   state: InputRoundState
@@ -425,8 +363,7 @@ interface ResponseShape {
   body: string | null
 }
 
-/** The mode's own fields and no others, or the field to name in the 422.
- * The database's `discussion_input_responses_shape_check` says the same. */
+/** The mode's own fields and no others, or the field to name in the 422. */
 async function shapeFor(
   tx: Executor,
   roundId: string,
@@ -508,8 +445,7 @@ export async function putInputResponse(
   })
 }
 
-/** Withdraw one's own response while the round is open. Withdrawing a
- * response one never gave is the same success: the result is the same. */
+/** Withdraw one's own response while the round is open. Withdrawing nothing also succeeds. */
 export async function withdrawInputResponse(
   db: Db,
   viewerId: string,

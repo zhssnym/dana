@@ -1,52 +1,14 @@
 /*
-9.1's sidebar view preferences, and the only place this client stores one.
+ * The sidebar's width and collapsed state, in localStorage (AC-182 reads both across a reload). Not a cookie:
+ * it would ride every API request, and the CSRF token must stay the only readable cookie. Every access is
+ * guarded: localStorage throws when storage is disabled or full.
+ */
 
-The sidebar's width and whether it is collapsed to an icon rail are the
-viewer's, persisted client-side, and AC-182 reads both across a full document
-load. What the rail holds relative to the open sidebar is
-`app-sidebar.tsx`'s rail paragraph.
-
-**localStorage rather than a cookie, and the choice is not a style.** The
-designer's prototype keeps the width in localStorage and the shadcn primitive
-under it writes the collapsed state into a `sidebar_state` cookie, because
-that distribution is built for a server-rendered host that reads the cookie
-before it paints. We have no such host: 11.1 gives the server a landing page
-and the built client, and nothing on the server has ever read a preference.
-What a cookie would buy here is nothing, and what it costs is real. It rides
-every request the document makes, including every call to the section 7 API,
-which puts a view preference on the wire that the section 7 contract does not
-give any endpoint. And 11.6's double-submit leaves exactly one readable
-cookie in the browser, the CSRF token, which is a property the acceptance
-suite reads directly when it picks that token out by being the only one; a
-second readable cookie appearing the first time somebody collapses the
-sidebar would break that read somewhere far from here. So both preferences
-are localStorage, per origin, never sent, and `app-shell.tsx` clears the
-cookie the primitive writes.
-
-Every access is guarded. `localStorage` throws rather than returning null
-when storage is disabled or a quota is exhausted, and a sidebar that cannot
-render because a person turned off site data would be a worse failure than
-one that forgets its width.
-*/
-
-/** One key each, namespaced so nothing else in this origin collides. */
+/** One key each. Never rename them. */
 const WIDTH_KEY = 'dana.sidebar-width'
 const COLLAPSED_KEY = 'dana.sidebar-collapsed'
 
-/**
- * The bounds a drag is clamped to.
- *
- * These are the designer's, read off `app-shell.tsx` in the prototype, and
- * they are behaviour rather than paint: what they fix is how far a person may
- * drag, not how anything is drawn. The width a person lands on is their own
- * datum, which is why it is written as a number here and never into
- * `tokens.css`, on the same reading 11.4 already gives a folder's colour.
- *
- * The default is deliberately absent: it is `--shell-sidebar-width` in
- * `tokens.css`, and the shell leaves the custom property unset until a person
- * has chosen a width of their own, so the design's value stays in the one
- * file 11.4 puts it in.
- */
+/** Drag bounds. The default width is `--shell-sidebar-width` in `tokens.css`, unset here until the viewer drags. */
 export const SIDEBAR_MIN_WIDTH = 224
 export const SIDEBAR_MAX_WIDTH = 360
 
@@ -70,8 +32,7 @@ export function writeSidebarWidth(width: number): void {
   try {
     window.localStorage.setItem(WIDTH_KEY, String(clampSidebarWidth(width)))
   } catch {
-    // Storage refused. The preference is lost at the next load and the
-    // sidebar is otherwise unaffected, which is the whole cost.
+    // Storage refused: the preference is lost at the next load, nothing else.
   }
 }
 
@@ -84,7 +45,6 @@ export function clearSidebarWidth(): void {
   }
 }
 
-/** Whether this viewer left the sidebar collapsed to its rail. */
 export function readSidebarCollapsed(): boolean {
   try {
     return window.localStorage.getItem(COLLAPSED_KEY) === 'true'

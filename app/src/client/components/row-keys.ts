@@ -1,19 +1,6 @@
-/*
-The keyboard path through a list of tasks (Today, Upcoming, Assigned, a page's
-Linear and Board): one Tab stop for the whole list, the arrows move a visible
-focus from row to row, and each row answers Enter (open) and Space (complete)
-with its own `onKeyDown`.
-
-A row is any element marked `data-row-key` with a `data-task-id`. This hook
-keeps exactly one of them in the Tab order (the last one focused, else the
-first) and takes every control inside a row out of it, so Tab walks past a list
-in one step instead of three per task. After a Space the completed row usually
-leaves the list; focus then goes to the row that took its place instead of
-falling to the page.
-
-The list's own element carries `data-row-scope`; a scope inside another (a
-board inside a page) owns its rows and the outer one leaves them alone.
-*/
+// The keyboard path through a task list: one Tab stop, arrows move between rows, and
+// rows handle Enter and Space themselves. After a completion, focus goes to the row that
+// took its place. A nested `data-row-scope` owns its own rows.
 import { useEffect, useRef } from 'react'
 
 const ROW = '[data-row-key]'
@@ -28,7 +15,7 @@ export function useRowKeys<T extends HTMLElement>(): React.RefObject<T | null> {
     let active: string | null = null
     let lastIndex = 0
     let inside = false
-    /* The id completed with Space, until the list has redrawn without it. */
+    // The id completed with Space, until the list has redrawn without it.
     let completing: string | null = null
     let completingTimer = 0
 
@@ -68,7 +55,7 @@ export function useRowKeys<T extends HTMLElement>(): React.RefObject<T | null> {
       const all = rows()
       const at = all.indexOf(row)
       if (event.key === ' ' && target === row) {
-        /* The row completes itself; this only remembers where it was. */
+        // The row completes itself; this only remembers where it was.
         completing = idOf(row)
         lastIndex = at
         window.clearTimeout(completingTimer)
@@ -83,7 +70,7 @@ export function useRowKeys<T extends HTMLElement>(): React.RefObject<T | null> {
       else if (event.key === 'Home') next = all[0]
       else if (event.key === 'End') next = all[all.length - 1]
       else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-        /* A board: the same place in the column beside this one. */
+        // A board: the same place in the column beside this one.
         const column = row.closest('[data-board-column]')
         if (column === null) return
         const columns: Element[] = []
@@ -115,8 +102,8 @@ export function useRowKeys<T extends HTMLElement>(): React.RefObject<T | null> {
         if (!root.contains(to)) inside = false
         return
       }
-      /* Focus went nowhere: a click on the page (it leaves the list), or the
-         focused row was removed (it stays, and the observer moves focus on). */
+      // Focus went nowhere: a click on the page (it leaves the list), or the focused row was
+      // removed (the observer moves focus on).
       const left = event.target as HTMLElement
       requestAnimationFrame(() => {
         if (left.isConnected && !root.contains(document.activeElement)) inside = false
@@ -131,7 +118,7 @@ export function useRowKeys<T extends HTMLElement>(): React.RefObject<T | null> {
       if (completing !== null) {
         const all = rows()
         const there = all[Math.min(lastIndex, all.length - 1)]
-        /* The completed row moved away or left: focus what is now in its place. */
+        // The completed row moved or left: focus what is now in its place.
         if (there !== undefined && idOf(there) !== completing) {
           completing = null
           focusRow(there)

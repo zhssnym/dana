@@ -1,8 +1,4 @@
-/* The line that shows where a dragged row would land, and where it is measured. */
-/*
-Where a folder arriving from another list would land, drawn as a line.
-Absolutely positioned, so nothing moves while it is shown.
-*/
+/* Absolutely positioned, so nothing moves while it is shown. */
 export function InsertLine({ top }: { readonly top: number }): React.JSX.Element {
   return (
     <span
@@ -13,10 +9,7 @@ export function InsertLine({ top }: { readonly top: number }): React.JSX.Element
   )
 }
 
-/**
- * Which slot in a container the pointer is proposing, and where the line goes.
- * Measured live, because the rows have been moving.
- */
+/** Measured live, because the rows have been moving. */
 export function proposalIn(
   zone: HTMLElement | null,
   y: number,

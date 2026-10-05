@@ -1,4 +1,3 @@
-// The Discussion sidebar's state on the folder page: the dock and its threads.
 import { useEffect } from 'react'
 
 import { closeChatDock, useChatDock } from '../../state/chat-dock.js'
@@ -15,13 +14,7 @@ export function useFolderDiscussion(
   readonly threadRows: readonly DiscussionListPage['discussions'][number][]
   readonly unreadThreads: boolean
 } {
-  /*
-  The Discussion sidebar (#546) shares the right edge with the sharing panel,
-  so opening one closes the other. Its button sits beside Team: one
-  collaboration surface, two entry points. It shows once the project has a
-  teammate, and stays while any thread exists, so removing teammates never
-  hides a conversation that already happened.
-  */
+  /* The dock shares the right edge with the Team panel, so opening one closes the other. */
   const dock = useChatDock()
   const dockOpen = dock !== null
   const threads = useDiscussions(headId, 'all', '')

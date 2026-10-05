@@ -1,35 +1,8 @@
 /*
-Team collaboration surface for the project header (#554).
-
-Team has two presentations over the same membership, invite and access data:
-a resizable sidebar that leaves the Work visible, and a full-page presentation
-for focused management. Switching presentation never remounts a second Team
-model, so member details, invite input and permissions stay in the same state.
-The presentation itself belongs to the active workspace tab (#569), while the
-selected member remains canonical URL state (`?member=`), which workspace tabs
-already preserve as part of their exact path.
-
-The field suggests connections who are not yet members. Invite always sends a
-page invite by address, picked connection or typed address alike: the server
-turns an invite to a connected address into an instant share (7.5), and the
-invite names its Access, which `POST /folders/:id/members` requires and
-`useAddFolderMember` does not send.
-
-Every gate here (`mayAdd`, `mayInvite`, `mayRemove`, from `lib/folder-authority`)
-only hides a control the server would refuse anyway (5.3, 5.4, 7.11). A member's
-Access is a picker on their row, and Remove sits under its presets rather than
-as a button on every row; the owner's row has neither. A member's line says what they may do (their
-Access), which is what an owner needs, not when they joined. Resend is shown
-only once it is allowed (24 hours after the last send); the server's 429 is the
-rule (r7: a disabled Resend was a dead control most of the time it was seen). The folder detail and
-the roster arrive as props from `FolderPage`. A member's name opens their details
-in the same surface (`MemberDetails`, #209), which reads that one member itself.
-
-The region keeps 9.1's "Sharing panel" accessible name for its existing shell
-contract; the visible surface is Team. Full-page Team uses a small route marker
-so the browser-history arrows can move between the Work+sidebar state and Team
-focus without creating a second workspace tab.
-*/
+ * The Team surface for a project: a non-modal sidebar or a full page over the same state. The open member lives
+ * in the URL (`?member=`); the presentation in `?team=full`. Gates only hide controls the server would refuse.
+ * The region keeps the "Sharing panel" name for the shell.
+ */
 import { useEffect, useId, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
@@ -68,25 +41,21 @@ import { PersonFace } from '../components/person-face.js'
 import { AccessMenu, InviteAccessPicker, MemberDetails } from './MemberDetails.js'
 import { ConfirmDialog, useConfirm } from './task-rows.js'
 
-/** 9.1's sections table for this page. */
+/** Spec 9.1's accessible name for this region. */
 const SHARING_PANEL = 'Sharing panel'
 
-/** 9.6: the one field's label and placeholder. */
 const NAME_OR_EMAIL = 'Name or email'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const TEAM_VIEW_PARAM = 'team'
 const TEAM_FULL_VALUE = 'full'
 
-/** Whether 5.2's resend window has passed, read off the invite itself. */
+/** Whether the 24-hour resend window has passed. */
 function resendable(lastSentAt: string): boolean {
   return Date.now() - Date.parse(lastSentAt) >= DAY_MS
 }
 
-/**
- * The confirm before removing a member, 9.6's own sentence, in one element:
- * AC-183 asserts it as a single text run.
- */
+/** One element: AC-183 asserts the sentence as a single text run. */
 function removeMemberConfirm(who: string, folder: string): string {
   return (
     `Remove ${who} from ${folder}? They lose access, and anything in this ` +
@@ -94,23 +63,17 @@ function removeMemberConfirm(who: string, folder: string): string {
   )
 }
 
-/** The address parameter naming the member whose details are open. */
 export const MEMBER_PARAM = 'member'
 
-/** Whether a dismissing event came from the top bar's back arrow: a press
- * on it, or focus moving to it (the sheet closes on focus-out). */
+/** Whether a dismissing event came from the top bar's back arrow (a press, or focus moving to it). */
 function pressedHistoryBack(event: Event): boolean {
   const target = event instanceof FocusEvent ? event.relatedTarget : event.target
   return target instanceof Element && target.closest('[data-history-back]') !== null
 }
 
 /**
- * Workspace-tab controls live outside this non-modal Sheet. They must switch
- * which tab is active without first dismissing and mutating the Team state on
- * the tab being left. History arrows are the same kind of workspace navigation:
- * Back/Forward changes the Team presentation route and must not dismiss Team
- * before the router gets to apply that history entry. The open-tab picker is
- * portaled, so its trigger, search input and result list are named explicitly.
+ * Workspace-tab controls and history arrows live outside this non-modal Sheet; they must not dismiss Team
+ * before the tab switch or history entry applies. The tab picker is portaled.
  */
 function workspaceTabInteraction(event: Event): boolean {
   const target = event instanceof FocusEvent ? event.relatedTarget : event.target
@@ -139,12 +102,7 @@ interface WorkspaceRect {
   readonly height: number
 }
 
-/**
- * A full Team surface is portaled to `body`, so it cannot inherit the sidebar
- * wrapper's width custom property. Measure the actual workspace instead: this
- * follows a resized/collapsed app sidebar and the shell's own responsive layout
- * without duplicating any of those widths here.
- */
+/** The full Team surface is portaled to `body`, so measure the workspace instead of reading the sidebar width. */
 function useWorkspaceRect(): WorkspaceRect | null {
   const [rect, setRect] = useState<WorkspaceRect | null>(null)
   useEffect(() => {
@@ -185,24 +143,19 @@ export function FolderSharingPanel({
   onTransfer,
 }: {
   readonly folder: GetFolderResponse
-  /** Step 8: people belong to the project, so the panel is the project's,
-   * whichever page opened it. Absent means `folder` is the project. */
+  /** People belong to the project. Absent means `folder` is the project. */
   readonly projectName?: string
-  /** 7.3's roster, which the suggestions are built from. Absent while it loads. */
+  /** Absent while it loads. */
   readonly connections: GetConnectionsResponse | undefined
-  /** The viewer's own Access facts (issue #228). Null while unknown, which
-   * withholds the administrative controls rather than flashing them. */
+  /** Null while unknown, which withholds the admin controls rather than flashing them. */
   readonly viewer: FolderViewerFacts | null
-  /** Who is looking: their own row is marked, and never offers Remove
-   * (leaving is the page menu's Leave project…). */
+  /** Their own row is marked and never offers Remove (they leave from the page menu). */
   readonly viewerId: string | null
   readonly onClose: () => void
-  /** The owner's hand-on, offered only where the viewer may (M4: from the "…"). */
   readonly onTransfer?: () => void
 }): React.JSX.Element {
   const mayRemove = viewer !== null && mayDraw(viewer, 'member.remove')
-  /* The server's own rule for its viewer_may_change_access, minus the owner
-     row, which never draws the picker. */
+  /* The server's rule for viewer_may_change_access; the owner row never draws the picker. */
   const mayChange = viewer !== null && mayDraw(viewer, 'member.access.change')
   const mayAdd = viewer !== null && mayDraw(viewer, 'member.add')
   const mayInvite = viewer !== null && mayDraw(viewer, 'invite.create')
@@ -219,9 +172,7 @@ export function FolderSharingPanel({
   const [active, setActive] = useState(-1)
   const [view, setView] = useTeamPresentation(folder.id)
   const surface = useRef<HTMLElement | null>(null)
-  /* The member whose details replace the lists (#209), or null for the lists.
-     It lives in the address (?member=) and opening one pushes an entry, so
-     the top bar's back arrow returns to the lists rather than leaving the page. */
+  /* The open member lives in the address and pushes an entry, so Back returns to the lists. */
   const [search, setSearch] = useSearchParams()
   const location = useLocation()
   const navigate = useNavigate()
@@ -263,18 +214,16 @@ export function FolderSharingPanel({
     }
   }
 
-  /* Browser Back/Forward is a first-class presentation control. Expanding
-     pushes `?team=full`; a POP back to the Work route restores the sidebar and
-     Forward returns to full page, all inside the same workspace tab. The route
-     is canonical for the presentation so a click only changes the URL; this
-     effect is the one place that applies that URL to tab-local Team state. */
+  /*
+   * `?team=full` is canonical for the presentation: a click only changes the URL, and this effect applies it.
+   * So Back and Forward switch between sidebar and full page in the same tab.
+   */
   useEffect(() => {
     if (routeFullPage === fullPage) return
     setView(routeFullPage ? 'full' : 'sidebar')
   }, [routeFullPage, fullPage, setView])
 
-  /* Moving between Team presentations keeps the same component and state;
-     focus follows the surface so keyboard interaction never stays behind it. */
+  /* Focus follows the surface when the presentation changes. */
   useEffect(() => {
     surface.current?.focus({ preventScroll: true })
   }, [view])
@@ -306,7 +255,7 @@ export function FolderSharingPanel({
       : []
   const showList = open && suggestions.length > 0
 
-  /* What pressing Invite does right now, or null for nothing. */
+  /* What pressing Invite does right now, or null. */
   const exact = invitable.find((entry) => entry.user.email.toLowerCase() === query)
   const target: string | null =
     mayAdd && pickedEmail !== null
@@ -335,12 +284,10 @@ export function FolderSharingPanel({
     setActive(-1)
     // A page invite must name its Access; folderInviteBody says which.
     invite.mutate(folderInviteBody(target, folder.id, inviteAccess))
-    // Each invite starts from the default again, so a Full control pick
-    // never carries over to the next person unasked.
+    // Each invite starts from the default, so a Full control pick never carries over.
     setInviteAccess(DEFAULT_INVITE_ACCESS)
   }
 
-  /* Remove someone else, after 9.6's confirm; `after` runs once confirmed. */
   function askRemove(userId: string, name: string, after?: () => void): void {
     confirm.ask(
       removeMemberConfirm(name, projectName ?? folder.name),
@@ -419,16 +366,13 @@ export function FolderSharingPanel({
     <Sheet
       open
       onOpenChange={(next, details) => {
-        /* Workspace-tab/history navigation hides or retargets Team through the
-           owning tab. Do not dismiss and mutate Team before that navigation. */
+        /* Tab or history navigation retargets Team through the owning tab; do not dismiss first. */
         if (!next && workspaceTabInteraction(details.event)) {
           details.cancel()
           return
         }
-        /* A press inside the confirm reads as outside this non-modal sheet;
-           Team stays open under it, whichever the answer. */
-        /* The top bar's back arrow, pressed with a member open, pops that
-           member's entry: the sheet stays, showing the lists again. */
+        /* A press inside the confirm reads as outside this non-modal sheet; Team stays open under it. */
+        /* The back arrow with a member open pops that entry; the sheet stays and shows the lists. */
         if (
           !next &&
           openMember !== null &&
@@ -443,9 +387,7 @@ export function FolderSharingPanel({
           onClose()
         }
       }}
-      /* Non-modal: Work remains usable beside the sidebar. Full page still uses
-         the same root/state, but is sized to the current workspace content
-         below the desktop tab strip instead of becoming a second tab. */
+      /* Non-modal: Work stays usable beside the sidebar. Full page uses the same root, sized to the workspace. */
       modal={false}
     >
       <SheetContent

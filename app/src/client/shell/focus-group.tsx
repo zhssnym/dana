@@ -1,10 +1,7 @@
 /*
-The sidebar's Focus group (round 8): a heading styled as Library's, a "+"
-that adds a list, and the viewer's lists in their own order. Drag a row to
-reorder it; its "…" hides a default (Today, Upcoming, Assigned) or removes an
-added list. Either one comes back from the "+". Assigned is neither drawn nor
-offered to a viewer with no page shared with anyone (M4, `focusRows`).
-*/
+ * The sidebar's Focus group: the viewer's lists in their order, a "+" to add, a "…" to hide or remove. Assigned
+ * is hidden for a viewer with no shared page (`focusRows`).
+ */
 import { useRef } from 'react'
 
 import { useBundle, useMultiMemberFolderIds } from '../api/queries.js'
@@ -47,22 +44,19 @@ export function FocusGroup({
   readonly lists: readonly FocusListKey[]
   readonly onChange: (next: readonly FocusListKey[]) => void
   readonly currentPath: string
-  /** The router link a row renders as (the sidebar's `routerLink`). */
   readonly link: (to: string) => React.ReactElement
 }): React.JSX.Element {
   const appearance = useBundle().data?.focus_appearance
   const shared = useMultiMemberFolderIds().size > 0
   const shown = focusRows(lists, shared)
-  /* A solo viewer's stored Assigned stays stored, only undrawn, so a reorder
-     or removal among the drawn rows carries it along unchanged. */
+  /* A solo viewer's stored Assigned stays stored, only undrawn, so reorders carry it along. */
   const hidden = lists.filter((key) => !shown.some((list) => list.key === key))
   const offers = focusOffers(lists).filter((offer) => shared || offer.key !== 'assignments')
   const sortable = useSortableList({
     count: shown.length,
     onLift: swallowNextClick,
     describe: (index) => shown[index]?.name ?? 'List',
-    /* Out of the sidebar: the row comes loose, and opens as a tab if it is
-       let go on the tab strip (`tab-drop.ts`). */
+    /* Dragged out of the sidebar, the row opens as a tab if released on the strip (`tab-drop.ts`). */
     onOver: (from, point) => sidebarDragOver(point, shown[from]?.path ?? null),
     onDropAt: (from, point) => sidebarDropAt(point, shown[from]?.path ?? null),
     onReorder: (from, to) => {
@@ -158,8 +152,7 @@ function FocusRow({
 }): React.JSX.Element {
   const menuTrigger = useRef<HTMLButtonElement>(null)
   const offset = state.offset
-  /* The Library row's drag look (`folder-row.tsx`): the carried row follows
-     the pointer with no easing; the rows it passes ease out of its way. */
+  /* The Library row's drag look: the carried row follows the pointer with no easing; passed rows ease aside. */
   const style: React.CSSProperties | undefined =
     offset === 0 && !state.isActive
       ? undefined

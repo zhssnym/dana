@@ -1,24 +1,6 @@
-/*
-9.8's People, drawn as Settings' People section (round 2: Settings is the home
-of every configuration; /app/people redirects to /app/settings#people). The roster with its removal control, the bare invite by
-email, and the sent bare invites still pending.
-
-The refusal an already-connected address earns is 7.5's 409, and its message is 9.8's copy character for character on
-the server side. So this page raises no message of its own: the mutation
-cache shows a 409's own text verbatim, which is 9.1's rule for conflicts and
-happens to be exactly what 9.8 asks a person to read here.
-
-The removal confirm is 9.8's own sentence and is transcribed.
-
-**This screen carries no incoming invite list**: the gate renders at every
-/app path while Q12 is non-empty, so the surface is `pages/InviteGate.tsx`.
-What this page carries is the other direction, the prototype's "Pending
-invitations": the viewer's own bare invites read from 7.5's GET /invites/sent, with the same Cancel and Resend the sharing
-panel gives a folder invite, so a sent invite is visible somewhere between
-sending and the day it is answered. Folder-scoped invites stay the sharing
-panel's; the filter below is what keeps one row from appearing on two
-surfaces.
-*/
+// Settings' People section: the roster, invite by email, and the viewer's pending bare
+// invites. A 409's server message is shown verbatim, so this raises none of its own.
+// Folder invites stay in the sharing panel.
 import { useRef, useState } from 'react'
 
 import { useCancelInvite, useCreateInvite, useRemoveConnection, useResendInvite } from '../../api/mutations.js'
@@ -33,11 +15,11 @@ import { PageBody } from '../page/PageStates.js'
 import { PersonFace } from '../person-face.js'
 import { StackingRow } from './screen.js'
 
-/** 9.8, verbatim: the confirm before a roster entry is removed. */
+/** Fixed copy (spec 9.8): the confirm before a roster entry is removed. */
 const REMOVE_CONNECTION =
   "Remove connection? You can still see shared pages; you'll just need a fresh invite to share new ones."
 
-/** 9.6: the tooltip on a resend refused inside the 24 hour window. */
+/** Tooltip on a resend refused inside the 24 hour window. */
 const RESENT_RECENTLY = 'Resent recently'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -57,15 +39,14 @@ export function PeopleSettings(): React.JSX.Element {
   const today = presenterToday()
   const trimmed = email.trim()
 
-  /* Bare invites only: a folder invite's home is 9.6's sharing panel. */
+  // Bare invites only: a folder invite belongs to the sharing panel.
   const pendingBare = (sent.data ?? []).filter(
     (row) => row.status === 'pending' && row.folder_id === null,
   )
   const connected = connections.data ?? []
 
   function sendInvite(): void {
-    /* The button stays pressable: an empty press puts you in the field
-       rather than being a grey button that does nothing. */
+    // An empty press focuses the field instead of greying out the button.
     if (trimmed === '') {
       field.current?.focus()
       return
@@ -75,7 +56,6 @@ export function PeopleSettings(): React.JSX.Element {
     invite.mutate({ email: trimmed })
   }
 
-  /* A person or a pending invite, both drawn as the one settings row. */
   return (
     <>
       {pendingBare.map((row) => {
@@ -137,7 +117,7 @@ export function PeopleSettings(): React.JSX.Element {
             label={entry.user.display_name ?? entry.user.email}
             description={`${entry.user.email} · since ${formatCompactDate(entry.connected_at.slice(0, 10))}`}
             control={
-              /* 9.8: "roster list with remove control". Either side may call it (7.3). */
+              // Either side may remove a connection.
               <Button
                 aria-label={`Remove connection with ${entry.user.display_name ?? entry.user.email}`}
                 onClick={() => {
@@ -151,8 +131,8 @@ export function PeopleSettings(): React.JSX.Element {
         ))}
       </PageBody>
 
-      {/* Rarely needed, so one row until it is used: the button opens the
-          field in place of itself. Esc or an empty blur folds it back. */}
+      {/* One row until used: the button opens the field in its place. Esc or an empty blur
+         folds it back. */}
       <StackingRow
         label="Invite by email"
         control={

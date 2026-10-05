@@ -1,23 +1,8 @@
 /*
-The sample workspace's client half: one hook the strip and the Settings row
-both call, so the undo and the sentence about kept folders are written once.
-The strip only keeps the sample; removing it is Settings' alone (M4).
-
-**"Keep it" is a dismissal local to the device**, in `localStorage`, on the
-same reasoning `StarterOffer.tsx` records for its own: the account keeps
-the sample either way, and the strip is furniture whose absence changes
-nothing on the server. The Settings row is the way back to the act from a
-device that dismissed it.
-
-**Removal asks first, and the undo bar is its second net.** Settings puts
-`SAMPLE_COPY.confirm` before `remove` (M4). The server leaves a
-sample page someone else holds, moves one the person wrote in to Trash with
-their writing, and names both back, so what the undo (POST /sample,
-idempotent: a bar pressed twice lands on one workspace) writes afresh sits
-beside nothing of the old sample in view. Removing the sample
-also answers the starter offer: a person who just said no to example content
-is not offered more of it (`StarterOffer.tsx`).
-*/
+ * The sample workspace hooks shared by the strip and the Settings row. "Keep it" is a per-device dismissal.
+ * Removal (Settings only, after a confirm) also dismisses the starter offer; undo is POST /sample, which is
+ * idempotent.
+ */
 import { useState } from 'react'
 
 import { useRemoveSample, useRestoreSample } from '../api/mutations.js'
@@ -64,7 +49,6 @@ export interface SampleActs {
   readonly present: boolean | undefined
   readonly counts: { tasks: number; folders: number } | undefined
   readonly busy: boolean
-  /** The strip has been dismissed on this device. */
   readonly kept: boolean
   readonly keep: () => void
   readonly remove: () => void

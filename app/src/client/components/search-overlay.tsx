@@ -1,9 +1,5 @@
-/*
-9.9's search overlay, in one file: the shell's opener and router wiring
-(`SearchOverlay`) over the dialog (`SearchDialog`). Results come from
-`lib/search-items.ts`; with nothing typed it offers the viewer's pages in
-Library order and the shortcuts sheet under Help.
-*/
+// The search overlay. Results come from `lib/search-items.ts`; with nothing typed it
+// offers the viewer's pages in Library order and the shortcuts sheet.
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { useNavigate } from "react-router"
 
@@ -43,43 +39,37 @@ import type { TaskState } from "./thread/timeline/state.js"
 
 export type SearchResultStatus = "pending" | "abandoned" | "completed"
 
-/* Four kinds: every kind Dana has that you can go to. */
 export type SearchResultKind = "task" | "folder" | "shelf" | "page"
 
 export type SearchResultItem = {
   kind: SearchResultKind
   id: string
   title: string
-  /* Everything else this result should match on, joined. */
+  // Everything else this result should match on, joined.
   haystack?: string
-  /* A task's folder, a page's place in the page tree. */
+  // A task's folder, or a page's place in the page tree.
   hint?: string
   status?: SearchResultStatus
   folder?: { name: string; color: string }
   dueDate?: string
-  /* The identity colour of a result that owns one. */
   color?: string
-  /* The glyph a result owns, or a passage's text glyph; absent means the
-     plain page glyph. */
+  // Absent means the plain page glyph.
   icon?: LucideIcon
-  /* How well it matched, best first (`lib/search-items.ts`'s `nameRank`);
-     absent means unranked, which sorts as a name match. */
+  // Match rank, best first (`nameRank`); absent sorts as a name match.
   rank?: number
-  /* A page's own prose that matched, not a page called that. */
+  // A page's own prose that matched, not a page called that.
   passage?: boolean
 }
 
 const statusOrder: SearchResultStatus[] = ["pending", "abandoned", "completed"]
 
-/* Kind decides the headings; status decides the order inside Tasks. A folder
-   is a page on screen, so both sit under Pages. A passage is not a page, so it
-   stands under its own heading. */
+// Kind decides the headings; status orders Tasks. A folder is a page on screen, so
+// both sit under Pages; passages get their own heading.
 type SearchGroup = "task" | "page" | "shelf" | "passage" | "help"
 
 const groupOrder: SearchGroup[] = ["task", "page", "shelf", "passage", "help"]
 
-/* Who wins when two kinds' best rows rank alike: a page or collection named
-   the query before a task that is, passages after both, Help last. */
+// Tie-break between kinds' best rows: pages, then collections, tasks, passages, Help.
 const groupTieOrder: Record<SearchGroup, number> = { page: 0, shelf: 1, task: 2, passage: 3, help: 4 }
 
 const groupLabels: Record<SearchGroup, string> = {
@@ -98,10 +88,9 @@ function groupOf(item: SearchResultItem): SearchGroup {
   return "page"
 }
 
-/* Short enough to feel immediate, long enough not to ask on every letter. */
 const SEARCH_DEBOUNCE_MS = 150
 
-/* With nothing typed: this many of the viewer's pages, in Library order. */
+// With nothing typed: this many of the viewer's pages, in Library order.
 const RECENT_LIMIT = 8
 
 const SHORTCUTS_ITEM: SearchResultItem = {
@@ -130,7 +119,7 @@ const statusLabels: Record<SearchResultStatus, string> = {
 }
 
 function StatusBadge({ status }: { status: SearchResultStatus }) {
-  /* Announced, not drawn: the StateMark beside the title already shows it. */
+  // Announced, not drawn: the StateMark beside the title already shows it.
   return <span className="sr-only">{statusLabels[status]}</span>
 }
 
@@ -150,7 +139,6 @@ function SearchSkeleton() {
   )
 }
 
-/* The viewer's pages as the Library orders them, capped. */
 function useLibraryPages(open: boolean): SearchResultItem[] {
   const folders = useFolders().data
   const shelves = useShelves(open).data
@@ -158,7 +146,7 @@ function useLibraryPages(open: boolean): SearchResultItem[] {
   return useMemo(() => {
     if (folders === undefined) return []
     const tree = buildTree(folders)
-    /* The Desk heads the Library, so it heads this list too. */
+    // The Desk heads the Library, so it heads this list too.
     const desk = folders.filter((folder) => folder.is_default)
     const roots = tree.roots.filter((folder) => !folder.is_default)
     return [
@@ -215,20 +203,20 @@ function SearchDialog({
     return () => window.clearTimeout(timeout)
   }, [query, debouncedQuery])
 
-  /* A title match ranks above a body match; `useSearchAnswer` does that. */
+  // A title match ranks above a body match; `useSearchAnswer` does that.
   const answer = useSearchAnswer(debouncedQuery, open)
   const libraryPages = useLibraryPages(open)
   const fresh =
     debouncedQuery === "" ? [...libraryPages, SHORTCUTS_ITEM] : answer.results
-  /* While the next answer is on its way the last one stays on screen, so
-     typing narrows the list rather than blanking it on every letter. */
+  // Keep the last answer on screen while the next one loads, so typing narrows the
+  // list instead of blanking it.
   const waiting = searching || answer.pending
   const shown = useRef<SearchResultItem[]>([])
   if (!waiting) shown.current = fresh
   const results = waiting ? shown.current : fresh
 
-  /* Inside a kind the better match leads; among tasks of one rank, Q8's
-     status order. The sort is stable, so equal rows keep the answer's order. */
+  // Inside a kind the better match leads; tasks of one rank follow status order.
+  // The sort is stable.
   const groupedResults = groupOrder.map((group) => ({
     kind: group,
     rows: results
@@ -241,12 +229,8 @@ function SearchDialog({
             : 0),
       ),
   }))
-  /* The kind whose first row matches best comes first, so the cursor, and
-     Enter, sit on the thing called what you typed rather than a task that
-     mentions it. The first row is the one each group shows first, so the
-     order and the cursor agree. Help ranks like any kind and is last only on
-     a tie. Before anything is typed nothing is ranked, so every kind ties and
-     they keep their fixed order: Pages, then Help. */
+  // The kind whose first row matches best comes first, so the cursor and Enter land on
+  // the thing named what you typed.
   const bestOf = (group: (typeof groupedResults)[number]): number =>
     group.rows[0]?.rank ?? Number.MAX_SAFE_INTEGER
   groupedResults.sort(
@@ -254,20 +238,18 @@ function SearchDialog({
   )
   const orderedResults = groupedResults.flatMap((group) => group.rows)
 
-  /* The cursor stays in sight: arrowing past the panel's edge scrolls it.
-     Only the keys scroll; a hover already has its row under the pointer. */
+  // Only arrow keys scroll the list; a hover already has its row under the pointer.
   const listRef = useRef<HTMLDivElement>(null)
   function moveTo(index: number) {
     setActiveIndex(index)
     const row = listRef.current?.querySelector<HTMLElement>(`#dana-search-result-${String(index)}`)
-    /* The first row's heading comes back into sight with it. */
+    // The first row's heading comes back into sight with it.
     if (index === 0 && listRef.current) listRef.current.scrollTop = 0
     else row?.scrollIntoView({ block: "nearest" })
   }
 
-  /* Only a pointer that actually moved takes the cursor. A new answer drawn
-     under a resting pointer can fire mouse events at the same spot, and those
-     must not pull the cursor off the first row. */
+  // Only a pointer that actually moved takes the cursor: a new answer under a resting
+  // pointer can fire mouse events at the same spot.
   const pointer = useRef<{ x: number; y: number } | null>(null)
   function pointerMoved(event: React.MouseEvent, index: number) {
     const last = pointer.current
@@ -276,8 +258,7 @@ function SearchDialog({
     if (index !== activeIndex) setActiveIndex(index)
   }
 
-  /* A new answer puts the cursor on its first row, and the list back at its
-     top, so the row Enter opens is the one in sight. */
+  // A new answer puts the cursor on its first row and scrolls the list to the top.
   useEffect(() => {
     if (waiting) return
     setActiveIndex(0)
@@ -289,8 +270,7 @@ function SearchDialog({
     onOpenResult(item.id, item.kind)
   }
 
-  /* Enter pressed before the answer for what was typed arrives waits for it,
-     rather than opening a row from the list the query has already left. */
+  // Enter before the answer arrives waits for it, rather than opening a stale row.
   const pendingEnter = useRef(false)
   useEffect(() => {
     if (waiting || !pendingEnter.current) return
@@ -320,7 +300,7 @@ function SearchDialog({
     event.preventDefault()
     if (waiting) {
       pendingEnter.current = true
-      /* Skip the rest of the debounce: the person has finished typing. */
+      // Skip the rest of the debounce: the person has finished typing.
       const trimmed = query.trim()
       if (trimmed !== debouncedQuery) setDebouncedQuery(trimmed)
       return
@@ -366,8 +346,7 @@ function SearchDialog({
             }
             className="h-[var(--row-height)] min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
-          {/* Full screen on a phone, where there is no Esc and no outside to
-              tap: the one way out. */}
+          {/* The one way out on a phone, which has no Esc and no outside to tap. */}
           <Button
             variant="ghost"
             size="sm"
@@ -410,16 +389,13 @@ function SearchDialog({
                         const Glyph = resultGlyph(item)
                         return (
                           <button
-                            /* Several block hits share their page's path as
-                               an id, so the position is what tells rows apart. */
+                            // Several block hits share their page's path as id, so the position keeps keys unique.
                             key={`${item.kind}:${item.id}:${String(itemIndex)}`}
                             id={`dana-search-result-${String(itemIndex)}`}
                             type="button"
                             data-focus="self"
-                            /* Focus stays in the field, so typing keeps
-                               refining: the rows are no Tab stops, and a
-                               press does not take focus from the field. The
-                               arrows move the cursor instead. */
+                            // Focus stays in the field so typing keeps refining: rows are not Tab stops and a
+                            // press does not take focus.
                             tabIndex={-1}
                             onMouseDown={(event) => event.preventDefault()}
                             onMouseMove={(event) => pointerMoved(event, itemIndex)}
@@ -430,7 +406,7 @@ function SearchDialog({
                             )}
                           >
                             {item.kind === "task" ? (
-                              /* The task's own state mark: a dropped task never wears the done check. */
+                              // The task's own state mark: a dropped task never shows the done check.
                               <StateMark state={STATE_OF[item.status ?? "pending"]} />
                             ) : (
                               <Glyph
@@ -442,12 +418,11 @@ function SearchDialog({
                             )}
                             <span className="min-w-0 truncate">{item.title}</span>
                             {item.hint ? (
-                              /* The hint keeps a share of a long row: a block
-                                 hit is useless without the page it is on. */
+                              // The hint keeps a share of a long row: a block hit is useless without its page.
                               <span
                                 className={cn(
                                   "max-w-[40%] shrink-0 truncate text-xs font-normal text-muted-foreground",
-                                  /* On a phone a passage's own text needs the room. */
+                                  // On a phone a passage's own text needs the room.
                                   item.passage && "max-md:max-w-[30%]",
                                 )}
                               >
@@ -477,8 +452,8 @@ function SearchDialog({
   )
 }
 
-/* Opened through `shell/overlays.ts`. The input gives up focus before the
-   dialog closes, because that seam refuses "/" while an input is focused. */
+// Opened through `shell/overlays.ts`. Blur the input before closing, because that
+// seam ignores "/" while an input is focused.
 export function SearchOverlay(): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
@@ -493,12 +468,12 @@ export function SearchOverlay(): React.JSX.Element {
     setOpen(next)
   }
 
-  /* Ctrl+K a second time backs out, as the same chord does elsewhere. */
+  // Ctrl+K a second time closes it.
   useEffect(() => onOpenSearch((toggle) => change(!(toggle && openRef.current))), [])
 
   return (
     <SearchDialog
-      /* Remounted per opening, so the query and the cursor start empty. */
+      // Remounted per opening, so the query and cursor start empty.
       key={open ? "open" : "closed"}
       open={open}
       onOpenChange={change}
@@ -509,8 +484,8 @@ export function SearchOverlay(): React.JSX.Element {
         else if (kind === "shelf") void navigate(paths.shelf(id))
         else {
           void navigate(id)
-          /* A passage on the page already open: a pushed hash fires no
-             hashchange, and `useBlockAnchor` listens for one. */
+          // A passage on the page already open: a pushed hash fires no hashchange, and
+          // `useBlockAnchor` listens for one.
           if (id.includes("#block-")) {
             window.setTimeout(() => window.dispatchEvent(new HashChangeEvent("hashchange")), 0)
           }

@@ -1,10 +1,6 @@
 /*
-"Referenced from" (issue #214) and #488's two facet-reference forms.
-
-Dana Links keep the reciprocal backlink reads below. #488 additionally gives a
-whole persisted block an explicit, project-local facet relation, which is what
-media/file blocks need because they cannot hold an inline chip. The two forms
-converge only in Connected work; an adjacent block is never inferred.
+"Referenced from" backlink reads, plus explicit block-to-facet relations within
+a project (for media blocks, which cannot hold an inline link).
 */
 import type { Request, Response, Router } from 'express'
 
@@ -62,10 +58,8 @@ export function createBacklinksRouter(
     )
   }
 
-  /* Query/body ids are deliberate: the project relationship has two ids and
-     no resource is naturally subordinate to the other. These paths therefore
-     do not pretend that a block "lives under" a facet. Their authorization is
-     explicit below and measured by #488's acceptance tests. */
+  /* These take ids from the query and body (two peers, neither subordinate),
+     so the ac-397 sweep cannot see them; each authorizes explicitly below. */
   router.get(
     '/block-facets',
     requireSession,

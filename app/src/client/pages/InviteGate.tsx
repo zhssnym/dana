@@ -1,13 +1,7 @@
 /*
-9.8's pending invites: quiet rows at the top of the page column on every /app
-path while Q12 is non-empty. The app stays usable around them; the shell
-(`shell/app-shell.tsx`) mounts this above the page and only when there are rows.
-
-Each row is a list item named by its own sentence ("Hassan invited you to
-Wedding", or "... to connect"), which is how a reader and AC-172 tell one
-Accept from another. Accepting a page invite lands inside that page. The rows
-arrive as a prop; nothing here fetches.
-*/
+ * Pending invites (spec 9.8): quiet rows above the page on every /app path. Each row is named by its sentence
+ * (AC-172).
+ */
 import { useNavigate } from 'react-router'
 
 import type { PendingInvite } from '../../shared/invites.js'
@@ -20,7 +14,6 @@ import { PersonFace } from '../components/person-face.js'
 export function InviteGate({
   invites,
 }: {
-  /** Q12's rows, read by the shell that mounts this. */
   readonly invites: readonly PendingInvite[]
 }): React.JSX.Element {
   const accept = useAcceptInvite()
@@ -45,7 +38,7 @@ export function InviteGate({
               initials={row.initials}
               image={row.image ?? null}
             />
-            {/* 9.8's sentence as one text run. */}
+            {/* Spec 9.8's sentence as one text run. */}
             <p className="min-w-0 flex-1 truncate text-sm text-foreground">{row.sentence}</p>
             <Button
               variant="ghost"
@@ -61,7 +54,7 @@ export function InviteGate({
               onClick={() => {
                 accept.mutate(row.id, {
                   onSuccess: (result) => {
-                    // 7.5 answers the page for a page invite, null for a bare one.
+                    // The server answers the page for a page invite, null for a bare one.
                     if (result.folder !== null) {
                       void navigate(paths.folder(result.folder.id))
                     }

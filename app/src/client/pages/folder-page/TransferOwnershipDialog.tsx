@@ -1,4 +1,3 @@
-// The transfer-ownership dialog: pick a member with Full control to hand the page to.
 import type { useTransferOwnership } from '../../api/mutations.js'
 import { Button } from '../../components/ui/button.js'
 import {
@@ -16,25 +15,8 @@ import { eligibleSuccessors } from '../../lib/folder-authority.js'
 import { showToast } from '../../state/toasts.js'
 import type { FolderMember } from '../../../shared/folders.js'
 
-/*
-9.6: an owner with other members leaves only by transferring first.
-
-**The list is every member who currently holds Full control, and the
-dialog says so.** Joining first is not evidence that anybody intended you
-to hold custody, and the server answers a target below Full control `422
-to: must be a member of this folder who currently has Full control`.
-
-**There is no default and nothing is sorted**, because no rule would order
-them: the roster's own order is used, which is the order the Share panel
-this person just came from shows. A single candidate is picked
-already, since there is nothing to choose between.
-
-**An empty list is a sentence and not an empty box.** A folder can be full
-of people and have nobody eligible, and that person's next step — give
-somebody Full control in Share, then come back — is not something an empty
-picker communicates. The wording follows the server's own refusal copy,
-"This folder would be left with nobody in Full control".
-*/
+/* Only members with Full control are offered; the server answers anyone else 422.
+   Roster order, no default; a single candidate is picked already. */
 export function TransferOwnershipDialog({
   transferOpen,
   setTransferOpen,
@@ -60,13 +42,9 @@ export function TransferOwnershipDialog({
   readonly transfer: ReturnType<typeof useTransferOwnership>
   readonly setSharing: (next: boolean) => void
 }): React.JSX.Element {
-  /* Ownership passes only to a member who *currently* holds Full control, and
-     there is no default successor; offering anyone else would be offering a
-     choice the server answers 422. */
   const successors = eligibleSuccessors(members, viewerId)
-  /* Who the transfer goes to: the pick while they still qualify, or the only
-     candidate when nothing has been picked yet. A pick that lost Full control
-     on a refetch leaves nothing selected; it never falls onto someone else. */
+  /* A pick that loses Full control on a refetch leaves nothing selected;
+     it never falls onto someone else. */
   const heir =
     transferTo === null
       ? successors.length === 1
@@ -105,8 +83,7 @@ export function TransferOwnershipDialog({
           </DialogFooter>
         ) : (
           <>
-            {/* Picking a name only selects it: handing the page over is
-                the footer's one button, which says so. */}
+            {/* Picking a name only selects it; the footer button transfers. */}
             <div role="group" aria-label="New owner" className="flex flex-col gap-[var(--space-row)]">
               {successors.map((member) => {
                 const name = member.user.display_name ?? 'Someone'

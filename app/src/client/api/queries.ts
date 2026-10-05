@@ -1,18 +1,7 @@
 /*
-Every read this client makes, one hook per surface.
-
-The convention this file exists to establish: **a page declares its data
-dependency by calling exactly one hook from here, and nothing below a page
-fetches anything.** Components take rows as props and callbacks as props. That
-is 11.4's "data fetching belongs to the query layer alone" read as a rule about
-where a `useQuery` may appear, and it is what keeps a component reusable
-between the two pages that render it.
-
-Every hook here is `getView` or `getPlain` from `http.ts`, so the tz rule of
-7.0 is decided by which of the two an endpoint takes rather than by anyone
-remembering. The split is 7.0's own: view endpoints evaluate dates and take
-tz, the roster and the folder list and settings do not and carry none.
-*/
+ * Every read this client makes. A page calls one hook from here; nothing below a page fetches (spec 11.4). View
+ * endpoints use `getView` (with tz); everything else uses `getPlain`.
+ */
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import type { QueryClient, UseInfiniteQueryResult, UseQueryResult } from '@tanstack/react-query'
 
@@ -97,10 +86,8 @@ export function useFolders(): UseQueryResult<GetFoldersResponse> {
 }
 
 /**
- * Every page the viewer is in, a project's tabs included (`?tabs=1`, step 7).
- * The plain list keeps the Library's shape (roots only, a page under a tab
- * listed under its project); the tab row reads its tabs from this one
- * (`projectTabs`).
+ * Every page, a project's tabs included. The plain list keeps the Library's shape; the tab row reads tabs from
+ * this one.
  */
 export function useAllPages(enabled = true): UseQueryResult<GetFoldersResponse> {
   return useQuery({
@@ -110,17 +97,7 @@ export function useAllPages(enabled = true): UseQueryResult<GetFoldersResponse> 
   })
 }
 
-/**
- * The accessible folders holding more than one member.
- *
- * Q3's "unassigned" chip is conditional on the folder having more than one
- * member, and 7.0's TaskCard carries the {id, name, is_default} folder stub
- * rather than the Folder object, deliberately: a group heading needs what a
- * card's label needs and no more. member_count is on the Folder object, which
- * is the folder list the chrome already reads, so the condition is answered
- * from a query that is in the cache on every page rather than from a second
- * request or from a widened response shape.
- */
+/** Read from the folder list, which every page already holds: a task card's folder stub has no member_count. */
 export function useMultiMemberFolderIds(): ReadonlySet<string> {
   /* Every page, tabs included: a task on a Work or Doc tab names its page. */
   const folders = useAllPages()
@@ -131,11 +108,7 @@ export function useMultiMemberFolderIds(): ReadonlySet<string> {
 
 export function useFolder(
   id: string,
-  /* Off where the caller has no folder yet, which is what an assignee picker
-     mounted before its task is known has. Without it the query fires at
-     `/folders/`, and a trailing slash is not a 404 here, it is the list
-     endpoint answering an array this shape refuses. The default keeps every
-     existing call site as it was, which is `useShelves`'s own arrangement. */
+  /* Off until the caller has a folder: `/folders/` would hit the list endpoint and fail this schema. */
   enabled = true,
 ): UseQueryResult<GetFolderResponse> {
   return useQuery({
@@ -159,12 +132,7 @@ export function usePendingInvites(): UseQueryResult<GetInvitesPendingResponse> {
   })
 }
 
-/**
- * GET /invites/sent, 7.5: the viewer's own invites, newest first, any status.
- * The People screen shows the pending subset so a bare invite is visible
- * somewhere after it is sent, the way a folder invite is visible in the sharing
- * panel.
- */
+/** The People screen shows the pending subset, so a bare invite stays visible after it is sent. */
 export function useSentInvites(): UseQueryResult<GetInvitesSentResponse> {
   return useQuery({
     queryKey: queryKeys.sentInvites(),
@@ -172,18 +140,13 @@ export function useSentInvites(): UseQueryResult<GetInvitesSentResponse> {
   })
 }
 
-/** What a Focus list asks GET /views/focus for (shared/views.ts `focusQuery`). */
 export interface FocusAsk {
   readonly when: FocusWhen
   readonly important?: boolean
   readonly group: FocusGroup
 }
 
-/**
- * GET /views/focus: the one query behind Today, Upcoming, Assigned and the
- * lists a viewer adds. The server filters and groups; a page draws the
- * groups it is given.
- */
+/** The one query behind Today, Upcoming, Assigned and custom lists. The server filters and groups. */
 export function useFocusView(ask: FocusAsk): UseQueryResult<GetFocusResponse> {
   const important = ask.important === true ? 'true' : 'false'
   return useQuery({
@@ -200,48 +163,17 @@ export function useAllView(): UseQueryResult<GetAllResponse> {
   })
 }
 
-/**
- * A day-grouped page of completed rows, which is the shape Q6 answers and the
- * shape Q7's third section answers, one page at a time.
- *
- * The two hooks below are one function because section 6 says they are one
- * query: "Completed: Q6 predicate, order, and pagination, folder_id = F". 7.10:
- * a cursor's kind names the order it pages rather than the endpoint that issued
- * it, so the same cursor is legal at both endpoints. One hook body for one
- * order is that sentence as code.
- */
+/** Done and a folder's Completed section share one query and cursor format (spec 6, 7.10). */
 type CompletedPage = GetDoneResponse
 
-/**
- * The cursor rules of 7.10, in the three lines a client owes them.
- *
- * A cursor is opaque, so `undefined` is the first page and every later page is
- * the previous response's `next_cursor` handed back byte for byte; nothing
- * here reads a character of it. A null `next_cursor` is the only end-of-list
- * signal, and returning `undefined` for it is what tells TanStack Query there
- * is no next page: an empty final page is not an end signal and would leave a
- * "load more" control offering a page that does not exist.
- */
+/** Cursors are opaque. Only a null `next_cursor` ends the list; an empty page does not. */
 function nextPageParam(page: CompletedPage): string | undefined {
   return page.next_cursor ?? undefined
 }
 
 /**
- * The pages of a completed list, flattened back into the day groups 9.5 and
- * 9.6 render.
- *
- * A day is not a page. Q6 pages by 50 rows on (completed_at desc, id desc) and
- * groups for display by the completed date, so a busy day spans two pages and
- * arrives as two groups carrying one date. Concatenating the pages' `days`
- * arrays would render that day's heading twice with the rows split under it,
- * which is 9.1's region table broken as well: Done's regions are named by the
- * day each one groups, and two regions cannot carry one name.
- *
- * Merging by date is safe rather than a re-sort, which section 6's preamble
- * forbids. The pages arrive in the server's own order and each page's days are
- * in it, so a date's second appearance is always immediately after its first
- * across the seam; this appends within the existing group and never reorders
- * either the days or the rows inside one.
+ * Pages can split one day across a seam, so merge groups with the same date. The pages arrive in server order,
+ * so this appends and never re-sorts.
  */
 export interface CompletedDay {
   readonly date: string
@@ -267,23 +199,9 @@ export function mergeCompletedDays(
   return order.map((date) => ({ date, rows: byDate.get(date) ?? [] }))
 }
 
-/**
- * Done, as the infinite scroll 9.5 asks for.
- *
- * `useInfiniteQuery` rather than a page-index scheme because Q6 is keyset
- * paginated: there is no page two to ask for, only the position the last
- * response reported. The pages accumulate in the cache, so 8.3's unfiltered
- * invalidation refetches every page a person has scrolled through rather than
- * dropping them back to the first, which is what keeps a completion made in
- * another tab from moving the ground under them.
- */
+/** `useInfiniteQuery` because the list is keyset paginated. Invalidation refetches every loaded page. */
 export function useDoneView(
-  /**
-   * False while All's collapsed "Completed" section is closed (9.5). The Done
-   * page itself always wants this and passes nothing; a section that fetched
-   * while collapsed would make the collapse cosmetic, which is the same rule
-   * `useFolderCompletedTasks` follows for Q7's third section.
-   */
+  /** False while All's Completed section is collapsed, so the collapse saves the fetch. */
   enabled = true,
 ): UseInfiniteQueryResult<{ readonly pages: readonly CompletedPage[] }, Error> {
   return useInfiniteQuery({
@@ -321,26 +239,14 @@ export function useFolderCompletedTasks(
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextPageParam,
-    // Q7 renders the Completed section collapsed, and a collapsed section that
-    // fetched anyway would make the collapse cosmetic. AC-058 reads the
-    // control's expanded state; this is what that state controls.
+    // The Completed section starts collapsed; it fetches only when expanded (AC-058).
     enabled,
   })
 }
 
 /**
- * Q3C's range, which the calendar of 9.5 asks for and this hook carries.
- *
- * The range is the client's to choose and Q3C answers whatever it receives;
- * 9.5 fixes the month zoom's at the whole six weeks overlapping the month,
- * which is 42 days and never approaches Q3C's 62-day refusal. The dates are
- * part of the key rather than of the hook's identity, so changing zoom or
- * paging a month is a different cache entry rather than a refetch of the same
- * one, and going back to a month already seen is answered from the cache.
- *
- * Disabled while the range is unknown: the calendar reports its own dates
- * after it has laid them out, so the first render has none, and a request
- * without start and end is a 422 naming the pair.
+ * The dates are part of the key, so a range already seen is answered from the cache. Disabled until the
+ * calendar reports its range; a request without start and end is a 422.
  */
 export function usePlannedCalendarView(
   start: string | null,
@@ -359,14 +265,6 @@ export function usePlannedCalendarView(
   })
 }
 
-/**
- * One task in full, which 9.3's edit mode pre-fills from.
- *
- * `getPlain` rather than `getView`: 7.0 scopes its tz sentence to the view
- * endpoints, and GET /tasks/:id evaluates no date. It answers TaskDetail,
- * whose eight extra fields over TaskCard are exactly what the form needs and
- * no list response carries: notes, the rule, the reminder and the steps.
- */
 /** Starts `useTask`'s read early (a row pressed or hovered), so a peek opens
  * on data already here. Fresh reads within a few seconds are not repeated. */
 export function prefetchTask(client: QueryClient, id: string): void {
@@ -385,7 +283,6 @@ export function useTask(id: string | null): UseQueryResult<TaskDetail> {
   })
 }
 
-/** 7.25's read of one task's dependencies, both directions (#225). */
 export function useTaskDependencies(id: string | null): UseQueryResult<TaskDependencies> {
   return useQuery({
     queryKey: queryKeys.taskDependencies(id ?? ''),
@@ -394,8 +291,7 @@ export function useTaskDependencies(id: string | null): UseQueryResult<TaskDepen
   })
 }
 
-/** 7.24's picker search; `folder` makes that Folder's matches lead. Disabled
- * below `searchQ`'s two characters, which the server would refuse. */
+/** `folder` makes that Folder's matches lead. Disabled below two characters, which the server refuses. */
 export function useReferenceSearch(
   q: string,
   folder: string | null,
@@ -413,11 +309,6 @@ export function useReferenceSearch(
   })
 }
 
-/**
- * The 9.9 overlay's results. The overlay itself is the Complex Interaction
- * engineer's; this is the read it consumes, here because every read in this
- * client is here.
- */
 export function useSearch(q: string, enabled: boolean): UseQueryResult<GetSearchResponse> {
   return useQuery({
     queryKey: [...queryKeys.view('search'), q],
@@ -426,18 +317,7 @@ export function useSearch(q: string, enabled: boolean): UseQueryResult<GetSearch
   })
 }
 
-/* ------------------------------------------------------------------ *
- * Settings, events
- * ------------------------------------------------------------------ */
-
-/**
- * The person's bundle of 4.19, and the client's only settings read.
- *
- * It owns the pin list that 7.2's three page flags derive into when nobody has
- * written pins yet, so the sidebar reads this one: the pin list is what decides
- * which entries exist. The flags still exist on the server and still derive,
- * and this client never asks for them on their own.
- */
+/** The only settings read. It holds the pin list, which decides which sidebar entries exist. */
 export function useBundle(): UseQueryResult<GetSettingsResponse> {
   return useQuery({
     queryKey: queryKeys.bundle(),
@@ -445,7 +325,6 @@ export function useBundle(): UseQueryResult<GetSettingsResponse> {
   })
 }
 
-/** Item 60: whether the sample workspace is present, and how big it is. */
 export function useSample(): UseQueryResult<SampleStatus> {
   return useQuery({
     queryKey: queryKeys.sample(),
@@ -453,13 +332,7 @@ export function useSample(): UseQueryResult<SampleStatus> {
   })
 }
 
-/**
- * The viewer's shelves (7.16), the Library block's groups.
- *
- * `enabled` exists because the chrome reads this only to put a name on a
- * shelf's tab, and a request every page pays for so that one kind of tab can
- * be labelled is a request most pages do not need.
- */
+/** `enabled` lets the chrome skip this read on pages with no shelf tab to label. */
 export function useShelves(enabled = true): UseQueryResult<GetShelvesResponse> {
   return useQuery({
     queryKey: queryKeys.shelves(),
@@ -468,12 +341,6 @@ export function useShelves(enabled = true): UseQueryResult<GetShelvesResponse> {
   })
 }
 
-/**
- * The 7.13 Trash listing, which 9.11 draws as one page.
- *
- * No tz: the endpoint evaluates no calendar date, it reports instants, and
- * 7.0's split is what decides that rather than habit.
- */
 export function useTrash(): UseQueryResult<GetTrashResponse> {
   return useQuery({
     queryKey: queryKeys.trash(),
@@ -481,14 +348,7 @@ export function useTrash(): UseQueryResult<GetTrashResponse> {
   })
 }
 
-/**
- * The recent events of one thing (7.12), which the window bar's Activity line
- * and the history surfaces read.
- *
- * `subject` is 4.13's `kind:id` reference. Disabled for a null subject rather
- * than called with a placeholder, because a place page has no history of its
- * own and asking for one would be a 404 the bar then has to ignore.
- */
+/** `subject` is a `kind:id` reference. Disabled for null: a place page has no history and would answer 404. */
 export function useSubjectEvents(subject: string | null): UseQueryResult<GetEventsResponse> {
   return useQuery({
     queryKey: queryKeys.events(subject ?? ''),
@@ -497,10 +357,6 @@ export function useSubjectEvents(subject: string | null): UseQueryResult<GetEven
   })
 }
 
-/**
- * 7.12's other read: everything that happened inside one folder, newest first,
- * for the folder's History sheet.
- */
 export function useFolderEvents(folderId: string | null): UseQueryResult<GetEventsResponse> {
   return useQuery({
     queryKey: queryKeys.events(`folder-scope:${folderId ?? ''}`),
@@ -509,23 +365,15 @@ export function useFolderEvents(folderId: string | null): UseQueryResult<GetEven
   })
 }
 
-/* ------------------------------------------------------------------ *
- * Pages, shelves, notifications, threads
- * ------------------------------------------------------------------ */
-
-/** One shelf's identity (7.16), which its page's head renders. */
 export function useShelf(id: string, enabled = true): UseQueryResult<Shelf> {
   return useQuery({
     queryKey: queryKeys.shelf(id),
     queryFn: () => getPlain(shelf, `/shelves/${id}`),
-    /* Off where the caller holds no shelf, which `lib/page-identity.ts` does
-       on every page that is not a shelf's, the same arrangement `useFolder`
-       has for the folder half. */
+    /* Off where the caller holds no shelf (`lib/page-identity.ts` on non-shelf pages). */
     enabled,
   })
 }
 
-/** A folder page's block list (7.16, 4.17), which 9.6 draws. */
 export function useFolderPage(id: string, enabled = true): UseQueryResult<GetPageResponse> {
   return useQuery({
     queryKey: queryKeys.folderPage(id),
@@ -534,7 +382,6 @@ export function useFolderPage(id: string, enabled = true): UseQueryResult<GetPag
   })
 }
 
-/** A shelf page's block list (7.16), which 9.10 draws. */
 export function useShelfPage(id: string): UseQueryResult<GetPageResponse> {
   return useQuery({
     queryKey: queryKeys.shelfPage(id),
@@ -542,14 +389,7 @@ export function useShelfPage(id: string): UseQueryResult<GetPageResponse> {
   })
 }
 
-/**
- * The viewer's notifications (7.12), which the 9.12 bell renders.
- *
- * `poll`: the bell polls every twenty seconds while the app's tab is visible
- * (r7: a bell that only moved on focus missed every mention), and TanStack
- * pauses the interval in a hidden tab, so an idle Dana in a background tab
- * costs the server nothing.
- */
+/** `poll`: the bell polls every twenty seconds; TanStack pauses intervals in a hidden tab. */
 export function useNotifications(poll: boolean): UseQueryResult<GetNotificationsResponse> {
   return useQuery({
     queryKey: queryKeys.notifications(),
@@ -558,18 +398,7 @@ export function useNotifications(poll: boolean): UseQueryResult<GetNotifications
   })
 }
 
-/**
- * GET /place-covers (7.19): the covers this viewer has given Dana's own
- * place pages, one entry per place they chose one for.
- *
- * One query for the whole set, and it is 4.20's own shape rather than a
- * convenience: the table's primary key is `(user_id, place)` and its only
- * read is one viewer's covers, so the page that wants Today's cover reads
- * the same response as the page that wants Done's. It is unconditional
- * because every place page mounts the head that draws one, and a cover the
- * head has to wait a request for is a band that appears after the page has
- * already settled.
- */
+/** One query for the whole set: the only read is one viewer's covers, and every place page draws one. */
 export function usePlaceCovers(): UseQueryResult<GetPlaceCoversResponse> {
   return useQuery({
     queryKey: queryKeys.placeCovers(),
@@ -577,10 +406,7 @@ export function usePlaceCovers(): UseQueryResult<GetPlaceCoversResponse> {
   })
 }
 
-/**
- * A person's wording for Dana's native pages. The response is dense, so a
- * missing sentence is always `null` and means "show Dana's friendly default".
- */
+/** The response is dense: a missing sentence is `null`, meaning "show Dana's default". */
 export function usePlaceDescriptions(
   enabled = true,
 ): UseQueryResult<GetPlaceDescriptionsResponse> {
@@ -591,7 +417,6 @@ export function usePlaceDescriptions(
   })
 }
 
-/** GET /discussions/:id (7.27): one Discussion, for its Folder id and state. */
 export function useDiscussion(id: string, enabled = true): UseQueryResult<Discussion> {
   return useQuery({
     queryKey: queryKeys.discussion(id),
@@ -600,7 +425,6 @@ export function useDiscussion(id: string, enabled = true): UseQueryResult<Discus
   })
 }
 
-/** One member of a page, for the sharing panel's member details (#209). */
 export function useFolderMember(
   folderId: string,
   userId: string,
@@ -616,10 +440,7 @@ export type MemberHistoryEntry =
   | { readonly kind: 'access'; readonly entry: FolderAccessHistoryEntry }
   | { readonly kind: 'responsibility'; readonly entry: ResponsibilityHistoryEntry }
 
-/**
- * A member's Access and Responsibility history as one list, newest first. The
- * two records stay separate on the server (#230); the panel reads them as one.
- */
+/** Access and Responsibility history merged into one list, newest first. */
 export function useFolderMemberHistory(
   folderId: string,
   userId: string,

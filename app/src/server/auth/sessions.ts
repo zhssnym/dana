@@ -1,15 +1,7 @@
 /*
-The sessions table of 10.1, which fixes four facts this module writes to: the
-table name, user_id cascading from users(id), expires_at timestamptz reset to
-30 days out by every authenticated request, and token_hash, the primary key,
-holding the lowercase hex sha256 digest of the cookie's token.
-
-The order inside resolveSession is the whole of AC-113's sharpest case. An
-implementation that rolls the expiry and then checks it renews the row it is
-about to reject, so an abandoned session never dies and the 30-day rule
-silently becomes forever. Writing the check into the UPDATE's own WHERE clause
-makes the wrong order unexpressible rather than merely avoided: the statement
-extends a row only if that row is still live, and returns nothing otherwise.
+Sessions (10.1): token_hash is the sha256 hex of the cookie token. Expiry is
+checked in the same UPDATE that rolls it, so an expired session can never be
+renewed (AC-113).
 */
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
@@ -28,20 +20,11 @@ async function query(db: Db, statement: SQL): Promise<Record<string, unknown>[]>
   return result.rows
 }
 
-/*
-The deadline is computed by the database rather than by this process, because
-the predicate that tests it is the database's now(). Mixing the two clocks
-would make every session longer or shorter than 30 days by whatever the skew
-between the application host and the Postgres host happens to be, silently and
-in whichever direction.
-*/
+/* now() on the database side, matching the predicate, so clock skew never
+   shortens or lengthens sessions. */
 const expiry = sql.raw(`now() + interval '${String(SESSION_TTL_DAYS)} days'`)
 
-/**
- * Issues a fresh identifier and stores only its digest. The raw token is the
- * return value and is never written anywhere: it exists in the response
- * cookie and nowhere else (10.1).
- */
+/** Stores only the token's digest; the raw token lives only in the cookie. */
 export async function createSession(
   db: Db,
   userId: string,
@@ -57,11 +40,7 @@ export interface ResolvedSession {
   userId: string
 }
 
-/**
- * Authenticates a token and rolls its expiry in one statement. Returns null
- * for an unknown, malformed, or expired identifier, and an expired row is
- * left exactly as it was.
- */
+/** Authenticates and rolls the expiry in one statement; an expired row is left unchanged. */
 export async function resolveSession(
   db: Db,
   token: string,
@@ -94,10 +73,7 @@ export async function destroySession(db: Db, token: string): Promise<void> {
   )
 }
 
-/**
- * Account deletion: every session at once, and immediately (8.10 step 8).
- * 11.6 is explicit that revocation never waits for the pruning pass.
- */
+/** Account deletion: every session at once (8.10 step 8). */
 export async function destroyAllSessionsForUser(
   db: Db,
   userId: string,
@@ -105,11 +81,7 @@ export async function destroyAllSessionsForUser(
   await db.execute(sql`DELETE FROM sessions WHERE user_id = ${userId}`)
 }
 
-/**
- * The opportunistic hygiene of 11.6, called by the scheduler pass (11.7). It is hygiene and not revocation: every path that
- * revokes does so by deleting rows itself, and resolveSession already refuses
- * an expired row this has not reached yet.
- */
+/** Hygiene for the scheduler, not revocation: resolveSession already refuses expired rows. */
 export async function pruneExpiredSessions(db: Db): Promise<number> {
   const rows = await query(
     db,

@@ -1,32 +1,9 @@
 /*
-The photo tier's server half (7.15's cover routes).
-
-10.8's CSP sends `img-src 'self' data:` and `connect-src 'self'`, so a
-client-side picker's search request could never leave the page and no
-third-party thumbnail could paint. No client-side workaround exists — the photograph's bytes sit on a host that sends no CORS
-header. So the server does the fetching, and the CSP does not move an inch:
-
-- GET  /covers/photos?q=          — proxies the Openverse search, and
-  rewrites every thumbnail to the route below, so the grid paints from
-  'self'.
-- GET  /covers/photos/:id/thumb   — streams one Openverse thumbnail by its
-  uuid. The id is validated as a uuid and the upstream path is built here,
-  never taken from the client, which is what keeps this from being an open
-  proxy.
-- POST /folders/:id/cover/photo   — downloads the chosen photograph
-  server-side and hands the bytes to the same `createFile` the upload tier
-  uses: same membership check, same downscale, same quota, same 413. The
-  client then PATCHes `cover_file_id` exactly as it does after an upload, so
-  the cover a person ends up wearing is a file this origin serves — which is
-  also what dissolves 10.6's precache objection, B8's original ground.
-- POST /covers/photo               — the same act for a page that is not a
-  folder, added for issues #20 and #100. The stored file has no folder and is
-  the caller's alone, which is what lets a shelf and a place page wear a
-  photograph.
-
-Openverse (api.openverse.org) needs no key and no account. `OPENVERSE_BASE`
-exists so the contract test can stand a stub upstream; production never sets
-it.
+Cover photos from Openverse, fetched by the server so the CSP never widens:
+search (thumbnails rewritten to our origin), a thumbnail proxy (upstream path
+built from a validated uuid, so not an open proxy), and storing a chosen photo
+through createFile, for a folder or for the caller alone. OPENVERSE_BASE exists
+only for a test stub.
 */
 import type { Request, Response, Router } from 'express'
 import { z } from 'zod'
@@ -55,7 +32,6 @@ const uuidParam = z.uuid()
 const searchQuery = z.object({ q: z.string().trim().min(1).max(200) })
 const pickBody = z.object({ photo_id: z.uuid() })
 
-/** The upstream, overridable only so a test can stand a stub in its place. */
 function upstreamBase(): string {
   return process.env['OPENVERSE_BASE'] ?? 'https://api.openverse.org'
 }
@@ -67,7 +43,7 @@ interface UpstreamResult {
   url?: string | null
 }
 
-/** Read a body while refusing to buffer more than the upload path would. */
+/** Read a body, refusing to buffer more than the upload limit. */
 async function boundedBytes(response: globalThis.Response): Promise<Buffer | null> {
   const declared = Number(response.headers.get('content-length') ?? 0)
   if (declared > MAX_FILE_BYTES) return null
@@ -109,13 +85,7 @@ export function createCoverPhotosRouter(
           id: item.id,
           title: item.title ?? 'Untitled',
           creator: item.creator ?? 'unknown',
-          /* Painted from this origin, which is the whole reason this route
-             exists: img-src admits no third-party host, and this route is
-             what keeps that true. It gained `blob:` on 2026-09-03 for the
-             object URLs the client builds from bytes it already holds; a
-             scheme that reaches no network is not the widening this
-             sentence is about, and no host has been added for a search
-             result. */
+          /* Served from this origin: img-src admits no third-party host. */
           thumb: `/api/v1/covers/photos/${String(item.id)}/thumb`,
         }))
       res.json({ results })
@@ -138,8 +108,7 @@ export function createCoverPhotosRouter(
         if (bytes === null) throw new Error('too large')
         res.setHeader('X-Content-Type-Options', 'nosniff')
         res.setHeader('Content-Type', upstream.headers.get('content-type') ?? 'image/jpeg')
-        /* A thumbnail is immutable content addressed by id; a day of cache
-           keeps the grid from re-fetching on every keystroke's re-render. */
+        /* Immutable by id; cached so the grid does not refetch on every render. */
         res.setHeader('Cache-Control', 'private, max-age=86400')
         res.send(bytes)
       } catch {
@@ -149,16 +118,9 @@ export function createCoverPhotosRouter(
   )
 
   /*
-  Fetch the chosen photograph and store it as a `cover` file in `folderId`,
-  which is null for a shelf's or a place page's cover.
-
-  Extracted from the folder route below when issues #20 and #100 gave it a
-  folder-less sibling, so the two differ in exactly the thing they differ in --
-  where the picture lands -- and not by a copy that will drift. Everything that
-  matters is shared: the upstream record is fetched here rather than taken
-  from the client, so this cannot be pointed at an arbitrary host; the bytes
-  are bounded before they are buffered; and `createFile` applies the same
-  membership check, downscale, quota and 413 an upload gets.
+  Store the chosen photo as a `cover` file in `folderId` (null for a shelf or
+  place page). The photo URL comes from Openverse's record, never the client;
+  bytes are bounded before buffering; createFile applies the usual checks.
   */
   const storePhoto = async (
     req: Request,
@@ -170,18 +132,13 @@ export function createCoverPhotosRouter(
       return
     }
     const body = parseBody(pickBody, req, res, securityLog, {
-      /* One field, one sentence, as before: this endpoint's 422 predates the
-         per-field formatter and using the helper is not a reason to reword
-         what a caller reads. */
+      /* One sentence, as this endpoint always answered. */
       onInvalid: () => {
         sendError(res, 422, 'validation_failed', 'photo_id: must be a uuid.')
       },
     })
     if (body === null) return
 
-    /* The upstream URL comes from Openverse's own record for that id,
-       fetched here -- never from the client -- so this cannot be pointed at
-       an arbitrary host. */
     let source: { url: string; title: string; mime: string; bytes: Buffer }
     try {
       const detail = await fetch(`${upstreamBase()}/v1/images/${body.photo_id}/`, {
@@ -190,8 +147,7 @@ export function createCoverPhotosRouter(
       })
       if (!detail.ok) throw new Error(String(detail.status))
       const record = (await detail.json()) as UpstreamResult
-      /* https in production; the one exception is a URL on the stub base
-         itself, so the contract test can serve the photograph it promised. */
+      /* https only, except URLs on the stub base during the contract test. */
       const fromStub =
         process.env['OPENVERSE_BASE'] !== undefined &&
         typeof record.url === 'string' &&
@@ -227,11 +183,7 @@ export function createCoverPhotosRouter(
       refusal(res, outcome)
       return
     }
-    // The same answer 7.15's upload sends, because it is the same act: the
-    // shape comes back with the id (issue #27). It matters more here than
-    // there -- the caller never held these bytes, the server fetched them
-    // from the upstream's own record, so this response is the only thing that
-    // can tell it what was stored.
+    // Same answer as an upload; it is the only way the caller learns what was stored.
     res.status(201).json({
       id: outcome.id,
       bytes: outcome.bytes,
@@ -253,25 +205,9 @@ export function createCoverPhotosRouter(
   )
 
   /*
-  The folder-less arm, added 2026-09-03 for issues #20 and #100: the same act
-  for a page that is not a folder.
-
-  **A route rather than an optional parameter on the one above**, because the
-  URL is where the folder is named and there is no folder to name. It is a
-  distinct literal from `GET /covers/photos` and shadows nothing.
-
-  The stored file is the caller's own and has no folder, so
-  `readableFileScope` makes it readable by nobody else -- which is the answer
-  to "who may see a picture that belongs to a person rather than a folder",
-  and the reason a shelf's cover (private by 4.18) and a place page's cover
-  (per viewer by 4.20) can be pictures at all.
-
-  **No `accessOf` gate, and that is not an omission**, this being the one
-  thing a new route here is most likely to get wrong. There is no object whose
-  visibility could be in question: the act creates a row owned by the caller,
-  spending the caller's own quota, and `requireSession` is what makes "the
-  caller" a person. This is `POST /me/avatar`'s shape rather than
-  `POST /folders/:id/...`'s.
+  Folder-less: the file is the caller's own, readable by nobody else. No
+  accessOf gate by design: it creates a row owned by the caller on their own
+  quota, like POST /me/avatar.
   */
   router.post(
     '/covers/photo',
@@ -286,7 +222,7 @@ export function createCoverPhotosRouter(
   return router
 }
 
-/** The same refusals 7.15's upload sends, because it is the same act. */
+/** The same refusals as an upload. */
 function refusal(res: Response, outcome: CreateFileResult): void {
   switch (outcome.kind) {
     case 'folder_not_found':
@@ -303,11 +239,7 @@ function refusal(res: Response, outcome: CreateFileResult): void {
       sendError(res, 413, 'quota_exceeded', "You've used your 1 GB of storage. Delete some files to add more.")
       return
     case 'forbidden':
-      /* Issue #228: `createFile` resolved the folder and refused the act, so
-         the caller demonstrably sees the folder and the refusal may say why.
-         A folder cover is Folder page content, which #228's Can-edit list
-         puts with Can edit; the folderless arm of this route never reaches
-         here, having no folder to resolve. */
+      /* A folder cover needs Can edit; the folder-less arm never gets here. */
       sendError(res, 403, 'forbidden', outcome.reason)
       return
     case 'voice_too_long':

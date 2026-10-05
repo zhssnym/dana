@@ -1,9 +1,7 @@
 /*
-What is left of the page's Board view (M4 cut the Board: three states do not
-need columns). Only its status rule survives, because `components/task-card.tsx`
-still reads a task's status through it: a task's stage (`linear/stage.ts`:
-future, present, past), by name. Delete this file once nothing imports it.
-*/
+ * What remains of the Board view: its status rule, still read by `components/task-card.tsx`. Delete once
+ * unused.
+ */
 import type { TaskCard } from '../../shared/tasks.js'
 import { stageOf } from './linear/stage.js'
 import type { Stage } from './linear/stage.js'
@@ -16,7 +14,6 @@ const COLUMN_OF: Record<Stage, BoardStatus> = {
   past: 'done',
 }
 
-/** Which status a task has: its stage (`linear/stage.ts`), by name. */
 export function boardStatusOf(task: TaskCard, today: string): BoardStatus {
   return COLUMN_OF[stageOf(task, today)]
 }

@@ -1,15 +1,7 @@
 /*
-The object store behind one interface (4.16). Bytes live here; the files
-table is the authority on existence, ownership and quota, and its id is the
-object key. Two factories return it: a disk store for development and tests,
-and an R2 store for production (`r2-store.ts`); `resolveObjectStore` picks
-one at boot, and nothing above the interface knows which.
-
-Construction is pure: createApp performs no I/O (11.10), so the root
-directory is made lazily at the first put rather than at boot. Reads answer
-null for a missing object, never throw, because the row is the authority
-and a row whose bytes are gone is an operational fact the route reports as
-not-found rather than a crash.
+The object store (4.16): bytes only, keyed by the files row id; the row is the
+authority. Disk store for development and tests, R2 in production. Construction
+does no I/O. A missing object reads as null, never a throw.
 */
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
@@ -24,15 +16,12 @@ export interface ObjectStore {
 }
 
 export function createDiskStore(root: string): ObjectStore {
-  /* Development and tests. In production a disk store is only used when
-     DANA_FILES_DIR names a persistent disk (`resolveObjectStore`). */
   let readied: Promise<void> | undefined
   const ready = (): Promise<void> => {
     readied ??= mkdir(root, { recursive: true }).then(() => undefined)
     return readied
   }
-  // The id is a uuid minted by the database, never caller input, so it is
-  // path-safe by construction; the join is belt and braces.
+  // Ids are database uuids, never caller input; basename is belt and braces.
   const at = (id: string): string => path.join(root, path.basename(id))
 
   return {
@@ -53,26 +42,14 @@ export function createDiskStore(root: string): ObjectStore {
   }
 }
 
-/** The R2 variables, all four or none. `R2_ENDPOINT` is optional and
- * defaults to the account's R2 origin. */
+/** All four or none; `R2_ENDPOINT` is optional. */
 const R2_VARIABLES = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'] as const
 
 /*
-The process's store, chosen once at boot from the environment (issue #550).
-
-- R2, when its four variables are set. This is production's store: Render's
-  own filesystem is wiped on every deploy, and R2 keeps the bytes without a
-  paid persistent disk.
-- A disk directory, when DANA_FILES_DIR is set. In production that must be a
-  persistent disk mount; pointing it at an ordinary path to get past the check
-  below loses every upload at the next deploy, which is the bug #550 fixes.
-- Otherwise the OS temporary directory, which is development and tests.
-
-Production refuses to start with neither R2 nor DANA_FILES_DIR, and any
-environment refuses a partial R2 configuration. A refused boot cancels the
-deploy and the running instance keeps serving (11.5), which is the right
-failure: an instance that starts on throwaway storage accepts uploads and
-then loses them.
+Chosen once at boot: R2 when configured, else DANA_FILES_DIR (in production a
+persistent disk only; Render's filesystem is wiped on deploy), else the OS temp
+dir. Production refuses to boot without durable storage, and any environment
+refuses a partial R2 config, so a bad deploy fails instead of losing uploads.
 */
 export function resolveObjectStore(env: NodeJS.ProcessEnv = process.env): ObjectStore {
   const set = (name: string): boolean => (env[name] ?? '') !== ''

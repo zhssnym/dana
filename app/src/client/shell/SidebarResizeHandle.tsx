@@ -1,26 +1,7 @@
 /*
-The designer's `SidebarResizeHandle`, from `src/components/app-sidebar.tsx`,
-ported with one change and one name.
-
-**The name is 9.1's.** That section's names table gives the two resize handles
-"Resize sidebar" and "Resize task form"; his prototype already carried the first
-string, so nothing here is a correction, and it is stated because a reader
-comparing the two files should not have to work out that they agree. AC-182
-addresses the handle by the `separator` role, which is what a control
-splitting two resizable panes is, and drags it.
-
-**Two changes.** His component takes `min` and `max` as props from the shell
-above it; here they are `preferences.ts`'s constants, because they are the
-same two numbers on every mount and a preference's bounds belong beside the
-preference. And a drag starts from the width the browser painted rather than
-from the prop, because until this viewer has chosen a width there is no
-number to start from: the default is `--shell-sidebar-width` in `tokens.css`,
-which is where 11.4 puts a value the design fixes, and mirroring it into a
-constant here so that arithmetic had something to read would be the second
-copy of it. Everything else, the pointer capture, the keyboard steps and the
-double-click reset, is his unchanged: they are behaviour no numbered section
-names, and 9.1's sentence about the width is what admits them.
-*/
+ * The sidebar resize handle ("Resize sidebar", a `separator`; AC-182). Bounds come from `preferences.ts`. A
+ * drag starts from the painted width, because the default lives only in `tokens.css`.
+ */
 import { useRef } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
 
@@ -48,10 +29,7 @@ export function SidebarResizeHandle({
     currentWidth: number
   } | null>(null)
 
-  /**
-   * The width the sidebar currently measures. The handle sits inside the
-   * element that carries the width, so its own offset parent is that box.
-   */
+  /** The handle sits inside the element that carries the width, so its offset parent is that box. */
   function paintedWidth(handle: HTMLDivElement): number {
     const painted = handle.offsetParent?.getBoundingClientRect().width
     if (painted === undefined || painted <= 0) return value ?? SIDEBAR_MIN_WIDTH
@@ -120,8 +98,7 @@ export function SidebarResizeHandle({
       aria-valuemax={SIDEBAR_MAX_WIDTH}
       aria-valuenow={value === null ? undefined : Math.round(value)}
       aria-valuetext={value === null ? undefined : `${Math.round(value)} pixels`}
-      /* Out of the Tab order: a pointer control. A press still focuses it, so
-         the arrows and Home/End resize after a click. */
+      /* Out of the Tab order. A press still focuses it, so arrows and Home/End work after a click. */
       tabIndex={-1}
       title={RESIZE_SIDEBAR}
       className="absolute inset-y-0 -right-1 z-30 hidden w-2 cursor-col-resize touch-none outline-none md:block after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent hover:after:bg-border focus-visible:after:bg-ring"

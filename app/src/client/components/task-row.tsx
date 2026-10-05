@@ -1,11 +1,4 @@
-/*
-The task row and the list around it.
-
-One line, one layout (the stored row-height preference is no longer read):
-checkbox, title, muted meta, star. Pressing the row opens the task; the list
-adds drag, the hold that makes a folder of two tasks, and Shift/Cmd-click
-selection with its labelled bar. `useCardWiring` is shared with the task panel.
-*/
+/* The task row and the list around it. `useCardWiring` is shared with the task panel. */
 
 export { T_FAST, T_BASE } from "./task-row/motion.js"
 export { DWELL_MS, MergeBadge } from "./task-row/MergeBadge.js"

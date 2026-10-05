@@ -1,23 +1,6 @@
-/*
-The task page's "Blocked by" and "Blocks" lines (#225), over 7.25's three
-endpoints.
-
-**Absent by default.** A task with no dependency draws nothing at all: the
-body's `/Blocked by` opens this block on its picker (`opening`). Once an edge
-exists it is drawn as property-like lines under the task's properties, never
-in its body: the body holds only what the person wrote, and the relation's
-making is in the task's History.
-
-**One relation, two doors.** "Blocked by…" posts to this task naming the pick;
-"Blocks…" posts to the pick naming this task, which is 7.25's own reversal.
-
-**The picker is contextual.** Empty, it offers a handful of open tasks from this
-task's folder; typed, it is 7.24's reference search with this folder leading.
-Only tasks are offered, and only ones not already related.
-
-**A refusal is said where the person is looking.** The server's 422 (self,
-cycle) is re-worded here and suppressed as a toast (`INLINE_VALIDATION_META`).
-*/
+// The task page's "Blocked by" and "Blocks" lines. Nothing draws until an edge exists
+// or `/Blocked by` opens the picker. "Blocks…" posts the reverse edge. A 422 (self,
+// cycle) is worded here and kept out of the toasts.
 import { useEffect, useMemo, useState } from "react"
 
 import { useFolderOpenTasks, useReferenceSearch, useTaskDependencies } from "../api/queries.js"
@@ -38,7 +21,7 @@ export const BLOCKS_ACTION = "Blocks…"
 export const BLOCKED_BY_HEADING = "Blocked by"
 export const BLOCKS_HEADING = "Blocks"
 
-/** Why an add was refused, in words for the person rather than the field. */
+/** Why an add was refused, in words for the person. */
 function refusalOf(error: unknown, mode: Mode): string {
   if (error instanceof ApiError && error.status === 422) {
     if (/itself/.test(error.message)) return "A task can't depend on itself."
@@ -61,13 +44,13 @@ interface DependenciesProps {
   onIdle?: () => void
 }
 
-/** Whether a task id is one the server can hold a relation for. */
+/** Whether the server can hold a relation for this id. */
 export function isRelatableTask(taskId: string): boolean {
   return UUID.test(taskId)
 }
 
 export function TaskDependencies(props: DependenciesProps) {
-  /* A lab fixture's id is its title; only a real task has a relation. */
+  // A lab fixture's id is its title; only a real task has relations.
   if (!UUID.test(props.taskId)) return null
   return <Dependencies {...props} />
 }
@@ -130,7 +113,6 @@ function Dependencies({ taskId, folderId, opening = false, onIdle }: Dependencie
   useEffect(() => {
     if (idle && read.data !== undefined) onIdle?.()
   }, [idle, read.data, onIdle])
-  /* Nothing yet: no heading, no block, no actions. */
   if (idle) return null
 
   return (
@@ -163,8 +145,8 @@ function Dependencies({ taskId, folderId, opening = false, onIdle }: Dependencie
   )
 }
 
-/* A property row's grid (`PROPERTY_ROW` in task-pickers.tsx) without its
-   fixed height or hover, so one line can list several tasks. */
+// A property row's grid (`PROPERTY_ROW`) without fixed height or hover, so one line
+// can list several tasks.
 const PROPERTY_LINE = "grid w-full grid-cols-[6rem_minmax(0,1fr)] items-start gap-2 px-2 text-sm"
 const LINE_LABEL = cn(PROPERTY_LABEL, "leading-[var(--control-height)]")
 
@@ -190,7 +172,7 @@ function EdgeList({
             key={edge.id}
             edge={edge}
             direction={direction}
-            /* The folder is said only when it is not this task's own. */
+            // Name the folder only when it is not this task's own.
             showFolder={edge.task !== null && edge.task.folder.id !== folderId}
             onRemove={() => onRemove(edge)}
           />
@@ -200,9 +182,7 @@ function EdgeList({
   )
 }
 
-/* What an edge's far task is doing, as a short word beside its title. For
-   "Blocked by" that is 7.25's derived state; for "Blocks" the far task is the
-   one waiting, and only its being finished is worth a word. */
+// For "Blocks" the far task is the one waiting, so only its being finished is worth a word.
 function stateWord(edge: TaskDependencyEdge, direction: Mode): string | null {
   if (edge.task === null) return null
   if (direction === "blocks") return edge.task.status === "completed" ? "Done" : null
@@ -245,8 +225,7 @@ function EdgeRow({
         />
       )}
       {edge.task === null ? (
-        /* 7.25's `unknown`: the relation exists, the far task is not the
-           viewer's to see, and nothing about it is drawn beyond that. */
+        // The far task is not the viewer's to see: draw nothing beyond the relation.
         <span className="min-w-0 truncate text-muted-foreground italic">{title}</span>
       ) : (
         <button
@@ -400,8 +379,7 @@ function DependencyPicker({
   )
 }
 
-/* The empty picker's few relevant rows: this folder's open tasks. Without a
-   folder the empty picker simply asks the person to type. */
+// The empty picker offers this folder's open tasks; without a folder it asks to type.
 function useNearby(folderId: string | undefined): Candidate[] {
   const read = useFolderOpenTasks(folderId ?? "", folderId !== undefined)
   if (!folderId || !read.data) return []

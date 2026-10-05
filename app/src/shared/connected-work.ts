@@ -1,21 +1,8 @@
 /*
-Connected work (#488): the source-aware projection of facet references.
-
-A facet reference is still persisted as an ordinary Dana Link href. This
-contract does not add a relationship row or a second graph. It only enriches
-the existing facet backlink read with the exact source objects that already
-contain a reference, so a facet can show the work that points at it rather
-than only the document that owns that work.
-
-`source` is intentionally the containing object, never a proximity guess: an
-inline facet chip in a paragraph makes that paragraph the source; a chip in an
-image caption makes that image block the source; a chip in a Discussion post
-makes that post the source. Media blocks that cannot carry rich text are not
-silently associated with a neighbouring chip.
-
-A page-block source also carries its canonical PageBlock read model. This is
-not a copy to edit: it lets another facet render the same block identity with
-Dana's native renderer while the source document remains the only write path.
+Connected work: facet references with their exact source objects (a
+paragraph, a block, a post), never a neighbouring guess. References are still
+plain Dana Link hrefs; nothing new is stored. A block source carries its
+canonical PageBlock for rendering; the source document stays the only writer.
 */
 import { z } from 'zod'
 
@@ -52,11 +39,9 @@ export const connectedWorkItem = z.object({
   folder_id: z.uuid().nullable(),
   member_id: z.uuid().nullable(),
   label: z.string(),
-  /** Kept verbatim from #214 so this response is a backward-compatible
-   * superset of GetBacklinksResponse for facet targets. */
+  /** Kept so this is a superset of GetBacklinksResponse. */
   block_ids: z.array(z.uuid()),
-  /** Exact source objects, in their document/thread order. Responsibility
-   * documents have no stable block ids and therefore answer an empty list. */
+  /** In document or thread order; empty for Responsibilities (no block ids). */
   sources: z.array(connectedWorkSource),
 })
 export type ConnectedWorkItem = z.infer<typeof connectedWorkItem>

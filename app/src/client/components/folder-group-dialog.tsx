@@ -1,10 +1,4 @@
-/*
-Renaming a collection (a folder group: the label on 7.4's my-membership).
-
-Renaming rewrites the label on every page carrying it. Deleting one is
-`ConfirmDialog` in `shell/folder-groups.tsx`, with 9.1's normative copy.
-Nothing here reads: the page list arrives as a prop and `onSubmit` writes.
-*/
+// Renaming a collection (a folder group label on the viewer's membership).
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
 import { Button } from './ui/button.js'
@@ -76,8 +70,7 @@ export function FolderGroupDialog({
       return
     }
 
-    /* An empty shelf is allowed: 4.18 gives it a row of
-       its own, so the folders can arrive later by drag or from its page. */
+    // An empty collection is allowed; pages can join it later.
 
     onSubmit(nextName, selectedFolders)
     onOpenChange(false)
@@ -88,8 +81,7 @@ export function FolderGroupDialog({
       <DialogContent className="w-[min(460px,calc(100vw-32px))]">
         <form onSubmit={submit}>
           <DialogHeader>
-            {/* One word, collection, from the foot button
-                through this dialog to the row's menu. */}
+            {/* "Collection" everywhere: the foot button, this dialog and the row's menu. */}
             <DialogTitle>
               Rename collection
             </DialogTitle>

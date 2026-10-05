@@ -1,72 +1,10 @@
-/*
-The named regions of 9.1.
-
-"Every section a page's structure names is a named region, and a control
-inside one is addressed as that control within that region." The rule exists
-because a page can carry two quick-adds with identical accessible names and
-different specified defaults, and nothing about either input tells them apart.
-A landmark is what tells them apart, so a section here is a landmark and not a
-`div` with a heading in it.
-
-Two rules this file encodes so no page has to remember them:
-
-- **The region's name is the heading where the section gives one, and the
-  datum where it does not.** So `name` is passed explicitly rather than
-  inferred from the heading, and Done's day groups and Tasks' folder groups
-  pass the folder or the day they were generated from.
-- **A collapsible section is a region plus a control carrying the same name,
-  and the control's expanded state is what open and collapsed mean.** That is
-  9.1's own sentence, and it is why the control below is a `button`
-  with `aria-expanded` rather than anything that merely looks collapsed.
-
-Tasks' Inbox block is the case that fixes the shape: a named region with no
-visible heading. A region's name is announced and addressed, not rendered, so
-`heading` is optional and `name` never is.
-
-**Every section with a heading collapses**: native sections (Today's two
-groups, Scheduled's rungs, Assignments' people, All's two halves) and
-user-made ones are one section, and the only differences are capabilities
-(native sections cannot be deleted or renamed). A heading you cannot fold is
-a heading that cannot get out of your way.
-
-**A section with no heading still cannot fold, and that is not an exception to
-the rule.** The control the rule requires carries the section's name, and
-a region whose name is a datum rather than a heading has nothing to draw that
-control as. Those regions are announced and never rendered, so there is
-nothing on screen for a person to want out of the way.
-
-**The mark is inline in the heading and leaves no hole when it is absent**: a
-section without an icon should not feel like it is lacking something. So
-`headingMedia` sits between the chevron and the name rather than in a reserved
-slot, and a section without one simply starts its name earlier. The chevron is
-the constant left anchor instead, which is honest, because it is the one thing
-every section really does have.
-
-**The count is `aria-hidden` and the control's name stays the section's
-alone.** AC-176's precedent, which this file already carried for
-`CollapsibleSection`: a control named "Completed (2)" is a different string
-from "Completed", and 9.1's names table fixes the second. My Day's recap is
-the exception it always was, 9.4 spelling the count inside the heading itself.
-
-The trigger is deliberately this file's own button rather than the
-`Collapsible` primitive, because AC-058's browser half reads the
-`aria-expanded` on it and a swap of mechanism there buys nothing this section
-asks for.
-*/
+// Named page regions (spec 9.1). A section is a landmark so two identical controls
+// can be told apart by region. A collapsible one is a button with aria-expanded.
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { ChevronRight } from '../../lib/icons.js'
 
-/**
- * Which register a section's heading is drawn in.
- *
- * `section` is 9.1's own section headings, "Carried over", "Today", a folder
- * group's name. `page` is the larger label All gives its two halves, which the
- * design draws as a titled band with a rule beneath it because those two carry
- * whole pages inside them. `day` is a group generated from a date, which is
- * Done's day groups. Nothing about the region changes with any of them, so a
- * criterion addressing a section by name is unaffected.
- */
+/** Heading style only; the region is unchanged by tone. */
 export type HeadingTone = 'section' | 'page' | 'day'
 
 const HEADING_CLASS: Record<HeadingTone, string> = {
@@ -75,7 +13,6 @@ const HEADING_CLASS: Record<HeadingTone, string> = {
   day: 'truncate text-sm leading-6 font-medium text-foreground',
 }
 
-/** The band the heading sits on, the one thing the three tones differ in. */
 const BAND_CLASS: Record<HeadingTone, string> = {
   section: 'mb-1 flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left',
   page: 'mb-2 flex h-8 w-full items-center gap-1.5 border-b border-border px-2 text-left',
@@ -86,16 +23,13 @@ const BAND_HOVER =
   'transition-colors hover:bg-muted'
 
 interface PageSectionProps {
-  /** The region's accessible name. 9.1's table decides it. */
+  /** The region's accessible name (spec 9.1's names table). */
   readonly name: string
-  /** The visible heading, where the section gives one. */
   readonly heading?: string
   readonly tone?: HeadingTone
-  /** Drawn beside the heading, which is where the design puts a section's mark. */
   readonly headingMedia?: ReactNode
-  /** The quiet figure beside the name, `aria-hidden` so the control keeps its. */
+  /** `aria-hidden`, so the control's name stays the section's alone (AC-176). */
   readonly count?: number
-  /** Whether the section starts open. Every computed one does. */
   readonly defaultOpen?: boolean
   readonly children: ReactNode
 }
@@ -111,7 +45,7 @@ export function PageSection({
 }: PageSectionProps): React.JSX.Element {
   const [open, setOpen] = useState(defaultOpen)
 
-  /* No heading, no control, and the region is all there is: see the header. */
+  // No heading means no control: the region is all there is.
   if (heading === undefined) {
     return <section aria-label={name}>{children}</section>
   }
@@ -127,10 +61,7 @@ export function PageSection({
           }}
           className={`group/section ${BAND_CLASS[tone]} ${BAND_HOVER}`}
         >
-          {/* `aria-hidden` because `aria-expanded` on the button is what
-              carries the state, the rule this file already applied to
-              `CollapsibleSection`'s chevron: the arrow is the second cue and
-              never the only one. */}
+          {/* `aria-expanded` on the button carries the state; the chevron is decoration. */}
           <ChevronRight
             className={
               open
@@ -152,9 +83,7 @@ export function PageSection({
           )}
         </button>
       </h2>
-      {/* Absent rather than hidden while collapsed, 6 Q7's rule and the one
-          `CollapsibleSection` below already runs on: a hidden element is still
-          on the page to everything but a screen reader. */}
+      {/* Absent rather than hidden while collapsed, so it is off the page for every reader. */}
       {open ? children : null}
     </section>
   )
@@ -164,15 +93,9 @@ interface CollapsibleSectionProps {
   readonly name: string
   readonly defaultOpen: boolean
   readonly children: ReactNode
-  /** Told when the section opens, so a page can defer the section's fetch. */
+  /** Lets a page defer the section's fetch until it opens. */
   readonly onOpenChange?: (open: boolean) => void
-  /**
-   * A visible count beside the name, `aria-hidden` so the control's accessible
-   * name stays exactly the section's. The folder page's "Completed" needs
-   * this: AC-176 matches that name exact, its own comment saying a control
-   * named "Completed (2)" would be a different string, while My Day's recap
-   * carries its count inside the name because 9.4's heading spells one there.
-   */
+  /** A visible count, `aria-hidden` so the accessible name stays the section's (AC-176). */
   readonly count?: number
 }
 
@@ -186,16 +109,8 @@ export function CollapsibleSection({
   const [open, setOpen] = useState(defaultOpen)
   return (
     <section aria-label={name}>
-      {/*
-      A heading around the control, which 9.4 asks for outright ("recap
-      collapsed at bottom (heading 'Done today (N)')") and 9.6 asks for by
-      naming a section. The element is the heading and the button inside it is
-      the control, so both of 9.1's halves are true of one thing.
-
-      It stays its own component rather than folding into `PageSection`, which
-      now collapses too, because the quiet section that *closes* a page "is not a peer of the
-      sections that organise it". One is a band, the other is one line.
-      */}
+      {/* A heading wrapping the button control. Separate from `PageSection`: the quiet
+          section that closes a page is one line, not a band. */}
       <h2>
         <button
           type="button"
@@ -207,13 +122,7 @@ export function CollapsibleSection({
             onOpenChange?.(next)
           }}
         >
-          {/*
-          The disclosure glyph, `aria-hidden` because `aria-expanded` on the
-          button is what actually carries the state and is what AC-058 reads.
-          It is the second cue rather than the only one, which is the design's
-          rule for every state it draws: the arrow is what a sighted reader
-          sees and the expanded state is what everything else does.
-          */}
+          {/* `aria-expanded` carries the state (AC-058 reads it); the chevron is decoration. */}
           <ChevronRight
             className={open ? 'size-4 rotate-90 transition-transform' : 'size-4 transition-transform'}
             strokeWidth={1.75}
@@ -227,9 +136,7 @@ export function CollapsibleSection({
           )}
         </button>
       </h2>
-      {/* Absent rather than hidden while collapsed. 6 Q7 asserts the completed
-          row is not on the page until the section is opened, and a hidden
-          element is still on the page to everything but a screen reader. */}
+      {/* Absent rather than hidden while collapsed: tests assert the row is not on the page. */}
       {open ? <div className="mt-0.5">{children}</div> : null}
     </section>
   )

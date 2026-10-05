@@ -1,32 +1,7 @@
 /*
-9.2's public page, at `/`.
-
-**Calm and short**: one headline, one paragraph, one sign-in control, a
-personal note with the support address, and Privacy · Terms. No product mockups: pictures of screens drift
-from the screens, and a landing page that pictures an app Dana no longer draws is
-the claim rule failing by illustration. No rotating words, no scroll-in.
-
-**The claim rule is the one to watch, and it is broken by addition.** 9.2 says
-the page may name no capability Dana does not ship, and no copy claims AI
-(AC-159). The sentence names pages and says the work is shared.
-
-**There is one "Continue with Google", and it is a link.** It carries the
-viewer's detected timezone to 7.1's authorisation endpoint, which is how a
-first session gets a timezone before any row exists to hold one, and a link is
-what makes that destination visible, bookmarkable and reachable without
-scripting. The page is one screen tall, so no header "Sign in" is needed to keep
-the path in reach.
-
-The copyright year is computed rather than typed, so the line is never wrong.
-
-A signed-in visitor goes to `/app` (AC-956, issue #326). The server answers a
-signed-in `/` with a 302 before this page is sent (`server/index.ts`); this
-check is the fallback for Vite's dev server and runs only there, because in a
-built app a signed-out visitor's `/me` is a 401 that nobody reads and that
-prints a red line in their console. Only a 200 moves anyone. A query string keeps the page,
-so `?signin=failed` still says its sentence and `/?about` shows a signed-in
-person the page.
-*/
+ * The public page at `/` (spec 9.2). Name no capability Dana does not ship, and claim no AI (AC-159). "Continue
+ * with Google" is a link carrying the detected timezone to the auth endpoint.
+ */
 import { useEffect } from 'react'
 
 import { useMe } from '../api/queries.js'
@@ -46,7 +21,7 @@ function GoogleGlyph(): React.JSX.Element {
   )
 }
 
-/* The dev server's stand-in for the server's signed-in 302. */
+/* Dev server only: in production the server answers a signed-in `/` with a 302. */
 function SignedInRedirect(): null {
   const signedIn = useMe().isSuccess
   useEffect(() => {
@@ -59,11 +34,7 @@ function SignedInRedirect(): null {
 
 export function LandingPage(): React.JSX.Element {
   const signInHref = `/api/v1/auth/google?tz=${encodeURIComponent(browserTimezone())}`
-  /*
-  The callback's failure marker (auth/pages.ts): every refusal that is not the
-  unverified page returns here carrying ?signin=failed. The sentence is 9.1's
-  global failure copy.
-  */
+  /* The auth callback returns here with ?signin=failed on any refusal but the unverified page. */
   const signInFailed =
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('signin') === 'failed'

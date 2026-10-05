@@ -2,14 +2,8 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useLocation, useNavigationType } from 'react-router'
 
-/*
-Where the thread was when a task was opened from it, so Back lands there.
-
-The shell's one scroll region (`[data-shell-scroll]`) outlives the route, so the
-browser restores nothing; this page does. Held in memory for the session, per
-page, and only read on a Back (a POP) onto the very history entry the task was
-opened from, never on a fresh visit or on a Back into a later visit of the page.
-*/
+/* The shell's scroll region outlives the route, so the browser restores nothing.
+   Read only on a Back (POP) onto the history entry the task was opened from. */
 const threadScroll = new Map<
   string,
   { readonly top: number; readonly taskId: string; readonly entry: string }
@@ -20,15 +14,12 @@ export function useThreadScroll(folderId: string, ready: boolean): void {
   const navigationType = useNavigationType()
   const { key } = useLocation()
   const restoredFor = useRef<string | null>(null)
-  /* Kept on the way out: at unmount the address is already the next one, so a
-     task page's path names the task that was opened. A layout effect, because
-     its cleanup runs before the thread leaves the DOM; a passive one would read
-     a scroll position already clamped to the next page's height. */
+  /* At unmount the address is already the task's. A layout effect: a passive
+     cleanup would read a scroll position clamped to the next page's height. */
   useLayoutEffect(() => {
     const scroller = document.querySelector<HTMLElement>('[data-shell-scroll]')
     return () => {
-      /* Only a task opened from the thread is a trip Back returns from; a
-         remount on this same page must not overwrite the kept place. */
+      /* A remount on this same page must not overwrite the kept place. */
       const next = window.location.pathname
       if (scroller === null || !next.startsWith(TASK_PATH)) return
       threadScroll.set(folderId, {
@@ -42,12 +33,10 @@ export function useThreadScroll(folderId: string, ready: boolean): void {
     if (!ready || navigationType !== 'POP' || restoredFor.current === key) return
     const saved = threadScroll.get(folderId)
     const scroller = document.querySelector<HTMLElement>('[data-shell-scroll]')
-    /* Keyed to the history entry: coming back by the sidebar and later
-       pressing Back into that newer visit must not replay an old position. */
+    /* Keyed to the history entry, so Back into a newer visit replays nothing. */
     if (saved === undefined || saved.entry !== key || scroller === null) return
-    /* The canvas measures and lays out after its data arrives, so the height
-       the position needs may come late: try until the opened task is drawn and
-       the position fits, or about two seconds have gone. */
+    /* The canvas lays out after its data arrives: retry until the task is drawn
+       and the position fits, for about two seconds. */
     let frames = 0
     let handle = 0
     const settle = (): void => {
@@ -58,11 +47,9 @@ export function useThreadScroll(folderId: string, ready: boolean): void {
         handle = requestAnimationFrame(settle)
         return
       }
-      /* Marked done only here: an effect cancelled mid-wait (a re-run, or
-         React's development double mount) tries again. */
+      /* Marked done only here, so an effect cancelled mid-wait tries again. */
       restoredFor.current = key
-      /* Used once: a later Back into this page, after leaving it some other
-         way, keeps wherever the reader had scrolled to since. */
+      /* Used once, so a later Back keeps wherever the reader scrolled since. */
       threadScroll.delete(folderId)
       scroller.scrollTop = saved.top
       task?.scrollIntoView({ block: 'nearest' })

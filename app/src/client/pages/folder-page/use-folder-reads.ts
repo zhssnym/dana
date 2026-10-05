@@ -1,4 +1,3 @@
-// What the folder page reads: the page on screen, its header's folder, and its tabs.
 import { useMemo } from 'react'
 import type { UseQueryResult } from '@tanstack/react-query'
 
@@ -31,31 +30,26 @@ export interface FolderReads {
 }
 
 export function useFolderReads(id: string, leaving: boolean): FolderReads {
-  /* The page on screen: a tab, a sub-page or a project root. */
   const here = useFolder(id, !leaving)
   const herePage = here.data
   const kind = herePage?.kind ?? null
   /* A tab's header is its project's (the root row); a sub-page's is its own. */
   const onTab = herePage !== undefined && herePage.tab_position !== null
   const headId = onTab ? herePage.project_id : id
-  /* The header names the project on its root and on its tabs. */
   const atProject = herePage !== undefined && herePage.project_id === headId
   const folder = useFolder(headId, !leaving && herePage !== undefined)
-  /* Everything else waits for the page itself: a link the viewer may not
-     open is one quiet 404, not one per read. */
+  /* Everything else waits for the page, so a forbidden link is one 404, not one per read. */
   const folderOk = here.status === 'success' && !leaving
   const writes = folderOk && (kind === 'work' || kind === 'doc')
   const open = useFolderOpenTasks(id, writes)
-  /* An unpicked root is read too: the picker offers Discussion only on an
-     empty one, since a Discussion page cannot show writing. */
+  /* An unpicked root is read too: the picker offers Discussion only when it is empty. */
   const page = useFolderPage(id, writes || (folderOk && kind === null))
   const allPages = useAllPages(folderOk)
   const tabs = useMemo(
     () => (herePage === undefined ? [] : projectTabs(allPages.data ?? [], herePage.project_id)),
     [allPages.data, herePage],
   )
-  /* Step 8: people belong to the project. On a sub-page, Share and Leave
-     name the project they act on; on a tab the header already is it. */
+  /* On a sub-page, Share and Leave name the project they act on. */
   const projectName =
     herePage === undefined || herePage.project_id === headId
       ? undefined

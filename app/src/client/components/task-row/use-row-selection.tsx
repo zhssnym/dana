@@ -1,5 +1,3 @@
-/* Shift/Cmd-click selection of task rows, and its bar. */
-
 import {
   useEffect,
   useRef,
@@ -11,17 +9,8 @@ import {
 import type { ConceptTask } from "../../tasks/task-model.js"
 import { BulkBar } from "./BulkBar.js"
 
-/* Everything a concept needs: the task list, the drag layer, and the panel
-   both folder gestures land in. Shared so that dragging behaves identically in
-   every concept, for the same reason renaming does, a comparison should
-   measure the row, not which concept got the better drag. */
-/*
-Selecting task rows: Shift-click or Cmd/Ctrl-click a row to add it, and while
-a selection is held a plain click adds or removes too. Escape, "Clear", or
-emptying the selection leaves. The bar says every act in words.
-
-Dragging is suspended while selecting, because the list cannot serve both.
-*/
+/* Shift or Cmd/Ctrl-click adds a row; while selecting, a plain click toggles too.
+   Dragging is suspended while selecting. */
 export type BulkDate = "today" | "tomorrow" | "next-week" | null
 
 export function useRowSelection({
@@ -31,11 +20,10 @@ export function useRowSelection({
   onDate,
   onDelete,
 }: {
-  /* The choice carries the folder id a PATCH /tasks/:id body names it by. */
   onMove: (ids: string[], folder: { id: string; name: string; color: string }) => void
   onNewFolder: (ids: string[]) => void
   onBulk: (ids: string[], fields: Partial<ConceptTask>) => void
-  /* Absent in a list with nowhere to write a date; the bar then offers none. */
+  /* Absent: the bar offers no date. */
   onDate?: (ids: string[], when: BulkDate) => void
   /* Accepted from old call sites; the bar no longer offers Duplicate. */
   onDuplicate?: (ids: string[]) => void
@@ -43,8 +31,8 @@ export function useRowSelection({
 }) {
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
-  /* A modified press is a selection, never a tap that opens the task. The
-     drag engine reports the tap on pointerup, before the click lands. */
+  /* The drag engine reports a tap on pointerup, before the click lands, so a
+     modified press is recorded here to stop it opening the task. */
   const modifiedPress = useRef(false)
 
   useEffect(() => {
@@ -93,8 +81,7 @@ export function useRowSelection({
     }
   }
 
-  /* Read once by the list's opener: true when the press it is about to treat
-     as a tap was a modified one. */
+  /* Read once by the list's opener. */
   function takeModifiedPress() {
     const was = modifiedPress.current
     modifiedPress.current = false
@@ -120,7 +107,7 @@ export function useRowSelection({
     selected,
     selectProps,
     takeModifiedPress,
-    /* Nothing to cancel any more; kept so the drag engine's lift hook stays wired. */
+    /* A no-op, kept so the drag engine's lift hook stays wired. */
     clearPress: () => {},
     bar,
   }
