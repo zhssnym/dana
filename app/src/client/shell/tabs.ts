@@ -235,6 +235,26 @@ export function openInNewTab(path: string): string {
   return path
 }
 
+/**
+ * Open a place as a tab at one slot among the open ones, and make it current:
+ * a sidebar row dropped on the tab strip (`tab-drop.ts`). A place that already
+ * has a tab moves to that slot rather than opening twice.
+ */
+export function openTabAt(path: string, index: number): string {
+  const key = tabKey(path)
+  const tabs = [...state.tabs]
+  const from = tabs.findIndex((tab) => tabKey(tab.path) === key)
+  const tab = from < 0 ? newTab(path) : tabs.splice(from, 1)[0]
+  if (tab === undefined) return path
+  /* Taking the tab out first shifts every slot after it left by one. */
+  const at = Math.max(0, Math.min(tabs.length, from >= 0 && from < index ? index - 1 : index))
+  tabs.splice(at, 0, tab)
+  state = { tabs, activeId: tab.id }
+  expectRoute(tab.path)
+  publish()
+  return tab.path
+}
+
 /** Make a tab current and return the URL the router should show. */
 export function selectTab(id: string): string {
   const tab = state.tabs.find((candidate) => candidate.id === id)
