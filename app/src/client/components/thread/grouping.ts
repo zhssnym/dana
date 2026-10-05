@@ -1,20 +1,6 @@
-/*
-How a thread's posts sit on screen (chat feed): one flat timeline, pure.
-
-Every post is drawn in the order it was written (`created_at`, then id). A
-reply stays a reply on the server (7.14 keeps one level) but is not moved
-under the post it answers: it is drawn where it falls in time and quotes
-that post at its top instead.
-
-A post **starts a run** (the author's name is drawn over it, and its corner
-on the author's side is tighter) unless the post before it is by the same
-author (by id, never by name: every unknown author answers "Someone"), on
-the same local day, and less than ten minutes earlier. A run **ends** where
-the next post starts one. A new local day is marked between posts.
-
-Days and clock times are the browser's local ones: the thread is read where
-the reader is.
-*/
+// How a thread's posts sit on screen: one flat timeline in written order. A post starts
+// a run unless the previous post is by the same author id, on the same local day, and
+// under ten minutes earlier. Days and times are the browser's local ones.
 import type { CommentLine } from '../../../shared/comments.js'
 
 /** A follow-up within ten minutes joins its author's run. */
@@ -53,7 +39,6 @@ function joins(previous: CommentLine | undefined, line: CommentLine): boolean {
   )
 }
 
-/** Posts in order (oldest first), each marked with where its run and day start and end. */
 export function placePosts(posts: readonly CommentLine[]): PlacedPost[] {
   return posts.map((line, index) => {
     const previous = posts[index - 1]

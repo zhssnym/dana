@@ -4,7 +4,6 @@ import type { LucideIcon } from '../lib/icons.js'
 import { ArrowLeft } from '../lib/icons.js'
 import { cn } from './ui/utils.js'
 
-/** The same parent, page identity and action order for focused collaboration. */
 export function ContextPageHeader({
   parent,
   title,

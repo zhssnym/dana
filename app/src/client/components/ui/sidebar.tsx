@@ -80,8 +80,6 @@ function SidebarProvider({
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
 
-  // This is the internal state of the sidebar.
-  // We use openProp and setOpenProp for control from outside the component.
   const [_open, _setOpen] = React.useState(defaultOpen)
   const open = openProp ?? _open
   const setOpen = React.useCallback(
@@ -93,21 +91,18 @@ function SidebarProvider({
         _setOpen(openState)
       }
 
-      // This sets the cookie to keep the sidebar state.
       document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
     },
     [setOpenProp, open]
   )
 
-  // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
   }, [isMobile, setOpen, setOpenMobile])
 
-  // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      /* In text Ctrl+B is bold, not the sidebar. */
+      // In text Ctrl+B is bold, not the sidebar.
       const target = event.target
       const typing =
         target instanceof HTMLElement &&
@@ -128,15 +123,9 @@ function SidebarProvider({
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [toggleSidebar])
 
-  /*
-  Focus follows the toggle on a laptop. Collapsing makes the sidebar inert and
-  expanding unmounts the floating "Expand sidebar", so the pressed control
-  vanishes and focus would fall to the body. When it has (or sits in an inert
-  subtree the browser has not blurred yet), it moves to whichever toggle is now
-  showing. Focus anywhere else, an editor under Ctrl+B, is left alone. A phone's
-  sidebar is a sheet, which returns focus itself. The toggles are found by
-  data-sidebar: the tooltip wrapping each one overwrites its data-slot.
-  */
+  // Collapsing makes the sidebar inert and expanding unmounts the floating toggle, so focus
+  // would fall to the body; move it to the visible toggle. Toggles are found by data-sidebar
+  // because the tooltip overwrites data-slot. A phone's sheet restores focus itself.
   const wasOpen = React.useRef(open)
   React.useEffect(() => {
     if (wasOpen.current === open) return
@@ -155,8 +144,6 @@ function SidebarProvider({
     toggle?.focus()
   }, [open, isMobile])
 
-  // We add a state so that we can do data-state="expanded" or "collapsed".
-  // This makes it easier to style the sidebar with Tailwind classes.
   const state = open ? "expanded" : "collapsed"
 
   const contextValue = React.useMemo<SidebarContextProps>(
@@ -227,7 +214,7 @@ function Sidebar({
 
   if (isMobile) {
     return (
-      /* Landmark props go on the drawer box so it is the same landmark as the column. */
+      // Landmark props go on the drawer box so it is the same landmark as the column.
       <Sheet open={openMobile} onOpenChange={setOpenMobile}>
         <SheetContent
           dir={dir}
@@ -280,10 +267,9 @@ function Sidebar({
         data-side={side}
         className={cn(
           "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex",
-          // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
-            /* No border: the sidebar is separated tonally. */
+            // No border: the sidebar is separated tonally.
             : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)",
           className
         )}
@@ -301,7 +287,7 @@ function Sidebar({
   )
 }
 
-/* State-specific names, "Collapse sidebar" / "Expand sidebar" (9.1, AC-182), and "Close sidebar" on a phone, where it closes the drawer; callers may override aria-label. */
+// Names per state (AC-182), and "Close sidebar" on a phone; callers may override aria-label.
 function SidebarTrigger({
   className,
   onClick,
@@ -663,7 +649,6 @@ function SidebarMenuSkeleton({
 }: React.ComponentProps<"div"> & {
   showIcon?: boolean
 }) {
-  // Random width between 50 to 90%.
   const [width] = React.useState(() => {
     return `${Math.floor(Math.random() * 40) + 50}%`
   })

@@ -3,15 +3,11 @@ import { createReactBlockSpec } from '@blocknote/react'
 
 import { layoutDiagram } from './diagram.js'
 
-/** 4.17's ceiling on a writing block's text, which is where the source lives. */
+/** The server's limit on a block's text, where the source lives. */
 const MAX_SOURCE = 4000
 const EXAMPLE = 'Idea -> Draft\nDraft -> Review: send\nReview -> Ship'
 
-/**
- * The drawing. Every label is a React text child, never markup, so a label such
- * as `<img onerror=…>` is drawn as those characters; there is no innerHTML and
- * nothing to sanitize (#222).
- */
+/** Labels are React text children, never markup, so there is nothing to sanitize. */
 export function DiagramPicture({ source }: { readonly source: string }): React.JSX.Element {
   const result = useMemo(() => layoutDiagram(source), [source])
   const marker = `dana-diagram-arrow-${useId().replace(/:/g, '')}`
@@ -78,7 +74,7 @@ function DiagramBlock({ source, editable, onSource }: {
               autoFocus={source === ''}
               className="w-full resize-y rounded-md border border-input bg-background px-2 py-1 font-mono text-sm text-foreground"
               onChange={(event) => onSource(event.target.value)}
-              // The editor must not read typing inside the source as document gestures.
+              // Keep typing in the source from reaching the editor's key handling.
               onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Escape') setEditing(false) }}
               onPaste={(event) => event.stopPropagation()}
             />
@@ -102,8 +98,7 @@ export const createCanvasDiagramSpec = createReactBlockSpec(
         onSource={(source) => editor.updateBlock(block, { props: { source } })}
       />
     ),
-    /* Copy, export to HTML and paste out of Dana carry the source, which is the
-       diagram; a reader elsewhere gets text they can paste back. */
+    // Copy and export carry the source text, which can be pasted back.
     toExternalHTML: ({ block }) => <pre data-dana-diagram="">{block.props.source}</pre>,
   },
 )

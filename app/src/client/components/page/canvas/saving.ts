@@ -4,10 +4,10 @@ import type { CanvasDocument } from './adapters.js'
 
 export type DocumentRequest = Extract<PageActionBody, { action: 'document_transaction' }>
 export type SaveState = 'saved' | 'changed' | 'saving' | 'failed'
-/** A Task or a sub-page made in the same transaction as the writing that places it. */
+/** A task or sub-page made in the same transaction as the writing that places it. */
 export type Creation = Extract<DocumentRequest['operations'][number], { op: 'create_task' | 'create_page' }>
 
-/** One in-flight gesture; retry retains its exact identity and payload. No offline replay. */
+/** One gesture in flight; retry keeps its exact identity and payload. No offline replay. */
 export class CanvasWriter {
   acknowledged: CanvasDocument
   latest: CanvasDocument
@@ -26,16 +26,8 @@ export class CanvasWriter {
     this.revision = revision
   }
   /**
-   * Whether this document would write anything, which is not whether it equals
-   * the baseline byte for byte.
-   *
-   * The baseline carries kinds, ticks and list parents this editor cannot
-   * draw, so the projection it hands back never equals it and a plain
-   * comparison reads "unsaved" forever — and the 450 ms autosave then sends
-   * one no-op transaction after another for as long as the page is open. What
-   * "unchanged" means here is unchanged *after* restoration, and `restoreCanvas`
-   * is idempotent over a baseline built by `baselineOf`, which is what makes
-   * this the same question `canvasOperations` answers.
+   * Whether this document would write anything, asked the same way `canvasOperations`
+   * does (after `restoreCanvas`), so autosave never sends no-op transactions.
    */
   private settled(document: CanvasDocument): boolean {
     return JSON.stringify(restoreCanvas(this.acknowledged, document)) === JSON.stringify(this.acknowledged)
@@ -60,19 +52,16 @@ export class CanvasWriter {
     this.inFlight = (async () => {
       try {
         const page = await this.send(pending.request)
-        // No revision means no safe base for the next write; fail visibly.
-        // Retry re-sends the same mutation id, which the server replays.
+        // No revision means no safe base for the next write, so fail visibly. Retry re-sends
+        // the same mutation id, which the server replays.
         if (!page.revision) throw new Error('The page saved without a version. Retry to confirm it.')
         this.revision = page.revision
-        // Re-based on what the server now holds, not on the projection that was
-        // sent. The projection expresses none of the structured kinds, so a
-        // baseline taken from it is flat from the second save onward and the
-        // next one destroys exactly what the first one preserved.
+        // The new baseline is what was sent, through `baselineOf`.
         this.acknowledged = baselineOf(page, pending.document)
         this.pending = null
         const checkpoint = pending.request.operations.some((op) => op.op === 'create_task' || op.op === 'create_page')
-        // A matching receipt can return newer state. Preserve the local draft and
-        // stop instead of basing another write on a state the editor never saw.
+        // The receipt can carry newer state; keep the local draft and stop rather than base a
+        // write on state the editor never saw.
         if (page.mutation && page.mutation.committed_revision !== page.revision) {
           this.state = 'failed'
           this.error = new Error('Your edit was saved, but the page changed again. Keep a copy of your writing and load the latest page before continuing.')
@@ -96,7 +85,7 @@ export class CanvasWriter {
     await this.flush()
     if (this.state === 'changed') await this.flush()
   }
-  /** A newer revision this editor already shows (its own Task went to Trash): based on it, nothing to send. */
+  /** A newer revision this editor already shows (its own task went to Trash): nothing to send. */
   adopt(page: PageView, document: CanvasDocument): void {
     if (!page.revision) return
     this.revision = page.revision

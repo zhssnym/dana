@@ -1,53 +1,26 @@
-/*
-A person's default face: a small drawn character, chosen from their user id.
-
-Hassan's ask (2026-09-24): "every user should have a default profile pic
-instead of the Google one — nice profile-pic icons, better than Google's or
-just letters." So the tinted initials disc is gone and the Google picture is
-no longer drawn; a person wears this until they upload their own (7.15).
-
-**It is a generator, not a sprite sheet.** A head and shoulders in the
-person's swatch on a wash of the same hue, with one of eight hair shapes, one
-of two expressions and, for some, glasses. Eight colours times those choices
-spreads a team widely, and every piece is plain geometry on a 32-unit grid so
-it stays crisp at 16, 20, 24 and 32px. No external URL is involved (10.8's
-CSP), and no colour is spelled here: `parts/person-tint.ts` owns the paint.
-
-**It is chosen from the user id**, so one person wears one face everywhere
-however their name is spelled on a surface, and a rename changes nothing.
-The display name is the key only where a surface genuinely holds no id; the
-name hash is independent of the tint's so two people who share a colour still
-differ in form.
-
-Decorative: the name beside it is what a reader is told (AC-244).
-*/
+// A person's default face, generated from their user id so it is the same
+// everywhere. Decorative: the name beside it is what a reader is told.
 import { createContext, useContext, useMemo } from 'react'
 
 import { personFacePaint, personShapeSeed, rosterTints } from '../parts/person-tint.js'
 
 import { cn } from './ui/utils.js'
 
-/*
-A page's roster (r7): inside it, faces are painted from `rosterTints`, so no
-two members of the page share a hue. Outside one, a face is its own
-`personTint`; only a clash inside a roster moves anyone.
-*/
+// Inside a page roster, faces use `rosterTints` so no two members share a hue.
 const RosterTintContext = createContext<ReadonlyMap<string, string> | null>(null)
 
 export function RosterTints({ ids, children }: { readonly ids: readonly string[]; readonly children: React.ReactNode }): React.JSX.Element {
-  /* Keyed by the roster's content, not the array's identity. */
+  // Keyed by the roster's content, not the array's identity.
   const key = [...new Set(ids)].sort().join(',')
   const tints = useMemo(() => rosterTints(key === '' ? [] : key.split(',')), [key])
   return <RosterTintContext.Provider value={tints}>{children}</RosterTintContext.Provider>
 }
 
-/** A person's tint as their face wears it here: the page roster's, else their own. */
 export function usePersonTint(id: string): string {
   const roster = useContext(RosterTintContext)
   return personFacePaint(id, roster?.get(id)).ink
 }
 
-/** Hair drawn behind the head (long hair falls behind the shoulders' line). */
 function HairBehind({ style, fill }: { style: number; fill: string }): React.JSX.Element | null {
   if (style === 3) return <path d="M8 15a8 8 0 0 1 16 0v9H8z" fill={fill} />
   if (style === 6)
@@ -60,7 +33,6 @@ function HairBehind({ style, fill }: { style: number; fill: string }): React.JSX
   return null
 }
 
-/** Hair drawn over the head's crown. */
 function HairTop({ style, fill }: { style: number; fill: string }): React.JSX.Element | null {
   switch (style) {
     case 0: // short crop
@@ -105,9 +77,8 @@ export function DefaultAvatar({
   name,
   className,
 }: {
-  /** The person's user id, which the face is a function of wherever it is known. */
   readonly id?: string | null | undefined
-  /** Their display name: the key only where no id is held. */
+  /** Used only where no id is held. */
   readonly name: string
   readonly className?: string
 }): React.JSX.Element {

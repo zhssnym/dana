@@ -1,11 +1,5 @@
-/*
-The task row and the list around it.
-
-One line, one layout (the stored row-height preference is no longer read):
-checkbox, title, muted meta, star. Pressing the row opens the task; the list
-adds drag, the hold that makes a folder of two tasks, and Shift/Cmd-click
-selection with its labelled bar. `useCardWiring` is shared with the task panel.
-*/
+// The task row and the list around it: checkbox, title, muted meta, star. The list adds
+// drag, the hold that makes a page of two tasks, and Shift/Cmd-click selection.
 
 import { InlineInput } from "./ui/inline-field.js"
 import {
@@ -44,47 +38,16 @@ import { cn } from "./ui/utils.js"
 import { RowMeta } from "./task-meta.js"
 import { CheckMark } from "./ui/checkbox.js"
 
-/* --------------------------------------------------------------- motion, */
-
 export const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 export const T_BASE = "duration-[var(--duration-base)] ease-[var(--ease-enter)]"
 
-/* ------------------------------------------------------------ dragging, */
-/*
-Dragging a row, and the 1.5 second dwell that turns a reorder into a folder.
-
-The interaction has two meanings and the dwell is what separates them. Move, and
-you are reordering: the row follows the pointer and the rows it passes slide out
-of its way, so where it will land is shown rather than described. Stop, and
-after 1.5s over one row the release changes meaning, the two tasks become a
-folder. A hidden mode is a bad idea unless the mode announces itself, so the
-target row fills a bar over exactly the dwell duration and then says what
-releasing will do. The bar is the only reason the delay is not a mystery.
-
-Arming also relaxes the list back to its resting order, because rows still
-holding a space open for a reorder you are no longer proposing would be lying
-about what happens next.
-
-The mechanics live in `lib/use-sortable-list.ts` rather than HTML5
-drag-and-drop, whose drag image cannot be styled, whose `dragleave` fires on
-crossing onto a child, and which has no auto-scroll and no touch. The same
-engine drives the task rows, a card's steps and a card's blocks, so the gesture
-is learned once.
-
-Nothing is destroyed on drop. Releasing opens a panel that names the folder and
-can be cancelled, because "I dragged one task slightly onto another" and "I want
-a new folder" should not be the same gesture with no way back.
-*/
+// Drag reorders; resting 1.5s on a row arms a merge into a new page, shown by a filling
+// ring. Built on `lib/use-sortable-list.ts`, not HTML5 drag-and-drop. Release opens a
+// naming panel that can be cancelled.
 
 export const DWELL_MS = 1500
 
-/* What a folder-in-progress looks like.
-
-   The countdown and the folder are the same object: a ring that closes over
-   exactly the dwell duration around the folder mark it is closing on. You can
-   tell what is about to happen without reading anything, and how long is left
-   without looking anywhere else. When it completes the badge fills, which is a
-   change of state rather than a change of volume. */
+// The countdown ring closes around the page mark over exactly the dwell duration.
 export function MergeBadge({ armed }: { armed: boolean }) {
   const [grown, setGrown] = useState(false)
 
@@ -113,8 +76,7 @@ export function MergeBadge({ armed }: { armed: boolean }) {
           <svg
             viewBox="0 0 24 24"
             aria-hidden="true"
-            /* Rotated so the ring closes from twelve o'clock, which is where
-               every progress ring anybody has seen starts. */
+            // Rotated so the ring closes from twelve o'clock.
             className="absolute inset-0 size-6 -rotate-90"
           >
             <circle
@@ -161,29 +123,15 @@ export function MergeBadge({ armed }: { armed: boolean }) {
 export type PendingAction =
   | { kind: "merge"; ids: string[]; titles: string[] }
   | { kind: "promote"; id: string; title: string; steps: number }
-  /* Every list of folders ends in "New folder…", so wanting one never means
-     leaving what you were doing to go and make it first. All three arrive
-     here, at the same naming panel, so a new folder is created one way rather
-     than three. */
+  // Every "New folder…" path lands in the same naming panel.
   | { kind: "folder-for"; ids: string[] }
   | { kind: "steps-to-folder"; taskId: string; indices: number[] }
 
-/* The panel both gestures land in. Deliberately not a dialog: the point of
-   these two ideas is that you never leave the list.
-
-   The folder is drawn, what goes into it is shown as the things themselves
-   rather than described in a sentence, and there is always a name in the field.
-   The suggestion is a real name, the two titles have a shared word often enough
-   to be worth trying, and it is selected on open, so Enter accepts and typing
-   replaces. Nothing starts disabled. */
 export function suggestFolderName(pending: PendingAction) {
   if (pending.kind === "promote") return pending.title
   if (pending.kind !== "merge") return "New page"
 
-  /* The longest word both titles share, if there is one. "Book the venue" and
-     "Pay the venue deposit" are obviously a venue folder, and a person who is
-     handed that guess spends no time at all on the part they did not come
-     here to do. */
+  // The longest word both titles share: "Book the venue" and "Pay the venue deposit" give "Venue".
   const words = (title: string) =>
     title
       .toLowerCase()
@@ -228,8 +176,7 @@ export function PendingPanel({
       )}
     >
       <div className="flex items-start gap-3 px-3 pt-3">
-        {/* The folder mark, the same one the dwell badge closes its ring
-            around, so the gesture and its panel are visibly one thing. */}
+        {/* The same mark the dwell badge closes its ring around. */}
         <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
           <FolderPlus
             className="size-4 text-primary"
@@ -265,9 +212,7 @@ export function PendingPanel({
             )}
           />
 
-          {/* What goes in, shown rather than counted. A person checking they
-              grabbed the right two tasks should be able to read the two
-              titles, which a sentence saying "2 tasks" cannot do. */}
+          {/* The titles themselves, so a person can check they grabbed the right tasks. */}
           <ul className="mt-2 flex flex-col gap-1">
             {going.map((line, index) => (
               <li
@@ -313,17 +258,8 @@ export function PendingPanel({
   )
 }
 
-/* Everything a concept needs: the task list, the drag layer, and the panel
-   both folder gestures land in. Shared so that dragging behaves identically in
-   every concept, for the same reason renaming does, a comparison should
-   measure the row, not which concept got the better drag. */
-/*
-Selecting task rows: Shift-click or Cmd/Ctrl-click a row to add it, and while
-a selection is held a plain click adds or removes too. Escape, "Clear", or
-emptying the selection leaves. The bar says every act in words.
-
-Dragging is suspended while selecting, because the list cannot serve both.
-*/
+// Row selection: Shift- or Cmd/Ctrl-click adds a row; while selecting, a plain click
+// toggles too. Escape or Clear leaves. Dragging is suspended while selecting.
 export type BulkDate = "today" | "tomorrow" | "next-week" | null
 
 export function useRowSelection({
@@ -333,20 +269,20 @@ export function useRowSelection({
   onDate,
   onDelete,
 }: {
-  /* The choice carries the folder id a PATCH /tasks/:id body names it by. */
+  // The choice carries the folder id the PATCH names.
   onMove: (ids: string[], folder: { id: string; name: string; color: string }) => void
   onNewFolder: (ids: string[]) => void
   onBulk: (ids: string[], fields: Partial<ConceptTask>) => void
-  /* Absent in a list with nowhere to write a date; the bar then offers none. */
+  // Absent in a list with nowhere to write a date; the bar then offers none.
   onDate?: (ids: string[], when: BulkDate) => void
-  /* Accepted from old call sites; the bar no longer offers Duplicate. */
+  // Accepted from old call sites; the bar no longer offers Duplicate.
   onDuplicate?: (ids: string[]) => void
   onDelete: (ids: string[]) => void
 }) {
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
-  /* A modified press is a selection, never a tap that opens the task. The
-     drag engine reports the tap on pointerup, before the click lands. */
+  // A modified press is a selection, never a tap that opens the task. The drag engine
+  // reports the tap on pointerup, before the click lands.
   const modifiedPress = useRef(false)
 
   useEffect(() => {
@@ -379,7 +315,7 @@ export function useRowSelection({
       onPointerDown: (event?: ReactPointerEvent) => {
         modifiedPress.current = event !== undefined && modified(event)
       },
-      /* Shift-click would otherwise extend a text selection across the rows. */
+      // Shift-click would otherwise extend a text selection across the rows.
       onMouseDown: (event: ReactMouseEvent) => {
         if (modified(event)) event.preventDefault()
       },
@@ -395,8 +331,8 @@ export function useRowSelection({
     }
   }
 
-  /* Read once by the list's opener: true when the press it is about to treat
-     as a tap was a modified one. */
+  // Read once by the list's opener: true when the press it is about to treat as a tap
+  // was a modified one.
   function takeModifiedPress() {
     const was = modifiedPress.current
     modifiedPress.current = false
@@ -414,7 +350,7 @@ export function useRowSelection({
       <div
         role="toolbar"
         aria-label="Selected tasks"
-        /* Floating, so selecting never pushes the list it is selecting from. */
+        // Floating, so selecting never pushes the list it is selecting from.
         className="fixed inset-x-0 bottom-6 z-40 mx-auto flex w-fit max-w-[calc(100vw-2rem)] animate-in max-md:bottom-20 items-center gap-1 rounded-md border border-border bg-background px-2 py-1 shadow-[var(--elevation-2)] duration-150 fade-in-0 slide-in-from-bottom-1"
       >
         <span className="mr-2 px-1 text-sm whitespace-nowrap text-muted-foreground">
@@ -508,13 +444,11 @@ export function useRowSelection({
     selected,
     selectProps,
     takeModifiedPress,
-    /* Nothing to cancel any more; kept so the drag engine's lift hook stays wired. */
+    // Nothing to cancel any more; kept so the drag engine's lift hook stays wired.
     clearPress: () => {},
     bar,
   }
 }
-
-/* --------------------------------------------------------------- pieces, */
 
 export function Check({
   task,
@@ -530,12 +464,7 @@ export function Check({
       type="button"
       role="checkbox"
       aria-checked={done}
-      /*
-      9.1's names table gives this control exactly two names: "Complete task"
-      when open, "Mark as not done" when complete. Naming the task instead
-      ("Complete {title}") would name the task rather than the act. The strings
-      are `ui/copy.ts`'s, transcribed once for the whole client.
-      */
+      // Spec 9.1 gives this control two fixed names, never the task's title (`ui/copy.ts`).
       aria-label={done ? MARK_AS_NOT_DONE : COMPLETE_TASK}
       onClick={(e) => {
         e.stopPropagation()
@@ -556,7 +485,7 @@ export function rowProps(
     ...select,
     onPointerDown: (event: ReactPointerEvent) => {
       select.onPointerDown(event)
-      /* A modified press selects; it must not also arm a drag. */
+      // A modified press selects; it must not also arm a drag.
       if (event.shiftKey || event.metaKey || event.ctrlKey) return
       surface.onPointerDown(event)
     },
@@ -583,7 +512,7 @@ export function ExpandShell({
   card: ReactNode
   drag?: Record<string, unknown>
   itemRef?: (element: HTMLElement | null) => void
-  /* See the badge at the foot of this component. */
+  // See the badge at the foot of this component.
   proposal?: string
   isActive?: boolean
   isDwelling?: boolean
@@ -593,42 +522,21 @@ export function ExpandShell({
   crossOffset?: number
   isSelected?: boolean
 }) {
-  /* The row being carried has to track the pointer exactly, so its transform
-     cannot be on a transition, a row that eases towards the cursor reads as
-     lag rather than as weight. Every other row is easing, because they are the
-     ones making space and that movement is the whole message.
-
-     Durations come from the tokens, so the reduced-motion block turns all of
-     this off without this component knowing anything about it. */
+  // The carried row has no transform transition, or it lags the pointer; the others
+  // ease. Token durations let reduced motion turn this off.
   const carrying = isActive && !isSettling
   return (
     <div
-      /*
-      **The row is a list item.** 9.1's roles table fixes "A task row: a list
-      item, or a row", and tests address exactly that,
-      `getByRole('listitem').or(getByRole('row'))` filtered by the title.
-
-      It goes on this element rather than on either row body inside it, because
-      this is the element a list holds: the one the drag engine measures and
-      moves, the one selection tints, and the one that grows to contain the card
-      when a row expands. A role on the inner body would put the expanded card
-      *outside* the list item that owns it, so a locator for "the row for this
-      task" would stop finding the card the row opened into.
-
-      The list around it is `TaskList`'s own container below, and for every page
-      drawing rows through it, `pages/task-rows.tsx`'s `role="list"`.
-      */
+      // The list item is this element, which the drag engine moves and which contains the
+      // expanded card, so a locator for the row still finds the card.
       role="listitem"
       ref={itemRef}
       {...drag}
       style={{
         transform: offset === 0 && crossOffset === 0 ? undefined : `translate3d(${crossOffset}px, ${offset}px, 0)`,
         maxWidth: carrying && proposal !== undefined ? 'var(--drag-proposal-width)' : undefined,
-        /* `scale` as its own property rather than inside `transform`, so the
-           armed nudge can ease while the carried row keeps tracking the
-           pointer on an untransitioned translate. Putting both in `transform`
-           means one transition setting for two jobs, and the pointer job has
-           to win. */
+        // `scale` as its own property, so the armed nudge can ease while the translate tracks
+        // the pointer untransitioned.
         scale: isActive && isArmed ? "0.985" : undefined,
         transition: carrying
           ? "box-shadow var(--duration-fast) var(--ease-standard), scale var(--duration-fast) var(--ease-standard)"
@@ -640,8 +548,7 @@ export function ExpandShell({
               "border-color var(--duration-base) var(--ease-enter)",
               "margin var(--duration-base) var(--ease-enter)",
             ].join(", "),
-        /* Above the rows it passes over, and above the one it may merge with,
-           or the lift reads as sliding underneath the list. */
+        // Above the rows it passes, or the lift reads as sliding underneath the list.
         zIndex: isActive ? 30 : undefined,
       }}
       className={cn(
@@ -654,35 +561,15 @@ export function ExpandShell({
     >
       {row}
       {open ? card : null}
-      {/* The badge rides the row being carried, not the row underneath it.
-
-          On the target it would be invisible: the carried row sits at z-30
-          directly under the pointer, which is exactly where the target's right
-          edge is, so the countdown would be painted and then covered by the row
-          that caused it. Fixing the stacking would put a tinted row on top of
-          the one being dragged, which reads as the wrong thing moving.
-
-          Riding the carried row is better than either: it is already on top,
-          and it is already where the eyes are. */}
+      {/* The badge rides the carried row: on the target it would be covered by the carried
+         row at z-30. */}
       {isActive && (isDwelling || isArmed) ? (
         <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
           <MergeBadge armed={isArmed} />
         </span>
       ) : null}
-      {/*
-      What a release would do, said in words.
-
-      The badge above is the merge proposal, for a row dragged onto another row.
-      A row can also be dragged onto a *container*, a board column, and the rule
-      is the same at both ends: a container takes the drop and says so, in words
-      rather than an outline. AC-228 reads "Into {column}" while the pointer is
-      still down.
-
-      So the prop is drawn in the same slot as the merge badge and never at the
-      same time as one: a row being merged is over another row and a row being
-      placed is over a column, and the caller supplies whichever it knows about.
-      It rides the carried row for the reason the comment above gives.
-       */}
+      {/* What a release onto a container would do, in words (AC-228). Same slot as the merge
+         badge, never at the same time. */}
       {proposal === undefined ? null : (
         <span className="pointer-events-none absolute top-full left-1 z-40 mt-1 rounded-sm bg-foreground px-2 py-0.5 text-xs whitespace-nowrap text-background">
           {proposal}
@@ -692,79 +579,37 @@ export function ExpandShell({
   )
 }
 
-/* ------------------------------------------------------ the shipping row, */
-/*
-`TaskRow` is what the screens render: spread the task's fields, pass the
-handlers.
-
-**Where its state lives.** The screens own the facts they model: title,
-completion, importance, My Day, folder, due, assignee, step counts. Those are
-read from props every render, so a change made anywhere still flows down.
-Everything the card can edit that the screen never modelled, notes, a reminder,
-the recurrence rule, the step items themselves, is held here as a layer of local
-edits on top.
-*/
+// The row the screens render. Facts the screen models come from props every render;
+// what only the card edits is held here as local edits on top.
 
 export type TaskStatus = "pending" | "completed" | "abandoned"
 
-/* Where a task can be held once it leaves the list, the surface's five
-   modes plus the tab strip. Owned here because the row is where the choice
-   is offered; the surface imports it. */
 export type TaskOpenMode = "dialog" | "right" | "tab"
 
 export interface TaskRowProps {
   id?: string
   title: string
-  /*
-  Dana addresses a folder by id (7.4), and two things on this surface need one:
-  the assignee menu, whose roster is 4.4's members of *that* folder, and every
-  write that moves a task, which sends `folder_id`. So `id` is optional beside
-  the name and colour, as on `ConceptTask.folder`: a card that sets a name and a
-  colour still typechecks and still behaves, and a picker sets the id.
-
-  `toConceptTask` below spreads this straight onto the concept task, so the id
-  reaches the card without a second mapping.
-  */
+  // Optional beside name and colour: the assignee roster and move writes need the id.
   folder?: { name: string; color: string; id?: string }
-  /*
-  Which section of its folder page this task sits in.
-
-  A section is part of a task's address: carry the row anywhere else, open it in
-  a dialog, look at it in Completed, and without this the section vanishes.
-
-  It rides *after* the folder chip and reads as a path, because that is what it
-  is: Travel › Venue & vendors. Absent when there is no section, and absent when
-  the row is already sitting under that section's own heading, which the folder
-  page decides per list rather than per row.
-  */
+  // The task's section on its folder page, drawn after the folder chip as a path.
+  // Absent under that section's own heading.
   section?: string
-  /*
-  What the list around this row has already said.
-
-  **A row says what its page does not.** Done shows no due date under headings
-  that already group by when it was finished; Important draws no filled star on
-  a page defined by the star; Carried over paints no date red on a block whose
-  membership *is* being late. The section chip works the same way, absent when
-  the row sits under that section's own heading.
-
-  Decided per list, never per row: a row cannot see the heading above it, and a
-  screen that had to remember this on every row is a screen that will forget on
-  one.
-  */
+  // What the list around the row has already said, decided per list: a row cannot see
+  // the heading above it.
   given?: {
-    /* Grouped by folder, or standing inside one. */
+    // Grouped by folder, or standing inside one.
     folder?: boolean
-    /* Grouped by person. */
+    // Grouped by person.
     assignee?: boolean
-    /* Grouped by date, or finished, where the deadline is spent. */
+    // Grouped by date, or finished, where the deadline is spent.
     due?: boolean
-    /* Every row here is starred. */
+    // Every row here is starred.
     important?: boolean
-    /* Every row here is late. */
+    // Every row here is late.
     overdue?: boolean
   }
   due?: { label: string; overdue?: boolean }
-  /* The start of a Schedule, in the due label's words, where it is not the due day (#215). */
+  // The schedule's start, in the due label's words, where it is not the due day.
   starts?: string
   status?: TaskStatus
   important?: boolean
@@ -775,71 +620,35 @@ export interface TaskRowProps {
   steps?: { complete: number; total: number }
   recurrence?: string
   notes?: string
-  /*
-  The parts of a task only its card shows: the steps themselves, the files, and
-  anything the card learns to edit next.
-
-  Dialog, sidebar and inline row are views of the same task, so the data inside
-  them must be the same. A row's props carry a step *count*, because a count is
-  all a row draws, so without this `toConceptTask` would have to invent steps
-  from it ("Step 1", "Step 2") and a task could round-trip through the shell
-  with its steps renamed. Attachments have no prop at all.
-
-  One field rather than one per fact, deliberately: the card gains blocks over
-  time and each new one would otherwise need a prop, a mapping and a line in the
-  shell's patcher, three places to forget. The row spreads this last, so
-  whatever the card knows how to edit survives being closed and reopened
-  somewhere else.
-  */
+  // The parts only the card shows (steps, files). The row spreads this last, so card
+  // edits survive being closed and reopened elsewhere.
   detail?: Partial<ConceptTask>
-  /*
-  `visualState`, `showSecondaryActions` and `menuOpen` are deliberately not
-  props: the row draws its own hover and focus, and a prop that cannot do
-  anything is a dead control one level down. The previous row survives at
-  `components/task-row-baseline.tsx` for anyone comparing.
-  */
-  /*
-  `unassigned` and `invitePending` are props because they are driven by real
-  data, Q3's chip and 7.4's pending invite, and section 9 is normative on both.
-  The reasoning sits beside the two chips they draw, at the foot of `rowChips`.
-  */
   unassigned?: boolean
   invitePending?: string
-  /* #225: unfinished blockers, 7.25's `blocked_by_count`. Absent or 0 draws
-     nothing, so an ordinary row carries no dependency chrome at all. */
+  // Unfinished blockers; absent or 0 draws nothing.
   blockedBy?: number
-  /* #208: the Labels this viewer sees on the task, archived ones left out. */
+  // The labels this viewer sees on the task, archived ones left out.
   labels?: ConceptLabel[]
-  /* 9.5's from half. The person who made this task, drawn only where the page
-     asks. See the chip at the foot of `rowChips`. */
+  // The person who made this task, drawn only where the page asks.
   createdBy?: string
-  /* What a release would do, drawn on the row being carried. See `ExpandShell`. */
+  // What a release would do, drawn on the row being carried. See `ExpandShell`.
   proposal?: string
   completionPreview?: boolean
   collapsing?: boolean
-  /* Open the task somewhere other than in place: the row's own view strip
-     and the card's full-screen action both speak through this, naming the
-     surface they want. Bare calls mean "full". */
+  // Open the task elsewhere; a bare call means full.
   onOpen?: (mode?: TaskOpenMode) => void
-  /* Makes a folder holding this task, and names it. Supplied by TaskList, which
-     owns the naming panel; absent for a row rendered outside one, and the chip
-     then simply does not offer it rather than drawing a dead menu item. */
+  // Supplied by TaskList, which owns the naming panel; absent outside one.
   onNewFolder?: () => void
-  /* The write path out of the card. See `useCardWiring`: without it every
-     edit lives and dies with the component, which is why a task opened in a
-     surface could not be renamed. */
+  // The write path out of the card. See `useCardWiring`.
   onPatch?: (fields: Partial<ConceptTask>) => void
-  /* Supplied by TaskList so a row can hand back its own opener; the list
-     then taps into it. Never passed by a screen. */
+  // Supplied by TaskList so a row can hand back its opener. Never passed by a screen.
   onRegisterOpen?: (open: (() => void) | null) => void
   onToggleComplete?: (completed: boolean) => void
   onToggleImportant?: () => void
   onRemoveFromMyDay?: () => void
   onAbandon?: () => void
   onDelete?: () => void
-  /* List wiring, supplied by `TaskList` and by nothing else. A row rendered
-     on its own, the states page does this, simply has none of it, and is
-     the same row without a list around it to reorder within. */
+  // List wiring, supplied only by `TaskList`; a standalone row has none.
   itemRef?: (element: HTMLElement | null) => void
   listProps?: Record<string, unknown>
   dragState?: {
@@ -852,17 +661,11 @@ export interface TaskRowProps {
   }
   isSelected?: boolean
   selecting?: boolean
-  /* The task surface (sidebar, dialog, a tab) renders the row already expanded:
-     the row is the task even there. */
+  // The task surface renders the row already expanded.
   defaultOpen?: boolean
 }
 
-/* The shell's flat props into the shape the row and the card actually speak.
-   Steps arrive as a count, because a count is all the shell ever stored; they
-   are expanded into items so the card can show a real list, and the count in
-   the row stays derived from those items so the two can never disagree. */
-/* The presenter's frequency word back to the card's unit. A word that names
-   none ("Repeats") leaves the unit unknown rather than guessing weekly. */
+// The presenter's frequency word back to the card's unit. "Repeats" leaves it unknown.
 const REPEAT_UNIT_OF: Record<string, ConceptTask["repeatUnit"]> = {
   Daily: "day",
   Weekly: "week",
@@ -892,9 +695,7 @@ function toConceptTask(props: TaskRowProps): ConceptTask {
     pulled: props.pulled,
     important: props.important,
     notes: props.notes,
-    /* Invented from the count, and only as a fallback: a lab fixture that
-       says "2 of 5" has no titles to give. Anything the shell owns arrives
-       through `detail` below and wins, so a real task keeps its real steps. */
+    // A fallback only: anything real arrives through `detail` below and wins.
     steps,
     ...(props.labels === undefined ? {} : { labels: props.labels }),
     recurrence: Boolean(props.recurrence),
@@ -905,55 +706,25 @@ function toConceptTask(props: TaskRowProps): ConceptTask {
   }
 }
 
-/* The card's wiring, extracted so the task surface can hold the same task the
-   row holds, one edits layer, one patch, one set of step handlers, whether the
-   card sits under a row or fills a page. A surface that re-implemented any of
-   this would be a second artifact wearing the first one's clothes. */
+// The card's wiring, shared so the task surface holds the same task the row holds.
 export function useCardWiring(props: TaskRowProps) {
   const [edits, setEdits] = useState<Partial<ConceptTask>>({})
-  /*
-  The server's steps win once they arrive. Local edits sit over the props for as
-  long as the card is looked at, which is right for a title or a note and wrong
-  for the one field whose server copy carries something the local copy cannot:
-  7.7's ids, which `writeSteps` diffs by. Keyed on the list's content rather
-  than its identity, because every render hands the card a fresh array and
-  clearing on identity would drop a tick before its write had landed.
-  */
+  // The server's steps win once they arrive. Keyed on content, not identity: every render
+  // passes a fresh array, and clearing on identity would drop a tick before it landed.
   const serverSteps = JSON.stringify(props.steps ?? null)
   useEffect(() => {
     setEdits(({ steps: _dropped, ...rest }) => rest)
   }, [serverSteps])
-  /* The shell's write path, reaching a row that nobody handed one to, see
-     `tasks/task-writer`. A row given `onPatch` still wins. */
+  // The shell's write path, for a row nobody handed one to. `onPatch` still wins.
   const writer = useTaskWriter()
 
-  /* Props first, local edits over the top. A completion made from the screen
-     still reaches the row; a note typed into the card is not thrown away when
-     the screen re-renders for some unrelated reason. */
+  // Props first, local edits over the top.
   const task: ConceptTask = { ...toConceptTask(props), ...edits }
   const counts = stepCount(task)
   const steps = task.steps ?? []
 
-  /*
-  **Every edit is reported upward, not just completion.**
-
-  Inside an inline row local state would be invisible, the row stays mounted, so
-  the local copy *is* the task for as long as anyone is looking at it. A surface
-  mounts per open and unmounts on close, so edits held only locally there would
-  be discarded the instant it closed.
-
-  `onPatch` is the one write path out. A screen that supplies it owns the task;
-  one that does not keeps local-only behaviour, which is right for a lab or a
-  preview with nowhere to write to.
-  */
-  /*
-  Out to whoever owns the task: the handler if there is one, the shell's
-  writer otherwise, and nowhere if there is neither.
-
-  The local copy is still kept, and deliberately, an edit has to appear
-  before it has travelled anywhere, or every keystroke would wait on a
-  round trip through the screen above.
-  */
+  // Every edit is reported to the task's owner: the handler, else the shell's writer.
+  // The local copy shows the edit before the round trip.
   function report(fields: Partial<ConceptTask>) {
     if (props.onPatch) props.onPatch(fields)
     else if (writer && props.id) writer(props.id, fields)
@@ -961,65 +732,30 @@ export function useCardWiring(props: TaskRowProps) {
 
   function patch(_id: string, fields: Partial<ConceptTask>) {
     setEdits((current) => ({ ...current, ...fields }))
-    /*
-    **A status the screen owns is told to the screen and not also written from
-    here.**
-
-    Both ends are the API: `report` reaches `tasks/task-writer.tsx`, which turns
-    `done` into 7.6's transition, and `onToggleComplete` reaches the page's own
-    action, which does the same. Doing both would send two transitions for one
-    press, and the second would answer 409.
-
-    **Worse than the duplicate would be which one wins.** 9.5 puts a
-    confirmation in front of un-completing a task that generated a successor,
-    and the page is where that confirmation lives, because the page is what
-    knows it is Done. The writer's transition does not wait for it, so the
-    confirmation would be asked after the act it gates. AC-162: a declined
-    un-complete leaves the completed row completed.
-
-    So where a screen supplies the handler, the screen owns the act. A surface
-    supplies none of these, so the writer carries them there.
-    */
+    // Where the screen supplies `onToggleComplete`, completion is the screen's: writing it
+    // here too would send two transitions (409) and skip the screen's un-complete
+    // confirmation (AC-162).
     const owned = { ...fields }
     if (props.onToggleComplete !== undefined) delete owned.done
-    /*
-    **Abandon is not stripped, and the asymmetry is the point.** A screen is
-    *told* about a completion, `onToggleComplete` above, so a screen that
-    supplies that handler writes the transition itself and this must not.
-    Nothing tells a screen about an abandon: `onAbandon` is the overflow
-    menu's own item, raised from the menu and never from this patch, and
-    `onRestore` is the trailing control's, which reaches the server only
-    through here. Stripping it left the Restore control drawing, pressing and
-    doing nothing, which AC-097 caught within one run.
-    */
+    // Abandon is not stripped: nothing tells the screen about it, so Restore reaches the
+    // server only through here (AC-097).
     if (Object.keys(owned).length > 0) report(owned)
-    /* Completion is the screen's fact rather than the row's, so it is told. */
+    // Completion is the screen's fact, so it is told.
     if (fields.done !== undefined) props.onToggleComplete?.(fields.done)
   }
 
-  /* The card's subtasks are the checklist of its body, written by its
-     composer; nothing here writes them. */
+  // The card's subtasks are its body's checklist; nothing here writes them.
   const cardHandlers = {}
 
   return { task, patch, steps, counts, cardHandlers }
 }
 
-/*
-The row: one line, 32–36px. Checkbox · title · muted meta on the right (date,
-folder where the page spans folders, assignee face, repeat glyph and labels),
-then the star, which shows on hover and whenever it is set. Labels use the same
-compact pills as the task property and filters; no subtask count is drawn here.
-
-Clicking anywhere on the row opens the task; the checkbox and the star are the
-only controls inside it. No chevron, no row "…", no rename in the row: those
-live in the task's own panel (the redesign's control map). Shift/Cmd-click
-selects, see `useRowSelection`.
-*/
+// One line: checkbox, title, meta, star. The whole row opens the task; the checkbox and
+// star are the only controls inside it.
 export function TaskRow(props: TaskRowProps) {
   const { task, patch } = useCardWiring(props)
 
-  /* The row tells its list how to open it; the list's drag engine calls back
-     on a tap, so tap-to-open is the row's property rather than each screen's. */
+  // The list's drag engine calls back on a tap, so tap-to-open is the row's property.
   const { onRegisterOpen, onOpen } = props
   useEffect(() => {
     if (!onRegisterOpen) return
@@ -1033,10 +769,9 @@ export function TaskRow(props: TaskRowProps) {
 
   const row = (
     <div
-      /* r3-peek: the peek steps through rows in the order they are drawn. */
+      // The peek steps through rows in the order they are drawn.
       data-task-id={props.id}
-      /* The keyboard path (`row-keys.ts`): a list page makes this row its one
-         Tab stop; Enter opens the task and Space completes it. */
+      // The keyboard path (`row-keys.ts`): Enter opens, Space completes.
       data-row-key=""
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return
@@ -1049,8 +784,7 @@ export function TaskRow(props: TaskRowProps) {
         }
       }}
       onClick={
-        /* Where no drag engine tracks the row (a board card, say); inside a
-           list the engine resolves the tap. */
+        // Only where no drag engine tracks the row; inside a list the engine resolves the tap.
         props.onOpen && !props.listProps
           ? (event) => {
               const target = event.target as HTMLElement
@@ -1070,7 +804,7 @@ export function TaskRow(props: TaskRowProps) {
       <span
         title={task.title}
         className={cn(
-          /* A phone wraps the title to a second line rather than cutting it beside the meta. */
+          // A phone wraps the title to two lines rather than cutting it beside the meta.
           "min-w-0 truncate max-md:line-clamp-2 max-md:whitespace-normal",
           finished ? "text-muted-foreground" : "text-foreground",
           struck && "line-through",
@@ -1121,20 +855,13 @@ export function TaskRow(props: TaskRowProps) {
   )
 }
 
-/* The list wiring a screen spreads onto its own row when it keeps one. */
+// The list wiring a screen spreads onto its own row when it keeps one.
 export interface TaskListWiring {
   itemRef: (element: HTMLElement | null) => void
   listProps: Record<string, unknown>
-  /* Make a folder holding this task. */
   onNewFolder: () => void
-  /*
-  How a row hands the list its opener.
-
-  The engine resolves tap-versus-drag, because it is the only thing that knows
-  which a press became, so a row cannot simply take an `onClick`. Both of these
-  are in the object the list builds, and are typed here so a `renderRow` screen
-  can reach them.
-  */
+  // The engine resolves tap versus drag, so a row hands the list its opener instead of
+  // taking an `onClick`.
   onRegisterOpen: (open: (() => void) | null) => void
   dragState: {
     isActive: boolean
@@ -1142,34 +869,17 @@ export interface TaskListWiring {
     isArmed: boolean
     isSettling: boolean
     offset: number
-    /* Sideways travel of the carried row, when the list follows across. */
+    // Sideways travel of the carried row, when the list follows across.
     crossOffset?: number
   }
-  /*
-  What a release would do, for a list that drags into a container.
-
-  The engine's `overKey` is handed on so the only surface that drags into a
-  container, the board, can fill the row's proposal slot. AC-228 reads "Into
-  {column}" while the pointer is still down, which is the one moment it exists.
-  Undefined on every row that is not the carried one.
-  */
+  // The board's "Into {column}" label (AC-228). Undefined on every row but the carried one.
   proposal?: string
   isSelected: boolean
   selecting: boolean
 }
 
-/* ---------------------------------------------------------------- list, */
-/*
-A list of task rows, and the three behaviours that only exist because they are a
-list rather than a row: reordering, the 1.5-second hold that makes a folder of
-two tasks, and selecting several to act on at once.
-
-**Why it is a component rather than a hook.** The state these behaviours need
-belongs to the list and not to any row in it, which row is being carried, which
-row it is resting on, what is selected, and a screen that had to hold that state
-would be a screen that could get it wrong. A screen renders one of these per
-section and passes tasks; everything else is here.
-*/
+// A list of task rows: reorder, the hold that makes a page of two tasks, and multi-select.
+// The list owns that state, so screens only pass tasks.
 
 export function TaskList<T extends TaskRowProps & { id: string }>({
   tasks,
@@ -1197,123 +907,60 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   ...perRow
 }: {
   tasks: T[]
-  /** A composed page renders task rows between other block kinds. Sharing
-   * this controller keeps one selection across those separate list islands. */
+  /** A composed page shares one selection across its separate task-list islands. */
   selection?: ReturnType<typeof useRowSelection>
   /** The composed page draws the shared bar once above all of its islands. */
   selectionChrome?: boolean
-  /*
-  **The list's arrangement is provisional until the screen says otherwise.** 7.6
-  persists a drag in a folder with no filter or sort applied and springs it back
-  everywhere else, and only the screen knows which list it is. So the callback
-  also receives the ids in their new order and may answer with a promise: `true`
-  once the order endpoint has written and the view has been read back, `false`
-  for a refusal or a list that never persists. Either way the list then drops
-  its own copy and shows the screen's rows, which after a write is the server's
-  order (AC-266: the drag reads back in Q2's order) and after a refusal is the
-  order the sort put there. A screen that returns nothing keeps the list's own
-  order.
-  */
+  // The list's order is provisional until the screen answers: `true` once the order is
+  // written and read back, `false` for a refusal. Either way the list then shows the
+  // screen's rows (AC-266). Returning nothing keeps the list's own order.
   onReorder?: (from: number, to: number, next: string[]) => void | Promise<boolean>
-  /*
-  Whether this list keeps an order at all.
-
-  A list that cannot keep an order does not offer one: otherwise the rows a
-  carried row passes slide open a gap and a slot appears under it, and on
-  release nothing has moved. The row still lifts, still follows the pointer, and
-  the 1.5 second dwell still makes a folder, that gesture needing no persisted
-  order; what goes is the displacement of the rows it passes and the reorder
-  itself, so the only thing a drag here offers is the one thing it can do.
-  */
+  // A list that cannot keep an order does not open gaps while dragging; the dwell merge
+  // still works.
   reorderable?: boolean
-  /*
-  Where a row was let go, when it was let go outside this list.
-
-  A list sorts what it holds; a page holds several. Passed through to the drag
-  engine so a page with sections can catch a task on its way out of one and
-  put it in another, see `onDropAt` in `use-sortable-list`. Returning true
-  means the page took it and this list should leave its own order alone.
-  */
+  // A row let go outside this list; return true when the page took it.
   onDropAt?: (taskId: string, point: { x: number; y: number }) => boolean
-  /* What a release at this point would do, asked while the drag is still in the
-     air, so the carried row can say it. It returns the words rather than a key,
-     because the words are the only thing the row draws and a key would need a
-     second prop to translate. See `proposal` on `TaskListWiring`. */
+  // What a release here would do, as the words the carried row draws.
   onOver?: (taskId: string, point: { x: number; y: number }) => string | null
-  /* The carried row follows the pointer sideways too (`crossOffset`), for a
-     board, whose cards leave their column for the one beside it. */
+  // The carried row follows the pointer sideways too, for a board.
   followAcross?: boolean
-  /* Whether a row in this list is currently being carried. A page with
-     sections needs it: the place to drop a task that belongs to none of them
-     only has to exist while something is in the air. Pass a stable setter. */
+  // Whether a row is being carried, for drop targets that exist only mid-drag. Pass a
+  // stable setter.
   onDragStateChange?: (dragging: boolean) => void
   onMerge?: (ids: string[], name: string) => void
   onBulk?: (ids: string[], fields: Partial<ConceptTask>) => void
   onDate?: (ids: string[], when: BulkDate) => void
   onDuplicate?: (ids: string[]) => void
   onDelete?: (ids: string[]) => void
-  /* The id rides along; see `useRowSelection`. */
+  // The id rides along; see `useRowSelection`.
   onMove?: (ids: string[], folder: { id: string; name: string; color: string }) => void
-  /* Per-task callbacks, taking the id, so a screen never has to map rows
-     itself just to close over one. */
-  /*
-  **Required, and that is the point.**
-
-  Opening a task by pressing its body is resolved by the drag engine, because
-  only the engine knows whether a press became a drag (see `onTap` in
-  use-sortable-list). The engine can only report the tap to whoever the list
-  hands it, so a list without this prop is a list whose rows silently cannot
-  be opened, which is exactly what happened on the folder page, where three
-  lists were written with `renderRow` and nobody remembered this.
-
-  Optional, it was a rule kept in memory and forgotten once per new list.
-  Required, the compiler asks the question at every call site, including the
-  ones nobody has written yet. Behaviour that is settled for the row belongs
-  in the row's own contract rather than in each screen's diligence.
-  */
+  // Required: the drag engine reports taps only to this, so without it rows silently
+  // cannot be opened.
   onTaskOpen: (id: string, mode?: TaskOpenMode) => void
   onTaskToggleComplete?: (id: string, completed: boolean) => void
   onTaskToggleImportant?: (id: string) => void
   onTaskRemoveFromMyDay?: (id: string) => void
   onTaskAbandon?: (id: string) => void
   onTaskDelete?: (id: string) => void
-  /* An escape hatch for the screens whose rows carry logic of their own,
-     a completion that restores an abandoned task, a transition on complete, a
-     recurrence successor to warn about. Rather than push all of that into
-     this component or flatten it into id-only callbacks, the screen keeps its
-     own row and is handed the list wiring to spread onto it. */
+  // For screens whose rows carry their own logic: they keep their row and get the wiring.
   renderRow?: (task: T, wiring: TaskListWiring) => ReactNode
-  /*
-  What this list has already said, for every row in it.
-
-  Declared here rather than left to `perRow` so the compiler asks the
-  question at the call site: a list is where the decision belongs, because a
-  row cannot see the heading above it (see TaskRowProps.given). A screen with
-  its own `renderRow` passes it on the row instead, which is the same
-  decision made in the same place.
-  */
+  // Declared here so the compiler asks at the call site; `renderRow` screens pass it on
+  // the row instead.
   given?: TaskRowProps["given"]
   className?: string
 }) {
   const [order, setOrder] = useState<string[] | null>(null)
   const [pending, setPending] = useState<PendingAction | null>(null)
 
-  /* The screen owns the tasks; this owns the arrangement, and only once
-     somebody has actually dragged something. Until then the screen's order is
-     the order, so a list nobody has touched still sorts by its own rule. */
+  // The list holds its own order only after a drag; until then the screen's order rules.
   const ordered = order
     ? [...tasks].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))
     : tasks
 
   const cancelPress = useRef<() => void>(() => {})
 
-  /*
-  The carried row still follows the pointer and the dwell still arms on the row
-  under it; what a list with no order to keep does not do is slide the rows it
-  passes out of the way, which is the list drawing a slot it will not fill. Made
-  here rather than in the engine, because whether an order persists is the
-  page's fact and not the gesture's.
-  */
+  // A list with no order to keep does not slide rows aside; whether an order persists is
+  // the page's fact.
   function stateOf(index: number): SortableItemState {
     const state = drag.itemState(index)
     if (reorderable || state.isActive) return state
@@ -1337,22 +984,19 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
         }
       : undefined,
     onReorder: (from, to) => {
-      /* A list with no order to keep never takes one. */
+      // A list with no order to keep never takes one.
       if (!reorderable) return
       const next = ordered.map((task) => task.id)
       const [moved] = next.splice(from, 1)
       if (moved) next.splice(to, 0, moved)
       setOrder(next)
-      /* See `onReorder` on the props. The list's own copy of the order is held
-         while the screen answers and dropped when it has, whichever way it
-         answered. */
+      // Hold the local order while the screen answers, then drop it either way.
       const answer = onReorder?.(from, to, next)
       if (answer !== undefined) {
         void answer.then(() => setOrder(null))
       }
     },
-    /* Resting on a row proposes a folder of the two. Nothing is destroyed on
-       release: it opens the naming panel, which can be cancelled. */
+    // Resting on a row proposes a page of the two; release opens a cancellable panel.
     onDwell: (from, to) => {
       const moved = ordered[from]
       const onto = ordered[to]
@@ -1368,8 +1012,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
     followAcross,
   })
 
-  /* Each row registers how to open itself; the drag engine calls into this
-     on a tap. See the comment where `listProps` is built. */
+  // Each row registers its opener; the drag engine calls it on a tap.
   const openers = useRef(new Map<string, () => void>())
 
   const localSelection = useRowSelection({
@@ -1381,30 +1024,19 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   })
   const selection = sharedSelection ?? localSelection
   cancelPress.current = selection.clearPress
-  /*
-  A press that became a selection is not a tap.
-
-  The engine resolves a still press as a tap on release and asks the row to open
-  (`onTap` in use-sortable-list). Every row registers an opener, so the 400 ms
-  hold that starts selecting would, on release, also open the task it had just
-  selected. The engine's listeners were attached before the hold armed and
-  cannot see it, so the opener the list hands the engine reads the mode at the
-  moment of release rather than at the press.
-  */
+  // Read the selecting mode at release, not at press, so a press that selected does not
+  // also open the task.
   const selectingNow = useRef(false)
   selectingNow.current = selection.selecting
 
-  /* Reported up rather than only used here, so a page can offer somewhere to
-     drop that is worth showing only while something is being carried. */
+  // Reported up so a page can show a drop target only while something is carried.
   useEffect(() => {
     if (dragging.current === drag.isDragging) return
     dragging.current = drag.isDragging
     onDragStateChange?.(drag.isDragging)
   }, [drag.isDragging, onDragStateChange])
 
-  /* A list that unmounts mid-drag never gets to say the drag ended, and a
-     cross-list drop unmounts exactly the list the row came from, which left
-     the page believing something was still in the air. */
+  // A list unmounted mid-drag (a cross-list drop) would never report the end.
   useEffect(
     () => () => {
       if (dragging.current) onDragStateChange?.(false)
@@ -1421,15 +1053,8 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   }
 
   return (
-    /* A flex column with a gap, never `space-y-*`. The space utilities set
-       their children's vertical margins at a priority that beat every form of
-       `my-*` tried on the open card, inline styles included, so an expanded
-       task had no breathing room in the screens while looking right in the
-       lab. A gap belongs to the container and leaves the children's margins
-       alone, which is what the card needs. */
-    /* The container is a list: a `listitem` needs a `list` to be an item of,
-       and 9.1's roles table fixes both ends of that. See the comment over
-       `ExpandShell` above. */
+    // A flex column with a gap, never `space-y-*`, which overrode the open card's margins.
+    // A `listitem` needs this `list`.
     <div role="list" className={cn("flex flex-col", className)}>
       {selectionChrome ? selection.bar : null}
       {pending ? (
@@ -1443,42 +1068,27 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
         const wiring = {
           itemRef: drag.setItemRef(index),
           onNewFolder: () => setPending({ kind: "folder-for", ids: [task.id] }),
-          /* Press-and-hold selects; travel drags. Both want pointerdown, so
-             they are chained rather than spread over one another, spreading
-             silently keeps only the later handler, which is how the row once
-             ended up with a drag that never started. */
+          // Selection and drag both want pointerdown, so they are chained; spreading would keep
+          // only the later handler.
           listProps: selection.selecting
             ? selection.selectProps(task.id)
             : rowProps(
-                /* A press that stays still opens the task; one that travels
-                   drags it. The engine decides which, because it is the one
-                   tracking the gesture, see `onTap` in use-sortable-list.
-
-                   The tap asks the *row* to open itself rather than calling a
-                   handler this list was given. That distinction is the whole
-                   point: `onTaskOpen` is a prop every screen has to remember
-                   to pass, and the folder page did not, so tap-to-open worked
-                   on six pages and silently not on the seventh. A row always
-                   knows its own opener, so routing through the row makes the
-                   behaviour a property of TaskRow rather than a courtesy each
-                   caller extends. */
+                // A still press opens the task, one that travels drags it; the engine decides. The tap
+                // asks the row to open itself, so it works even where a screen forgot `onTaskOpen`.
                 drag.surfaceProps(index, () => {
-                  /* See `selectingNow` above. */
+                  // See `selectingNow` above.
                   if (selectingNow.current || selection.takeModifiedPress()) return
                   openers.current.get(task.id)?.()
                 }),
                 selection.selectProps(task.id),
               ),
-          /* How a row hands its opener back. Spread with the rest of the
-             wiring, so every `renderRow` screen gets it without knowing. */
+          // Spread with the rest of the wiring, so every `renderRow` screen gets it.
           onRegisterOpen: (open: (() => void) | null) => {
             if (open) openers.current.set(task.id, open)
             else openers.current.delete(task.id)
           },
           dragState: stateOf(index),
-          /* The words only the carried row draws, and only while a container
-             has been proposed. `overKey` is the label because `onOver` returns
-             one; see that prop. */
+          // Only the carried row draws it, while a container is proposed.
           proposal:
             drag.itemState(index).isActive && drag.overKey !== null
               ? drag.overKey
@@ -1492,16 +1102,8 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
           key={task.id}
           {...task}
           {...perRow}
-          /* The whole wiring, spread.
-
-             It used to be handed over field by field, which meant every
-             addition to `wiring` had to be repeated here, and twice in a row
-             it was not: "New folder…" was missing from this path, then
-             `onRegisterOpen` was, so tap-to-open worked on the screens that
-             use `renderRow` (which spread wiring) and silently not on the
-             ones that do not. Spreading removes the class of mistake rather
-             than the two instances of it; the explicit handlers below still
-             override, because they come after. */
+          // The whole wiring, spread, so a new wiring field cannot be forgotten here. The explicit
+          // handlers below still override.
           {...wiring}
           onOpen={onTaskOpen ? (mode) => onTaskOpen(task.id, mode) : undefined}
           onToggleComplete={

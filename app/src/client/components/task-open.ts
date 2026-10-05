@@ -1,23 +1,8 @@
-/*
-The edit arm of the overlay seam.
-
-`shell/overlays.ts` is the chrome's bus; this is a second, narrower one in
-this directory, so the surface that consumes it keeps it in one place.
-
-Two callers exist and neither is chrome. A task row opens the task it draws
-(9.5: "click on any row opens the task", and 9.4's overflow "edit"), and both
-the calendar and the search overlay open a row they drew. The third caller,
-9.5's ghost, is why `upcoming` is here: a ghost opens the series' current
-occurrence, which shows a date the person did not click, and 9.5 puts a banner
-on that path and on no other.
-
-The idiom is `state/toasts.ts` and `shell/overlays.ts` again, a subscribable
-module rather than a context, because the things that raise it are spread
-across three trees that never share an ancestor below the layout.
-*/
+// A small bus for opening a task, used by rows, the calendar and search, which share
+// no ancestor below the layout.
 
 export interface OpenTaskOptions {
-  /** 9.5's ghost path: the opened row is not the date that was clicked. */
+  /** The ghost path: the opened row is not the date that was clicked, so show the banner. */
   readonly upcoming?: boolean
 }
 

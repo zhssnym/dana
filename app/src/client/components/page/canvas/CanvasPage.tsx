@@ -7,10 +7,8 @@ import { folderMark } from '../../../parts/presenters.js'
 const ROW = 'flex h-8 w-full min-w-0 items-center gap-2 rounded-sm px-1 text-left no-underline outline-none'
 
 /**
- * One sub-page of this Folder (Wave 2, `page` block): its mark and its own
- * name, read from the viewer's `GET /folders` and never stored on the block.
- * A page the viewer cannot open (not a member, or in Trash) looks the same
- * as one that does not exist: no name, no way in.
+ * A sub-page block: its mark and name come from `GET /folders`, never the block.
+ * A page the viewer cannot open looks like one that does not exist.
  */
 export function CanvasPage({ folderId }: { readonly folderId: string }): React.JSX.Element {
   const folders = useFolders()
@@ -49,11 +47,8 @@ export const createCanvasPageSpec = createReactBlockSpec(
 )
 
 /**
- * A reference to a page in another project (`folder_ref` with no text), the
- * row step 8's migration leaves where a page that became its own project
- * used to sit. Drawn exactly as a sub-page, so a member opens it and anyone
- * else reads "Page you can't open"; unlike `danaPage`, removing it removes
- * only the reference and never trashes the page.
+ * A reference to a page in another project. Drawn like a sub-page, but removing it
+ * removes only the reference, never trashes the page.
  */
 export const createCanvasPageRefSpec = createReactBlockSpec(
   { type: 'danaPageRef', propSchema: { folderId: { default: '' } }, content: 'none' },

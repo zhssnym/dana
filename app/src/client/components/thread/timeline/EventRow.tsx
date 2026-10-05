@@ -1,9 +1,5 @@
-/*
-One event in a task's timeline (M4, copied from the retired Linear issue
-page): a small round badge holding the event's icon, then the person in ink,
-the phrase muted, the object in ink, and when. A dependency lists its tasks
-on the lines under it. Badges stay grey: nothing here takes the accent.
-*/
+// One event in a task's timeline: a grey badge, then person, phrase, object and time.
+// A dependency lists its tasks under it.
 import type { TaskDependencyEdge } from '../../../../shared/task-dependencies.js'
 import { formatDate } from '../../../lib/dates.js'
 import { agoFor } from '../../../lib/history.js'
@@ -26,7 +22,7 @@ import type { Act, EventEntry } from './timeline.js'
 
 const ICON = 'size-3.5'
 
-/** GitHub's "blocked" octicon, a ring with a bar; Lucide's CircleMinus, drawn here. */
+/** GitHub's "blocked" octicon: a ring with a bar. */
 function Blocked(): React.JSX.Element {
   return (
     <svg viewBox="0 0 16 16" aria-hidden className={ICON}>
@@ -91,7 +87,6 @@ function names(list: readonly string[]): React.ReactNode {
   )
 }
 
-/** The words after the person. */
 function phraseOf(act: Act): React.ReactNode {
   switch (act.t) {
     case 'created':

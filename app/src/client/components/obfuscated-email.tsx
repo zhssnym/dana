@@ -1,8 +1,4 @@
-/*
-The support address written so a scraper reading the page does not find an
-address in it: shown as "name [at] domain [dot] tld", and turned into a real
-mailto only when someone clicks it.
-*/
+// The support address, written so scrapers do not find it; it becomes a mailto only on click.
 import { SUPPORT_EMAIL } from '../../shared/support.js'
 
 export function obfuscatedEmail(address: string = SUPPORT_EMAIL): string {

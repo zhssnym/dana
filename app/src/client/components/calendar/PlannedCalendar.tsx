@@ -1,38 +1,6 @@
-/*
-The shared Upcoming and Work Calendar over Q3C.
-
-**The grid is Dana's own** (11.4): "a fixed six-week month of day cells with
-week and day zooms". What is given up with a calendar library is its
-accessibility and keyboard handling in the grid, which is ours to hold.
-
-**The grid roles are required.** 9.1's roles table fixes a calendar day as "a
-grid cell within a grid", on the ground that 9.5's month zoom is a fixed
-six-week grid of days, and AC-177 asserts the grid, the forty-two cells and the
-seven column headers. AC-093, AC-098 and AC-158 each reach for a cell. The row
-elements carry the layout: each week is its own seven-column CSS grid rather
-than the whole month being one, because `display: contents` on a row is the
-other way to get the same picture and it has a history of dropping the element
-out of the accessibility tree, which is the one thing this markup exists to put
-in.
-
-**Previous, next and today are named for what they do and not for what they are
-showing.** 9.5 names three controls and 9.1's addressing sentence reaches a
-control by its role and its name, so a control announcing itself as "Next month"
-would be a control whose name changes with the zoom. They are "Previous" and
-"Next", which is what AC-098 and AC-177 ask for by name.
-
-**Month rows begin compact.** Each week owns its height in task-row increments.
-Its "+N more" expands that week inline; a phone's day tap still peeks at day zoom.
-
-**A ghost is a projection and is drawn as one.** 9.5 requires ghost styling for
-virtual instances: a dashed outline, a transparent fill, the quieter text colour
-and the repeat glyph in place of the folder dot. AC-098 reads the computed style
-off the title of a ghost and off the title of a real row and looks for a
-difference, which is what "ghost styling" has to mean if it is to mean anything
-a reader can check. Clicking one opens the series' current occurrence with 9.5's
-banner, and clicking a real row opens it without: the banner rides the ghost
-path alone because the opened row shows a date the person did not click.
-*/
+// The shared Upcoming and Work calendar grid. The grid, gridcell and columnheader
+// roles are required (spec 9.1). Each week is its own CSS grid: `display: contents`
+// on a row can drop it from the accessibility tree.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import {
@@ -72,10 +40,6 @@ import { cellsByDate } from './order.js'
 import type { CellEvent } from './order.js'
 import { readCalendarDrag, weekRanges } from './ranges.js'
 import type { CalendarDrag, WeekRange } from './ranges.js'
-/* 9.5's zoom is 4.10's `calendar_zoom` since issue #140, so the strip below
-   reads and writes the account rather than component state. The list of zooms
-   is the shared one; `lib/calendar-zoom.ts` carries the reasoning and the
-   compile-time check that it and `Zoom` above are the same three strings. */
 import { CALENDAR_ZOOMS } from '../../../shared/bundle.js'
 import {
   clearRevealedZoom,
@@ -84,17 +48,12 @@ import {
   useCalendarZoom,
 } from '../../lib/calendar-zoom.js'
 
-/*
-Three lines including continuous range bars keep a six-week month compact.
-The last line becomes "+N more" when the day holds more. On a phone the month
-uses dots and a day tap can still reveal its full contents.
-*/
+// Three lines per month cell; the last becomes "+N more" when the day holds more.
 const MONTH_CELL_LINES = 3
 
 function identityStyle(id: string): React.CSSProperties {
-  // FNV-1a gives Task ids a well-distributed, deterministic identity. Hue is
-  // continuous rather than a small palette slot; a second hash slice picks
-  // one of three restrained tones so nearby hues still separate in a stack.
+  // FNV-1a gives each task a stable hue; a second hash slice picks one of three tones
+  // so nearby hues still separate.
   let hash = 2166136261
   for (const char of id) {
     hash ^= char.charCodeAt(0)
@@ -114,24 +73,13 @@ return {
 type CalendarPointerStart = (event: ReactPointerEvent<HTMLElement>, taskId: string, action: CalendarDrag['action'], from: string) => void
 
 const CELL_MIN_HEIGHT: Record<Zoom, string> = {
-  // The minimum height is a token shared by both calendar homes.
   month: 'min-h-[var(--calendar-month-cell-height)] max-sm:min-h-16',
   week: 'min-h-[420px]',
   day: 'min-h-[480px]',
 }
 
-/** 9.5's three zooms, as the buttons above the grid label them. */
 const ZOOM_LABEL: Record<Zoom, string> = { day: 'Day', week: 'Week', month: 'Month' }
 
-/**
- * One row inside a day cell: `CalendarEvent`.
- *
- * The glyph reports what the row is before the title is read: the repeat mark
- * for a projection, the check for a completed row and the ban for an abandoned
- * one, which are Q3C's three renderings ("Pending renders normal, completed
- * faded and checked, abandoned faded and struck"). Work uses a neutral dot;
- * Upcoming may use the page colour.
- */
 function CalendarEvent({
   event,
   compact,
@@ -143,7 +91,6 @@ function CalendarEvent({
 }: {
   readonly event: CellEvent
   readonly compact: boolean
-  /** A phone's month (m2): the glyph alone, and the cell is what a tap reaches. */
   readonly dense: boolean
   readonly onOpen: () => void
   readonly scoped: boolean
@@ -161,7 +108,6 @@ function CalendarEvent({
   ) : abandoned ? (
     <Ban className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
   ) : (
-    /* Upcoming distinguishes pages by colour; Work is already one page. */
     <span
       className="size-1.5 shrink-0 rounded-full bg-muted-foreground"
       style={scoped || event.folderColor === null ? undefined : { backgroundColor: event.folderColor }}
@@ -175,9 +121,8 @@ function CalendarEvent({
       </span>
     )
   }
-  /* A real, open row can be carried to another day; a ghost is a projection and
-     has no date of its own to move. `moves` says which end a drop writes, and a
-     Start+Due pair moves whole. */
+  // A ghost is a projection with no date of its own to move. `moves` says which end
+  // a drop writes; a Start+Due pair moves whole.
   const movable = editable && !ghost && !completed && !abandoned && event.moves !== null
   const edge = event.moves === 'due_date' ? 'start' : event.moves === 'start_date' ? 'due' : null
 
@@ -188,8 +133,6 @@ function CalendarEvent({
       className={cn(
         '@container relative flex w-full gap-1.5 overflow-hidden rounded-sm border px-1.5 text-left text-foreground transition-[background-color,border-color] focus-visible:outline-none',
         movable && 'cursor-grab active:cursor-grabbing touch-none select-none',
-        /* A week or a day has the height to spare, so a title takes two lines
-           there rather than three letters (m2). */
         compact ? 'min-h-5 items-center text-xs' : 'min-h-7 items-start py-1.5 text-xs leading-4',
         !completed && !abandoned && !ghost && 'hover:border-primary',
         completed && 'border-border bg-background text-muted-foreground hover:bg-hover',
@@ -208,9 +151,7 @@ function CalendarEvent({
       <span className="flex h-4 shrink-0 items-center">{glyph}</span>
       {compact ? (
         <>
-          {/* A month cell is narrow: the title first, since it says which task
-              this is, and the time after it only where the chip has room for
-              both; the chip's tooltip always says it. */}
+          {/* The time shows only where the chip has room; the tooltip always says it. */}
           <span className="min-w-0 truncate">{event.title}</span>
           {event.dueTime === null ? null : (
             <span className="ml-auto hidden shrink-0 text-muted-foreground tabular-nums @[9rem]:inline">
@@ -219,7 +160,6 @@ function CalendarEvent({
           )}
         </>
       ) : (
-        /* A week or a day has height to spare: the time above the title. */
         <span className="flex min-w-0 flex-col">
           {event.dueTime === null ? null : (
             <span className="shrink-0 text-muted-foreground tabular-nums">
@@ -242,7 +182,6 @@ function CalendarEvent({
   )
 }
 
-/** One continuous Schedule span in this week, with its draggable ends. */
 function RangeBar({ range, week, zoom, editable, onPointerStart, suppressOpenUntil }: { readonly range: WeekRange; readonly week: readonly string[]; readonly zoom: Zoom; readonly editable: boolean; readonly onPointerStart: CalendarPointerStart; readonly suppressOpenUntil: React.RefObject<number> }): React.JSX.Element {
   const { task } = range
   const movable = editable && task.status === 'pending'
@@ -286,7 +225,6 @@ function RangeBar({ range, week, zoom, editable, onPointerStart, suppressOpenUnt
   </div>
 }
 
-/** One day: 9.1's grid cell, and every affordance 9.5 puts on a day. */
 function DayCell({
   date,
   zoom,
@@ -314,7 +252,6 @@ function DayCell({
 }: {
   readonly date: string
   readonly zoom: Zoom
-  /** A phone's month: dots, and a tap shows the day rather than adding to it. */
   readonly dense: boolean
   readonly today: string
   readonly anchorMonth: string
@@ -323,12 +260,10 @@ function DayCell({
   readonly lastRow: boolean
   readonly events: readonly CellEvent[]
   readonly onReveal: () => void
-  /** A row dropped here takes this date. */
   readonly onDropTask: (drag: CalendarDrag) => void
   readonly hiddenRanges: number
   readonly rangeLanes: number
   readonly editable: boolean
-  /** Makes a task due on this day; absent, the cell makes nothing. */
   readonly onCreate?: (title: string) => void
   readonly scoped: boolean
   readonly capacity: number
@@ -341,16 +276,11 @@ function DayCell({
 }): React.JSX.Element {
   const [over, setOver] = useState(false)
   const [drafting, setDrafting] = useState(false)
-  /*
-  The control takes the last available line in this week's current capacity.
-  Every cell in the week shares that capacity, so a crowded day cannot grow
-  the week before the person expands it.
-  */
+  // Every cell in the week shares one capacity, so a crowded day cannot grow the week.
   const overflows = zoom === 'month' && events.length + hiddenRanges + rangeLanes > capacity
   const visible = overflows ? events.slice(0, Math.max(0, capacity - 1 - rangeLanes)) : events
   const hidden = events.length - visible.length + hiddenRanges
-  /* A phone draws the week as an agenda, one day per line, so titles stay
-     whole. */
+  // A phone draws the week as an agenda, one day per line.
   const agenda = zoom === 'week'
   const outsideMonth = zoom === 'month' && monthOf(date) !== anchorMonth
 
@@ -361,8 +291,6 @@ function DayCell({
       data-date={date}
       className={cn(
         'group/calendar-cell relative border-r border-b border-border p-1.5',
-        /* One tint, for the one thing it says (m2): a drop target. Weekends
-           and the neighbouring months' days are told apart by their numbers. */
         dense ? 'min-h-16 overflow-hidden' : CELL_MIN_HEIGHT[zoom],
         lastColumn && 'border-r-0',
         lastRow && 'border-b-0',
@@ -390,14 +318,8 @@ function DayCell({
         if (task !== null) onDropTask(task)
       }}
     >
-      {/*
-      The whole cell makes a task on this date, in place: 9.5's "click on empty
-      cell" with that date as the due date. It opens a "New task" line inside
-      the cell, the same inline row every list ends in, so there is no form to
-      leave. A button rather than a click handler on the cell, so the
-      affordance is reachable by keyboard and announces what it does; it is
-      painted beneath the rows, so a click on a row opens that task.
-      */}
+      {/* A button under the rows, so the in-cell "New task" is reachable by keyboard and a
+         click on a row still opens that task. */}
       {dense ? (
         <button
           type="button"
@@ -419,10 +341,8 @@ function DayCell({
       <div
         className={cn(
           'pointer-events-none relative z-10 mb-1.5 flex h-6 items-center justify-between',
-          /* The day zoom's title already names its one day. */
           zoom === 'day' && 'hidden',
-          /* The agenda has no column heads, so each line names its weekday.
-             A pseudo-element, so the cell's text still starts with the day. */
+          // A pseudo-element, so the cell's text still starts with the day number.
           agenda &&
             'max-sm:justify-start max-sm:gap-1 max-sm:before:text-xs max-sm:before:font-medium max-sm:before:text-muted-foreground max-sm:before:content-[attr(data-weekday)]',
         )}
@@ -435,21 +355,8 @@ function DayCell({
             date === today && 'bg-primary text-primary-foreground',
           )}
         >
-          {/*
-          The trailing space is load-bearing and is measured rather than
-          stylistic. A cell's text is the concatenation of its descendants'
-          text with no separator inserted anywhere, so a cell holding the
-          fifth of the month and a row reads "5ac-098 daily series" as one
-          string and the day number stops being a word: any reader, a
-          person's eye included once the cell is narrow, loses the boundary
-          between the number and the first row. AC-093 and AC-098 address a
-          cell by the day it draws, which is what a word boundary makes
-          possible. The FullCalendar implementation this replaces carried the
-          same fix in the same words; the port dropped it and three cases of
-          AC-098 went red on the first measurement, which is what recorded it
-          here a second time. Trailing white space is removed at the end of a
-          line, so nothing about the number moves.
-          */}
+          {/* The trailing space keeps the day number a separate word in the cell's text.
+             Tests and readers address a cell by its day (AC-093, AC-098). */}
           {dayOfMonth(date)}{' '}
         </span>
         <Plus
@@ -479,8 +386,7 @@ function DayCell({
             onPointerStart={onPointerStart}
             onOpen={() => {
               if (performance.now() <= suppressOpenUntil.current) return
-              // 9.5: a ghost opens the series' current occurrence, and the
-              // banner rides that path alone.
+              // A ghost opens the series' current occurrence, with the banner.
               openTask(event.taskId, { upcoming: event.kind === 'ghost' })
             }}
           />
@@ -509,7 +415,6 @@ function DayCell({
   )
 }
 
-/** The in-cell "New task" line: Enter makes it, Escape or leaving empty closes it. */
 function CellDraft({
   label,
   onAdd,
@@ -520,7 +425,7 @@ function CellDraft({
   readonly onDone: () => void
 }): React.JSX.Element {
   const [title, setTitle] = useState('')
-  /* Enter, Escape and blur each end the line; only the first one counts. */
+  // Enter, Escape and blur each end the line; only the first one counts.
   const ended = useRef(false)
   function end(keep: boolean): void {
     if (ended.current) return
@@ -569,7 +474,6 @@ export function PlannedCalendar({
   onExternalOver,
   onDragStateChange,
 }: {
-  /** Makes a task due on the given day; the page supplies its own capture. */
   readonly onCreate?: (title: string, date: string) => void
   readonly folderId?: string
   readonly filter?: TaskFilter
@@ -577,63 +481,34 @@ export function PlannedCalendar({
   readonly filterToday?: string
   readonly externalDropDate?: string | null
   readonly externalDragging?: boolean
-  /** Optional target outside the grid, used by Work Calendar's Undated section. */
   readonly onExternalDrop?: (taskId: string, point: { readonly x: number; readonly y: number }) => boolean
   readonly onExternalOver?: (taskId: string, point: { readonly x: number; readonly y: number }) => string | null
   readonly onDragStateChange?: (dragging: boolean) => void
 } = {}): React.JSX.Element {
   const today = presenterToday()
-  /*
-  The zoom is the account's (#140, #142), as 9.5 says it persists.
-
-  The anchor beside it stays component state and deliberately so: 9.5 makes the
-  zoom a preference a person sets and expects to hold, and makes previous, next
-  and today a way of moving around inside the period they are looking at. A
-  remembered anchor would open a person on last week rather than on this one.
-
-  A phone's day tap peeks without changing the stored zoom. Expanding a month
-  week is local to this grid and writes nothing.
-  */
+  // The zoom is the account's; the anchor stays local so a visit opens on today.
   const zoom = useCalendarZoom()
   const [anchor, setAnchor] = useState<string>(today)
-  /* A phone's month is seven columns of fifty pixels: no title fits, so it
-     draws dots and a tap opens the day (m2). */
+  // A phone's month has no room for titles, so it draws dots and a tap opens the day.
   const dense = useIsMobile() && zoom === 'month'
 
-  /* 9.5's "leaves the page": a reveal lasts as long as the calendar is on
-     screen and never longer, so nothing a person peeked at follows them to the
-     next page or the next visit. */
+  // A revealed zoom lasts only while the calendar is on screen.
   useEffect(() => clearRevealedZoom, [])
 
   const dates = useMemo(() => datesFor(zoom, anchor), [zoom, anchor])
-  /*
-  The range is the client's to request and Q3C answers whatever inclusive
-  range it receives (9.5). It is read off the days actually laid out rather
-  than computed a second time, so the grid and the request cannot disagree
-  about the weeks around a month boundary. Six weeks is 42 days and never
-  approaches Q3C's 62-day refusal.
-  */
+  // The range is read off the laid-out days, so the grid and the request cannot disagree.
   const start = dates[0] ?? anchor
   const end = dates[dates.length - 1] ?? anchor
 
   const view = usePlannedCalendarView(start, end, folderId)
-  // Filters only narrow what is visible. A visible pending Task remains editable;
-  // otherwise Calendar's default Open filter would disable every date interaction.
+  // Filters only narrow what is visible; visible pending tasks stay editable.
   const editable = true
   const folders = useFolders()
   const update = useUpdateTask()
   const [dragPreview, setDragPreview] = useState<{ drag: CalendarDrag; date: string | null; externalProposal: string | null; x: number; y: number; title: string } | null>(null)
   const suppressOpenUntil = useRef(0)
   const [weekSteps, setWeekSteps] = useState<Record<string, number>>({})
-  /*
-  The grid opens on today's week, once, on arrival, and the person takes it from
-  there; otherwise a month opened on its last day would show today three weeks
-  below the fold. When today's row is not wholly on screen the grid scrolls it
-  up to sit just under the month bar, which is sticky inside the scroller, so
-  the controls stay while the title may go: today's tasks and the weeks after
-  them are what the calendar is opened for. A today already in view moves
-  nothing.
-  */
+  // On arrival, scroll today's week up under the sticky month bar unless it is already in view.
   const grid = useRef<HTMLDivElement>(null)
   const bar = useRef<HTMLDivElement>(null)
   const scrolled = useRef(false)
@@ -653,8 +528,7 @@ export function PlannedCalendar({
     if (by > 0) scroller.scrollBy({ top: by })
   }, [view.data, folderId])
 
-  /* Single-date Tasks and ghosts sit in day cells. A Start+Due Task crosses
-     those cells in a top overlay lane, once per visible week. */
+  // Single-date tasks and ghosts sit in day cells; a Start+Due task spans the week in an overlay lane.
   const { real, virtual } = useMemo(() => {
     const narrowing = filter !== undefined && taskFilterActive(filter)
     const accepted = narrowing ? new Set((filterTasks ?? [])
@@ -664,7 +538,7 @@ export function PlannedCalendar({
     const virtual = (view.data?.virtual ?? []).filter((event) => accepted === null || accepted.has(event.task_id))
     return { real, virtual }
   }, [view.data, filter, filterTasks, filterToday, today])
-  /* A body drop moves the Schedule; an edge drop writes only that endpoint. */
+  // A body drop moves the schedule; an edge drop writes only that endpoint.
   function moveTaskTo(drag: CalendarDrag, date: string): void {
     if (!editable) return
     const { taskId } = drag
@@ -682,7 +556,6 @@ export function PlannedCalendar({
     }
     const body = shiftedSchedule(row, drag.from || row.due_date || row.start_date || date, date)
     if (body === null) return
-    // The card moving is the answer; success says nothing.
     update.mutate({ id: taskId, body })
   }
 
@@ -807,14 +680,8 @@ export function PlannedCalendar({
   }
 
   return (
-    /* Both homes center the same readable-width calendar. */
     <div className="mx-auto mt-5 mb-20 w-full max-w-[var(--shell-content-max)] space-y-3">
-      {/*
-      9.1's inline failed-read line, beside the thing that failed. The grid
-      still draws underneath it: Q3C's empty state is the bare grid and a
-      failed read is a different state from an empty one, which is the whole
-      distinction that string exists to make.
-      */}
+      {/* The grid still draws under a failed read: an error is not the empty state. */}
       {view.status === 'error' ? (
         <InlineError
           onRetry={() => {
@@ -823,13 +690,7 @@ export function PlannedCalendar({
         />
       ) : null}
 
-      {/*
-      The toolbar (m2): the period's name, then the system's own controls at
-      the one control height: a plain Today, ghost Previous/Next, and the zoom
-      as Segmented. It sits on the page rather than in a tinted bar, so the
-      grid's hairline is the only frame. It sticks to the top of the scroller,
-      so the controls stay while today's week is scrolled up beneath it.
-      */}
+      {/* Sticky, so the controls stay while today's week scrolls up beneath them. */}
       <div
         ref={bar}
         className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 bg-background py-1"
@@ -888,12 +749,6 @@ export function PlannedCalendar({
               <div
                 key={label}
                 role="columnheader"
-                /*
-                The weekday heads read exactly as the date picker's do
-                (`ui/calendar.tsx`): 11px medium in graphite-400, on a 28px row,
-                rather than a second style for the same words, in the same
-                product, two clicks apart.
-                */
                 className="flex h-7 items-center px-2 text-xs font-medium text-muted-foreground"
               >
                 {label}
@@ -942,12 +797,7 @@ export function PlannedCalendar({
                   suppressOpenUntil={suppressOpenUntil}
                   onExpand={() => expandWeek(week)}
                   onReveal={() => {
-                    // 9.5's reveal: the day zoom draws every row the day holds.
-                    // It changes what is drawn and never the account (#140): a
-                    // person looking at one crowded day has not chosen a zoom,
-                    // and a look that rewrote the preference would follow them
-                    // to every device they own. `lib/calendar-zoom.ts` carries
-                    // the rule.
+                    // The reveal changes what is drawn, never the stored zoom.
                     setAnchor(date)
                     revealCalendarZoom('day')
                   }}

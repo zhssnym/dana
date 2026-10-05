@@ -15,9 +15,7 @@ function ImageCaptionButton(): React.JSX.Element | null {
   return imageSelected ? <FileCaptionButton /> : null
 }
 
-/** Compose supported upstream controls; BlockNote owns selection and popover behavior.
- * Text has bold, italic and a link. There is no "Clear formatting": its ✕ read
- * as "close", and pressing B or I again undoes either. */
+/** Bold, italic and link only. No "Clear formatting": its ✕ read as "close". */
 export function CanvasFormattingToolbar(): React.JSX.Element {
   return (
     <FormattingToolbar>

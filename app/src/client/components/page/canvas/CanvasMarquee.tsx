@@ -1,23 +1,6 @@
-/*
-Notion's marquee (rubber band) block selection, for every BlockNote canvas.
-Mount once inside a `BlockNoteView`:
-`<CanvasMarquee />`.
-
-- Mouse-down in empty page space or the side margins (never in text) and
-  drag: a faint band; the blocks it touches become block-selected. The
-  page scrolls when the pointer nears its top or bottom edge. Shift-drag adds.
-- A drag that starts in text selects text while it stays in its block; once
-  it reaches another block it becomes the same block selection (no band),
-  and the text highlight gives way to the tint. One look at a time.
-- A plain click in a side margin puts the caret on that line, as the editor
-  would have.
-- Shift-click on a block extends a block selection to it.
-
-The selection itself, its tint and its keys are `block-selection.ts`; this
-file is only the pointer. One set of document
-listeners serves every mounted canvas, and a gesture goes to the canvas whose
-page area holds it (the innermost, then the nearest).
-*/
+// Marquee (rubber band) block selection for every canvas. A drag from empty space
+// draws a band; a text drag becomes a block selection once it leaves its block.
+// One set of document listeners serves every mounted canvas.
 import { useEffect } from 'react'
 import { flushSync } from 'react-dom'
 import { useBlockNoteEditor } from '@blocknote/react'
@@ -35,7 +18,7 @@ type AnyEditor = BlockNoteEditor<any, any, any>
 interface Instance { readonly editor: AnyEditor }
 
 const instances = new Set<Instance>()
-/* Chrome that owns its own clicks: never a marquee. */
+// Chrome that owns its own clicks: never a marquee.
 const KEEP = '.bn-side-menu, .bn-drag-handle-menu, .bn-suggestion-menu, .bn-formatting-toolbar, [role="menu"], [data-radix-popper-content-wrapper]'
 const INTERACTIVE = 'input, textarea, select, button, a[href], label, summary, [role="button"], [role="tab"], [role="menuitem"], [role="checkbox"], [role="switch"], [role="slider"], [contenteditable="true"], [contenteditable=""], [draggable="true"]'
 const DRAG_THRESHOLD = 4
@@ -43,7 +26,7 @@ const EDGE = 48
 
 const toolbarClosers = new WeakMap<AnyEditor, () => void>()
 
-/** The editor's view, once mounted, with its toolbar closer attached (`selectBlocks`). */
+/** Also attaches the toolbar closer used before a block selection. */
 function viewOf(editor: AnyEditor): EditorView | undefined {
   let view: EditorView | undefined
   try { view = editor.prosemirrorView ?? undefined } catch { return undefined }
@@ -81,8 +64,6 @@ function blockIdAt(target: Element, view: EditorView): string | null {
   return outer !== null && view.dom.contains(outer) ? outer.getAttribute('data-id') : null
 }
 
-/* ---- The band ---- */
-
 interface Gesture {
   readonly instance: Instance
   readonly view: EditorView
@@ -90,13 +71,12 @@ interface Gesture {
   readonly startX: number
   readonly startY: number // in scroller content coordinates
   readonly base: readonly string[]
-  /** The block a drag from text began in; null for a band from empty space. */
+  /** The block a text drag began in; null for a band from empty space. */
   readonly fromText: string | null
   pointerX: number
   pointerY: number
   started: boolean
   frame: number
-  /** The band, for a drag from empty space; a drag from text draws none. */
   rect: HTMLDivElement | null
 }
 
@@ -111,13 +91,12 @@ function scrollerBox(scroller: HTMLElement): { top: number; bottom: number; left
   return scroller.getBoundingClientRect()
 }
 
-/** A block's own row: its content line, never the children nested under it. */
+/** A block's own row, never the children nested under it. */
 const OWN_ROW = ':scope > .bn-block > .bn-block-content, :scope > .bn-block > .react-renderer > .bn-block-content'
 
-/** How far the band must reach into a row to pick it: a graze of its edge does not. */
+/** How far the band must reach into a row to pick it. */
 const REACH = 6
 
-/** The block rows enclosing `outer`, nearest first. */
 function enclosing(outer: HTMLElement, root: HTMLElement): HTMLElement[] {
   const chain: HTMLElement[] = []
   for (let node = outer.parentElement?.closest<HTMLElement>('.bn-block-outer[data-id]'); node !== null && node !== undefined && root.contains(node); node = node.parentElement?.closest<HTMLElement>('.bn-block-outer[data-id]')) chain.push(node)
@@ -125,12 +104,8 @@ function enclosing(outer: HTMLElement, root: HTMLElement): HTMLElement[] {
 }
 
 /**
- * The blocks the band picks: those whose own row (never their children's) it
- * reaches into. A block selection is one run of siblings, so picks at two
- * depths lift to their common level; a pick is dropped rather than lifted
- * into an ancestor whose own row the band did not touch. So three paragraphs
- * after a Section's last Task are those three, never the Section with its
- * Tasks (whose box holds the Task the band grazed).
+ * Picks are blocks whose own row the band reaches. A selection is one run of
+ * siblings, so picks lift to their common level, never into an untouched ancestor.
  */
 function hitIds(view: EditorView, top: number, bottom: number): string[] {
   const hits: HTMLElement[] = []
@@ -156,7 +131,6 @@ function tick(): void {
   const current = gesture
   if (current === null || !current.started) return
   const { scroller, view } = current
-  // Auto-scroll near the page's top and bottom edges.
   const box = scrollerBox(scroller)
   const nearTop = current.pointerY - Math.max(box.top, 0)
   const nearBottom = Math.min(box.bottom, window.innerHeight) - current.pointerY
@@ -178,8 +152,8 @@ function tick(): void {
   }
   const hits = hitIds(view, Math.min(anchorY, current.pointerY), Math.max(anchorY, current.pointerY))
   const ids = [...new Set([...current.base, ...hits])]
-  /* Against the editor's selection rather than the last one set: a
-     selectionchange still in flight from the text drag can replace it. */
+  // Compare with the editor's selection, not the last one set: a selectionchange
+  // from the text drag can still replace it.
   if (ids.join(' ') !== blockSelection(current.instance.editor).join(' ')) setBlockSelection(current.instance.editor, ids)
   current.frame = requestAnimationFrame(tick)
 }
@@ -192,7 +166,7 @@ function onMove(event: MouseEvent): void {
   if (!current.started) {
     const anchorY = current.startY - scrollTopOf(current.scroller)
     if (current.fromText !== null) {
-      // Text selection is the browser's until the drag reaches another block.
+      // Text selection stays the browser's until the drag reaches another block.
       const hits = hitIds(current.view, Math.min(anchorY, event.clientY), Math.max(anchorY, event.clientY))
       if (hits.every((id) => id === current.fromText)) return
     } else if (Math.hypot(event.clientX - current.startX, event.clientY - anchorY) < DRAG_THRESHOLD) return
@@ -231,11 +205,11 @@ function onUp(event: MouseEvent): void {
   const { view } = current
   if (current.fromText !== null && !current.started) return // text selected within one block
   if (current.started) {
-    // The keys act on the picked blocks from here (Backspace, Cmd/Ctrl+D, Tab…).
+    // Focus so the selection keys act on the picked blocks.
     if (isBlockSelection(view.state.selection)) view.focus()
     return
   }
-  // A plain click in a side margin: the caret on that line, as the editor would have put it.
+  // A plain click in a side margin puts the caret on that line.
   const box = view.dom.getBoundingClientRect()
   if (event.clientY < box.top || event.clientY > box.bottom) return
   const x = Math.min(Math.max(event.clientX, box.left + 1), box.right - 1)
@@ -266,8 +240,7 @@ function candidateFor(target: Element, y: number): { instance: Instance; view: E
   return best === null ? null : { instance: best.instance, view: best.view, inEditor: false }
 }
 
-/* A touch screen scrolls and places the caret with its own gestures; the
-   mouse events it synthesises after a tap are not a marquee. */
+// Ignore the mouse events a touch screen synthesises after a tap.
 let lastTouch = 0
 function onTouch(): void { lastTouch = performance.now() }
 
@@ -280,7 +253,7 @@ function onPointerDown(event: MouseEvent): void {
   const { instance, view, inEditor } = candidate
   const picked = blockSelection(instance.editor)
   if (inEditor && target.closest('.bn-block-content') !== null) {
-    // In a block's own row: text belongs to the editor, unless Shift extends a block selection.
+    // Text belongs to the editor, unless Shift extends a block selection.
     const id = event.shiftKey && picked.length > 0 ? blockIdAt(target, view) : null
     if (id !== null) {
       event.preventDefault()
@@ -321,15 +294,13 @@ function begin(instance: Instance, view: EditorView, event: MouseEvent, base: re
   window.addEventListener('blur', onCancel)
 }
 
-/* BlockNote's handle menu opens on press; once the press becomes a drag the
-   menu has nothing to offer, so the drag closes it. */
+// Close BlockNote's handle menu once a press becomes a drag.
 function onDragStart(event: DragEvent): void {
   const target = event.target instanceof Element ? event.target : null
   if (target?.closest('.bn-side-menu') === null || target === null) return
   document.body.classList.add('dana-block-dragging')
-  /* Hidden while the drag lasts (closing it then would unfreeze the gutter
-     and cancel the drag), and closed for real once it ends: the menu
-     dismisses on Escape, which the selection's keys ignore as untrusted. */
+  // Hidden during the drag (closing it then would cancel the drag), then closed via
+  // Escape once the drag ends.
   const end = (): void => {
     window.removeEventListener('dragend', end, true)
     window.removeEventListener('drop', end, true)
@@ -359,22 +330,20 @@ function listen(): () => void {
   }
 }
 
-/** Marquee selection for the enclosing `BlockNoteView`'s editor. */
 export function CanvasMarquee(): null {
   const editor = useBlockNoteEditor() as unknown as AnyEditor
   useEffect(() => {
     const instance: Instance = { editor }
     instances.add(instance)
     const stop = listen()
-    /* BlockNote shows its text toolbar for any non-text selection; a block
-       selection has no text to format, so it stays closed. */
+    // A block selection has no text to format, so keep BlockNote's text toolbar closed.
     const toolbar = editor.getExtension(FormattingToolbarExtension)?.store
     const unsubscribe = toolbar?.subscribe(({ currentVal }) => {
       const view = viewOf(editor)
       if (currentVal && view !== undefined && isBlockSelection(view.state.selection)) toolbar.setState(false)
     })
-    // Closed and unmounted before the selection changes, so its buttons never
-    // read a block selection as text.
+    // Closed and unmounted before the selection changes, so its buttons never read a
+    // block selection as text.
     if (toolbar !== undefined) toolbarClosers.set(editor, () => { if (toolbar.state) flushSync(() => toolbar.setState(false)) })
     return () => {
       toolbarClosers.delete(editor)

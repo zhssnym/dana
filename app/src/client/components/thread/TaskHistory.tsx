@@ -1,13 +1,5 @@
-/*
-A task's history (M5): what happened to it (created, assigned, dates moved,
-done, dropped, reopened, dependencies), oldest first. No posts: talk about a
-task lives in its project's Discussion, reached from the task's Discussion
-property.
-
-Issue #500 moves this record out of the task body. The task page's one "…"
-opens it as a dialog instead, so the page ends with the person's writing while
-History remains available without adding another control to the surface.
-*/
+// A task's history dialog, opened from the task's "…": events only, oldest first. Talk
+// about a task lives in its project's Discussion.
 import { useMemo } from 'react'
 
 import { useConnections, useFolder, useMe, useSubjectEvents, useTaskDependencies } from '../../api/queries.js'
