@@ -13,15 +13,15 @@ the cause, and what to do. When you hit a new one, add it here in the same shape
   yet.
 - **A comment cites `RFC 0005 item N`, a unit, an S-row or a P-row.** Those documents were
   deleted, so the citation is not a path. The full text is at
-  `git show v2.2.0:docs/rfcs/0005-v2-specification.md`. A citation tells you *why* something
+  `git show 9a22b77b8d:docs/rfcs/0005-v2-specification.md`. A citation tells you *why* something
   was decided, not what the code does now. The spec wins.
 - **A comment points at a deleted file** (CLAUDE.md, docs/workflow/*.md, docs/team/,
   and others; "hard stop N" was docs/workflow/hard-stops.md and "section 13 item N" was
   docs/spec/13-open-questions/README.md). Find the commit that deleted it with
   `git log --diff-filter=D --oneline -- <path>`, then read it as it was with
   `git show <sha>^:<path>`.
-- **Those commands find nothing.** Cloud sessions get a shallow clone without tags. Run
-  `git fetch --unshallow --tags` first. The release tags are load-bearing: never delete them.
+- **Those commands find nothing.** Cloud sessions get a shallow clone. Run
+  `git fetch --unshallow` first.
 
 ## 2. Things that fail silently
 

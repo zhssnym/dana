@@ -1,15 +1,6 @@
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
-
 import { Router } from 'express'
 
 import { secondsSinceLastPass } from '../observability/scheduler-pass.js'
-
-// npm scripts always run from the repository root, so package.json is found from cwd in both
-// the tsx and the compiled layout.
-const pkg = JSON.parse(
-  readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf8'),
-) as { version: string }
 
 let databaseKind: 'postgres' | 'pglite' | null = null
 
@@ -33,7 +24,7 @@ export const healthRouter: Router = Router()
 healthRouter.get('/', (_req, res) => {
   res.status(200).json({
     status: 'ok',
-    version: pkg.version,
+    // The deployed commit identifies the release: each merge to main deploys.
     commit: process.env.RENDER_GIT_COMMIT ?? null,
     secondsSinceLastPass: secondsSinceLastPass(),
     database: reportedDatabaseKind(),
