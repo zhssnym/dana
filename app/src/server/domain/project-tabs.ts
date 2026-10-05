@@ -1,21 +1,5 @@
-/*
-A project's tabs (step 7, migration 0061).
-
-A project is its root `folders` row (`id = project_id`), and a tab is a
-root-level page of the project with a `tab_position`; the root is always one.
-This module adds tabs: `POST /folders/:id/tabs` (the picker and the "+"), and
-the Discussion tab that "Discuss" on a task needs. Desk is the one exception:
-its root stays Work and every additional tab is Doc; it never gains a
-Discussion tab.
-
-Every write takes the project root's row lock first, so two adds, a pick and
-a Discuss on the same project queue rather than race, and "one live
-Discussion per project" is decided under that lock
-(`folders_one_discussion_per_project_idx` is the backstop).
-
-Since step 8 people belong to the project: a new tab or page stores no
-membership rows, and its owner is the project's.
-*/
+// A project's tabs: root-level pages of the project with a `tab_position`. Desk has Work plus Docs only.
+// Every write locks the project root row first, so "one live Discussion per project" is decided under it.
 import { randomUUID } from 'node:crypto'
 
 import { sql } from 'drizzle-orm'
@@ -50,7 +34,6 @@ interface ProjectRoot {
   isDefault: boolean
 }
 
-/** The live project root of `pageId`, under its row lock, or null. */
 async function lockedProjectOf(tx: Executor, pageId: string): Promise<ProjectRoot | null> {
   const rows = await rowsOf(
     tx,
@@ -82,7 +65,7 @@ async function lastTabPosition(tx: Executor, projectId: string): Promise<string 
   return last === null || last === undefined ? null : String(last)
 }
 
-/** One tab row, owned by the project's owner; its people are the project's (step 8). */
+/** One tab row, owned by the project's owner. Tabs store no membership rows. */
 async function insertTab(
   tx: Executor,
   actorId: string,
@@ -110,7 +93,6 @@ async function insertTab(
   return id
 }
 
-/** Whether a page body holds any block or live task. */
 async function holdsWriting(tx: Executor, pageId: string): Promise<boolean> {
   const rows = await rowsOf(
     tx,
@@ -120,7 +102,6 @@ async function holdsWriting(tx: Executor, pageId: string): Promise<boolean> {
   return rows[0]?.held === true
 }
 
-/** The live Discussion tab of a project, or null. */
 export async function liveDiscussionTab(tx: Executor, projectId: string): Promise<string | null> {
   const rows = await rowsOf(
     tx,
@@ -132,12 +113,8 @@ export async function liveDiscussionTab(tx: Executor, projectId: string): Promis
 }
 
 /**
- * `POST /folders/:id/tabs`. `pageId` is any page of the project; the actor
- * needs `folder.page.edit` on the project root. While the root's kind is
- * unpicked, `kind` picks it (`usual`: the root is Work, with Purpose before
- * it and Results and Discussion after). Once picked, `kind` adds one tab
- * after the last. Desk is always Work plus Docs, so its endpoint accepts Doc
- * only and never changes the root's kind.
+ * `POST /folders/:id/tabs`. Needs `folder.page.edit` on the root. While the root's kind is unpicked, `kind` picks it;
+ * after that, `kind` adds one tab at the end. Desk accepts Doc only.
  */
 export async function addTab(
   db: Db,
@@ -180,9 +157,7 @@ export async function addTab(
         await insertTab(tx, actorId, root, 'doc', 'Results', results)
         await insertTab(tx, actorId, root, 'discussion', DEFAULT_TAB_NAMES.discussion, keyBetween(results, null))
       } else {
-        /* A Discussion page draws only threads and refuses writing, so
-           picking it over a sub-page link or a task already on the root
-           would hide them for good. */
+        /* A Discussion page shows only threads, so picking it over existing writing would hide that writing. */
         if (kind === 'discussion' && (await holdsWriting(tx, root.id))) {
           return {
             kind: 'conflict',
@@ -204,13 +179,7 @@ export async function addTab(
   })
 }
 
-/**
- * Where a new sub-page of a Work tab goes: the project's live `Pages` Doc
- * tab, added right after that Work tab when there is none. Work holds
- * tasks, not page links; migration 0061 moved every root's page links and
- * children to a `Pages` tab, and "Add a page inside" keeps that shape.
- * Null when `workTabId` is not a live Work tab.
- */
+/** Where a new sub-page of a Work tab goes: the project's `Pages` Doc tab, created after the Work tab if missing. */
 export async function pagesTabFor(tx: Executor, actorId: string, workTabId: string): Promise<string | null> {
   const root = await lockedProjectOf(tx, workTabId)
   if (root === null) return null
@@ -240,14 +209,9 @@ export async function pagesTabFor(tx: Executor, actorId: string, workTabId: stri
   return insertTab(tx, actorId, root, 'doc', 'Pages', keyBetween(at, after))
 }
 
-/** The project a page belongs to (defined beside the access resolver). */
 export { projectOf } from './folder-access.js'
 
-/**
- * The live Discussion tab of `pageId`'s project, added after the last tab
- * when there is none ("Discuss" on a task, spec 7.28). Desk deliberately
- * answers null: its one member has no Discussion surface.
- */
+/** The project's Discussion tab, created at the end if missing. Desk answers null. */
 export async function ensureDiscussionTab(tx: Executor, actorId: string, pageId: string): Promise<string | null> {
   const root = await lockedProjectOf(tx, pageId)
   if (root === null || root.isDefault) return null
@@ -263,11 +227,7 @@ export async function ensureDiscussionTab(tx: Executor, actorId: string, pageId:
   )
 }
 
-/**
- * The project's Purpose tab: the first live Doc tab before the root's own
- * tab, as the usual project and migration 0061 place it. Null for a page
- * that is not a project root, or a project without one.
- */
+/** The project's Purpose tab: the first live Doc tab before the root's own tab, or null. */
 export async function purposeTabOf(
   executor: Executor,
   projectId: string,
@@ -286,12 +246,7 @@ export async function purposeTabOf(
   return row === undefined ? null : { id: String(row.id), name: String(row.name) }
 }
 
-/**
- * A new Doc page beside `pageId`, in the caller's transaction, for a copy
- * or an import: on a project root, a Doc tab first or last in the tab row;
- * on a sub-page, a child Doc page with its home block. It has `pageId`'s
- * project's people (step 8). Records no event: the caller's act is the event.
- */
+/** A new Doc page beside `pageId` for a copy or import, in the caller's transaction. Records no event. */
 export async function addDocPage(
   tx: Executor,
   actorId: string,
@@ -322,15 +277,7 @@ export async function addDocPage(
   return id
 }
 
-/**
- * The retired 7.27 facet listing, read from the tab rows, for a client from
- * before step 7 (an installed PWA on the old bundle) until the contract
- * migration. On a project root: the root as `main`, and each live Doc or
- * Discussion tab as the facet it was (a migrated tab keeps its facet's id and
- * kind) or as a shared blank / consultation. Any other page answers its
- * `main` alone. A Work tab besides the root has no old shape and is left
- * out. The caller has gated the viewer on `pageId`.
- */
+/** The retired 7.27 facet listing, rebuilt from tab rows for old clients. The caller has gated the viewer. */
 export async function legacyFacets(executor: Executor, pageId: string): Promise<Facet[]> {
   const rows = await rowsOf(
     executor,

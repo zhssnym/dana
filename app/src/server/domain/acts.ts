@@ -1,36 +1,6 @@
-/*
-The object acts (7.16): duplicate for tasks and folders under
-DES-198's copy rules, the workflow import under DES-206's, and the direct
-ownership transfer of 8.9's second form.
-
-DES-198, as 7.16 states it: a copy takes the structure and never the grants, the
-progress, or the conversation; the work lands on whoever made the copy; and
-due dates are shifted rather than copied, but only when the plan is spent.
-The intervals are what a template keeps, so when the folder's earliest date
-has already passed, every date moves forward by the same days that bring
-that earliest date to today; dates still ahead are a live plan and copy
-untouched.
-
-**The comparison day is today in the caller's zone, never the database
-session's `current_date` (issue #76).** 8.1 defines today as the current date
-in the request's tz and says in terms that an endpoint which evaluates a date
-and takes no tz is an incomplete surface rather than an invitation to
-substitute the stored zone. Both duplicates take `tz` on 7.8's precedent, exactly as 7.16's import does: present and invalid is 422, absent is
-422 when a date would be evaluated, and absent is fine when none would.
-
-Whether a date would be evaluated is decided without a zone, because the zone
-is the thing that may be missing. Across every IANA offset the caller's today
-is at most the UTC date plus a day, so a due date after that is ahead of the
-plan in every zone on earth and needs no re-anchoring and no tz; a date on or
-before the UTC date could be spent in some zone and the server refuses to guess
-which. That is a shade conservative by construction, and conservative in the
-direction of asking rather than of quietly anchoring on a day nobody asked
-for.
-
-The import is the same maker's-work rule with a file for a source, and its
-refusals are the schema's shape (shared/workflows.ts): what the caps admit
-is created, and what the file smuggled was never read.
-*/
+// Object acts (7.16): task and folder duplicate, workflow import, and direct ownership transfer.
+// A copy takes structure, never grants, progress or conversation; the work lands on the copier. Spent due dates
+// shift forward by one delta to today in the caller's zone (never the database's current_date).
 import { randomUUID } from 'node:crypto'
 
 import { sql } from 'drizzle-orm'
@@ -76,23 +46,12 @@ import { appendChecklist, ChecklistCapRefusal, copyTaskDocument } from './task-d
 import { positionAtSectionEnd, seededItems } from './page-order.js'
 import { initialKeys, keyBetween } from './fractional-index.js'
 import { copyDependenciesWithin } from './task-dependencies.js'
-/* 4.11 calendar arithmetic rather than a second copy of it here: both ends are
-   UTC midnights, so no DST shift can round the division (issue #215). */
+/* Both ends are UTC midnights, so no DST shift can round the division. */
 import { addDays, daysBetween } from '../time/calendar-date.js'
 
 /**
- * Whether the copy can be made without knowing the caller's zone.
- *
- * `earliest` is the earliest due date the copy will carry, as YYYY-MM-DD, or
- * null where it carries none. The bound is the UTC date: today(V) is at most
- * one day ahead of it in the furthest zone, and a date strictly after that
- * bound is therefore in the future wherever the caller is standing, so nothing
- * re-anchors and 8.1 has nothing to say. Anything on or before it might be
- * spent, and the endpoint asks rather than guesses.
- *
- * The instant is a parameter for the same reason `today` in `server/time`
- * takes one: a helper that read the clock out of sight would settle where the
- * clock comes from by accident.
+ * Whether the copy can be made without the caller's zone: true when `earliest` is on or before the UTC date.
+ * Today is at most a day ahead of UTC anywhere, so later dates are in the future in every zone.
  */
 export function zoneIsNeededToReanchor(
   earliest: string | null,
@@ -102,45 +61,21 @@ export function zoneIsNeededToReanchor(
   return earliest <= at.toISOString().slice(0, 10)
 }
 
-/* ------------------------------------------------------------------ *
- * POST /folders/:id/duplicate
- * ------------------------------------------------------------------ */
-
 export type DuplicateFolderResult =
   | { kind: 'duplicated'; id: string; name: string; shiftedDays: number }
   | { kind: 'folder_cap' }
-  /** A date would be re-anchored and the request named no zone to anchor it
-   * in (8.1, issue #76). The route answers 422 naming tz; the copy is not
-   * made, this being one unit. */
+  /** A date would be re-anchored and the request named no zone (8.1): 422 on tz, nothing copied. */
   | { kind: 'tz_required' }
-  /** 10.3's 1 GB, spent by the copied cover picture (issue #116). 413 with
-   * section 9's copy, as an upload over the quota answers. */
+  /** 10.3's 1 GB quota, spent by the copied pictures: 413. */
   | { kind: 'quota_exceeded' }
 
 /**
- * The caller has resolved member access on the source (10.2).
- *
- * `anchor` is today(V) in the zone the request named, or null where it named
- * none — resolved by the route, because 8.1 makes the zone an input of the
- * request rather than a fact the server holds, which is the same seam
- * `importWorkflow` takes below.
- */
-/**
- * 10.3's gigabyte, refused from inside a transaction that has already written.
- *
- * It is an error rather than a returned outcome for one reason, and the reason
- * is measured: a `return` out of an `inTransaction` callback resolves it and
- * drizzle commits, so a refusal raised after the folder row exists leaves that
- * folder behind. Issue #128 found that for the folder cover and answered it by
- * copying before the INSERT; a page asset's scope is the new folder's id, so it
- * cannot be copied first and has to leave by the path that rolls back instead.
- * Never caught anywhere but at the bottom of `duplicateFolder`, which turns it
- * back into the ordinary `quota_exceeded` answer 10.3 specifies.
+ * A quota refusal after the folder row is written. Thrown, not returned: returning from `inTransaction`
+ * commits, and would leave a half-made folder. Caught only at the bottom of `duplicateFolder`.
  */
 class QuotaRefusal extends Error {}
 
-/** Rewrite only Dana Links whose targets this copy has actually remapped.
- * Everything else remains authored text pointing where the author pointed it. */
+/** Rewrite only Dana Links whose targets this copy remapped; other links stay as authored. */
 function remapRichContentLinks(
   value: unknown,
   remap: (kind: ReferenceKind, id: string) => string | null,
@@ -166,9 +101,8 @@ function remapRichContentLinks(
 }
 
 /**
- * Where a sub-page's copy goes: under the same parent, directly after the
- * original. Null (a top-level copy) when the source is a root, or when the
- * duplicator may not add a page under its parent.
+ * A sub-page copy goes right after the original under the same parent. Null (top level) when the source
+ * is a root or the duplicator may not add a page under its parent.
  */
 async function placeOfCopy(
   tx: Executor,
@@ -204,8 +138,7 @@ async function placeOfCopy(
   }
 }
 
-/** A top-level copy: the original's collection, and the slot after it in the
- * duplicator's stored Library order (4.19's `sidebar_order`) when that names it. */
+/** A top-level copy: the original's collection, and the slot after it in the duplicator's `sidebar_order`. */
 async function placeBesideInLibrary(
   tx: Executor,
   viewerId: string,
@@ -235,6 +168,7 @@ async function placeBesideInLibrary(
   )
 }
 
+/** The caller has resolved member access on the source. `anchor` is today(V) in the request's zone, or null. */
 export async function duplicateFolder(
   db: Db,
   store: ObjectStore,
@@ -242,27 +176,19 @@ export async function duplicateFolder(
   sourceFolderId: string,
   anchor: string | null = null,
 ): Promise<DuplicateFolderResult> {
-  /** Bytes the cover copy wrote inside the transaction; removed if it throws,
-   * because a rollback cannot un-write a file (issue #116). */
+  /** Bytes copied inside the transaction; removed if it throws, since a rollback cannot un-write files. */
   const copiedObjects: string[] = []
   try {
     return await inTransaction(db, async (tx) => {
-      /* The tree lock before anything is read (lock order), so the copy's
-         place beside the original cannot move under it. */
+      /* The tree lock first, so the copy's place beside the original cannot move. */
       await lockPageTree(tx)
       const place = await placeOfCopy(tx, viewerId, sourceFolderId)
-      /* Step 8: a copy into a page is a sub-page, which the cap does not
-         count (projectCapReached). */
+      /* A copy into a page is a sub-page, which the cap does not count. */
       if (place === null && (await projectCapReached(tx, viewerId, 1))) {
         return { kind: 'folder_cap' } as const
       }
 
-      /* Before anything is written, because a request is one unit and a copy
-         half-made in the wrong zone is worse than no copy — and since issue
-         #116 what is written includes bytes, which a rollback cannot take
-         back, so this guard standing first matters more than it did (issue
-         #76). The earliest date the copy will carry is the earliest of the
-         tasks it will copy, which is the same set the loop below reads. */
+      /* Before anything is written, including bytes a rollback cannot take back. */
       const earliest = await rowsOf(
         tx,
         sql`SELECT to_char(min(due_date), 'YYYY-MM-DD') AS earliest FROM tasks
@@ -288,31 +214,9 @@ export async function duplicateFolder(
       const name = `${String(source?.name ?? 'Folder')} (copy)`.slice(0, 100)
 
       /*
-      **The cover picture is carried, and until 2026-09-04 it was not.** This
-      block said "the cover is deliberately not carried: its file row is the
-      source folder's and its visibility scope would lie in the copy", which
-      diagnosed the problem exactly and then dropped the picture rather than
-      solving it — so a duplicated folder wore its preset and its crop
-      and silently lost an uploaded photograph, which is #117's fault one object
-      over. The copy is made **inside the new folder**, so its scope is the
-      copy's own membership and nothing lies. It spends the duplicator's quota,
-      which is right — they are the owner of the folder they just made. Issues
-      #116 and #128.
-
-      **It runs before the folder is inserted, and that ordering is the whole
-      of the fix reviewed on 2026-09-04.** It ran after, and the quota refusal
-      below was an ordinary `return` out of the `inTransaction` callback —
-      which resolves it, so drizzle *commits*. A caller at 10.3's gigabyte got
-      413 and kept an empty "(copy)" folder with a membership row, no blocks,
-      no tasks and no picture, counting against the 200 cap and needing hand
-      deletion. `duplicateShelf` had the right shape already: copy first, then
-      insert, so every early return has written nothing that a rollback is
-      needed to take back. This is the same shape with one extra step, the
-      scope, because a folder cover's `folder_id` cannot name a folder that
-      does not exist yet: the copy is made folder-less and given its scope
-      immediately after the INSERT, inside the same transaction, so no other
-      statement can ever observe it unscoped.
-      */
+      The cover is copied before the folder INSERT, so an early quota return has written nothing.
+      The copy is made folder-less and scoped to the new folder right after the INSERT, in the same transaction.
+       */
       let coverFileId: string | null = null
       if (source?.cover_file_id !== null && source?.cover_file_id !== undefined) {
         const held = await copyCoverFile(
@@ -329,12 +233,10 @@ export async function duplicateFolder(
           copiedObjects.push(held.id)
           coverFileId = held.id
         }
-        /* 'bytes_missing' leaves the new folder wearing nothing, which is
-           what the source draws too when its object has gone. */
+        /* A missing source object leaves the copy with no cover, as the source draws none. */
       }
 
-      /* Step 7: a top-level copy is a new project of the source page's kind;
-         a sub-page copy joins its parent's project. */
+      /* A top-level copy is a new project of the source page's kind; a sub-page copy joins its parent's project. */
       const newId = randomUUID()
       const sourceKind = source?.kind === null || source?.kind === undefined ? null : String(source.kind)
       const made = await rowsOf(
@@ -357,13 +259,8 @@ export async function duplicateFolder(
             RETURNING id`,
       )
       const copyId = String(made[0]?.id)
-      /* #228 puts duplication with Can edit, and the copy is the
-         duplicator's own new Folder, so they are its owner and its Full
-         control, and **nothing about the source's
-         Access travels** -- R10B says member identities, Access standing and
-         Responsibility documents are not copied by duplication or workflows
-         (issue #228). Step 8: a sub-page copy's people and owner are its
-         project's, so only a top-level copy gets a membership row. */
+      /* The duplicator owns the copy with Full control; no source Access or Responsibility travels.
+      Only a top-level copy gets a membership row. */
       if (place === null) {
         await tx.execute(
           sql`INSERT INTO folder_members (folder_id, user_id, access)
@@ -378,8 +275,6 @@ export async function duplicateFolder(
           transition: 'created_owner',
         })
       }
-      /* Beside the original: a sub-page as `createSubPage` makes one, or a
-         top-level page next to it in the duplicator's own Library. */
       if (place === null) await placeBesideInLibrary(tx, viewerId, sourceFolderId, copyId)
       else await appendHomeBlock(tx, place.parentId, copyId)
       if (coverFileId !== null) {
@@ -390,31 +285,12 @@ export async function duplicateFolder(
         )
       }
 
-      // Copy explicit membership and mixed placement; never infer parents from proximity.
-      // Wave 2: a `page` block is its sub-page's one home and the duplicate
-      // copies this page alone, so the sub-pages keep theirs in the source.
+      // Copy explicit membership and placement; never infer parents from proximity.
+      // `page` blocks stay behind: sub-pages keep their home in the source.
       const blocks = await rowsOf(tx,sql`SELECT * FROM page_blocks WHERE folder_id=${sourceFolderId}::uuid AND kind <> 'page' ORDER BY position,id`)
       const sectionMap = new Map(blocks.map(block=>[String(block.id),randomUUID()]))
-      /*
-      Every page asset is copied into the new folder as an independent file,
-      and **the copy keeps the source's own kind** (#220).
-
-      This used to be `copyCoverFile` followed by `UPDATE files SET
-      kind = 'image'`, which was exactly right while a page block could only
-      hold a picture and is exactly wrong now that it may be a File, an Audio
-      or a Video. Those two statements would have made a duplicated MP4 declare
-      itself an image and a duplicated generic File — untrusted bytes, served
-      as an attachment — declare itself previewable media, which is the
-      insertion mode the person chose being destroyed by the copy. `copyPageFile`
-      is the primitive both call sites wanted: same bytes, same kind, same
-      metadata, new row, new scope. Nothing rewrites the kind afterwards.
-
-      One copy per source file rather than one per block, so a picture placed
-      twice on a page is one new row read twice and not two rows free to
-      diverge. Quota refusal returns out of the transaction before any folder
-      row exists, and `copiedObjects` carries what has been written so the
-      catch can remove the bytes: no half-created folder and no orphan.
-      */
+      /* Each page asset becomes an independent file in the new folder with the source's own kind (`copyPageFile`).
+      One copy per source file, so a picture placed twice stays one row. */
       const copiedFiles = new Map<string,string>()
       for(const block of blocks){
         let fileId:string|null=null
@@ -423,21 +299,8 @@ export async function duplicateFolder(
           fileId=copiedFiles.get(originalFile)??null
           if(fileId===null){
             const held=await copyPageFile(tx,store,viewerId,originalFile,copyId)
-            /* **Thrown rather than returned, and that is a fix rather than a
-               style (#220, proof 16).** A `return` out of an `inTransaction`
-               callback *resolves* it, so drizzle commits — which is the exact
-               fault issue #128 found and fixed for the folder cover by moving
-               that copy ahead of the INSERT. The page assets cannot move ahead
-               of it, because their scope is the new folder's id. So the other
-               half of #128's lesson applies instead: a refusal that must undo
-               a write has to leave by the path that rolls back. Measured on
-               this branch before the change — a caller at 10.3's gigabyte got
-               413 and kept a "(copy)" folder with a membership row, a partial
-               page and the file rows copied before the refusal.
-
-               The catch at the bottom recognises it, removes the bytes the
-               rollback cannot reach, and answers `quota_exceeded` exactly as
-               the return did. Nothing above this sees an exception. */
+            /* Thrown, not returned: the page assets are scoped to the new folder, so a refusal must roll back.
+            The catch at the bottom removes the copied bytes and answers `quota_exceeded`. */
             if(held.kind==='quota_exceeded')throw new QuotaRefusal()
             if(held.kind==='copied'){
               fileId=held.id;copiedObjects.push(fileId);copiedFiles.set(originalFile,fileId)
@@ -446,32 +309,18 @@ export async function duplicateFolder(
         }
         await tx.execute(sql`INSERT INTO page_blocks (id,folder_id,kind,position,text,rich_content,ref_folder_id,file_id,width_pct,page_position,checked) VALUES (${sectionMap.get(String(block.id))}::uuid,${copyId}::uuid,${String(block.kind)},${Number(block.position)},${block.text??null},${block.rich_content==null?null:JSON.stringify(block.rich_content)}::jsonb,${block.ref_folder_id??null}::uuid,${fileId}::uuid,${block.width_pct??null},${block.page_position??null},${block.checked==null?null:Boolean(block.checked)})`)
       }
-      /* Both parent relations are remapped through the same copied-id map and
-         neither is inferred: a Section stays a Section's, a nested list item
-         stays that list item's (#219). A checklist item's tick is authored
-         content and is copied with the writing, unlike a Task's status, which
-         the comment below explains arrives pending. */
+      /* Section and list parents are remapped through the copied-id map, never inferred. Checklist ticks are copied. */
       for(const block of blocks)if(block.section_block_id!=null)await tx.execute(sql`UPDATE page_blocks SET section_block_id=${sectionMap.get(String(block.section_block_id))??null}::uuid WHERE id=${sectionMap.get(String(block.id))}::uuid`)
       for(const block of blocks)if(block.list_parent_block_id!=null)await tx.execute(sql`UPDATE page_blocks SET list_parent_block_id=${sectionMap.get(String(block.list_parent_block_id))??null}::uuid WHERE id=${sectionMap.get(String(block.id))}::uuid`)
 
-      /*
-      The Folder's Label vocabulary, before the tasks that point at it (#227
-      area 2). A duplicated Folder is a **new Folder-Label scope**: every
-      definition is re-created under a new id, archived ones archived, and the
-      copied tasks' assignments are remapped onto those ids below. Pointing the
-      copy at the source's ids would be refused by migration 0022's composite
-      key, so the only way to get this wrong is to lose the classification
-      rather than to share it.
-      */
+      /* The Folder's Labels, re-created under new ids before the tasks that point at them; archived ones stay archived. */
       const labelPairs = await copyFolderLabelCatalog(
         tx,
         sourceFolderId,
         copyId,
       )
 
-      // Structure, never the life (DES-198): every status arrives pending,
-      // steps arrive undone, the work is the maker's, a repeat is a new
-      // series, and my_day, reminders, comments and events stay home.
+      // Structure, never the life: tasks arrive pending and the copier's; my_day, reminders, comments and events stay home.
       const tasks = await rowsOf(
         tx,
         sql`SELECT id, title, notes, important,
@@ -483,16 +332,7 @@ export async function duplicateFolder(
             WHERE folder_id = ${sourceFolderId} AND deleted_at IS NULL
             ORDER BY created_at ASC, id ASC`,
       )
-      /* Old task id to new, built as the loop below inserts, because the
-         dependency relation is copied from it afterwards (issue #224) and the
-         Label remap below reads it too (#227 area 2). The rule is that
-         relationships travel only when both ends travel together, and this map
-         is the definition of "travelled": a task that is not in it did not
-         come, whether because it is trashed or because it lives in another
-         folder, and an edge touching it is dropped rather than pointed back at
-         the original. Nothing else pairs the two rows: the copy shares the
-         source's title and its position and has neither its id nor any column
-         pointing back at it. */
+      /* Old task id to new. Dependencies and Labels are copied only between tasks in this map. */
       const taskIdentity = new Map<string, string>()
       for (const task of tasks) {
         const section =
@@ -503,9 +343,7 @@ export async function duplicateFolder(
           task.recurrence_rule === null ? null : String(task.recurrence_rule)
         const inserted = await rowsOf(
           tx,
-          /* The hand order (4.5's position) is part of the structure a duplicate keeps: without it the
-             copy came out in creation order, which is not the order the
-             person had arranged. */
+          /* The hand order is copied too. */
           sql`INSERT INTO tasks
                 (folder_id, title, notes, important, start_date, start_time, due_date, recurrence_rule,
                  series_id, assignee_id, created_by, section_block_id, position, page_position)
@@ -523,10 +361,7 @@ export async function duplicateFolder(
         )
         const newTaskId = String(inserted[0]?.id)
         taskIdentity.set(String(task.id), newTaskId)
-        /* #221: the Task's document travels with it, its checklist (the
-           subtasks) unticked. A media block's file is
-           copied into the new folder once, through the same map the page's
-           own assets use, and a quota refusal rolls the whole copy back. */
+        /* The Task's document travels with its checklist unticked; media files are copied once via the shared map. */
         await copyTaskDocument(tx, String(task.id), newTaskId, async (originalFile) => {
           const known = copiedFiles.get(originalFile)
           if (known !== undefined) return known
@@ -540,16 +375,9 @@ export async function duplicateFolder(
       }
 
       /*
-      #211: Purpose is reusable authored Folder context. Since step 7 it is the
-      project's Purpose tab (`purposeTabOf`: the first Doc tab before Work),
-      and a copy of a project gets its own Purpose tab with independent
-      blocks and files. Dana Links are remapped only for targets this
-      duplicate already has an identity map for.
-      #213: Results is deliberately not copied. It records the source
-      Folder's actual outcomes, not reusable intent (7.16). Nor are the other
-      tabs, as a facet never was. The Purpose tab is a page with its own
-      people, so it is copied only when the duplicator can read it.
-      */
+      Purpose is reusable context, so a project copy gets its own Purpose tab, copied only if the duplicator can read it.
+      Results and other tabs are not copied: they record the source's own outcomes.
+       */
       const purposeCandidate = place === null ? await purposeTabOf(tx, sourceFolderId) : null
       const sourcePurposeTab =
         purposeCandidate !== null && (await folderActorFacts(tx, viewerId, purposeCandidate.id)) !== null
@@ -577,8 +405,7 @@ export async function duplicateFolder(
             const originalFile = String(block.file_id)
             fileId = purposeFiles.get(originalFile) ?? null
             if (fileId === null) {
-              // A page accepts only its own files: the copy is scoped to the
-              // new Purpose tab.
+              // A page accepts only its own files, so the copy is scoped to the new Purpose tab.
               const held = await copyPageFile(tx, store, viewerId, originalFile, copiedPurposeId)
               if (held.kind === 'quota_exceeded') throw new QuotaRefusal()
               if (held.kind === 'copied') {
@@ -633,24 +460,13 @@ export async function duplicateFolder(
         }
       }
 
-      /* The dependency relation, after every task exists and so after the
-         identity map is whole (issue #224). It is inside this transaction
-         with everything else: a folder whose work arrived and whose ordering
-         between that work did not is a half-made copy, and the copy is one
-         unit. Only edges with both endpoints in the map are carried, which is
-         the accepted rule stated once in `copyDependenciesWithin`. */
+      /* After every task exists. Only edges with both ends in the map are carried. */
       await copyDependenciesWithin(tx, taskIdentity, viewerId)
 
       /*
-      The assignments, now that both id mappings exist (#227 area 2). Three
-      statements: the Tasks' Folder Labels remapped onto the copy's own
-      vocabulary, the duplicator's active Personal Labels on the source Folder,
-      and their active Personal Labels on the source Tasks. Nobody else's
-      Personal Labels cross, and no archived Personal Label is newly attached —
-      while the Folder's own archived definitions and the assignments against
-      them do come across, because that is the taxonomy being duplicated rather
-      than a new application of a retired Label.
-      */
+      Label assignments: Folder Labels remapped to the copy's vocabulary, plus the duplicator's own active
+      Personal Labels. Nobody else's Personal Labels cross, and no archived Personal Label is newly attached.
+       */
       await copyFolderLabelAssignments(
         tx,
         viewerId,
@@ -660,13 +476,8 @@ export async function duplicateFolder(
         [...taskIdentity],
       )
 
-      /* DES-198's date rule: spent plans re-anchor whole, live plans copy
-         untouched. The shift is read once, then one UPDATE moves every date by
-         the same days, which is what keeps the intervals. The comparison day is
-         the caller's, passed in as a date literal rather than read from the
-         session's `current_date` (issue #76); where no zone was named, the
-         guard above has already established that no date can be spent, so
-         there is nothing to shift and no day to compare against. */
+      /* Spent plans re-anchor whole, live plans copy untouched: one delta for every date keeps the intervals.
+      Without a zone the guard above proved nothing is spent. */
       const shifted =
         anchor === null
           ? []
@@ -678,24 +489,8 @@ export async function duplicateFolder(
             )
       const shift = Number(shifted[0]?.shift ?? 0)
       if (shift > 0) {
-        /*
-        start_date moves with it (issue #215).
-
-        The point of this shift is in the line above it: one delta for the whole
-        folder, so the copy keeps the intervals the person arranged. A start
-        date left where it stood breaks exactly that, and breaks it worst on the
-        task the shift is derived from - a plan starting 1 January and due 10
-        January, duplicated in September, would come out starting in January and
-        due today. Copying the field as it stands is right only for the
-        single-task act below, where one spent deadline is clamped onto today
-        rather than a folder being moved bodily.
-
-        Both columns take the same delta, so a pair that satisfied
-        tasks_start_before_due_check still does. The WHERE widens because the
-        shift is computed from due dates but is a property of the folder: a
-        start-only task in a folder being moved forward moves with it. NULL + int
-        is NULL, so neither SET has to test the column it writes.
-        */
+        /* start_date takes the same delta so intervals hold and tasks_start_before_due_check still passes.
+        NULL + int is NULL, so neither SET tests its column. */
         await tx.execute(
           sql`UPDATE tasks
                  SET due_date = due_date + ${shift}::int,
@@ -712,8 +507,6 @@ export async function duplicateFolder(
         subjectId: copyId,
         subjectName: name,
         folderId: copyId,
-        /* The bar and the History line say which of 9.6's two things happened
-           (L-055). */
         detail:
           shift > 0
             ? `from ${String(source?.name ?? 'a folder')}, dates moved to start today`
@@ -739,10 +532,6 @@ export async function duplicateFolder(
   }
 }
 
-/* ------------------------------------------------------------------ *
- * POST /tasks/:id/duplicate (caller has resolved access; source given)
- * ------------------------------------------------------------------ */
-
 export interface DuplicableSource {
   id: string
   folderId: string
@@ -751,21 +540,12 @@ export interface DuplicableSource {
 
 export type DuplicateTaskResult =
   | { kind: 'duplicated'; id: string }
-  /** As the folder's: a spent date would be re-anchored and the request named
-   * no zone (8.1, issue #76). */
+  /** As the folder's: a spent date and no zone (8.1). */
   | { kind: 'tz_required' }
 
 /**
- * The copy carries the title, the notes, the document with its checklist
- * (all unticked), the section, the due date and the repeat, and never the
- * conversation, the completion, or the assignment, which lands on whoever
- * made the copy. The date follows 9.6's one rule for a
- * folder applied to one task: a spent due date re-anchors on today and a
- * future one keeps, the repeat riding whichever the copy carries.
- *
- * `anchor` is today(V) in the request's zone, or null where it named none,
- * and the read below refuses rather than substituting a day of its own
- * (issue #76). Today is the caller's, never the database session's.
+ * Copies the title, notes, document (checklist unticked), section, dates and repeat; never the conversation,
+ * completion or assignment. `anchor` is today in the request's zone, or null when it named none.
  */
 export async function duplicateTask(
   db: Db,
@@ -794,25 +574,14 @@ export async function duplicateTask(
       stored?.start_date === null || stored?.start_date === undefined
         ? null
         : String(stored.start_date)
-    /* The start is the earlier end, so it is the one that decides whether a
-       zone is needed to tell past from future. */
+    /* The start is the earlier end, so it decides whether a zone is needed. */
     if (anchor === null && zoneIsNeededToReanchor(storedStart ?? storedDue)) {
       return { kind: 'tz_required' } as const
     }
     /*
-    9.6's rule applied in the caller's zone, and Imran's ruling on #215 for the
-    start: a duplicate never begins before it existed.
-
-    - no start: a spent due date moves up to today, a future one copies;
-    - a start today or later copies with its due date as they stand;
-    - a past start moves to today; a due date still ahead stays, a spent one
-      moves forward by the original start-to-due span; a start alone just moves.
-
-    In the arm where no zone was named, the guard above has proved every date
-    is ahead in every zone, so `anchor` being null copies both as they stand.
-    tasks_start_before_due_check holds in every arm: the pair either keeps its
-    order or is rebuilt from today plus a non-negative span.
-    */
+    A duplicate never begins before it existed. No start: a spent due moves to today. A past start moves to today,
+    and a spent due moves forward by the original span. Without a zone, every date is ahead and copies as is.
+     */
     let startForCopy = storedStart
     let dueForCopy = storedDue
     if (anchor !== null) {
@@ -850,21 +619,9 @@ export async function duplicateTask(
           RETURNING id`,
     )
     const newId = String(inserted[0]?.id)
-    /*
-    The Labels (#227 area 1). The copy is in the source's own Folder, so the
-    Folder Label assignments carry the **same** ids: the vocabulary is already
-    the copy's. The duplicator's own Personal assignments cross, nobody else's
-    does, and neither side newly attaches an archived Label — a duplicate is a
-    new application, and archived means "may not be newly applied".
-
-    Classification is structure rather than life, which is the DES-198 line
-    this sits under: the copy arrives pending, unassigned to anyone but its
-    maker and with its conversation left behind, and it arrives wearing the
-    same Labels the original wore.
-    */
-    /* #221: the Task's document travels with its notes, which is its
-       projection. Same folder, so a media block names the same file. Its
-       checklist (the subtasks) comes across unticked. */
+    /* Same Folder, so Folder Label ids carry as they are. Only the duplicator's own Personal Labels cross,
+    and no archived Label is newly attached. */
+    /* The document travels with its notes; same folder, so media blocks name the same file. Checklist unticked. */
     await copyTaskDocument(tx, source.id, newId, undefined, { uncheck: true })
     await copyTaskLabelsForDuplicate(tx, viewerId, source.id, newId)
     await recordEvent(tx, {
@@ -880,16 +637,10 @@ export async function duplicateTask(
   })
 }
 
-/* ------------------------------------------------------------------ *
- * POST /workflows/import
- * ------------------------------------------------------------------ */
-
 export type ImportResult =
   | { kind: 'imported'; folders: Array<{ id: string; name: string }> }
   | { kind: 'folder_cap' }
-  /* Only with `parentId` (POST /folders/:id/import), on `createSubPage`'s
-     terms: the parent is missing, trashed or not the actor's (404); below
-     edit rights there (403); a default folder (422); too deep (422). */
+  /* Only with `parentId`, on `createSubPage`'s terms: 404, 403, or 422 for a default or too-deep parent. */
   | { kind: 'parent_not_found' }
   | { kind: 'forbidden'; reason: string }
   | { kind: 'default_parent' }
@@ -899,33 +650,21 @@ export async function importWorkflow(
   db: Db,
   viewerId: string,
   file: ImportWorkflowBody,
-  /** today(V) in the zone the request named, or null where the file asks no
-   * date to be evaluated. The caller resolves it, because 8.1 makes the zone
-   * an input of the request rather than a fact the server holds. */
+  /** today(V) in the request's zone, or null when the file needs no date evaluated. */
   anchor: string | null = null,
   store?: ObjectStore,
-  /** The page the file's folders become sub-pages of, in file order after
-   * its existing children; absent, they are top-level pages. */
+  /** The page the file's folders become sub-pages of; absent, they are top-level. */
   parentId?: string,
 ): Promise<ImportResult> {
   const copiedObjects:string[]=[]
-  /*
-  The import's own clock, the sample workspace's fix (`server/sample/workspace.ts`).
-  The whole import is one transaction, where `now()` is one instant, so every
-  Folder and Task it made shared a `created_at`, and every list ordering by
-  `created_at, id` fell through to the random uuid: the Tasks read in a
-  different order from the file. Each row takes its own millisecond instead, in
-  file order, within the minute before now so nothing is created in the future.
-  */
+  /* The import's own clock: one transaction has one now(), so each row takes its own millisecond in file order. */
   let tick = 0
   const clock = (): SQL => {
     tick += 1
     return sql`now() - interval '60 seconds' + ${tick}::int * interval '1 millisecond'`
   }
   return inTransaction(db, async (tx) => {
-    /* Into a page: `createSubPage`'s gate, under the tree lock taken before
-       anything is read, so a concurrent move cannot deepen or trash the
-       parent between the check and the inserts. */
+    /* `createSubPage`'s gate under the tree lock, so a concurrent move cannot change the parent. */
     if (parentId !== undefined) {
       await lockPageTree(tx)
       const parent = await folderActorFacts(tx, viewerId, parentId)
@@ -935,25 +674,19 @@ export async function importWorkflow(
       if (parent.isDefault) return { kind: 'default_parent' } as const
       if (!(await mayAddChildUnder(tx, parentId))) return { kind: 'too_deep' } as const
     }
-    /* Step 8: into a page, the file's folders are sub-pages, which the cap
-       does not count (projectCapReached). */
+    /* Sub-pages are not counted by the project cap. */
     if (parentId === undefined && (await projectCapReached(tx, viewerId, file.folders.length))) {
       return { kind: 'folder_cap' } as const
     }
 
     const created: Array<{ id: string; name: string }> = []
-    /** The file's task keys (#207) onto the ids this import minted, across
-     * every folder of the file, because a dependency may cross Folders. */
+    /** The file's task keys mapped to minted ids across every folder: dependencies may cross Folders. */
     const taskIdOfKey = new Map<string, string>()
-    /* Indexed, because `createWorkflowFolderLabels` needs to be able to say
-       *which* folder of the file the database refused a vocabulary for, and
-       the path it answers with — `folders.<n>.labels` — is the one
-       `canonicalWorkflowBody`'s own refusals already use. */
+    /* Indexed so a refused vocabulary can be named as `folders.<n>.labels`. */
     for (const [folderIndex, folder] of file.folders.entries()) {
       const childPosition =
         parentId === undefined ? null : await lastChildPosition(tx, parentId)
-      /* Step 7: a top-level import is a Work project; into a page, a Work
-         sub-page of that page's project. */
+      /* A top-level import is a Work project; into a page, a Work sub-page of that page's project. */
       const newId = randomUUID()
       const made = await rowsOf(
         tx,
@@ -969,13 +702,8 @@ export async function importWorkflow(
             RETURNING id`,
       )
       const folderId = String(made[0]?.id)
-      /* #228's account-state boundary: importing a workflow is an
-         account-level creation act, so the importer becomes owner and Full
-         control of the Folder it
-         creates, and the file carries no member standing to restore.
-         Step 8: into a page, the new page is a sub-page as `createSubPage`
-         makes one: its project's people and owner, and a home block at the
-         end of the parent's Main document. */
+      /* The importer owns the new Folder with Full control. Into a page, it is a sub-page with its project's people
+      and a home block at the end of the parent's Main document. */
       if (parentId === undefined) {
         await tx.execute(
           sql`INSERT INTO folder_members (folder_id, user_id, access)
@@ -993,22 +721,8 @@ export async function importWorkflow(
         await appendHomeBlock(tx, parentId, folderId)
       }
       const taskMap = new Map<string,string>()
-      /*
-      The Folder's reusable vocabulary, before the work that points at it
-      (#227 area 4). **New identities inside this Folder**, always active, and
-      never merged against anything by name: the Folder was created three
-      statements ago and its catalog is empty, so there is nothing to merge
-      with. The file's own keys are the only join, and the schema has already
-      refused a file that names a key it does not declare.
-
-      **A file whose vocabulary contradicts itself by *name* is refused here
-      rather than by the schema**, and that is deliberate: the fold is
-      `labels_folder_name_idx`'s `lower(name)` and a second one in JavaScript
-      disagrees with it. The throw leaves this transaction on its way to the
-      route, which turns it into the same 422 the schema's own refusals
-      answer, so nothing half-made survives — the folder three statements ago
-      included.
-      */
+      /* New Labels in this Folder, never merged by name. A duplicate name (by lower(name)) throws to the route's 422,
+      rolling back the whole import. */
       const labelIdOf = await createWorkflowFolderLabels(
         tx,
         folderId,
@@ -1026,34 +740,18 @@ export async function importWorkflow(
                       ${block.text})`,
         )
       }
-      /*
-      The work, wherever the file wrote it.
-
-      **A format 4 Task is a block of the page and a format 1 to 3 Task is a
-      member of a collection, and they are the same Task** — the same keys, the
-      same caps, the same anchor rule. So the loop below reads one list, and
-      which list that is is the only thing the version decides. The schema has
-      already refused a folder that carries both (#185), so there is no case in
-      which these two sources are both non-empty.
-      */
+      /* Format 4 Tasks are page blocks, formats 1 to 3 a collection; the schema refuses a folder carrying both. */
       const work: ImportWorkflowTask[] =
         folder.page === undefined
           ? (folder.tasks ?? [])
           : folder.page.blocks.flatMap((block) =>
               block.kind === 'task' ? [block] : [],
             )
-      /** The ids this import minted, in the file's own order, so that format
-       * 4's page can name its Tasks by position. */
+      /** Minted ids in file order, so format 4's page can name its Tasks by position. */
       const madeTaskIds: string[] = []
-      // Work arrives as typed work would: pending, unticked, the
-      // importer's (the DES-198 contradiction's one rule). What travels is
-      // the 7.16 list and no more; what does not
-      // is still ids, people, due dates and states.
+      // Imported work arrives pending, unticked and the importer's. Ids, people, due dates and states never travel.
       for (const [taskIndex,task] of work.entries()) {
-        // A repeat needs 4.5's anchor and a reminder needs 8.6's, and the
-        // file carries no date, so the day the run began is the date they
-        // get. A task carrying neither stays undated, which is what the
-        // exclusion is about.
+        // A repeat or a reminder needs a date and the file carries none, so it gets the day the import ran.
         const dated =
           task.recurrence_rule !== undefined || task.reminder !== undefined
         const madeTask = await rowsOf(
@@ -1095,10 +793,7 @@ export async function importWorkflow(
             viewerId,
           )
         }
-        /* The file's keys remapped onto the ids this import minted. A key the
-           file never declared cannot reach here — `canonicalWorkflowBody`
-           refuses the file — so the lookup is total and nothing is dropped in
-           silence. */
+        /* The schema refused undeclared keys, so this lookup is total. */
         await applyWorkflowTaskLabels(
           tx,
           folderId,
@@ -1110,39 +805,14 @@ export async function importWorkflow(
         )
       }
       /*
-      Format 4's page, rebuilt through the transaction that already owns a
-      page's structure (#185).
-
-      **`applyDocument` is the validator, and reusing it is the point.** It is
-      what a person's own save goes through, so an imported page is refused by
-      exactly the rules a typed one is: contiguous Sections, at most
-      `MAX_SECTION_DEPTH` heading levels, a list parent that precedes its
-      descendants and shares their Section, 500 blocks, 1000 Tasks, no repeated
-      identity, and no Task left off the outline. Writing a second validator
-      here would be a second set of rules to keep in step with that one, which
-      is the failure mode this whole issue is about.
-
-      **What this code does and nothing more**: turn positions into identities.
-      Every carried block gets a fresh uuid, every Task block resolves to the
-      row the loop above just inserted, and the outline's two parents are those
-      same positions looked up in the same table. A placeholder resolves to
-      nothing at all, which is what makes it import as nothing.
-      */
+      Format 4's page goes through `applyDocument`, so it obeys exactly the rules of a person's own save.
+      This code only turns positions into fresh ids; a placeholder resolves to nothing.
+       */
       if(folder.page!==undefined){
         const page=folder.page
         const reading=readWorkflowPage(page.blocks)
-        /* Unreachable through the endpoint: `canonicalWorkflowBody` runs the
-           same reading and answers 422 naming the block. Asserted rather than
-           assumed because the alternative is a `Map.get` returning undefined
-           three lines down and a half-built page. */
-        /* Where in the body this page came from, carried on every refusal this
-           arm can raise. `readWorkflowPage`'s own issues reach a caller as a
-           zod path down to the block; `applyDocument`'s reach them as a rule
-           about a page, and a file with two folders in it deserves to be told
-           which page (7.16's 2026-09-21 amendment). The folder index is the
-           least this can say and is said always; nothing here pretends to
-           locate a structural refusal at a block, because `applyDocument`
-           works in minted ids and has no way back to a file position. */
+        /* Unreachable through the endpoint (`canonicalWorkflowBody` refuses it); asserted to avoid a half-built page. */
+        /* The folder index, carried on every refusal so a multi-folder file says which page broke. */
         const pageField=`folders.${String(folderIndex)}.page`
         if(reading.issues.length>0)throw new DocumentRefusal('not_convertible','The workflow page names content it does not carry.',pageField)
         const idOf=new Map<number,string>()
@@ -1165,9 +835,7 @@ export async function importWorkflow(
             block_kind:block.kind,
             text:block.text??null,
             rich_content:block.rich_content??null,
-            /* A format 4 file carries no picture, no stored file and no folder
-               reference, so there is nothing here to authorize and nothing to
-               copy: the page it rebuilds holds writing only (#185). */
+            /* Format 4 pages carry writing only: no file, no folder reference. */
             file_id:null,
             ref_folder_id:null,
             width_pct:null,
@@ -1181,10 +849,7 @@ export async function importWorkflow(
           list_parent_block_id:item.listParentIndex===null?null:(idOf.get(item.listParentIndex) as string),
         }))})
         const base=await documentMetadata(tx,folderId)
-        /* The structural rules are `applyDocument`'s and stay there; what this
-           adds is the address. A refusal that already names a field keeps it,
-           and anything that is not a `DocumentRefusal` passes through
-           untouched — a 500 is not made into a 422 by being caught here. */
+        /* Adds the field path to a `DocumentRefusal`; anything else passes through, so a 500 stays a 500. */
         try{
           await applyDocument(tx,viewerId,folderId,{action:'document_transaction',mutation_id:randomUUID(),base_revision:base.revision,operations})
         }catch(error:unknown){
@@ -1204,21 +869,8 @@ export async function importWorkflow(
         for(const op of document.blocks){
           if(op.op!=='put_block')throw new DocumentRefusal('not_convertible','Workflow blocks must be typed content.')
           let fileId=op.file_id
-          /*
-          A workflow file names a `file_id`, and **that id is account-specific
-          rather than portable**. #185 owns the portable asset bundle and #220
-          must not pretend to have built one, so the rule here is unchanged and
-          is the truthful one: the importer must be able to read the row the
-          file names, or the import is refused outright. It is never silently
-          dropped and the block is never imported pointing at nothing, because
-          either would be a workflow claiming to carry an asset it does not.
-
-          What #220 changes is only the copy, for the reason the duplication
-          path above gives: `copyPageFile` preserves the kind, where
-          `copyCoverFile` plus a rewrite to `image` would have relabelled a
-          File, an Audio or a Video on the way in. The wording widens with it —
-          these are not all images any more.
-          */
+          /* A file_id is account-specific: the importer must be able to read it, or the import is refused.
+          `copyPageFile` keeps the file's kind. */
           if(fileId!==null){
             const permitted=await rowsOf(tx,sql`SELECT f.id FROM files f WHERE f.id=${fileId}::uuid AND ${readableFileScope(viewerId)}`)
             if(permitted.length===0||store===undefined)throw new DocumentRefusal('file_not_here','A file this workflow refers to is not accessible to you.')
@@ -1235,9 +887,7 @@ export async function importWorkflow(
         const outline=document.outline.map(item=>{
           const id=(item.kind==='block'?blockMap:taskMap).get(item.id)
           const parent=item.section_block_id===null?null:blockMap.get(item.section_block_id)
-          // #219's second parent, remapped through the same map and refused on
-          // the same terms: a file naming a list parent it does not carry is a
-          // broken file rather than a flattened list.
+          // A list parent the file does not carry is a broken file, refused.
           const listParent=item.list_parent_block_id===null?null:blockMap.get(item.list_parent_block_id)
           if(id===undefined||parent===undefined||listParent===undefined)throw new DocumentRefusal('not_convertible','Workflow outline references missing content.')
           return {...item,id,section_block_id:parent,list_parent_block_id:listParent}
@@ -1247,8 +897,7 @@ export async function importWorkflow(
         await applyDocument(tx,viewerId,folderId,{action:'document_transaction',mutation_id:randomUUID(),base_revision:base.revision,operations})
       }
       if (folder.purpose !== undefined) {
-        /* Step 7: format 5's Purpose becomes the project's Purpose tab, a Doc
-           tab before Work (a child Doc page when importing into a page). */
+        /* Format 5's Purpose becomes the project's Purpose tab (a child Doc page when importing into a page). */
         const purposeId = await addDocPage(
           tx,
           viewerId,
@@ -1319,15 +968,8 @@ export async function importWorkflow(
       })
       created.push({ id: folderId, name: folder.name })
     }
-    /*
-    The file's internal dependencies, after every Task of every folder exists
-    (#207), in this same transaction so that work whose ordering did not arrive
-    is never a half-made import. `workflowDependencyEdges` keeps only edges
-    whose both ends the file declares, and the schema has already refused a
-    duplicated key, a self-dependency and a cycle, so every edge here is one
-    the live endpoint would admit. No other edge can reach a Task minted three
-    statements ago, which is why the file's own graph is the whole graph.
-    */
+    /* The file's own dependencies, after every Task exists, in this transaction. The schema already refused
+    duplicate keys, self-edges and cycles. */
     const edges = workflowDependencyEdges(file.folders).flatMap(
       ([dependentKey, blockerKey]): IdPair[] => {
         const dependent = taskIdOfKey.get(dependentKey)
@@ -1335,9 +977,7 @@ export async function importWorkflow(
         return dependent === undefined || blocker === undefined ? [] : [[dependent, blocker]]
       },
     )
-    // One statement for every edge (at most WORKFLOW_DEPENDENCY_CAP), not one
-    // round trip each; `pairSet`'s columns are named for a copy, and here
-    // `old_id` is the dependent and `new_id` the blocker.
+    // One statement for every edge. `pairSet` columns: `old_id` is the dependent, `new_id` the blocker.
     if (edges.length > 0) {
       await tx.execute(
         sql`INSERT INTO task_dependencies
@@ -1352,10 +992,6 @@ export async function importWorkflow(
     throw error
   })
 }
-
-/* ------------------------------------------------------------------ *
- * POST /folders/:id/transfer-ownership (8.9's direct form)
- * ------------------------------------------------------------------ */
 
 export type TransferResult =
   | { kind: 'transferred'; ownerId: string }
@@ -1375,7 +1011,7 @@ export async function transferOwnershipTo(
           WHERE folder_id = ${folderId} AND user_id = ${targetId}`,
     )
     if (member.length === 0) return { kind: 'target_not_member' } as const
-    // Step 8: every page of the project has the project's owner.
+    // Every page of the project has the project's owner.
     await tx.execute(
       sql`UPDATE folders SET owner_id = ${targetId}::uuid
           WHERE project_id = ${folderId}::uuid`,

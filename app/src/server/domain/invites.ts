@@ -1,19 +1,5 @@
-/*
-The domain module for invites per spec 7.5, the 5.2 lifecycle table, V-INV
-and the instant-share conversion of 8.7, and the acceptance transaction.
-Routes validate and serialize; every decision that touches rows is here,
-behind the 10.2 rule that nothing leaves this file without being scoped to
-the viewer or to a folder the caller has already resolved access on.
-
-Results are discriminated unions rather than thrown statuses, the folders
-module's convention, so the route layer owns the mapping onto 7.0's taxonomy and this
-file stays testable without HTTP.
-
-Two rules are load-bearing here and are named where they act rather than
-only in this header: the 10.3 member cap binds every membership 8.7 grants,
-and a bare invite to an email already on the inviter's roster answers 409
-(7.5's appended paragraph).
-*/
+// Invites (7.5, 5.2, 8.7): creation, instant-share conversion, transitions and acceptance.
+// Results are discriminated unions; routes map them to statuses. Everything is scoped to the viewer or a resolved folder.
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
@@ -29,21 +15,11 @@ import { responsibilityDocument } from '../../shared/responsibility.js'
 import type { ResponsibilityDocument } from '../../shared/responsibility.js'
 import type { Executor } from '../database.js'
 
-/** 10.3's members-per-folder limit, the number every 8.7 grant checks. It is
- * spelled here as well as in folders.ts because the two modules grant
- * membership by different paths and a constant imported across them would
- * still be two call sites; what must not differ is the number, and both
- * name 10.3. */
+/** 10.3's members-per-folder limit, also spelled in folders.ts. */
 const MEMBER_CAP = 25
 
-/** 5.2's resend guard, one resend per invite per 24 hours, anchored on
- * last_sent_at (10.4's per-invite line, which is a state guard rather than
- * the middleware rate limiting). */
+/** 5.2's resend guard: one resend per invite per 24 hours, from last_sent_at. */
 const RESEND_WINDOW_HOURS = 24
-
-/* ------------------------------------------------------------------ *
- * Serialization
- * ------------------------------------------------------------------ */
 
 function toIso(value: unknown): string {
   return value instanceof Date
@@ -55,18 +31,7 @@ function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
 }
 
-/*
-The invite as this surface reports it. 7.5 enumerates no element for
-POST /invites' 201 body or for GET /invites/sent, and src/shared/invites.ts
-stopped there deliberately, recording that the strongest candidate reading
-is that the two are one object. This is that object: it satisfies the shared floor (an id) and carries the columns of
-4.9 a client can act on.
-
-folder_name rides beside folder_id because the pending list 7.5 does
-enumerate carries the name rather than the id, and the inviter's own list
-renders the same sentence about the same folder. accepted_by is deliberately
-absent: it is a bare user id this surface offers no person shape for.
-*/
+// The invite as POST /invites and GET /invites/sent return it. accepted_by is left out: it has no person shape.
 export interface InviteElement {
   id: string
   email: string
@@ -110,18 +75,13 @@ async function inviteElementById(
   )
   const row = found[0]
   if (row === undefined) {
-    // The row was written in this transaction; not finding it is a state the
-    // contract has no shape for, and the precedent (the vanished
-    // membership in the folders module) is to fail loudly rather than answer a degenerate body.
+    // Written in this transaction, so a missing row is a bug: fail loudly.
     throw new Error(`invite ${inviteId} vanished between insert and read`)
   }
   return inviteFromRow(row)
 }
 
-/** One invite, by id, in the element shape above. The route reads it after a
- * transition so a 200 answers what a fresh read would, the convention 7.1,
- * 7.2 and 7.4 each carry on their mutations; 7.5 names no body for
- * decline, cancel and resend. */
+/** One invite in the element shape, read after a transition so a 200 matches a fresh read. */
 export async function inviteById(
   db: Db,
   inviteId: string,
@@ -129,13 +89,7 @@ export async function inviteById(
   return inviteElementById(db, inviteId)
 }
 
-/* ------------------------------------------------------------------ *
- * GET /invites/sent and GET /invites/pending
- * ------------------------------------------------------------------ */
-
-/** 7.5: V's invites, newest first, any status. The order is the row's own
- * (created_at DESC, id DESC), the tie-break convention section 6 uses
- * everywhere a sequence must be total. */
+/** 7.5: the viewer's sent invites, newest first, any status. */
 export async function sentInvites(
   db: Db,
   inviterId: string,
@@ -158,20 +112,7 @@ export interface PendingInviteForRecipient {
   created_at: string
 }
 
-/*
-Q12, the login surface: invites addressed to the viewer's lowercased email
-with status pending. The element is 7.5's, and its inviter is 7.0's person
-shape: the id is there so the inviter's default face matches the one they
-wear everywhere else (`shared/invites.ts`).
-
-Scoped by the viewer's own address rather than by an id, because that is what
-an invite names (4.9 stores an email, not a user), and it is why an account
-whose address differs by one dot sees nothing: 8.7 makes matching equality
-and nothing more.
-
-Newest first, the sent list's order, so the two 7.5 lists read alike; 7.5
-fixes an order for neither.
-*/
+// Q12: pending invites addressed to the viewer's lowercased email. Matching is exact equality (8.7).
 export async function pendingInvitesFor(
   db: Db,
   viewerId: string,
@@ -201,28 +142,20 @@ export async function pendingInvitesFor(
   }))
 }
 
-/* ------------------------------------------------------------------ *
- * POST /invites: V-INV (8.7) and the conversion
- * ------------------------------------------------------------------ */
-
 export interface CreateInviteInput {
   email: string
   folder_id?: string
   task_id?: string
-  /** R9 section 5's intended preset. Present exactly when `folder_id` is;
-   * the shared schema refuses every other combination. */
+  /** Present exactly when `folder_id` is; the shared schema refuses other combinations. */
   access?: FolderAccessPreset
-  /** Issue #230's optional initial Responsibility content, admitted only with
-   * a folder. Absent means the member arrives with no document; R10 forbids
-   * fabricating one. */
+  /** Optional initial Responsibility content, only with a folder. */
   responsibility?: ResponsibilityDocument
 }
 
 export type CreateInviteResult =
-  /** Parked: 201 { invite }, and one invite email rides it (5.2). */
+  /** Parked: 201 { invite }, plus one invite email (5.2). */
   | { kind: 'created'; invite: InviteElement; inviterName: string | null }
-  /** The instant share of 8.7: 200, a membership now, no invite row, and a
-   * share-grant email to the target. */
+  /** 8.7's instant share: 200, a membership now, no invite row, and a share-grant email. */
   | {
       kind: 'converted'
       folderId: string
@@ -235,18 +168,15 @@ export type CreateInviteResult =
   | { kind: 'own_email' }
   | { kind: 'folder_not_found' }
   | { kind: 'default_folder' }
-  /** Step 7: a tab has its project's people; the project is shared. */
+  /** A tab has its project's people; the project is shared. */
   | { kind: 'already_member' }
   | { kind: 'task_not_in_folder' }
   | { kind: 'already_connected' }
   | { kind: 'duplicate'; existingId: string }
   | { kind: 'member_cap' }
-  /** The folder is visible to the inviter and inviting into it is not theirs
-   * to do (issue #228). */
   | { kind: 'forbidden'; reason: string }
 
-/** The active account holding an address, if any. Soft-deleted rows are not
- * accounts: 4.1 scrubs the email at deletion, and 8.7 says "active user". */
+/** The active account holding an address, if any. Soft-deleted rows are not accounts. */
 async function activeUserByEmail(
   executor: Executor,
   email: string,
@@ -276,9 +206,7 @@ async function areConnected(
   return found.length > 0
 }
 
-/** INV-11's scope, exactly: one pending invite per (inviter, email, folder),
- * the no-folder case counting as its own folder value, which is what the
- * partial unique index of 4.9 expresses with COALESCE. */
+/** INV-11: one pending invite per (inviter, email, folder), with no folder as its own value. */
 async function pendingDuplicateId(
   executor: Executor,
   inviterId: string,
@@ -300,26 +228,10 @@ async function pendingDuplicateId(
 }
 
 /*
-V-INV on create, in the order the two spec texts give it when they are read
-together: 8.7 lists the sequence and 7.5's bullet carries the already-member
-refusal 8.7's list does not repeat. So: email syntax and lowercasing (the
-shared schema, before this module is reached), own email, the folder's
-accessibility and its default flag, the target's current membership, the
-task's presence inside the folder, the roster conversion or its bare
-refusal, then INV-11's dedupe. Rate limits are 10.4's middleware, not this
-function's.
-
-The order is not decoration. A self-invite naming a default folder answers
-422, so the own-email check must outrank the folder's 409; a member's address
-against a folder the caller cannot see answers 404, so access outranks the membership conflict and nothing
-confirms the folder exists.
-
-One transaction covers the lot, because two of the outcomes write: the
-conversion grants a membership under the cap, and the parked path inserts an
-invite against a uniqueness INV-11 shares with a concurrent caller. Sends are
-deliberately not here; the route sends after the commit, the share-grant
-convention, so a rolled-back transaction can never have mailed anybody.
-*/
+V-INV order: own email, folder access and default flag, membership, task in folder, roster conversion or
+refusal, then INV-11 dedupe. Own email outranks the folder's 409; access outranks the membership conflict.
+One transaction; emails go out after commit, so a rollback never mails anyone.
+ */
 export async function createInvite(
   db: Db,
   inviterId: string,
@@ -332,13 +244,7 @@ export async function createInvite(
   const initialResponsibility = input.responsibility ?? null
 
   return inTransaction(db, async (tx) => {
-    /*
-    The same read that compares addresses now also answers who the email
-    names. Both templates this transaction can produce render the inviter's
-    display_name, and the row is already
-    being opened, so naming a person costs no statement of its own. Null when
-    8.10 has scrubbed the account; the template resolves the fallback.
-    */
+    /* The same read gives the inviter's display_name for the templates; null after an 8.10 scrub. */
     const inviter = await rowsOf(
       tx,
       sql`SELECT email, display_name FROM users WHERE id = ${inviterId}`,
@@ -349,30 +255,20 @@ export async function createInvite(
       return { kind: 'own_email' }
     }
 
-    // Held rather than dropped: the conversion arm below sends a share grant
-    // that names the folder, and this is the read that already has it.
     let folderAccess: FolderAccess | null = null
     if (requestedFolderId !== null) {
       folderAccess = await accessOf(tx, inviterId, requestedFolderId)
-      // 10.2: a folder the inviter is not a member of reads as nonexistent,
-      // never as a status that confirms it exists.
+      // 10.2: a folder the inviter is not a member of reads as nonexistent.
       if (folderAccess === null) return { kind: 'folder_not_found' }
-      // INV-3: a default folder is never shared, so it refuses every invite.
+      // INV-3: a default folder is never shared.
       if (folderAccess.isDefault) return { kind: 'default_folder' }
-      /* Accepted R8A: inviting somebody into a Folder is administering
-         members, which Can edit explicitly cannot do, so it is Full
-         control's. Before #228 any member could invite anybody into any
-         folder they were in, which is the same
-         membership-only write path `POST /folders/:id/members` carried. A
-         **bare** roster invite, with no folder, is untouched: it grants no
-         Folder Access and is an ordinary personal act (7.5). */
+      /* Inviting into a Folder administers members, so it needs Full control. A bare roster invite needs nothing. */
       const admitted = mayPerform(folderAccess, 'invite.create')
       if (!admitted.allowed) {
         return { kind: 'forbidden', reason: admitted.reason }
       }
     }
-    /* Step 8: people belong to the project, so an invite named on any page
-       of it is the project's. */
+    /* An invite on any page of a project is the project's. */
     const folderId =
       requestedFolderId === null ? null : ((await projectOf(tx, requestedFolderId)) ?? requestedFolderId)
 
@@ -388,9 +284,7 @@ export async function createInvite(
     }
 
     if (taskId !== null) {
-      // The other half of 4.9's CHECK: a task_id with no folder_id is the
-      // shared schema's 422, and a task outside the named folder is this
-      // one. Both name a field, because both are the request's own shape.
+      // A task outside the named folder is a 422 on the task field.
       const inFolder = await rowsOf(
         tx,
         sql`SELECT 1 AS present FROM tasks
@@ -401,24 +295,16 @@ export async function createInvite(
     }
 
     if (target !== undefined && (await areConnected(tx, inviterId, target.id))) {
-      /*
-      The conversion arm is folder-conditional: the instant share creates a membership and only a folder
-      defines one, so a bare invite to a connected person answers 409 and
-      creates nothing. What separates the two answers is the folder
-      and nothing else.
-      */
+      /* The instant share needs a folder, so a bare invite to a connected person is a 409. */
       if (folderId === null) return { kind: 'already_connected' }
       if (folderAccess === null) {
-        // Unreachable: a non-null folderId means the access read ran above
-        // and returned or refused. Loud rather than a blank folder name in
-        // somebody's email, which is what a silent fallback would send.
+        // Unreachable: a non-null folderId means the access read ran. Throw rather than mail a blank folder name.
         throw new Error(
           'a folder invite reached the conversion arm without its folder read',
         )
       }
 
-      // The 10.3 cap on every 8.7 grant: lock the folder, then count, so the
-      // count and the insert are one decision.
+      // The 10.3 cap: lock the folder, then count, so the count and the insert are one decision.
       await tx.execute(
         sql`SELECT 1 FROM folders WHERE id = ${folderId} FOR UPDATE`,
       )
@@ -429,12 +315,8 @@ export async function createInvite(
       )
       if (Number(count[0]?.n ?? 0) >= MEMBER_CAP) return { kind: 'member_cap' }
 
-      /* 8.7's instant share: the invite never becomes a row, so the preset
-         the inviter chose has to land on the membership directly, and the
-         `null -> preset` transition is recorded with the inviter as actor.
-         `granted` is non-null here by the shared schema's refine -- a folder
-         invite carries a preset -- and the assertion is written rather than
-         assumed because this is a grant of authority. */
+      /* The instant share puts the chosen preset on the membership directly, with the inviter as actor.
+      Asserted, not assumed, because this grants authority. */
       if (granted === null) {
         throw new Error('a folder invite reached the share arm with no preset')
       }
@@ -450,10 +332,7 @@ export async function createInvite(
         actorId: inviterId,
         transition: 'member_added',
       })
-      /* 8.7's instant share never becomes an invite row, so #230's initial
-         content has to land here in the same transaction as the membership
-         it belongs to -- attributed to the inviter, who wrote it, and never
-         to the person it describes. */
+      /* Initial Responsibility content lands with the membership, attributed to the inviter. */
       if (initialResponsibility !== null) {
         await createInitialResponsibility(
           tx,
@@ -465,14 +344,7 @@ export async function createInvite(
         )
       }
 
-      /*
-      8.7's third entry path: membership first, then the assignment applies,
-      one transaction. The order is what INV-4's composite FK requires, and
-      the assignment is unconditional here where the acceptance transaction's
-      is conditional: nothing has had time to overtake a request that grants
-      and assigns in the same statement pair, and the task was checked into
-      this folder three statements ago.
-      */
+      /* Membership first, then the assignment: INV-4's composite FK requires that order. */
       if (taskId !== null) {
         await tx.execute(
           sql`UPDATE tasks
@@ -500,12 +372,9 @@ export async function createInvite(
     }
 
     /*
-    8.7's closing sentence: creating a new assignment-invite for a task
-    clears task_id on any earlier pending invite for that task, which is what
-    keeps 7.0's pending_invite_email single-valued. The older row
-    stays pending and can still grant its folder; only its assignment intent
-    is superseded.
-    */
+    A new assignment-invite for a task clears task_id on earlier pending invites for it, keeping
+    pending_invite_email single-valued. Those invites stay pending for their folder.
+     */
     if (taskId !== null) {
       await tx.execute(
         sql`UPDATE invites SET task_id = NULL
@@ -525,10 +394,7 @@ export async function createInvite(
     )
     const insertedId = inserted[0]?.id
     if (insertedId !== undefined && folderId !== null) {
-      /* Without this the folder's history would say nothing about an
-         invite, and "who did I ask into this" would have no answer there. Recorded
-         as 'edited' with the predicate in detail, the same way a member's
-         arrival is (4.13's verb list being a CHECK constraint). */
+      /* Record the invite in the folder's history, as 'edited' (the verb list is a CHECK). */
       await recordEvent(tx, {
         actorId: inviterId,
         verb: 'edited',
@@ -540,9 +406,7 @@ export async function createInvite(
       })
     }
     if (insertedId === undefined) {
-      // The partial unique index of 4.9 caught a duplicate this transaction
-      // did not see when it looked: a concurrent create won the race, and
-      // the loser is told what the sequential caller would be told.
+      // A concurrent create won the race on 4.9's partial unique index; answer as the sequential caller would be answered.
       const raced = await pendingDuplicateId(tx, inviterId, email, folderId)
       if (raced !== undefined) return { kind: 'duplicate', existingId: raced }
       throw new Error('the invite insert wrote nothing and no duplicate exists')
@@ -556,46 +420,20 @@ export async function createInvite(
   })
 }
 
-/* ------------------------------------------------------------------ *
- * The 7.5 transition endpoints
- * ------------------------------------------------------------------ */
-
-/**
- * What a transition endpoint needs to know before it acts: the invite's own
- * state, whether the caller is the inviter, whether the caller is the
- * matched recipient (5.2's lowercased-email equality), and whether the
- * caller owns or can see the attached folder. Undefined means no such
- * invite.
- *
- * One read answers all four, so no endpoint resolves the actor twice and
- * none of them can disagree about who the caller is.
- */
+/** What a transition endpoint needs about the caller, from one read. Undefined means no such invite. */
 export interface InviteActorFacts {
   id: string
   status: string
   folderId: string | null
-  /** The caller's own display_name. The read below already joins their row
-   * to decide isRecipient, and resend is a call site whose email names the
-   * inviter, who is the caller (5.2 gives resend one actor). */
+  /** The caller's display_name, for resend's email, which names the inviter. */
   viewerName: string | null
   isInviter: boolean
   isRecipient: boolean
   isFolderOwner: boolean
   isFolderMember: boolean
   /**
-   * The caller's durable Folder facts for the invite's folder, or null when
-   * the invite carries no folder or the caller is not a member of it (issue
-   * #228).
-   *
-   * It is what turns "the inviter may cancel" into "whoever currently
-   * administers this Folder's members may cancel", which #228 asks
-   * for in terms -- managing pending Folder invitations sits in its
-   * Full-control list, and authorship is provenance rather than standing
-   * authority: a former inviter who is later downgraded loses
-   * Folder-invite administration, because "I created the invite" is not
-   * permanent authority. A bare roster invite has no Folder and keeps its old
-   * rule -- the inviter's alone -- because there is no Folder Access to
-   * resolve.
+   * The caller's Folder facts for the invite's folder, or null. Whoever administers the Folder's members may cancel,
+   * not just the original inviter. A bare roster invite stays the inviter's alone.
    */
   folderFacts: FolderActorFacts | null
   lastSentAt: Date
@@ -639,10 +477,7 @@ export async function inviteFactsFor(
         ? {
             folderId: String(row.folder_id),
             actorId: viewerId,
-            /* A member row always carries a preset -- the column is NOT NULL
-               with a CHECK -- so the fallback is unreachable. It is the least
-               authority rather than the most, which is the only direction an
-               impossible value about authorization may be resolved in. */
+            /* Unreachable (NOT NULL with a CHECK); the fallback is the least authority. */
             access: presetOf(row.access) ?? 'can_view',
             isOwner: row.is_folder_owner === true,
             isDefault: row.is_default === true,
@@ -668,43 +503,13 @@ export type AcceptInviteResult =
   | { kind: 'folder_in_trash' }
 
 /*
-The acceptance transaction of 8.7, in its order, all or nothing:
-
-  connection upsert (INV-9, idempotent)
-  the Trash guard when a folder is attached: a folder whose deleted_at is set
-    is refused, and the acceptance rolls back whole (issue #28)
-  membership grant when a folder is attached and the acceptor is not already
-    a member, under the 10.3 cap that binds every 8.7 grant
-  conditional assignment when a task is attached
-  the invite itself moves to accepted
-
-The status guard rides the same transaction as a guarded UPDATE rather than
-being read first and trusted: two acceptances of one invite would otherwise
-both pass a read and both grant. Zero rows updated means the invite was not
-pending when this transaction reached it, which is 5.2's 409.
-
-A refused acceptance rolls back whole, so the invite stays pending and can be
-accepted once the folder has room. The
-refusal is expressed by throwing a private marker rather than by returning,
-because a return value commits the transaction and everything this function
-has written by then, the connection row included, has to go with it.
-*/
+8.7's acceptance, all or nothing: connection upsert, Trash guard, membership under the 10.3 cap, conditional
+assignment, then the invite moves to accepted by a guarded UPDATE (zero rows is 5.2's 409).
+Refusals throw a marker so the connection row written earlier rolls back too.
+ */
 const CAP_ROLLBACK = Symbol('member cap refusal, rolling the acceptance back')
 
-/*
-The Trash guard, issue #28, written into 5.2's accept row and 8.7's
-transaction.
-
-Deleting a folder is soft: the row survives for thirty days in Trash, and
-without this guard an acceptance inside that window would hand somebody a
-membership on a folder no query but Trash will ever show them. The reasons
-for refusing are 8.7's.
-
-It is a rollback marker rather than a return for exactly the CAP_ROLLBACK
-reason above: the connection row is already written by the time the folder is
-read, and a refusal that kept it would mint a roster connection out of an
-invite nobody accepted.
-*/
+/* Refuse acceptance into a folder in Trash. A marker throw, for CAP_ROLLBACK's reason. */
 const TRASH_ROLLBACK = Symbol('the folder is in Trash, rolling the acceptance back')
 
 export async function acceptInvite(
@@ -727,10 +532,7 @@ export async function acceptInvite(
       if (invite === undefined) return { kind: 'not_pending' }
 
       const inviterId = String(invite.inviter_id)
-      // Step 8: people belong to the project, and an invite names its root.
-      // One on any other page (the old instance's during a deploy, or a
-      // root since moved into another project) meant that page, not the
-      // whole project: it is invalidated rather than widened.
+      // An invite names its project's root. One on another page is invalidated, not widened to the whole project.
       const folderId = nullableString(invite.folder_id)
       if (folderId !== null && (await projectOf(tx, folderId)) !== folderId) {
         await tx.execute(
@@ -743,9 +545,7 @@ export async function acceptInvite(
       const granted = presetOf(invite.access)
       const initial = responsibilityDocument.safeParse(invite.responsibility)
 
-      // INV-9's canonical pair, upserted: the connection is created once
-      // however many invites the same two people exchange, and the returned
-      // rows are what connection_created reports.
+      // INV-9's canonical pair, upserted; the returned rows say whether a connection was created.
       const minted = await rowsOf(
         tx,
         sql`INSERT INTO connections (user_a_id, user_b_id)
@@ -757,20 +557,9 @@ export async function acceptInvite(
 
       if (folderId !== null) {
         /*
-        One read, locking the folder row, answering both questions this
-        transaction has about it: is it in Trash, and is the cap free.
-
-        The lock moves up from the counting branch below, where it used to
-        sit, so that the Trash guard and the grant are one decision against a
-        concurrent DELETE /folders/:id, which soft-deletes by updating this
-        same row. A delete that commits first is read here and refuses; one
-        that arrives later waits on this lock and lands after the grant. It
-        is taken whether or not the acceptor is already a member, because the
-        refusal is about the invite's folder rather than about the membership
-        it would create: an invite into a folder sitting in Trash is refused
-        even when accepting it would grant nothing, since the response's
-        `folder` would otherwise name a folder the acceptor cannot open.
-        */
+        One locking read answers both "in Trash?" and "cap free?", so the guard and the grant are one decision
+        against a concurrent soft delete. Taken even when the acceptor is already a member.
+         */
         const target = await rowsOf(
           tx,
           sql`SELECT deleted_at FROM folders WHERE id = ${folderId} FOR UPDATE`,
@@ -789,20 +578,7 @@ export async function acceptInvite(
                 WHERE folder_id = ${folderId}`,
           )
           if (Number(count[0]?.n ?? 0) >= MEMBER_CAP) throw CAP_ROLLBACK
-          /*
-          R9 section 5, and the sentence that shapes this block: **do not
-          pretend the recipient granted themselves the preset merely because
-          they clicked Accept.** The preset is the one the invite has carried
-          since it was created, the actor recorded is the inviter who chose
-          it, and the effective time is now -- the moment the membership
-          actually becomes active -- rather than when the invite was written.
-
-          The preset is read off the invite row rather than defaulted. Every
-          folder invite carries one (the table's both-or-neither CHECK, and
-          migration 0023's backfill for the rows that predate it), so a null
-          here means a row nobody can account for, and a grant of authority is
-          the last place to guess.
-          */
+          /* The preset comes from the invite, the actor is the inviter, and the time is now. A null preset is refused, not guessed. */
           if (granted === null) {
             throw new Error(
               `invite ${inviteId} carries a folder and no access preset`,
@@ -820,20 +596,8 @@ export async function acceptInvite(
             actorId: inviterId,
             transition: 'invite_accepted',
           })
-              /*
-          Issue #230, and the sentence that shapes this block is R9 section
-          5's read across from Access: **the initial content becomes active
-          only when the membership does, and the actor is the inviter who
-          wrote it.** History must not pretend the recipient authored the
-          content merely by accepting, which is exactly what recording the
-          acceptor here would do.
-
-          A row whose stored payload does not parse is *skipped* rather than
-          thrown on. The invite is being accepted, and refusing a membership
-          over unreadable text somebody else wrote months ago would be worse
-          than arriving with no Responsibility -- which is a state #230 makes
-          ordinary. Nothing is fabricated either way.
-          */
+              /* Initial content activates with the membership, attributed to the inviter. An unparseable payload is skipped,
+              not thrown, so acceptance still succeeds. */
           if (initial.success) {
             const folderName = await rowsOf(
               tx,
@@ -851,15 +615,7 @@ export async function acceptInvite(
         }
       }
 
-      /*
-      The conditional assignment, its conditions read as one guarded UPDATE:
-      the task exists, it is still in the invite's folder, it is still
-      unassigned, and it is not waiting in Trash, a trashed
-      task being 8.7's "moved on" in its newest form. Anything else is
-      skipped silently (8.7), because a skipped assignment loses a
-      convenience while a refusal would consume the recipient's one chance
-      at the folder over a task that moved on.
-      */
+      /* One guarded UPDATE: the task exists, is still in the folder, unassigned and not trashed. Otherwise skip silently (8.7). */
       let assignedTaskId: string | null = null
       if (taskId !== null && folderId !== null) {
         const assigned = await rowsOf(
@@ -888,9 +644,7 @@ export async function acceptInvite(
   }
 }
 
-/** decline and cancel: one guarded UPDATE each, the actor guard having been
- * resolved by the route. Zero rows means the invite was not pending, which
- * is 5.2's 409 for every terminal state. */
+/** Decline and cancel: one guarded UPDATE each; the route resolved the actor. Zero rows is 5.2's 409. */
 export async function settleInvite(
   db: Db,
   inviteId: string,
@@ -911,18 +665,9 @@ export type ResendResult =
   | { kind: 'throttled'; retryAfterSeconds: number }
 
 /*
-5.2's resend row: the inviter alone (the route's guard), pending alone, and
-at least 24 hours since last_sent_at. Terminal outranks the window, so the
-status is guarded first and a canceled invite answers 409 however old its
-anchor.
-
-The window is evaluated by the database against the stored instant, in the
-same statement that re-stamps it: a refusal must leave the anchor untouched,
-or a client that retries in a loop would push the window ahead of itself
-forever. Zero rows back with a pending row still there is therefore the
-throttle, and the Retry-After the route needs is computed from the anchor
-this function reads back.
-*/
+Resend: pending only, and 24 hours since last_sent_at, checked by the database in the statement that re-stamps it,
+so a refusal leaves the anchor alone. Zero rows on a pending row is the throttle.
+ */
 export async function resendInvite(
   db: Db,
   inviteId: string,
@@ -951,9 +696,7 @@ export async function resendInvite(
   }
   return {
     kind: 'throttled',
-    // A window that has just closed rounds to zero or below between the two
-    // statements; 7.0 wants a usable Retry-After, and one second is the
-    // smallest honest one.
+    // At least one second, so Retry-After is usable.
     retryAfterSeconds: Math.max(1, Number(state.retry_after ?? 1)),
   }
 }

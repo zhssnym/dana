@@ -1,37 +1,5 @@
-/*
-The Folder authorization layer's impure half (issue #228; product authority
-accepted #209 R8A for the ladder, #228's own authorization-resolver section
-for this shape, R9 for the history).
-
-## The table moved, and nothing else did
-
-**`src/shared/folder-actions.ts` now holds the action vocabulary, the rules
-table and `mayPerform`**, moved there unchanged on 2026-09-20 because the
-client needs the same answers to decide what to draw and was hand-copying them
-into a second, drifting ladder. That file's header carries the argument, the
-four records every `why` cites, and the rule that a projection never
-authorizes. Read it first; this file assumes it.
-
-Every name it exports is re-exported below, so a caller that imported
-`atLeast`, `mayPerform`, `ruleFor` or `FOLDER_ACTIONS` from here still does.
-That is deliberate: a route asks its own domain for an authorization answer,
-and the import path is not the interesting part of that sentence.
-
-## What is left here
-
-Everything that touches the database, because none of it can live in
-`src/shared/`:
-
-- `folderActorFacts` -- the durable facts, resolved against the caller's own
-  transaction and snapshot;
-- `otherFullControlCount` and `wouldStrand` -- the continuity invariant;
-- `recordAccessTransition` and `accessHistoryOf` -- R9's append-only history;
-- `lockedMembership` -- the row lock every Access write serializes behind.
-
-**Projections never authorize.** The client may hide a control, and since the
-move it computes that from the same table; the answer to "may this happen" is
-only ever reached through a route, on facts read here.
-*/
+// Folder authorization, database half. The action table and `mayPerform` live in src/shared/folder-actions.ts
+// and are re-exported here. Projections never authorize: only a route, on facts read here, decides.
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
@@ -44,9 +12,6 @@ import type { FolderActorFacts } from '../../shared/folder-actions.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 
-/* The pure half, re-exported so that every server caller and every criterion
- * reaches it where it has always reached it. `src/shared/folder-actions.ts`
- * is the definition; this is one line of plumbing and never a second copy. */
 export {
   FOLDER_ACTIONS,
   atLeast,
@@ -61,34 +26,13 @@ export type {
   FolderActorFacts,
 } from '../../shared/folder-actions.js'
 
-/* ------------------------------------------------------------------ *
- * Access resolution: the 10.2 chokepoint fact
- * ------------------------------------------------------------------ */
-
-/**
- * What every call site of `accessOf` has always had -- ownership, the default
- * flag and the folder's name, which the share-grant email renders -- plus,
- * since issue #228, the member's persisted
- * Access preset and the two ids the resolver needs.
- *
- * It *is* `FolderActorFacts` rather than a shape of its own, so that the
- * twenty-odd existing gates can hand what they already resolved straight to
- * `mayPerform` without a second read and without a conversion that could
- * lose a field.
- */
+/** The facts every `accessOf` caller gets, ready to hand to `mayPerform`. */
 export type FolderAccess = FolderActorFacts
 
-/** Null means the folder does not exist, is in Trash, or the viewer is not a
- * member, which 10.2 makes the same answer: 404, never 403.
- *
- * The executor rather than the handle, so a caller inside a transaction
- * resolves access against the same snapshot it will write in; task moves
- * need exactly that, and every Db is an Executor.
- *
- * A second name for `folderActorFacts`, kept because "resolve the folder"
- * and "decide the action" are two steps that should keep two names. It moved
- * here from `folders.ts` so that lower modules (files, invites) reach it
- * without importing the Folder module and closing an import cycle. */
+/**
+ * Null when the folder is missing, in Trash, or the viewer is not a member: 404, never 403 (10.2).
+ * Lives here so lower modules can use it without an import cycle through folders.ts.
+ */
 export async function accessOf(
   executor: Executor,
   viewerId: string,
@@ -98,12 +42,8 @@ export async function accessOf(
 }
 
 /**
- * Step 8: people belong to the project. A membership row lives on the
- * project root only, and a person is a member of every page of a project
- * they are a member of. The project of `folderId`, or null when there is no
- * such page; every membership read and write (members, invites, Access,
- * Responsibility, ownership) acts on this id, whichever page the path named.
- * Callers gate on the page first, so a stranger's answer stays 404.
+ * The project of `folderId`, or null. Membership rows live on the project root only, so every membership read
+ * and write uses this id. Callers gate on the page first.
  */
 export async function projectOf(executor: Executor, folderId: string): Promise<string | null> {
   const rows = await rowsOf(
@@ -114,28 +54,14 @@ export async function projectOf(executor: Executor, folderId: string): Promise<s
   return project === undefined || project === null ? null : String(project)
 }
 
-/** `folderId`'s project as SQL, for a statement that reads membership rows
- * of whatever page it is given. */
+/** `folderId`'s project as SQL. */
 export function projectIdOf(folderId: string): SQL {
   return sql`(SELECT pr_f.project_id FROM folders pr_f WHERE pr_f.id = ${folderId}::uuid)`
 }
 
-/* ------------------------------------------------------------------ *
- * Reading the facts
- * ------------------------------------------------------------------ */
-
 /**
- * The actor's durable facts about one Folder, or null when the Folder does
- * not exist, is in Trash, or the actor is not a member -- which 10.2 makes
- * one answer, 404, never 403.
- *
- * Takes an `Executor` rather than a handle so a caller inside a transaction
- * resolves against the same snapshot it will write in. Every `Db` is an
- * `Executor`, so the ordinary read costs nothing extra.
- *
- * `includeTrashed` is for the two acts 7.13 performs *on* a trashed Folder --
- * restore and permanent destruction -- which must resolve access to a row the
- * ordinary predicate hides.
+ * The actor's facts about one Folder, or null when missing, in Trash, or not a member (404, 10.2).
+ * `includeTrashed` is for restore and permanent destruction.
  */
 export async function folderActorFacts(
   executor: Executor,
@@ -149,28 +75,12 @@ export async function folderActorFacts(
   return found === null ? null : found.facts
 }
 
-/* ------------------------------------------------------------------ *
- * The one visibility check (10.2)
- * ------------------------------------------------------------------ */
-
 /*
-Who sees a row is one sentence: the viewer is a member of the row's project
-(step 8: its Folder's project root), and that Folder is not in Trash unless the caller is one of 7.13's acts on
-Trash. Lists, search and single-row reads say it through the three helpers
-below rather than writing the join again, so a query cannot drop half of it.
+Visibility: the viewer is a member of the row's project and the Folder is not in Trash.
+Use these helpers instead of writing the join again. `alias` accepts only short identifiers: it is spliced into SQL raw.
+ */
 
-- `visibleFolder` is the sentence as a predicate, for a WHERE or an EXISTS.
-- `joinVisibleFolder` is the same sentence as joins, for a query that also
-  reads the Folder or the membership row (name, preset, shelf).
-- `resolveScoped` is one row by id with the actor's facts, for the gates.
-
-Aliases are code, never input: `alias` refuses anything but a short
-identifier, because it is spliced into SQL raw.
-*/
-
-/** Which Folders a read admits: ordinary reads see `live` ones;
- * Trash and Archive have their own states. `any` includes live and trashed,
- * but not archived Work. */
+/** Which Folders a read admits. `any` is live and trashed, not archived. */
 export type FolderTrash = 'live' | 'trashed' | 'archived' | 'any'
 
 function alias(name: string): SQL {
@@ -187,10 +97,7 @@ function trashClause(folder: SQL, trashed: FolderTrash): SQL {
   return sql` AND ${folder}.archived_at IS NULL`
 }
 
-/**
- * True when the Folder whose id is `folderId` (a column, such as
- * sql`t.folder_id`) is visible to `viewerId`.
- */
+/** True when the Folder in column `folderId` (e.g. sql`t.folder_id`) is visible to `viewerId`. */
 export function visibleFolder(
   folderId: SQL,
   viewerId: string,
@@ -203,13 +110,8 @@ export function visibleFolder(
 }
 
 /**
- * The same check as joins, binding `folder` (default `fo`) and `member`
- * (default `m`) for the columns the caller reads.
- *
- * With `folderId`, it joins `folders` on that column first. Without it, the
- * caller's FROM already holds the Folder under `folder`, and only the
- * membership join is added (carrying the trash clause in its ON, which for an
- * inner join is the same as a WHERE).
+ * The same check as joins, binding `folder` (default `fo`) and `member` (default `m`).
+ * Without `folderId`, the caller's FROM already holds the Folder.
  */
 export function joinVisibleFolder(
   viewerId: string,
@@ -231,9 +133,7 @@ export function joinVisibleFolder(
     ${membership}`
 }
 
-/** The rows `resolveScoped` reads, each with its alias and whether it has a
- * trash column of its own. A comment has none: it leaves with its Discussion
- * or its Folder. */
+/** A comment has no trash column: it leaves with its Discussion or its Folder. */
 const SCOPED = {
   folder: { table: 'folders', as: 'fo', trash: true },
   task: { table: 'tasks', as: 't', trash: true },
@@ -243,21 +143,14 @@ const SCOPED = {
 export type ScopedKind = keyof typeof SCOPED
 
 export interface Scoped {
-  /** The row as the caller's `columns` asked for it. */
   row: Record<string, unknown>
   facts: FolderActorFacts
   folderTrashed: boolean
 }
 
 /**
- * One row by id, with the actor's Folder facts from the same statement, or
- * null when the row, its Folder or the membership is not there -- 10.2's one
- * answer, 404, never 403.
- *
- * `columns` are read beside the facts; they may name the row's alias (`t`,
- * `c`, `ff`, or `fo` for a folder), the Folder as `fo` and the membership as
- * `m`. `row` and `folder` say which trash states are admitted, `live` by
- * default. `lock` takes the row itself `FOR UPDATE` and nothing else.
+ * One row by id with the actor's facts, or null (404, 10.2). `columns` may use the row's alias, `fo` and `m`.
+ * `lock` takes only the row itself FOR UPDATE.
  */
 export async function resolveScoped(
   executor: Executor,
@@ -324,10 +217,7 @@ export async function resolveScoped(
   }
 }
 
-/**
- * The actor's facts off a row a visibility join already scoped, reading
- * `folder_id`, `folder_name`, `folder_is_default`, `is_owner` and `access`.
- */
+/** Facts from a row a visibility join already scoped. */
 export function factsFromRow(
   row: Record<string, unknown>,
   viewerId: string,
@@ -343,11 +233,7 @@ export function factsFromRow(
   }
 }
 
-/**
- * A membership row's preset, **refused rather than defaulted**: the column's
- * CHECK makes an unknown value unreachable, and every default here would be a
- * guess about what somebody may do.
- */
+/** Throws rather than defaulting: a default would be a guess about authority. */
 export function presetFromRow(
   value: unknown,
   viewerId: string,
@@ -362,23 +248,9 @@ export function presetFromRow(
   return access
 }
 
-/* ------------------------------------------------------------------ *
- * The Full-control continuity invariant
- * ------------------------------------------------------------------ */
-
 /**
- * How many *other* active members of this Folder hold Full control.
- *
- * "Human" is every member in M1: Dana has no AI member rows, and R8A is
- * explicit that a future AI Full control must not satisfy the sole-custodian
- * invariant. When those rows arrive, this predicate is the one place that has
- * to learn to exclude them, which is why it is a named function with this
- * paragraph attached rather than a count inlined at four call sites.
- *
- * Callers take the Folder row `FOR UPDATE` first. The count is only true for
- * as long as nothing else may change a membership row, and every operation
- * that could -- demote, remove, leave, transfer -- takes that same lock in
- * the same order, so they queue rather than interleave.
+ * How many other active members hold Full control. Exclude future AI members here (R8A).
+ * Callers lock the Folder row first, as every membership change does.
  */
 export async function otherFullControlCount(
   tx: Executor,
@@ -394,15 +266,7 @@ export async function otherFullControlCount(
   return Number(found[0]?.n ?? 0)
 }
 
-/**
- * Whether removing, demoting or releasing `userId`'s Full control would leave
- * the Folder with no active human Full-control member.
- *
- * A Folder whose subject does not hold Full control cannot be the last one,
- * so the answer is false without a count; that ordering also keeps the
- * personal default Folder, which has exactly one member, out of the invariant
- * entirely when it is being left through a path that never had Full control.
- */
+/** Whether removing `userId`'s Full control would leave no human Full-control member. */
 export async function wouldStrandFolder(
   tx: Executor,
   folderId: string,
@@ -413,32 +277,17 @@ export async function wouldStrandFolder(
   return (await otherFullControlCount(tx, folderId, userId)) === 0
 }
 
-/* ------------------------------------------------------------------ *
- * The append-only history (R9)
- * ------------------------------------------------------------------ */
-
 export interface AccessTransition {
   folderId: string
   memberId: string
   previousAccess: FolderAccessPreset | null
   newAccess: FolderAccessPreset | null
-  /** Null only for a governed system transition, which in M1 is migration
-   * initialization and nothing else; the table's CHECK agrees. */
+  /** Null only for system transitions (migration initialization); the table's CHECK agrees. */
   actorId: string | null
   transition: FolderAccessTransition
 }
 
-/**
- * One append-only transition row, written in the caller's transaction.
- *
- * It takes an `Executor` and opens nothing, which is R9 section 3's atomicity
- * requirement expressed as a type: the Access write and its history row must
- * commit together or not at all, and a function that opened its own
- * transaction could not promise that however carefully it were called.
- *
- * There is deliberately no update and no delete beside it. R9 section 15
- * makes corrections a new transition rather than a rewrite of the past.
- */
+/** One append-only transition row, in the caller's transaction, so it commits with the Access write. Never updated. */
 export async function recordAccessTransition(
   tx: Executor,
   entry: AccessTransition,
@@ -474,19 +323,7 @@ function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
 }
 
-/**
- * The Folder's Access history, or one member's slice of it, oldest first.
- *
- * R9A draws the boundary this read respects: #228 owns the truth of these
- * records and makes them renderable by Folder History and by a member-specific
- * recent view; filtering, search and grouping are the M2 History product's and
- * are deliberately absent. `limit` exists so a member panel can ask for the
- * last few without inventing a query language.
- *
- * The history survives the membership it describes (R9 section 9), so this
- * joins nothing to `folder_members`: a row about somebody who has left is the
- * point rather than an edge case.
- */
+/** The Access history, oldest first. Joins nothing to folder_members: history outlives membership. */
 export async function accessHistoryOf(
   executor: Executor,
   folderId: string,
@@ -528,30 +365,17 @@ export async function accessHistoryOf(
   }))
 }
 
-/* ------------------------------------------------------------------ *
- * The locked membership read every administration act begins with
- * ------------------------------------------------------------------ */
-
 export interface LockedMembership {
   userId: string
   access: FolderAccessPreset
   isOwner: boolean
-  /** R7 section O's explicit narrow grant (issue #230), read under the same
-   * `FOR UPDATE` as the preset beside it. Every write that consults it reads
-   * it here, so a grant revoked by a concurrent administrator cannot
-   * authorize a write that started before the revocation committed. */
+  /** Read under the same FOR UPDATE, so a concurrently revoked grant cannot authorize this write. */
   canEditOwnResponsibilities: boolean
 }
 
 /**
- * One member's row, held for the rest of the transaction.
- *
- * R9 section 16 requires that two racing Access changes serialize or refuse
- * rather than both record a transition claiming the same `from`. This is the
- * lock that makes the first of those true: the row is taken `FOR UPDATE`, so
- * the second caller waits and then reads the first caller's result as its own
- * `from`. The optional `expected` preset in the request body is the second
- * half -- a caller who knows what it saw may insist on it.
+ * One member's row, locked FOR UPDATE for the transaction, so racing Access changes serialize.
+ * The optional `expected` preset lets a caller insist on what it saw.
  */
 export async function lockedMembership(
   tx: Executor,

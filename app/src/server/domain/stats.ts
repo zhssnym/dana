@@ -1,23 +1,5 @@
-/*
-The operators' stats, read from rows Dana already keeps; nothing new is
-recorded about anyone to produce them. Counts, plus one row per account with
-its email, join day, last active day and work page count, which is what the
-Privacy page tells people operators can see. No page names or content.
-
-- People: live accounts (`deleted_at IS NULL`).
-- Work pages: live `folders` rows of kind 'work', minus each account's
-  default folder (Desk) and minus what the sample workspace created, so the
-  count is pages people made themselves. A project's Work tabs and subpages
-  are pages too and count for the project's owner. Trashed and archived
-  pages are not counted. Weeks are Monday to Monday, UTC.
-- Active: every authenticated request rolls its session's `expires_at` to
-  now() + SESSION_TTL_DAYS (auth/sessions.ts, passed in by the route because
-  the domain may not import auth), so `expires_at - TTL` is when that session
-  was last used. A person is active in a window when any of
-  their sessions was. Signing out deletes the session, so someone who signed
-  out is undercounted until they come back; there is no history beyond the
-  30 days a session lives.
-*/
+// Operator stats from rows Dana already keeps; no page names or content.
+// "Active" uses session expires_at minus the TTL as last use, so signed-out people are undercounted.
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'

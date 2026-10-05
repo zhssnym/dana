@@ -1,30 +1,5 @@
-/*
-The one nesting validator for every document home (wave 2, migration 0038).
-
-`list_parent_block_id` is the general block parent: any block but a Section may
-sit under a writing block of the same document. Four appliers write it -- a
-Folder's Main page (`page-document.ts`), a facet (`facets.ts`), a Task
-document (`task-document.ts`) and a Shelf (`shelf-document.ts`) -- and each
-asks this function, ahead of its first write, over the final ordered outline.
-Each maps the answer to its own refusal; none restates a rule.
-
-What it refuses:
-
-- a Task named as a child or a parent (a Task is never a nested block);
-- a child whose kind may not nest, or a parent whose kind holds nothing
-  (`mayNestUnder`);
-- a parent that is not a block of this same document (`kindOf` answers only
-  for this document's blocks, so another document's id reads as unknown);
-- a parent that does not precede its child, which is also the whole cycle
-  rule: a relation in which every parent appears earlier in one finite order
-  cannot close a loop;
-- a child whose Section differs from its parent's (the one Section rule): a
-  block cannot be inside two Sections at once;
-- nesting deeper than `MAX_NEST_DEPTH`.
-
-What it does not judge: unknown or repeated identities and retention, which
-each applier already checks against its own sets before calling this.
-*/
+// The one nesting validator for every document home. Each applier calls it over the final outline
+// before its first write. It does not check identities or retention; appliers do that first.
 import { MAX_NEST_DEPTH, isMediaKind, mayNest, mayNestUnder } from '../../shared/page-document.js'
 
 export interface NestingItem {
@@ -36,9 +11,8 @@ export interface NestingItem {
 }
 
 /**
- * Null when the outline's nesting is valid, otherwise the sentence to refuse
- * with. `kindOf` answers the final kind of a block of this document (after
- * this transaction's `put_block`s) and undefined for anything else.
+ * Null when the outline's nesting is valid, otherwise the refusal sentence.
+ * `kindOf` answers the final kind of this document's blocks and undefined for anything else.
  */
 export function nestingProblem(
   outline: readonly NestingItem[],
@@ -67,11 +41,7 @@ export function nestingProblem(
   return null
 }
 
-/** Issue #267: when the server took this media block's file, or null. Only a
- * media block that still names no file reports it; a block given a new file,
- * or turned into another kind, has nothing missing to report. Exported for
- * every page reader so the rule lives once; it sits here, in the kernel, so
- * no reader has to import the Work page module to reach it. */
+/** When the server reclaimed this media block's file, or null. Only reported while the block still names no file. */
 export function fileReclaimedAt(row: Record<string, unknown>): string | null {
   if (row.file_id !== null && row.file_id !== undefined) return null
   if (!isMediaKind(String(row.kind))) return null

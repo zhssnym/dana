@@ -1,15 +1,5 @@
-/*
-The domain module for folders and membership per spec 7.4, the 5.3 and 5.4
-tables, R-CLEAN, ownership transfer (8.9), the deletion transaction (8.8),
-and the 8.11 counts. Routes validate and serialize; every decision that
-touches rows is here, behind the 10.2 rule that no query leaves this file
-without being scoped to the viewer or to a folder the caller has already
-resolved access on.
-
-Results are discriminated unions rather than thrown statuses, so the route
-layer owns the mapping onto 7.0's taxonomy and this file stays testable
-without HTTP.
-*/
+// Folders and membership (7.4, 5.3, 5.4, R-CLEAN, 8.8, 8.9, 8.11). Every query is scoped to the viewer
+// or to a folder whose access the caller resolved. Results are discriminated unions; routes map statuses.
 import { notSamplePerson } from '../sample/people.js'
 import { randomUUID } from 'node:crypto'
 
@@ -55,12 +45,6 @@ import {
 import { pagesTabFor } from './project-tabs.js'
 import { ensureShelf } from './shelves.js'
 
-/* ------------------------------------------------------------------ *
- * Serialization
- * ------------------------------------------------------------------ */
-
-/** Timestamps leave the drivers as Date on both backends; the wire format
- * is the ISO instant either way. */
 function toIso(value: unknown): string {
   return value instanceof Date
     ? value.toISOString()
@@ -71,20 +55,11 @@ function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
 }
 
-/* ------------------------------------------------------------------ *
- * The Folder object (7.0) and the 7.4 list
- * ------------------------------------------------------------------ */
-
 function folderFromRow(
   row: Record<string, unknown>,
   personalLabels: LabelRef[],
 ): Folder {
-  /* The viewer's own preset (7.4, issue #228). It is read exactly as `membersOf` reads a member's: from
-     the column, through `presetOf`, and refused rather than defaulted when it
-     is unreadable, because every default here would be a guess about
-     authority. The row it comes from is `m`, which `folderSelect` joins on
-     `m.user_id = viewerId` -- the *viewer's* membership and never the
-     owner's, which is the confusion this field invites. */
+  /* The viewer's own preset, from `m` (the viewer's membership, never the owner's). Refused rather than defaulted. */
   const myAccess = presetOf(row.my_access)
   if (myAccess === null) {
     throw new Error(
@@ -109,9 +84,7 @@ function folderFromRow(
     my_shelf: nullableString(row.my_shelf),
     my_color: nullableString(row.my_color),
     my_access: myAccess,
-    /* The M1 Label projection (issue #226): the viewer's own Personal Labels
-       on this folder, and never a Folder Label, which classifies the tasks in
-       its folder rather than the folder (#208 R4). */
+    /* The viewer's own Personal Labels on this folder; Folder Labels classify its tasks, not the folder. */
     personal_labels: personalLabels,
     icon: nullableString(row.icon),
     color: nullableString(row.color),
@@ -119,8 +92,7 @@ function folderFromRow(
     cover_preset: nullableString(row.cover_preset),
     cover_focal_y: Number(row.cover_focal_y ?? 50),
     description: nullableString(row.description),
-    /* Wave 2: the parent as this viewer may see it -- `folderSelect` nulls
-       both columns unless the parent is live and the viewer a member of it. */
+    /* `folderSelect` nulls both unless the parent is live and the viewer is a member of it. */
     parent_folder_id: nullableString(row.parent_folder_id),
     child_position: nullableString(row.child_position),
     project_id: String(row.project_id),
@@ -134,27 +106,16 @@ export function pageKindOf(value: unknown): PageKind | null {
   return value === 'doc' || value === 'work' || value === 'discussion' ? value : null
 }
 
-/**
- * True for a Task that a later occurrence of its series superseded (8.5).
- * A null series_id never matches, so every plain one-off passes.
- */
+/** A Task superseded by a later occurrence of its series (8.5). A null series_id never matches. */
 const supersededOccurrence = sql`EXISTS (
   SELECT 1 FROM tasks s
    WHERE s.series_id = t.series_id AND s.id <> t.id
      AND (s.created_at, s.id) > (t.created_at, t.id))`
 
-/** One query serves the list and the single view: the membership join is
- * the scope (10.2), shelf, color and Access ride the viewer's own row (4.4),
- * and the counts are 8.11's, abandoned on neither side.
- *
- * **`m` is the viewer's membership and nothing else.** The `WHERE
- * m.user_id = <viewer>` below is what makes that true, and it is the whole of
- * why `my_access` costs no extra read: this query already had the row the
- * preset lives on. The mistake the field invites is reading the *owner's*
- * preset instead — `is_owner` sits two lines above it and comes from
- * `f.owner_id` — which would answer the same value to everybody in the folder
- * and would be invisible on a folder whose owner happens to hold Full control,
- * which is most of them. */
+/**
+ * One query for the list and the single view; the membership join is the scope (10.2).
+ * `m` is the viewer's own membership: `my_access` must come from it, never from the owner's row.
+ */
 function folderSelect(viewerId: string, folderId?: string) {
   const scope =
     folderId === undefined ? sql`` : sql` AND f.id = ${folderId}`
@@ -208,16 +169,7 @@ function folderSelect(viewerId: string, folderId?: string) {
     ORDER BY f.is_default DESC, lower(f.name) ASC, f.id ASC`
 }
 
-/**
- * Both reads' second statement, and the reason there is exactly one of them.
- *
- * A folder carries many Personal Labels, so joining them into the select
- * above would multiply its rows and every count inside it would then have to
- * be de-duplicated. The ids the first statement produced go to
- * `folderPersonalLabelsFor` in one batch instead, which is the same seam
- * `readCards` uses for tasks: two statements for a list of any length, never
- * one per row (issue #226).
- */
+/** Personal Labels in one batched second statement, so joining them cannot multiply the folder rows. */
 async function withPersonalLabels(
   db: Db,
   viewerId: string,
@@ -236,12 +188,7 @@ export async function listFolders(db: Db, viewerId: string): Promise<Folder[]> {
   return withPersonalLabels(db, viewerId, await rowsOf(db, folderSelect(viewerId)))
 }
 
-/**
- * GET /folders as a client from before step 7 reads it (an installed PWA on
- * the old bundle): a project's other tabs are left out, since that client
- * takes every parentless row for a project, and a page under a tab is listed
- * under the project root instead. Retired with the facet shims.
- */
+/** GET /folders for pre-tab clients: other project tabs left out, pages under a tab listed under the root. */
 export function withoutProjectTabs(folders: readonly Folder[]): Folder[] {
   const tabProject = new Map(
     folders
@@ -268,16 +215,8 @@ export async function folderView(
 }
 
 /**
- * Per-Section finite progress for GET /folders/:id (issue #205), the same
- * three numbers as `Folder.progress` grouped by the section block a Task sits
- * in. The page read only returns open Tasks, so the client cannot count done
- * ones itself; this is the one place it can learn them.
- *
- * Every section block in the folder answers, zeros included. A Task counts
- * only toward its own section, never toward an enclosing one: sections do
- * not roll up. The join is on the folder as well as the id, so a task whose
- * `section_block_id` still names a block of another folder counts nowhere
- * here.
+ * Per-Section progress for GET /folders/:id, zeros included. A Task counts only toward its own Section,
+ * and only when that Section is in this folder.
  */
 export async function sectionProgressOf(
   db: Executor,
@@ -312,37 +251,14 @@ export async function sectionProgressOf(
   }))
 }
 
-/* ------------------------------------------------------------------ *
- * POST /folders
- * ------------------------------------------------------------------ */
-
 export type CreateFolderResult =
   | { kind: 'created'; folder: Folder }
   | { kind: 'folder_cap' }
 
 /*
-The 10.3 cap counts custom folders only, the default one being INV-2's rather
-than the account's to spend.
-
-The count, the insert and the owner's membership row are one transaction
-behind a lock, for the same reason as the other two caps in this directory:
-nothing sits under this number either, so a count that is
-not tied to its insert is a suggestion. Two creates arriving together at 199
-both read 199 and both insert.
-
-The description is written by this insert and not by a PATCH behind it (7.4,
-issues #21 and #70): making a folder is one request, and the sentence a new
-folder opens with has to arrive in it. Defaulted to null so the callers that name only a
-folder keep the NULL every folder made before this carries.
-
-The lock is the owner's user row, because the set being counted is "the
-folders this account owns" and the account is the only row that names it. The
-folders themselves cannot be locked: the row that would break the cap is the
-one neither caller has created yet. Nothing else in the system holds that row
-while waiting on a folder, so it queues rather than deadlocks: 7.1's
-provisioning inserts a user rather than locking one, PATCH /me takes it alone,
-and 8.10 takes it last, after it is done with folders and memberships.
-*/
+The 10.3 cap counts custom projects. The count and insert share a transaction behind a lock on the owner's
+user row (the folders themselves cannot be locked: the one that would break the cap does not exist yet).
+ */
 export async function createFolder(
   db: Db,
   viewerId: string,
@@ -370,15 +286,7 @@ export async function createFolder(
         counts: { pending: 0, completed: 0 },
         my_shelf: null,
         my_color: null,
-        /* The membership this transaction just wrote, spelled as the literal
-           it is rather than read back: the `INSERT INTO folder_members` in
-           `insertOwnedFolder` names `full_control` and the creator is the
-           only member there is. It is the creator's *own* preset, which is
-           what `my_access` means everywhere (7.4's amendment of 2026-09-20),
-           and here the creator, the owner and the sole member are one person
-           -- which is exactly the case in which the owner-versus-viewer
-           confusion is invisible, so nothing about this line is evidence the
-           projection is right. */
+        /* The creator is the only member, written as `full_control` in `insertOwnedFolder`. */
         my_access: 'full_control',
         personal_labels: [],
         icon: null,
@@ -398,11 +306,8 @@ export async function createFolder(
 }
 
 /**
- * The 10.3 cap on custom projects per account, behind the account's row lock:
- * true when adding `adding` projects would pass 200. Step 8: only project
- * roots count. A sub-page is charged to its project's owner whoever makes
- * it, so counting sub-pages would let a Can edit member spend the owner's
- * cap; tabs never counted.
+ * The 10.3 cap on custom projects, behind the account's row lock: true when adding `adding` would pass 200.
+ * Only project roots count, so a collaborator's sub-pages cannot spend the owner's cap.
  */
 export async function projectCapReached(
   tx: Executor,
@@ -420,14 +325,8 @@ export async function projectCapReached(
 }
 
 /**
- * The insert every new owned page shares, root or sub-page, in the caller's
- * transaction: the cap behind the owner's row lock, the row, a new project's
- * Full-control membership and its transition, and the `created` event.
- * Answers the new id, or null at the 10.3 cap.
- *
- * Step 7: a root is a new project (`project_id` its own id, its first tab at
- * `a0`); a sub-page joins its parent's project. `kind` null is allowed on a
- * root only (the project picker).
+ * The insert every new owned page shares: cap check, row, a new project's Full-control membership and transition,
+ * and the `created` event. Null at the cap. A root is a new project; a sub-page joins its parent's.
  */
 async function insertOwnedFolder(
   tx: Executor,
@@ -441,24 +340,16 @@ async function insertOwnedFolder(
     kind: PageKind | null
   },
 ): Promise<string | null> {
-  // Trashed folders are out of the count: a person who deleted their way
-  // under the cap has done exactly what the cap asks of them, and the
-  // purge would otherwise change what an account may do 30 days late.
-  // Step 8: the cap counts projects. A sub-page belongs to its project and
-  // takes the project owner's owner_id whoever makes it, so counting it
-  // would let a collaborator spend the owner's cap.
+  // Trashed folders do not count, and only project roots do.
   if (input.parentId === null && (await projectCapReached(tx, viewerId, 1))) return null
 
-  // 7.4: folder plus owner membership, one transaction, which this now
-  // shares with the guard that admitted them.
   const newId = input.id ?? randomUUID()
   const project =
     input.parentId === null
       ? sql`${newId}::uuid`
       : sql`(SELECT p.project_id FROM folders p WHERE p.id = ${input.parentId}::uuid)`
   const kind = input.parentId === null ? input.kind : (input.kind ?? 'doc')
-  /* Step 8: a page's owner is its project's, so 8.10's deletion of owned
-     folders never takes a page out of a project that survives. */
+  /* A page's owner is its project's, so 8.10 never deletes a page out of a surviving project. */
   const owner =
     input.parentId === null
       ? sql`${viewerId}::uuid`
@@ -487,17 +378,10 @@ async function insertOwnedFolder(
   return id
 }
 
-/** A new project's creator: owner and Full control. Step 8: only a project
- * root holds membership rows; a sub-page's people are its project's. */
+/** Only a project root holds membership rows; a sub-page's people are its project's. */
 async function insertCreatorMembership(tx: Executor, viewerId: string, id: string): Promise<void> {
-  /* R8A and R5: the creator starts owner *and* Full control, and the two
-     are separate facts from this line onward -- the owner may later be
-     lowered, and a Full-control member who is not the owner may later
-     exist. The transition is written in the same transaction as the
-     membership, which is R9 section 3's atomicity rule, and it is
-     `created_owner` rather than `member_added` so that the Folder's very
-     first standing is distinguishable in history from a grant somebody
-     made afterwards. */
+  /* Owner and Full control are separate facts from here on. `created_owner`, not `member_added`,
+  marks the first standing in history. Same transaction as the membership (R9). */
   await tx.execute(
     sql`INSERT INTO folder_members (folder_id, user_id, access)
         VALUES (${id}::uuid, ${viewerId}::uuid, 'full_control')`,
@@ -517,30 +401,15 @@ export type CreateSubPageResult =
   | { kind: 'folder_cap' }
   /** The parent is missing, trashed or not the actor's: 404 (10.2). */
   | { kind: 'parent_not_found' }
-  /** Below edit rights on the parent: 403 with the resolver's reason. */
   | { kind: 'forbidden'; reason: string }
-  /** The parent is a default folder, which is never a parent: 422. */
   | { kind: 'default_parent' }
-  /** One more level would make the tree deeper than 20: 422. */
   | { kind: 'too_deep' }
-  /** Step 7: the parent is a Discussion page, which holds threads: 422. */
+  /** The parent is a Discussion page, which holds threads: 422. */
   | { kind: 'discussion_parent' }
 
 /**
- * A new page under `parentId`, in the caller's transaction (POST /folders
- * with `parent_folder_id` today, the document's `create_page` op later).
- *
- * Step 8: the new page's people are its project's; nothing is copied, and
- * its owner is the project's owner.
- *
- * Needs `folder.page.edit` on the parent (adding a sub-page edits that
- * page's structure). The tree lock is taken before anything is read, so a
- * concurrent move cannot deepen the parent between the check and the insert.
- * `id` lets a client-generated id through (the document's `create_page`).
- *
- * The new page's home `page` block is appended at the end of the parent's
- * Main document, unless `homeBlock` is false: `create_page` places the block
- * itself, where the person typed it.
+ * A new page under `parentId` in the caller's transaction. Needs `folder.page.edit` on the parent; takes the tree lock
+ * before reading. Its home block is appended to the parent's Main document unless `homeBlock` is false.
  */
 export async function createSubPage(
   tx: Executor,
@@ -556,9 +425,7 @@ export async function createSubPage(
   if (parent.isDefault) return { kind: 'default_parent' }
   const parentKind = await rowsOf(tx, sql`SELECT kind FROM folders WHERE id = ${parentId}::uuid`)
   if (parentKind[0]?.kind === 'discussion') return { kind: 'discussion_parent' }
-  /* A page added inside a Work tab lands in the project's Pages tab, as
-     migration 0061 placed every page a Work root held. The document's own
-     `create_page` (homeBlock false) places its block where it was typed. */
+  /* A page added inside a Work tab lands in the project's Pages tab. */
   if (input.homeBlock !== false && parentKind[0]?.kind === 'work') {
     const pages = await pagesTabFor(tx, actorId, parentId)
     if (pages !== null) parentId = pages
@@ -578,7 +445,6 @@ export async function createSubPage(
   return { kind: 'created', id }
 }
 
-/** `createSubPage` in its own transaction, for POST /folders. */
 export async function createSubPageIn(
   db: Db,
   actorId: string,
@@ -587,10 +453,6 @@ export async function createSubPageIn(
 ): Promise<CreateSubPageResult> {
   return inTransaction(db, (tx) => createSubPage(tx, actorId, parentId, input))
 }
-
-/* ------------------------------------------------------------------ *
- * PATCH /folders/:id (rename; caller has resolved owner access)
- * ------------------------------------------------------------------ */
 
 export interface FolderProfilePatch {
   name?: string
@@ -604,11 +466,7 @@ export interface FolderProfilePatch {
 
 export type PatchProfileResult = 'patched' | 'cover_not_here'
 
-/** The 7.4 rename and the 4.3 identity in one write, because they arrive
- * in one PATCH: the route has already split who may send what (name the
- * owner's, the dressing any member's, DES-225), and one mutation is one
- * event whichever fields it carried. A cover must be a file of this
- * folder's own, image-kinded, or the reference would smuggle a read. */
+/** Rename and identity in one write and one event. A cover must be an image-kinded file of this folder. */
 export async function patchFolderProfile(
   db: Db,
   actorId: string,
@@ -616,16 +474,7 @@ export async function patchFolderProfile(
   patch: FolderProfilePatch,
 ): Promise<PatchProfileResult> {
   return inTransaction(db, async (tx) => {
-    /* **This gate takes no copy, and 7.19's rule 1 is stated over folders
-       anyway.** The clause below requires the named file to be a file *of
-       this folder*, so a folder's cover is already a `cover` or an `image` in
-       the page's own scope and there is nothing for `coverFileFor` to
-       normalise; nor can a folder cover suffer the fault the copy exists to
-       close, since you cannot leave a folder and still be looking at its
-       page. 7.19 says the rule for all three page kinds regardless, against
-       the day this clause widens: whoever widens it adds the copy here in the
-       same change, or a folder cover starts breaking the way a shelf's used
-       to (issue #116). */
+    /* No copy is needed: the cover must be this folder's own file. If this clause ever widens, add the copy too. */
     if (patch.coverFileId !== undefined && patch.coverFileId !== null) {
       const cover = await rowsOf(
         tx,
@@ -639,9 +488,7 @@ export async function patchFolderProfile(
     if (patch.name !== undefined) sets.push(sql`name = ${patch.name}`)
     if (patch.icon !== undefined) sets.push(sql`icon = ${patch.icon}`)
     if (patch.color !== undefined) sets.push(sql`color = ${patch.color}`)
-    /* One source (4.3): a file arriving clears the
-       preset and a preset arriving clears the file, so the client never has
-       to send the null it means. */
+    /* One source: a file clears the preset and a preset clears the file. */
     if (patch.coverFileId !== undefined) {
       sets.push(sql`cover_file_id = ${patch.coverFileId}`)
       if (patch.coverFileId !== null) sets.push(sql`cover_preset = NULL`)
@@ -662,8 +509,7 @@ export async function patchFolderProfile(
       sql`UPDATE folders SET ${sql.join(sets, sql`, `)}
           WHERE id = ${folderId} RETURNING name`,
     )
-    // subject_name is the name at act time (4.13): after a rename, the new
-    // one, the name the line will be read under.
+    // subject_name is the new name: the one the line will be read under (4.13).
     await recordEvent(tx, {
       actorId,
       verb: patch.name !== undefined ? 'renamed' : 'edited',
@@ -677,33 +523,20 @@ export async function patchFolderProfile(
   })
 }
 
-/* ------------------------------------------------------------------ *
- * DELETE /folders/:id (caller has resolved owner access, non-default)
- * ------------------------------------------------------------------ */
-
 export interface DeletedCounts {
   tasks_open: number
   tasks_completed: number
   tasks_abandoned: number
 }
 
-/** 8.8 as split by 7.13: count for the confirmation response,
- * then mark the folder rather than delete it, one transaction. The named
- * cascades still do the rest, they just fire at the purge (11.7), and the
- * counts and the mark share the transaction so the response can never
- * describe rows the mark did not move. The members hear about it (4.14):
- * a shared folder disappearing without a word is the fan-out's clearest
- * case. */
+/** 8.8 via 7.13: count, then mark the folder trashed, in one transaction so the counts match. Members are notified. */
 export async function deleteFolder(
   db: Db,
   actorId: string,
   folderId: string,
 ): Promise<DeletedCounts> {
   return inTransaction(db, async (tx) => {
-    /* Wave 2: moved to Trash from outside its parent's document (the sidebar,
-       the page's own menu), the page leaves that document too. The pages
-       trashed with it keep theirs, inside documents that are in Trash with
-       them, so a restore brings the set back where it was. */
+    /* Trashed from outside its parent's document, the page leaves that document too. */
     await lockPageTree(tx)
     await removeHomeBlock(tx, folderId)
     return (await trashFolderSubtree(tx, actorId, folderId)).counts
@@ -711,15 +544,8 @@ export async function deleteFolder(
 }
 
 /**
- * The body of the Trash move, in the caller's transaction (DELETE
- * /folders/:id, and the document's `trash_page` op). The caller has
- * gated the page itself (`folder.trash`) and refused a default folder.
- *
- * Wave 2: the page's live descendants that the actor may also move to Trash
- * go with it, each stamped `trashed_with_folder_id = folderId`, so /trash
- * lists the initiator alone and a restore brings the set back; a descendant
- * the actor may not trash stays live (see `trashPageSubtree`). The counts
- * are the initiator's own, as 7.4's response has always described.
+ * The Trash move in the caller's transaction. The caller has gated `folder.trash` and refused a default folder.
+ * Descendants the actor may trash go too, stamped `trashed_with_folder_id`; counts are the initiator's own.
  */
 export async function trashFolderSubtree(
   tx: Executor,
@@ -762,8 +588,7 @@ export async function trashFolderSubtree(
   }
 }
 
-/** The rows of `folder_facets` private to `memberId` in `folderId`, deleted
- * with their blocks (R-CLEAN, 4.30). Unread since step 7; see runRClean. */
+/** Deletes `memberId`'s private `folder_facets` rows in `folderId` with their blocks (R-CLEAN, 4.30). */
 async function deletePrivateFacetsOf(tx: Executor, folderId: string, memberId: string): Promise<void> {
   await tx.execute(
     sql`DELETE FROM folder_facets
@@ -771,8 +596,7 @@ async function deletePrivateFacetsOf(tx: Executor, folderId: string, memberId: s
   )
 }
 
-/** The recipients of a folder-scoped fan-out (4.14); recordEvent drops the
- * actor from whatever this answers. */
+/** The recipients of a folder-scoped fan-out (4.14); recordEvent drops the actor. */
 export async function memberIdsOf(
   executor: Executor,
   folderId: string,
@@ -784,15 +608,7 @@ export async function memberIdsOf(
   return rows.map((row) => String(row.user_id))
 }
 
-/** The whole of 8.8's deletion once the counts are taken: one statement, and
- * the database's named cascades take memberships, tasks, and through tasks
- * the steps, My Day entries, reminders, and the pending invites carrying the
- * folder (5.2's folder-deleted row). It is a function rather than a line
- * inside deleteFolder because 8.10 step 3 deletes folders too, and one
- * sentence about what a folder deletion is should have one home.
- *
- * The executor rather than the handle: both callers already hold a
- * transaction, and 8.8 and 8.10 alike are all-or-nothing. */
+/** 8.8's deletion: one statement; named cascades take the rest. Shared with 8.10 step 3. */
 export async function deleteFolderRow(
   tx: Executor,
   folderId: string,
@@ -801,56 +617,15 @@ export async function deleteFolderRow(
   await tx.execute(sql`DELETE FROM folders WHERE id = ${folderId}`)
 }
 
-/* ------------------------------------------------------------------ *
- * PATCH /folders/:id/my-membership (caller has resolved membership)
- * ------------------------------------------------------------------ */
-
 export interface MyMembershipPatch {
-  /** The Shelf this folder sits on for this viewer. `label` until issue #226
-   * renamed it with its column; the concept never moved. */
+  /** The Shelf this folder sits on for this viewer. */
   shelf?: string | null
   color?: string | null
 }
 
 /**
- * Any subset semantics from the shared schema: absent leaves the column
- * alone, null clears it (4.4 stores null for both). An empty patch is a
- * no-op by construction.
- *
- * **A shelf name written here names a shelf, and makes it if there is not one
- * (issue #65).** 4.18's membership *is* this column, and its own sentence is
- * that the API holds the membership and the shelf's name in step in one
- * transaction; `patchShelf` and `deleteShelf` have always done that in their
- * direction and this is the direction that was missing. Without it a person
- * can hold a folder group the Library draws as a heading with nothing behind
- * it: no id, so no `/app/shelves/:id` to link to, no page, no mark and none
- * of 9.10's acts. The one-off repair for the memberships already stored is
- * migration 0011; this is what stops the state being reachable again.
- *
- * Clearing the membership leaves the shelf standing, which is deliberate and
- * is 9.1's model: "a shelf outlives its folders", the shelf being
- * the thing and this column its membership. Taking the last folder off a
- * shelf therefore empties it rather than deleting it, exactly as it already
- * did for a shelf made through 7.16.
- *
- * The UPDATE and the INSERT ride one transaction so that a folder never
- * carries a membership whose shelf is not there.
- *
- * The field was called `label` on both sides until issue #226. It is the same
- * rule; #208's Label model needed the word back.
- *
- * **The write went to two columns for one release and goes to one now.**
- * Migration 0022 was the expand half of an expand-and-contract pair —
- * `shelf_name` beside `label`, both written, because Render runs the old
- * instance until the new one is healthy and for the length of a deploy
- * something was still selecting `label`. Issue #247 is the contract half, and
- * **it contracted across two releases rather than one, which is what 11.5
- * asks for.** The first took the second assignment out of this function and
- * left the column standing; migration 0026, a release later, dropped the
- * column. That order is the whole of the rule: dropping it in the release
- * that stopped writing it would have left the instance Render had not drained
- * yet running every one of these writes against a column that was no longer
- * there.
+ * Absent leaves a column alone, null clears it. A shelf name creates its shelf if missing, in the same transaction,
+ * so a membership never names a missing shelf. Clearing leaves the shelf standing.
  */
 export async function setMyMembership(
   db: Db,
@@ -872,10 +647,6 @@ export async function setMyMembership(
   })
 }
 
-/* ------------------------------------------------------------------ *
- * GET /folders/:id composition
- * ------------------------------------------------------------------ */
-
 export interface MemberElement {
   user: {
     id: string
@@ -883,7 +654,7 @@ export interface MemberElement {
     avatar_url: string | null
   }
   role: string
-  /** The member's current Access preset (issue #228, R8A). */
+  /** The member's current Access preset. */
   access: FolderAccessPreset
   joined_at: string
   is_owner: boolean
@@ -893,20 +664,13 @@ export interface PendingInviteElement {
   id: string
   email: string
   task_id: string | null
-  /** The Access preset this invite will grant on acceptance (R9 section 5).
-   * Member-administration data, and the route shows the whole element to
-   * Full control alone. */
+  /** The preset this invite grants on acceptance. Shown to Full control only. */
   access: FolderAccessPreset | null
   created_at: string
   last_sent_at: string
 }
 
-/** 7.4's members array. The user object is 7.0's person shape (id,
- * display_name, avatar_url), the TaskCard-assignee object: 7.3's roster email is the contract's explicit
- * exception, and the 9.x sharing panel never renders a member's address.
- * is_owner derives from folders.owner_id, the single ownership source
- * (4.3, 8.9). Ordered by join instant then id, section 6's tie-break
- * convention. */
+/** 7.4's members array, in 7.0's person shape (no email). Ordered by join instant, then id. */
 export async function membersOf(
   db: Db,
   folderId: string,
@@ -936,10 +700,7 @@ export async function membersOf(
         avatar_url: nullableString(row.avatar_url),
       },
       role: String(row.role),
-      /* Issue #228: the member's current Access preset, Folder-visible to
-         every member under R9 section 13. `role` stays beside it and stays
-         'member': it expressed no authority before this and expresses none
-         now, and removing a column from a response is a contract change. */
+      /* `role` stays 'member' beside `access`: removing it would be a contract change. */
       access,
       joined_at: toIso(row.joined_at),
       is_owner: row.is_owner === true,
@@ -968,10 +729,6 @@ export async function pendingInvitesOf(
   }))
 }
 
-/* ------------------------------------------------------------------ *
- * POST /folders/:id/members
- * ------------------------------------------------------------------ */
-
 export type AddMemberResult =
   | { kind: 'added'; targetEmail: string | null }
   | { kind: 'default_folder' }
@@ -980,54 +737,22 @@ export type AddMemberResult =
   | { kind: 'member_cap' }
 
 /*
-The 5.3 add row, guards in 7.4's order: 409 default folder, 409 already
-member, 422 no roster connection between the actor and the target (the
-actor's roster, not the folder's collective one), 422 at the 25 cap. The
-insert itself is ON CONFLICT DO NOTHING so a raced double add resolves at
-the primary key rather than as an unhandled unique violation: zero rows
-back means this caller lost and is told what the sequential caller would
-be told, already a member (INV-10). A nonexistent target holds no roster
-connection with anyone, so it answers through the connection guard, and
-nothing here leaks whether the id names a real account.
-
-The guards and the insert are one transaction behind a lock on the folder
-row, so the count is tied to the insert. ON CONFLICT answers only the race of
-two members adding the same person, which the primary key settles whatever
-the count said. Two members adding two different
-people to a folder holding 24 both read 24, both pass, and both insert,
-leaving 26 against a number 10.3 calls server-enforced, and no acceptance run
-can show it: PGlite is single-connection (11.15).
-
-The lock is the folder row, which is what "this folder's membership set" is
-named by, and it is taken as the first statement of the transaction. Removal
-does not take it, deliberately: the cap guards additions, a concurrent
-removal can only free a slot, and the drop-to-one sweep of R-CLEAN reasons
-about a folder that has fewer members rather than more. The one ordering that
-matters is against 8.9's transfer, which takes the same folder row before it
-touches any membership row, so the two agree on order and queue rather than
-deadlock.
-*/
+5.3's add, guards in 7.4's order: 409 default, 409 already member, 422 no roster connection, 422 at the cap.
+The folder row lock ties the count to the insert. ON CONFLICT DO NOTHING settles a double add of the same person.
+A nonexistent target fails the connection guard, so nothing reveals whether the id is real.
+ */
 export async function addMember(
   db: Db,
   actorId: string,
   folderId: string,
   targetId: string,
   access: FolderAccess,
-  /** The Access preset the administrator chose for the new member. R9
-   * section 6 makes it explicit and required: a direct add records
-   * `null -> preset` with the adding administrator as actor, and there is no
-   * default, because a default here would be one person's authority chosen
-   * by nobody. The route's schema refuses a body without it. */
+  /** Required, no default: a direct add records `null -> preset` with the administrator as actor. */
   granted: FolderAccessPreset,
-  /** Issue #230's optional initial Responsibility content. Absent means the
-   * member arrives with no document at all: R10 forbids fabricating one, and
-   * `createInitialResponsibility` refuses a canonically empty payload for the
-   * same reason, so an explicit empty document writes nothing either. */
+  /** Optional initial Responsibility content; an empty document writes nothing. */
   initialResponsibility?: ResponsibilityDocument,
 ): Promise<AddMemberResult> {
-  // The default-folder refusal reads no row: INV-2 fixes is_default at
-  // creation and no endpoint moves it, so this answer cannot go stale inside
-  // the transaction it precedes.
+  // is_default never changes after creation, so this needs no row read.
   if (access.isDefault) return { kind: 'default_folder' }
 
   return inTransaction(db, async (tx) => {
@@ -1076,11 +801,7 @@ export async function addMember(
       transition: 'member_added',
     })
 
-    /* R10 and #230: the initial document and the membership standing commit
-       together, and the actor recorded on the first revision is the
-       **administrator** who chose the content rather than the person it
-       describes. That is R9 section 5's rule about Access read across to
-       Responsibility. */
+    /* The first revision is attributed to the administrator who chose it, not the member it describes. */
     if (initialResponsibility !== undefined) {
       await createInitialResponsibility(
         tx,
@@ -1092,18 +813,13 @@ export async function addMember(
       )
     }
 
-    // The share-grant email goes to the target's address (5.3). A null can
-    // only mean a soft-deleted account, whose connections 8.10 removes, so
-    // the row is a belt for a state that should not exist; the caller skips
-    // the send rather than mailing nobody.
+    // The share-grant email address (5.3). Null only for a soft-deleted account; the caller then skips the send.
     const target = await rowsOf(
       tx,
       sql`SELECT email, display_name FROM users
           WHERE id = ${targetId} AND deleted_at IS NULL`,
     )
-    // A member add has no verb of its own in 4.13; 'edited' carries it with
-    // the half a verb cannot. No fan-out: 4.14 does not name the added
-    // member and the 5.3 share-grant email is already their notice.
+    // 'edited' carries a member add (no verb of its own). No fan-out: the share-grant email is the notice.
     const named = await rowsOf(
       tx,
       sql`SELECT name FROM folders WHERE id = ${folderId}`,
@@ -1120,10 +836,6 @@ export async function addMember(
     return { kind: 'added', targetEmail: nullableString(target[0]?.email) }
   })
 }
-
-/* ------------------------------------------------------------------ *
- * DELETE /folders/:id/members/:userId
- * ------------------------------------------------------------------ */
 
 export async function isMember(
   db: Db,
@@ -1153,25 +865,11 @@ export async function otherMemberCount(
 }
 
 /*
-R-CLEAN (5.3), with the 8.9 transfer riding ahead of it on the owner-leave
-shape, one transaction for the lot:
-
-1. Owner leave only: hand folders.owner_id to the remaining member with
-   the earliest join instant, ties to the lower user id. Both keys are the
-   database's own ordering, which is what makes least() in the acceptance
-   harness and this ORDER BY agree on uuids.
-2. Unassign the leaver's tasks in the folder, no status carve-out. The
-   membership delete's composite FK would do this too (4.5); 8.8 does it
-   anyway, so the row is deterministic rather than a side effect.
-3. Delete the leaver's My Day entries for this folder's tasks, theirs
-   alone.
-4. Delete the membership row.
-5. When exactly one member remains, assign every unassigned task in the
-   folder to them, every status (INV-5 says every task), which sweeps up
-   the rows step 2 just freed.
-
-The leaver's pending invites for the folder stay standing (5.3).
-*/
+R-CLEAN (5.3) in one transaction. An owner leaving first hands ownership to the earliest-joined member
+(ties to the lower user id). Then unassign the leaver's tasks, delete their My Day entries for this folder,
+delete the membership, and if one member remains assign them every unassigned task (INV-5).
+The leaver's pending invites stay.
+ */
 export async function removeMembership(
   db: Db,
   folderId: string,
@@ -1182,17 +880,7 @@ export async function removeMembership(
     if (options.transferOwnership) {
       await transferOwnership(tx, folderId, leaverId)
     }
-    /* R9 section 9: the end of active membership is `current preset -> null`,
-       written before the row is deleted because the row is where the current
-       preset lives. The actor distinguishes the two directions of the same
-       change -- the departing member for a leave, the administrator for a
-       removal -- exactly as 4.13's two verbs do a few lines below.
-
-       The read is not locked here on purpose. Every path that can change this
-       row concurrently -- demote, remove, leave -- goes through the route
-       gates added at issue #228, which take the folder row `FOR UPDATE`
-       first; and the history row is about a membership this transaction is
-       deleting, so a lost update would take the membership with it. */
+    /* Record `preset -> null` before the row goes. Not locked here: every concurrent path locks the folder row first. */
     const standing = await rowsOf(
       tx,
       sql`SELECT access FROM folder_members
@@ -1211,8 +899,7 @@ export async function removeMembership(
       })
     }
     await runRClean(tx, folderId, leaverId, { actorId: options.actorId })
-    // 'left' when the leaver acted, 'removed' when someone removed them
-    // (4.13's two verbs for the two directions of the same row change).
+    // 'left' when the leaver acted, 'removed' when someone else did (4.13).
     const named = await rowsOf(
       tx,
       sql`SELECT f.name,
@@ -1237,66 +924,29 @@ export async function removeMembership(
 }
 
 /*
-R-CLEAN itself, taking the executor so its three callers share one
-implementation: member removal, leave, and 8.10 step 4, which is "not new
-machinery but 5.3's R-CLEAN, run once per remaining membership by the
-deletion transaction". A second copy inside the account deletion module
-would risk an implementation that revokes memberships without the cleanup, or sweeps My Day
-entries by user rather than by the folder's tasks.
-*/
+R-CLEAN's body, shared by removal, leave and 8.10 step 4 (which calls this, not removeMembership).
+Every duty of ending a membership belongs here, or account deletion misses it.
+ */
 export async function runRClean(
   tx: Executor,
   folderId: string,
   leaverId: string,
-  /** Who ended this membership. Defaults to the leaver, which is true of the
-   * two callers that do not name one: an ordinary leave, and 8.10's account
-   * deletion, where the person ending every membership they hold is the
-   * person deleting their own account. */
+  /** Who ended this membership; defaults to the leaver. */
   options: { actorId?: string } = {},
 ): Promise<void> {
   /*
-  R10, issue #230: "current active Responsibility standing ends in the same
-  governed membership operation". It is written here rather than in
-  `removeMembership` **because of where 8.10 enters**: account deletion step 4
-  does not call `removeMembership` at all, it calls this function once per
-  surviving membership, so a hook on the caller would have covered a leave and
-  a removal and silently missed every account deletion. The same reasoning the
-  header above already gives for R-CLEAN living here rather than being copied
-  into the deletion module, applied to one more duty.
-
-  And 8.10 is the case that cannot be got right by accident, for a reason worth
-  stating in full because half of it is the half people miss. **Step 7 scrubs
-  the `users` row rather than deleting it**, deliberately, so that
-  `tasks.created_by` and every other provenance reference keeps resolving. A
-  row that is never deleted fires **no** `ON DELETE` clause — not `CASCADE`,
-  not `SET NULL`, not `RESTRICT` — so a table that keyed its cleanup to
-  `users` is not cleaned up at all, and nothing anywhere reports it. Here that
-  would have left a deleted account holding an **open**
-  `folder_responsibilities` row in every folder they were in, forever: still
-  returned as an active member Responsibility, still holding the partial
-  unique index against anybody who came after. Nothing in this path relies on
-  a cascade. It is issue #253's class, and #227 met the same shape with
-  Personal Labels. The document and its revisions stay exactly where they are, which is
-  R10's other half: history survives the membership it describes, and #230
-  forbids scrubbing from fabricating a different historical actor.
-  */
+  End the member's active Responsibility here, not in `removeMembership`, so account deletion ends it too.
+  Step 7 scrubs the user row instead of deleting it, so no cascade would ever do this. History stays.
+   */
   await endResponsibilityStanding(
     tx,
     folderId,
     leaverId,
     options.actorId ?? leaverId,
   )
-  /*
-  Issue #210: the departing person's **private** facets in this folder are
-  permanently deleted in this same transaction. Since step 7 (migration 0061)
-  a private tab is a project of its own and nothing reads `folder_facets`;
-  what is left there is a row whose owner had already left when the
-  migration ran, which nobody could read. It goes with the membership, as it
-  always did, until the contract migration drops the table.
-  */
+  /* Delete the leaver's private facets in the same transaction (4.30). */
   await deletePrivateFacetsOf(tx, folderId, leaverId)
-  /* Step 8: `folderId` is a project root, and the membership is the whole
-     project's: its tasks on every page go with it. */
+  /* `folderId` is a project root: the membership covers tasks on every page. */
   const changedAssignments = await rowsOf(tx,
     sql`WITH old AS (
           SELECT id, assignee_id FROM tasks
@@ -1313,8 +963,7 @@ export async function runRClean(
         WHERE user_id = ${leaverId}
           AND task_id IN (SELECT id FROM tasks WHERE project_id = ${folderId})`,
   )
-  /* The rows 0062 left on the project's other pages go too: the old
-     instance reads them during the deploy overlap. */
+  /* Rows migration 0062 left on other pages go too: the old instance reads them during a deploy. */
   await tx.execute(
     sql`DELETE FROM folder_members
         WHERE user_id = ${leaverId}
@@ -1340,12 +989,10 @@ export async function runRClean(
   }
 }
 
-/** 8.9, both callers' rule: earliest folder_members.created_at, ties to
- * the lower user id; owner_id is the one thing that changes, the new
- * owner's membership row is untouched and role stays 'member'.
- *
- * Exported for the second caller 8.9 names, the account deletion transaction
- * of 8.10 step 2, which runs it inside the one transaction it owns. */
+/**
+ * 8.9: ownership goes to the earliest-joined member, ties to the lower user id; only owner_id changes.
+ * Also called by 8.10 step 2 inside its transaction.
+ */
 export async function transferOwnership(
   tx: Executor,
   folderId: string,
@@ -1361,62 +1008,33 @@ export async function transferOwnership(
   )
   const heir = successor[0]
   if (heir === undefined) {
-    // The route guards this with the sole-member 409; reaching here means
-    // the guard was bypassed, and violating INV-2's RESTRICT is worse.
+    // The route's sole-member 409 should prevent this; throwing beats breaking INV-2.
     throw new Error(`folder ${folderId} has no member to transfer to (8.9)`)
   }
-  // Step 8: every page of the project has the project's owner.
+  // Every page of the project has the project's owner.
   await tx.execute(
     sql`UPDATE folders SET owner_id = ${String(heir.user_id)}
         WHERE project_id = ${folderId}`,
   )
 }
 
-/* ------------------------------------------------------------------ *
- * Access administration (issue #228, #209 R8A / R9)
- * ------------------------------------------------------------------ */
-
 export type ChangeAccessResult =
   | { kind: 'changed'; previous: FolderAccessPreset; next: FolderAccessPreset }
   /** The named person is not a member of this folder. */
   | { kind: 'not_member' }
-  /** The target already holds the requested preset, so nothing changed and
-   * nothing is recorded. R9 section 10's rule about ownership transfer not
-   * fabricating a `Full control -> Full control` entry is the same rule read
-   * from the other end: a transition record describes a change. */
+  /** The target already holds the preset: nothing changes and nothing is recorded. */
   | { kind: 'unchanged'; access: FolderAccessPreset }
-  /** `expected_access` was sent and does not match the authoritative current
-   * value: another administrator got there first (R9 section 16). */
+  /** `expected_access` does not match the current value: another administrator got there first. */
   | { kind: 'stale'; actual: FolderAccessPreset }
-  /** The target is the structural owner and the actor is not: #228's
-   * ownership rules forbid a Full-control member from demoting the owner. */
+  /** The target is the owner and the actor is not: a Full-control member may not demote the owner. */
   | { kind: 'target_is_owner' }
-  /** The change would leave the folder with no active human Full-control
-   * member (R5's continuity invariant). */
+  /** The change would leave no active human Full-control member (R5). */
   | { kind: 'would_strand' }
 
 /**
- * Change one member's Access, atomically with its history row.
- *
- * This is R9 section 16's list of things the *same transaction* must enforce,
- * in its order: the affected member is still active, the old preset matches
- * authoritative current state, the owner restriction applies, the
- * last-Full-control-human invariant holds, then the write, then the append.
- * The actor's own authority is checked by the route through `mayPerform`
- * before this is called, and is re-read here only where the rule is about
- * *who the actor is relative to the target*, which the preset ladder cannot
- * express.
- *
- * The folder row is locked first, before any membership row is read. Every
- * other operation that can move a membership -- add, remove, leave, transfer
- * -- takes the same row in the same order, so they queue rather than
- * deadlock, and two racing Access changes serialize instead of both recording
- * a transition claiming the same `from`.
- *
- * Self-demotion is admitted here and distinguished in history: R9 section 8
- * asks for `self_demoted` where the actor is the affected member, because
- * "Omar lowered Sarah" and "Sarah lowered herself" are different facts about
- * the same row.
+ * Change one member's Access with its history row. In one transaction: member still active, expected preset matches,
+ * owner rule, Full-control continuity, then write and append. Locks the folder row first, as every membership change does.
+ * Self-demotion is recorded as `self_demoted`.
  */
 export async function changeMemberAccess(
   db: Db,
@@ -1439,17 +1057,11 @@ export async function changeMemberAccess(
     if (target.access === next) {
       return { kind: 'unchanged', access: target.access } as const
     }
-    /* #228's ownership rules: the owner's Access is the owner's. A
-       Full-control member may administer every other member and not this
-       one, which is what keeps
-       a lowered owner's custody anchor from being administered away by the
-       people they delegated to. */
+    /* Only the owner changes the owner's Access, so delegates cannot administer away the custody anchor. */
     if (target.isOwner && targetId !== actorId) {
       return { kind: 'target_is_owner' } as const
     }
-    /* R5's continuity invariant, and it binds self-demotion as much as
-       anything else: an owner may lower their own Access only when another
-       human Full-control member exists, which is this same count. */
+    /* Continuity binds self-demotion too: an owner may lower themselves only if another Full-control human exists. */
     if (
       target.access === 'full_control' &&
       (await otherFullControlCount(tx, folderId, targetId)) === 0
@@ -1457,8 +1069,7 @@ export async function changeMemberAccess(
       return { kind: 'would_strand' } as const
     }
 
-    /* Step 8: the rows 0062 left on the project's other pages follow, so
-       the old instance never applies an earlier preset during the overlap. */
+    /* Rows migration 0062 left on other pages follow, so the old instance never applies an earlier preset. */
     await tx.execute(
       sql`UPDATE folder_members SET access = ${next}
           WHERE user_id = ${targetId}
@@ -1480,10 +1091,7 @@ export async function changeMemberAccess(
                    AS target_name
           FROM folders f WHERE f.id = ${folderId}`,
     )
-    /* The generic history line R9 section 12 permits: a projection of the
-       structured transition above, never a second authoritative copy. 4.13's
-       verb list is a CHECK constraint, so this rides 'edited' with the
-       predicate in `detail`, exactly as a member's arrival does. */
+    /* The History line projects the structured transition; it rides 'edited' because the verb list is a CHECK. */
     await recordEvent(tx, {
       actorId,
       verb: 'edited',
@@ -1504,20 +1112,8 @@ export type OwnerRecoveryResult =
   | { kind: 'not_member' }
 
 /**
- * The structural owner restoring their own ordinary Access to Full control
- * (governing R5 "Owner Access may be restricted", #228's ownership rules,
- * R9 section 8).
- *
- * It exists as its own act, rather than as a Full-control member granting
- * themselves something, because the recovery anchor has to work precisely
- * when there is nobody left willing to grant it. The route checks
- * `owner.custody_recovery`, which is owner-only and reads no preset at all,
- * so an owner who lowered themselves to Can view can always climb back and
- * nobody else can climb for them.
- *
- * The transition kind is distinct for R9 section 8's stated reason: ordinary
- * History must show a recovery as a recovery rather than as a normal manager
- * grant whose grantor nobody can find.
+ * The owner restoring their own Access to Full control. The route checks `owner.custody_recovery`, owner-only,
+ * so a lowered owner can always climb back. Recorded as its own transition kind.
  */
 export async function recoverOwnerFullControl(
   db: Db,
@@ -1560,14 +1156,7 @@ export async function recoverOwnerFullControl(
   })
 }
 
-/**
- * Whether `userId` currently holds Full control of `folderId`, which is the
- * M1 successor-eligibility test (R6 section 2: an active human Folder member
- * who is currently Full control).
- *
- * "Human" is every member in M1; the note on `otherFullControlCount` says
- * where that has to be taught otherwise when AI members arrive.
- */
+/** Whether `userId` holds Full control of `folderId`: the successor-eligibility test (R6). */
 export async function isEligibleSuccessor(
   executor: Executor,
   folderId: string,
@@ -1589,15 +1178,8 @@ export interface OwnedSharedFolder {
 }
 
 /**
- * The shared folders this account owns that somebody else is still in, with
- * whether each has an eligible successor.
- *
- * `DELETE /me` reads this before it does anything, because R6 section 3 makes
- * interactive account deletion resolve every owned shared Folder *first* --
- * choose a successor, transfer explicitly, then delete -- rather than letting
- * the deletion silently promote whoever happened to join earliest. The
- * default folder is excluded: INV-2 never lets one transfer and INV-3 never
- * lets one hold a second member, so it is nobody's to succeed to.
+ * The account's owned folders that others are still in, each with whether an eligible successor exists.
+ * `DELETE /me` resolves these first (R6). Default folders are excluded.
  */
 export async function ownedSharedFolders(
   executor: Executor,
