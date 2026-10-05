@@ -1,10 +1,4 @@
-/*
-A path 9.1's route table does not name, inside /app or outside it.
-
-Inside /app it renders within the chrome and names itself in the top bar's
-trail; outside it there is no chrome. Either way: the one empty-state line and
-one way on (Today when signed in, the front page otherwise).
-*/
+/* An unknown path. Inside /app it renders in the chrome; outside it, without. */
 import { Link, useLocation } from 'react-router'
 
 import { useMe } from '../api/queries.js'

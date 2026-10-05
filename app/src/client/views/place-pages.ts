@@ -1,11 +1,7 @@
 /*
-The place-pages as one table: what each is called, which layouts and groupings
-its View menu offers, and what a task made on it carries. Capture defaults are
-decided here once, so a task made on a page appears on that page.
-
-Keys and paths are the server's and the router's (`scheduled`, `assignments`);
-only the names on screen are the redesign's ("Upcoming", "Assigned").
-*/
+ * The place pages as one table: names, View menu choices and capture defaults, so a task made on a page appears
+ * there. Keys and paths are the server's; only on-screen names differ ("Upcoming", "Assigned").
+ */
 import type { LucideIcon } from '../lib/icons.js'
 import {
   CalendarDays,
@@ -25,13 +21,9 @@ export type PlaceKey =
   | 'assignments'
   | 'focus'
 
-/** Where a page's always-visible capture point is, or that it has none. */
 export type CaptureKind = 'inline' | 'none'
 
-/**
- * One Group by choice. `none` is the page's own arrangement: "Default" on every
- * Focus list, as Sort names its own order, so one word means one thing.
- */
+/** `none` is the page's own arrangement: "Default" on every list. */
 export interface GroupChoice {
   readonly value: GroupBy
   readonly label: string
@@ -39,25 +31,20 @@ export interface GroupChoice {
 
 export interface PlaceSpine {
   readonly key: PlaceKey
-  /** The name on screen. */
   readonly name: string
   readonly path: string
   /** A page's one-line prose, where it still draws one. */
   readonly question?: string
   readonly icon: LucideIcon
-  /** The View menu's Layout choices; a page with one has no Layout item. */
+  /** A page with one has no Layout item. */
   readonly views: readonly ViewMode[]
-  /** The View menu's Group by choices; empty means no Group by item. */
+  /** Empty means no Group by item. */
   readonly groups: readonly GroupChoice[]
-  /** Whether the page has completed tasks to show. */
   readonly completed: boolean
   readonly capture: CaptureKind
   /** What a board groups by when Group by is the page's own arrangement. */
   readonly boardAxis: Exclude<GroupBy, 'none'>
-  /**
-   * The Sort menu's name for the page's own order where its rows cannot be
-   * dragged into a hand order: "Manual" would promise one. Absent: "Manual".
-   */
+  /** The Sort name for the page's own order where rows cannot be hand-ordered. Absent: "Manual". */
   readonly ownOrder?: string
 }
 
@@ -112,11 +99,7 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     boardAxis: 'person',
     ownOrder: 'Default',
   },
-  /*
-  A Focus list the viewer added (round 8). Its name and path are each list's
-  own (`shell/focus-lists.ts`); it has no capture, since a filter such as
-  Overdue has no value a new task could be given to land in it.
-  */
+  /* An added Focus list. No capture: a filter such as Overdue has no value a new task could carry. */
   focus: {
     key: 'focus',
     name: 'List',
@@ -124,7 +107,6 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     icon: Layers3,
     views: LIST_AND_BOARD,
     groups: [
-      /* An added list's own arrangement is one plain list. */
       { value: 'none', label: 'Default' },
       { value: 'folder', label: 'Page' },
       { value: 'person', label: 'Person' },
@@ -137,25 +119,19 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
   },
 }
 
-/**
- * A board column's own value, which a capture inside it writes over the page's
- * defaults. A column that is a relation rather than a value (Overdue) has none.
- */
+/** A column's own value, written over the page's defaults. A relation column (Overdue) has none. */
 export interface ColumnValue {
   readonly assignee_ids?: string[]
   readonly folder_id?: string
   readonly assignee_id?: string | null
   readonly due_date?: string | null
-  /** Written by a drop alone (issue #216); a capture never writes it. */
+  /** Written by a drop only; a capture never writes it. */
   readonly start_date?: string | null
   /** Null is the loose list, which a drop out of a section writes. */
   readonly section_block_id?: string | null
 }
 
-/**
- * What a drop writes: a date column's day lands on the end of the Schedule the
- * row carries (Q3C), and a Start+Due pair moves whole.
- */
+/** A date column's day lands on the end of the Schedule the row carries; a Start+Due pair moves whole. */
 export function scheduleLanding(
   task: Schedule,
   landing: ColumnValue,
@@ -166,8 +142,7 @@ export function scheduleLanding(
   if (end === 'due_date') return landing
   const { due_date: day, ...rest } = landing
   if (end === 'start_date') return { ...rest, start_date: day }
-  /* A pair moves whole: its deadline lands on the column's day and the start
-     keeps its distance. Into "No date" it cannot go without losing a date. */
+  /* The deadline lands on the day and the start keeps its distance. It cannot move into "No date". */
   if (day === null || task.due_date === null) return null
   const moved = shiftedSchedule(task, task.due_date, day)
   return moved === null ? null : { ...rest, ...moved }
@@ -178,7 +153,7 @@ export interface CaptureDefaults {
   readonly due_date?: string | null
   readonly important?: boolean
   readonly assignee_id?: string | null
-  /** Today's capture posts the task and then pulls it into Today (7.8). */
+  /** Today's capture posts the task, then pulls it into Today. */
   readonly pullIntoToday: boolean
 }
 
@@ -201,10 +176,10 @@ function placeDefaults(place: PlaceKey, today: string): CaptureDefaults {
   switch (place) {
     case 'today':
       return { due_date: today, important: false, pullIntoToday: true }
-    /* Dated today, or the task would vanish from Upcoming, which holds dated rows only. */
+    /* Dated today, or the task would vanish from Upcoming. */
     case 'scheduled':
       return { due_date: today, important: false, pullIntoToday: false }
-    /* Assigned: 7.6 defaults `assignee_id` to the caller, so the task lands under "You". */
+    /* The server defaults `assignee_id` to the caller, so the task lands under "You". */
     case 'assignments':
     case 'focus':
       return { due_date: null, important: false, pullIntoToday: false }

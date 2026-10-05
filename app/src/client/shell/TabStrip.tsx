@@ -1,14 +1,7 @@
 /*
-A restrained application-level working set.
-
-This is intentionally separate from a Folder's Purpose / Work / Results /
-Discussion tabs. Those change the view inside one page; these tabs remember
-which Dana places are open. The sidebar still answers where things live.
-
-The + is primarily an open-place search. It reuses Dana's search answer so a
-person can open a Page, Collection or Task, and keeps one separated New page
-action at the bottom rather than restoring the old mixed creation menu.
-*/
+ * The app-level tab strip: which Dana places are open, separate from a project's own tabs. The + is an
+ * open-place search with one New page action.
+ */
 import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router'
@@ -90,20 +83,9 @@ function titleFor(path: string, folders: readonly Folder[], shelves: readonly Sh
 }
 
 /*
-One tab face, resolved from the metadata the rest of Dana already uses.
-
-Pages and collections go through the same identity resolvers as their sidebar
-rows, so a chosen mark and colour cannot drift here. Focus pages use #353's
-same saved resolver as their page head and sidebar row. A Task's title is the
-only piece the tab store itself does not know, so the face reads that one Task
-while its tab is open; passing null keeps the hook inert for every other
-destination.
-
-A full-page collaboration surface is still the same workspace tab. Its text
-keeps the owning place visible (`Project · Discussion` / `Project · Team`) and
-uses one icon only: the active collaboration icon. Sidebar presentations keep
-the ordinary page identity because the page remains the primary surface.
-*/
+ * One tab face, from the same identity resolvers as the sidebar rows. Reads a Task only for a Task tab. A
+ * full-page collaboration surface keeps its tab and shows "Project · Discussion" or "Project · Team".
+ */
 function TabFace({
   path,
   collaboration,
@@ -235,9 +217,7 @@ function searchPlace(item: SearchItem, places: readonly OpenPlace[]): OpenPlace 
       break
   }
 
-  /* Search owns ranking, while the in-hand place list owns the freshest
-     identity. Prefer that complete local row when the destination is already
-     known here; passages and tasks still keep the search result itself. */
+  /* Prefer the local place row when known; it has the freshest identity. */
   return places.find((place) => place.path === result.path) ?? result
 }
 
@@ -426,8 +406,7 @@ export function TabStrip() {
   const navigate = useNavigate()
   const library = useFolders().data ?? NO_FOLDERS
   const allPages = useAllPages().data
-  /* A project's tab (step 7) is no Library row: its address is named and
-     marked as its project. */
+  /* A project's tab is not a Library row: name and mark it as its project. */
   const folders = useMemo(() => {
     if (allPages === undefined) return library
     const byId = new Map(allPages.map((page) => [page.id, page]))
@@ -447,9 +426,7 @@ export function TabStrip() {
   const { tabs, activeId } = useTabs()
   const tablist = useRef<HTMLDivElement>(null)
   const bar = useRef<HTMLDivElement>(null)
-  /* A sidebar row dragged out of the sidebar (`tab-drop.ts`): over the strip
-     it shows as a ghost tab at its slot, anywhere else as a card at the
-     pointer. */
+  /* A sidebar row dragged out (`tab-drop.ts`): a ghost tab over the strip, a card elsewhere. */
   const carried = useTabDrag()
   const slot = carried?.slot ?? null
   useEffect(() => {
@@ -482,11 +459,10 @@ export function TabStrip() {
 
   const activeTab = tabs.find((tab) => tab.id === activeId)
   const activeCollaboration = activeTab?.collaboration
-  /* Expanding Discussion pushes a real browser-history entry. On Back, the
-     router returns to the exact remembered Work/Task route; once the active
-     workspace tab has reconciled to that route, restore the same Discussion as
-     a sidebar. A committed full-screen transition has a different tab.path in
-     the navigation gap, so this cannot cancel an expansion before it lands. */
+  /*
+   * Back from an expanded Discussion returns to the remembered route; once the tab matches it, restore the
+   * Discussion as a sidebar. A committed expansion has a different tab.path, so this cannot cancel it.
+   */
   useEffect(() => {
     if (
       activeTab?.path !== route ||
@@ -569,8 +545,7 @@ export function TabStrip() {
     void navigate(path)
   }
 
-  /* The tab a sidebar row would become: the same face and width as a real
-     tab, held back, so the strip shows where it opens before the release. */
+  /* The tab a dragged row would become, so the strip shows where it opens before the release. */
   function ghost(path: string): React.JSX.Element {
     return (
       <div
@@ -593,7 +568,7 @@ export function TabStrip() {
   function createPage(): void {
     if (creatingPage.current) return
     creatingPage.current = true
-    /* A new project, unpicked: its page offers the picker (step 7). */
+    /* A new unpicked project: its page offers the picker. */
     createFolder.mutate(
       { name: 'Untitled', kind: null },
       {
@@ -630,9 +605,7 @@ export function TabStrip() {
 
   return (
     <div ref={bar} className="hidden h-8 shrink-0 items-stretch border-b border-border bg-sidebar md:flex">
-      {/* Browser history belongs with the working-set navigation. The same
-          component is moved here intact, so its back/forward semantics do not
-          fork from the former window-bar placement. */}
+      {/* Browser history arrows belong with the tab navigation. */}
       <div className="flex shrink-0 items-center px-1">
         <HistoryArrows />
       </div>
@@ -742,8 +715,7 @@ export function TabStrip() {
       </div>
       {carried !== null && slot === null
         ? createPortal(
-            /* The row, loose: a tab-shaped card held a little below and right
-               of the pointer, so the pointer still sees what it is over. */
+            /* A tab-shaped card held below and right of the pointer, so the pointer still sees what it is over. */
             <div
               data-tab-drag-card=""
               aria-hidden="true"

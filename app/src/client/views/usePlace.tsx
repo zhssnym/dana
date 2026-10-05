@@ -1,8 +1,4 @@
-/*
-What every place-page shares: its header (title and the View menu), its View
-settings, its layout, and the capture its spine defines. A page keeps only
-which rows it reads and how it arranges them when nobody asked for a grouping.
-*/
+/* What every place page shares: header, View settings, layout and capture. */
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
@@ -30,9 +26,9 @@ import { modeFromSearch, useViewMode, writeViewMode } from './view-mode.js'
 import type { ViewMode } from './view-mode.js'
 
 /*
-The address bar as it is now. React Router's copy lags a navigation (issue
-#47), so a `?mode=` seed only applies while the live address still carries it.
-*/
+ * The live address: React Router's copy lags a navigation, so a `?mode=` seed applies only while the address
+ * still has it.
+ */
 function liveSearch(): URLSearchParams {
   return new URLSearchParams(window.location.search)
 }
@@ -54,17 +50,11 @@ export interface Place {
   readonly setFilter: (next: PageFilter) => void
   readonly mode: ViewMode
   readonly setMode: (next: ViewMode) => void
-  /**
-   * The grouping in force. 'none' in a list means the page's own arrangement;
-   * a board always has an axis.
-   */
+  /** 'none' in a list means the page's own arrangement; a board always has an axis. */
   readonly groupBy: GroupBy
-  /** The page's rows in the order the View menu asked for, abandoned ones only
-      while "Show completed" is on. Never re-fetches. */
+  /** Abandoned rows only while "Show completed" is on. Never refetches. */
   readonly narrow: (rows: readonly TaskCard[]) => readonly TaskCard[]
-  /** A capture at this page's entry defaults, optionally inside a column. */
   readonly capture: (title: string, column?: ColumnValue) => void
-  /** The Labels this page's rows wear, which the View menu offers (#208). */
   readonly labels: readonly { readonly id: string; readonly name: string; readonly color: string }[]
 }
 
@@ -88,22 +78,20 @@ export function usePlace(
   const me = useMe()
   const create = useCreateTask()
   const pull = usePullIntoMyDay()
-  /* A place page's own capture writes no page, so only the viewer's own
-     Labels can be put on what it makes. */
+  /* A place page's capture writes no page, so only the viewer's own Labels apply. */
   const wearFilterLabel = useWearFilterLabel(null)
   const today = presenterToday()
   const viewerId = me.data?.user.id ?? null
 
   const seedMode = modeFromSearch(search.toString())
   useEffect(() => {
-    /* Only a layout this page offers is seeded here. */
+    /* Seed only a layout this page offers. */
     if (seedMode === null || !spine.views.includes(seedMode)) return
     if (modeFromSearch(liveSearch().toString()) !== seedMode) return
     writeViewMode(seedMode)
   }, [seedMode, spine.views])
 
-  /* A grouping this page does not offer (left over from another client) is
-     the page's own arrangement, never an invisible one. */
+  /* A grouping this page does not offer (from another client) falls back to the page's own arrangement. */
   const offered = spine.groups.some((choice) => choice.value === filter.groupBy)
   const chosen: GroupBy = offered ? filter.groupBy : 'none'
   const groupBy: GroupBy = chosen !== 'none' ? chosen : mode === 'board' ? spine.boardAxis : 'none'
@@ -121,8 +109,7 @@ export function usePlace(
       {
         onSuccess: (task) => {
           if (defaults.pullIntoToday) pull.mutate(task.id)
-          /* Under a Label filter a new task wears that label, or it would
-             vanish the moment it was made. */
+          /* Under a Label filter a new task wears that label, or it would vanish at once. */
           wearFilterLabel(task.id, filter.label)
         },
       },
@@ -138,8 +125,7 @@ export function usePlace(
     mode,
     setMode,
     groupBy,
-    /* "Show completed" is the one way back to finished work: completed and
-       abandoned alike. An abandoned row stays in place, struck and muted. */
+    /* "Show completed" brings back completed and abandoned rows alike. */
     narrow: (input) =>
       sortRows(
         input.filter(
@@ -154,20 +140,14 @@ export function usePlace(
   }
 }
 
-/** Filter chips are gone. Kept for the folder page's import. */
+/** Filter chips are gone; kept for the folder page's import. */
 export function PlaceFilterChips(_props: { readonly place: Place }): null {
   return null
 }
 
 /**
- * Every screen's head: the title, at most one row of controls on its line, and
- * at most one muted line under it.
- *
- * **The title stands at one height on every screen.** A page's head
- * (`components/folder-head.tsx`) keeps a line above its title for "Add cover",
- * a 24px control under `pt-2` and `space-y-1`, hidden on a touch screen; this head keeps
- * the same empty line, so moving between Today, Settings and a page moves the
- * content and never the title. Change one, change the other.
+ * Keeps the empty line above the title that a page head uses for "Add cover", so the title sits at one height
+ * on every screen. Change one, change the other.
  */
 export function ScreenHead({
   title,
@@ -180,8 +160,7 @@ export function ScreenHead({
 }): React.JSX.Element {
   return (
     <header className="space-y-1 pt-2">
-      {/* Built as that line is (a small button in a block), so its height
-          matches to the pixel. */}
+      {/* Built like that line (a small button in a block), so its height matches. */}
       <div aria-hidden="true" className="[@media(hover:none)]:hidden">
         <Button variant="ghost" size="sm" tabIndex={-1} className="invisible">
           <ImageIcon />
@@ -201,12 +180,7 @@ export function ScreenHead({
   )
 }
 
-/**
- * A Focus page's head uses the same mark-and-cover composition as every other
- * first-class Dana page. Its mark reads and writes #353's account-level Focus
- * appearance, while its cover stays on the existing native-place cover path.
- * It keeps no View menu and no count (M4); a page passes its own controls.
- */
+/** A Focus page's head: the same mark and cover as other pages. No View menu or count. */
 export function PlaceHead({
   place,
   controls,
@@ -214,11 +188,10 @@ export function PlaceHead({
   focusKey,
 }: {
   readonly place: Place
-  /** The page's own controls, if any. Focus pages keep no View menu (M4). */
   readonly controls?: ReactNode
   /** Durable place-cover key for an added Focus list. */
   readonly identityKey?: string
-  /** Added Focus lists use a generic spine, so their account identity key is explicit. */
+  /** Added Focus lists use a generic spine, so their identity key is explicit. */
   readonly focusKey?: FocusListKey
 }): React.JSX.Element {
   const nativeIdentityKey =
@@ -247,8 +220,7 @@ export function PlaceHead({
       ? { icon: place.spine.icon }
       : focusMark(resolvedFocusKey, bundle.data?.focus_appearance)
 
-  /* Hooks are unconditional. `today` is only a harmless read fallback when a
-     place has no durable cover store; `hasCover` keeps it from drawing. */
+  /* Hooks are unconditional; `hasCover` keeps the 'today' fallback from drawing. */
   const coverStorageName = storageName ?? 'today'
   const storedCover = usePageHasCover(coverStorageName)
   const hasCover = storageName !== undefined && storedCover
@@ -338,10 +310,7 @@ export function PlaceHead({
   )
 }
 
-/**
- * A group in a place-page's list: a plain heading, no count, no collapse. The
- * region is named even when the heading is not drawn.
- */
+/** A plain heading, no count or collapse. The region is named even when the heading is not drawn. */
 export function PlaceGroup({
   name,
   heading,

@@ -1,30 +1,7 @@
 /*
-The sidebar: the application's only chrome, and a navigation landmark.
-
-Top to bottom, and nothing else (round 2, Sidebar):
-
-  Today · Upcoming · Assigned · Library · the foot row
-
-Nothing sits above Focus.
-
-- **Focus** holds the cross-project lists (`focus-group.tsx`): Today,
-  Upcoming and Assigned by default, plus the saved filters its "+" adds.
-- **Library**: the Desk folder first, then the viewer's shelves and folders as
-  one ordered column (`library-order.ts`). A row is its icon and its name; its
-  "…" appears on hover in space the row already reserves, and a right-click
-  opens that same menu. The Library's one "+" makes a top-level page or a
-  private collection. Right-click on the sidebar's ground opens the same menu.
-- **Pages mirror their real hierarchy**: Library ordering and collections place
-  only roots. A page with a visible `parent_folder_id` is drawn indented under
-  that parent, using the existing page-tree fold and sibling order. Tabs/facets
-  are still project-internal navigation and do not become another sidebar tree.
-- **The foot** is one row of square icon buttons: Search (Ctrl K / ⌘K,
-  named in its tooltip), the bell, Settings, Trash, and collapse at the far
-  right. People is a section of Settings; /app/people still answers.
-
-Collapsing hides the sidebar entirely (`collapsible="offcanvas"`); the shell
-draws the one small control that brings it back.
-*/
+ * The sidebar, the app's only chrome and a navigation landmark: Focus, Library, then the foot row. Library rows
+ * follow the real page hierarchy; tabs stay inside projects. Collapsing hides it entirely.
+ */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import { Link, useNavigate } from 'react-router'
@@ -117,7 +94,6 @@ import type { FolderGroupActions } from './folder-groups.js'
 import type { Folder } from '../../shared/folders.js'
 import type { Shelf } from '../../shared/shelves.js'
 
-/** The one row treatment every sidebar entry shares. */
 export const SIDEBAR_ROW =
   'my-(--sidebar-row-gap) h-(--shell-sidebar-row-height) max-md:h-(--row-height) gap-2 rounded-md px-2 text-sm font-normal text-muted-foreground hover:bg-(--sidebar-row-hover) hover:text-foreground data-active:bg-sidebar-accent data-active:hover:bg-sidebar-accent data-active:font-normal data-active:text-foreground [&_svg]:!size-4 [&_svg]:shrink-0'
 
@@ -125,10 +101,7 @@ export const SIDEBAR_ROW =
 const IS_MAC =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 
-/*
-Where a folder arriving from another list would land, drawn as a line.
-Absolutely positioned, so nothing moves while it is shown.
-*/
+/* Where a folder from another list would land. Absolutely positioned, so nothing moves. */
 function InsertLine({ top }: { readonly top: number }): React.JSX.Element {
   return (
     <span
@@ -139,10 +112,7 @@ function InsertLine({ top }: { readonly top: number }): React.JSX.Element {
   )
 }
 
-/**
- * Which slot in a container the pointer is proposing, and where the line goes.
- * Measured live, because the rows have been moving.
- */
+/** Measured live, because the rows have been moving. */
 function proposalIn(
   zone: HTMLElement | null,
   y: number,
@@ -164,7 +134,6 @@ function proposalIn(
 const NO_SHELVES: readonly Shelf[] = []
 const NO_FOLDERS: readonly Folder[] = []
 
-/** A temporary shelf name that is unique in the viewer's current Library. */
 function untitledCollectionName(shelves: readonly Shelf[]): string {
   const names = new Set(shelves.map((shelf) => shelf.name.toLocaleLowerCase()))
   const base = 'Untitled collection'
@@ -175,15 +144,12 @@ function untitledCollectionName(shelves: readonly Shelf[]): string {
   }
 }
 
-/**
- * React Router's `Link` as base-ui's `render` prop takes it. `render` clones it
- * with the primitive's props merged in.
- */
+/** React Router's `Link` for base-ui's `render` prop, which clones it with the primitive's props. */
 function routerLink(to: string): ReactElement<Record<string, unknown>> {
   return (<Link to={to} />) as unknown as ReactElement<Record<string, unknown>>
 }
 
-/* Each shelf's fold, remembered per browser. The key is never renamed. */
+/* Each shelf's fold, per browser. Never rename this key. */
 const SHELF_FOLD_KEY = 'dana.sidebar.shelf-collapsed:'
 function readShelfOpen(label: string): boolean {
   try {
@@ -200,9 +166,7 @@ function writeShelfOpen(label: string, open: boolean): void {
   }
 }
 
-/* The pages whose sub-pages are folded away, remembered per browser as one
-   JSON array of ids. A page is open until somebody folds it, so a sub-page
-   just made is visible. The key is never renamed. */
+/* Folded pages, per browser, as a JSON array of ids. Pages start open. Never rename this key. */
 const PAGE_FOLD_KEY = 'dana.sidebar.page-folded'
 function readPageFolds(): ReadonlySet<string> {
   try {
@@ -224,13 +188,9 @@ function writePageFolds(folded: ReadonlySet<string>): void {
 }
 
 /*
-The Library's keyboard path: one Tab stop for the whole tree (roving
-tabindex), the arrows between rows. A row is a page's link or a collection
-heading's link (its fold, for a bare label). The row's other buttons (fold,
-"+", "…") stay for the pointer and leave the Tab order; Shift+F10 opens the
-"…". `folder-row.tsx` draws the page rows, so their tabindex is set here on
-the DOM, again whenever rows mount.
-*/
+ * One Tab stop for the whole tree (roving tabindex); arrows between rows; Shift+F10 opens the "…".
+ * `folder-row.tsx` draws page rows, so their tabindex is set on the DOM here whenever rows mount.
+ */
 const TREE_ROW = '[data-page-row] > a, [data-tree-row]'
 
 function pageRowLink(root: ParentNode, id: string): HTMLElement | null {
@@ -307,7 +267,6 @@ function useLibraryKeys(tree: PageTree, mayRename: (id: string) => boolean, star
     if (index === -1) return
     const pageId = row.parentElement?.getAttribute('data-page-row') ?? null
     const head = pageId === null ? row.closest<HTMLElement>('[data-shelf-head]') : null
-    /* The fold: a page's chevron, or a collection heading's trigger. */
     const fold =
       pageId !== null
         ? row.parentElement?.querySelector<HTMLElement>(':scope > [data-fold]')
@@ -358,15 +317,9 @@ function useLibraryKeys(tree: PageTree, mayRename: (id: string) => boolean, star
   return { ref, onKeyDown, onFocus, onBlur }
 }
 
-/** What the drop key says to the engine: the tree answers this point. */
 const TREE_KEY = 'library:page-tree'
 
-/*
-The page tree as every Library row sees it: the tree, the folds, what a drop
-here would do, and the three acts (move, add inside, fold). One context
-rather than props through the shelves, because a row at any depth in any
-container asks the same questions.
-*/
+/* The page tree as every row sees it, in one context: rows at any depth ask the same questions. */
 interface PageTreeValue {
   readonly tree: PageTree
   readonly folded: ReadonlySet<string>
@@ -378,14 +331,12 @@ interface PageTreeValue {
   readonly commit: (carried: Folder, drop: TreeDrop) => void
   readonly addInside: (parent: Folder) => void
   readonly mayEdit: (folder: Folder) => boolean
-  /** The row being renamed in place, and the acts a row's menu runs here. */
   readonly renaming: string | null
   readonly startRename: (id: string) => void
   readonly rename: (folder: Folder, name: string | null) => void
   readonly trash: (folder: Folder) => void
   readonly archive: (folder: Folder) => void
   readonly leave: (folder: Folder) => void
-  /** The page whose leave is being confirmed. */
   readonly leaving: Folder | null
   readonly confirmLeave: () => void
   readonly cancelLeave: () => void
@@ -454,9 +405,7 @@ function usePageTreeValue({
     setMark(null)
   }, [])
 
-  /* The page on screen is never hidden under a folded parent: a page made
-     from its parent's own "…" opens with its row showing. Once per page
-     opened, so folding the parent afterwards stays folded. */
+  /* The page on screen is never hidden under a folded parent; once per page, so a later fold sticks. */
   const revealed = useRef<string | null>(null)
   useEffect(() => {
     if (activeId === null || revealed.current === activeId || !tree.byId.has(activeId)) return
@@ -466,8 +415,7 @@ function usePageTreeValue({
     }
   }, [activeId, tree, setFold])
 
-  /* Only when the page on screen, or one under it, goes: to Today, replacing
-     the entry so Back does not land on a page that is gone. */
+  /* Only when the page on screen, or one under it, goes: to Today with `replace`, so Back skips it. */
   const leaveIfShowing = (id: string): void => {
     if (activeId !== null && (activeId === id || isDescendant(tree, id, activeId))) {
       void navigate(paths.today, { replace: true })
@@ -484,12 +432,9 @@ function usePageTreeValue({
             const parent = tree.byId.get(id)
             return parent !== undefined && !parent.is_default && mayEditPage(parent)
           })
-    /* The Desk page is pinned first, so nothing lands beside it, and it is
-       never a parent (the server's 422), so nothing lands inside it either. */
+    /* Desk is pinned first and is never a parent (server 422), so nothing lands beside or inside it. */
     if (drop?.anchor !== undefined && (!allowRoot || onto?.is_default === true)) drop = null
-    /* Tree drops are currently only used to resolve root placement. Nested
-       pages are displayed here, but reparenting remains a separate act until
-       nested rows themselves participate in the drag engine. */
+    /* Tree drops only resolve root placement; reparenting stays a separate act for now. */
     if (drop !== null && drop.parent !== null) drop = null
     if (drop !== null && isNoop(tree, carried.id, drop)) drop = null
     const next = drop?.mark ?? null
@@ -513,12 +458,11 @@ function usePageTreeValue({
     }
     const anchor = drop.anchor
     if (anchor === undefined) return
-    /* Already a root here: only its place in the order changes. */
+    /* Already a root: only its place in the order changes. */
     if ((tree.parent.get(carried.id) ?? null) !== null) {
       move.mutate({ id: carried.id, body: { parent_folder_id: null } })
     }
-    /* A root's place is the viewer's own Library order, and its collection
-       is the one the root it lands beside is in. */
+    /* A root's collection is the one of the root it lands beside. */
     onOrderChange(placeInOrder(encodeColumn(entries), carried.id, anchor.id, anchor.side))
     const beside = tree.byId.get(anchor.id)
     if (beside !== undefined && beside.my_shelf !== carried.my_shelf) {
@@ -547,16 +491,13 @@ function usePageTreeValue({
     rename: (folder, name) => {
       setRenaming(null)
       if (name !== null) renameFolder.mutate({ id: folder.id, body: { name } })
-      /* The field unmounts with focus in it: hand focus back to the row,
-         unless the rename ended because focus went somewhere else. */
+      /* The field unmounts with focus in it: return focus to the row unless focus moved elsewhere. */
       requestAnimationFrame(() => {
         const at = document.activeElement
         if (at === null || at === document.body) pageRowLink(document, folder.id)?.focus()
       })
     },
     trash: (folder) => {
-      /* An owner with other members is asked whether to hand it on first;
-         that question lives on the page. */
       if (folder.is_owner && folder.member_count > 1) {
         void navigate(folderActionPath(folder.id, 'delete'))
         return
@@ -599,10 +540,7 @@ function inboxOf(folders: readonly Folder[]): Folder | null {
   return folders.find((folder) => folder.is_default) ?? null
 }
 
-/* Tabs are project-internal navigation, not Library rows. A true sub-page may
-   live directly under a tab, so removing the tab must lift that parent edge to
-   the project root. This mirrors the server's old-client projection, but only
-   for the sidebar surface that deliberately keeps Tabs separate. */
+/* Tabs are not Library rows. A sub-page directly under a tab is lifted to the project root. */
 function libraryPages(folders: readonly Folder[]): Folder[] {
   const tabProjects = new Map(
     folders
@@ -620,34 +558,24 @@ function libraryPages(folders: readonly Folder[]): Folder[] {
 }
 
 /*
-The acts a Library row runs by asking the page: `?folder-action=` opens a new
-page's name field, an owner's delete question and the page's History, which
-all live on the page. `folderGates` decides which a viewer gets, the same call
-the page makes.
-*/
+ * Acts a Library row runs on the page via `?folder-action=`, since they live there. `folderGates` decides
+ * which.
+ */
 export type FolderAction = 'rename' | 'leave' | 'delete' | 'history'
 
-/** The query the folder page reads to run an act the Library asked for. */
 export const FOLDER_ACTION_PARAM = 'folder-action'
 
-/** The query the collection page reads to open an act from the Library. */
 export const SHELF_ACTION_PARAM = 'shelf-action'
 
 export function folderActionPath(id: string, action: FolderAction): string {
   return `${paths.folder(id)}?${FOLDER_ACTION_PARAM}=${action}`
 }
 
-/**
- * The folder menu's "Add a page inside", wherever the menu opens (the row and
- * the page's own "…"): an Untitled sub-page, opened with its name field
- * focused and selected, so typing replaces "Untitled".
- */
+/** An Untitled sub-page, opened with its name field selected so typing replaces it. */
 export function useAddPageInside(): (parentId: string, onMade?: () => void) => void {
   const navigate = useNavigate()
   const create = useCreateFolder()
-  /* One page per press: a held key or a double click must not stack Untitled
-     pages while the first create is in flight. Set on the press, before the
-     mutation's own pending state has rendered. */
+  /* One page per press: a held key or double click must not stack Untitled pages. Set before pending renders. */
   const creating = useRef(false)
   return (parentId, onMade) => {
     if (creating.current) return
@@ -770,13 +698,7 @@ function SidebarFolderRow({
   )
 }
 
-/**
- * A shelf: a collapsible group of folder rows headed by its name.
- *
- * The heading is the shelf's icon and name. The icon is the fold (it turns
- * into a chevron under the pointer, in the same box, so nothing shifts); the
- * name opens the shelf's page. Its "…" is the same menu a right-click opens.
- */
+/** A collapsible shelf group. Its icon is the fold (a chevron under the pointer); the name opens the shelf page. */
 function FolderGroupBlock({
   group,
   activeId,
@@ -820,8 +742,7 @@ function FolderGroupBlock({
     onLift: swallowNextClick,
     describe: (index) => group.folders[index]?.name ?? 'Page',
     onOver: (from, point) => {
-      /* Out of the sidebar: the row comes loose, and opens as a tab if it is
-         let go on the tab strip (`tab-drop.ts`). */
+      /* Dragged out of the sidebar, the row opens as a tab if released on the strip (`tab-drop.ts`). */
       const folder = group.folders[from]
       if (sidebarDragOver(point, folder === undefined ? null : paths.folder(folder.id)) !== null) return TAB_STRIP
       /* Onto a page, or between sub-pages: the tree answers first. */
@@ -940,19 +861,16 @@ function FolderGroupBlock({
               kind="shelf"
               name={group.label}
               width="w-44"
-              /* The collection page's own "…" (M4: one menu per object), plus
-                 Rename for a bare label, whose title is not a field anywhere. */
+              /* The collection page's own "…", plus Rename for a bare label. */
               handlers={{
                 history:
                   shelfId === null
                     ? undefined
                     : () => {
-                        /* Asks the page, as a folder row does: a sheet
-                           here would unmount when the phone sidebar closes. */
+                        /* Ask the page: a sheet here would unmount when the phone sidebar closes. */
                         void navigate(`${paths.shelf(shelfId)}?${SHELF_ACTION_PARAM}=history`)
                       },
-                /* A shelf with a page renames in its page title (the one home);
-                   only a bare label, which has no page, renames here. */
+                /* A shelf with a page renames in its title; only a bare label renames here. */
                 rename:
                   group.shelf === null
                     ? () => {
@@ -1037,18 +955,7 @@ function FolderGroupBlock({
   )
 }
 
-/**
- * The Library's one ordered column: shelves and loose folders in the viewer's
- * order. Dragging a row reorders it; resting inside a collection files it
- * there. Root-page dragging does not currently reparent nested pages; the
- * canonical parent relationship is shown here and edited through page acts.
- *
- * Holding one folder on another used to propose a new shelf of the two; the
- * middle of a row now means "inside this page", and one gesture cannot mean
- * both. A collection is made from the Library's "+".
- */
-/** Where a Library row opens: its page, or its collection's. A label with
- * no collection behind it has no page, so it cannot become a tab. */
+/** A label with no collection has no page, so it cannot become a tab. */
 function entryPath(entry: DirectoryEntry): string | null {
   if (entry.kind === 'folder') return paths.folder(entry.folder.id)
   return entry.shelf === null ? null : paths.shelf(entry.shelf.id)
@@ -1087,8 +994,7 @@ function LibraryColumn({
     },
     onOver: (from, point) => {
       const entry = entries[from]
-      /* Out of the sidebar: the row comes loose, and opens as a tab if it is
-         let go on the tab strip (`tab-drop.ts`). */
+      /* Dragged out of the sidebar, the row opens as a tab if released on the strip (`tab-drop.ts`). */
       if (sidebarDragOver(point, entry === undefined ? null : entryPath(entry)) !== null) {
         setDrop(null)
         pages.clearMark()
@@ -1210,7 +1116,7 @@ function LibraryColumn({
   )
 }
 
-/** The Library's "+": the same three items as its right-click. */
+/** The Library's "+": the same items as its right-click. */
 function NewPageButton({
   onNewPage,
   onNewCollection,
@@ -1247,7 +1153,6 @@ function NewPageButton({
   )
 }
 
-/* New work, New collection and Import work, in the "+" and right-click alike. */
 function ProjectItems({
   onNewPage,
   onNewCollection,
@@ -1275,8 +1180,7 @@ function ProjectItems({
   )
 }
 
-/** The foot's one button shape: a square icon, a tint on hover, and a
-    tooltip naming it. The same class dresses the bell and the collapse. */
+/** The foot's button shape, shared by the bell and the collapse. */
 export const FOOT_BUTTON =
   'flex size-(--control-height) shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground [&_svg]:!size-4'
 
@@ -1297,9 +1201,7 @@ function FootTip({
 
 const SEARCH_KEYS = IS_MAC ? '⌘K' : 'Ctrl K'
 
-/* Right-click on the sidebar's own ground (empty space, the Library heading,
-   the lists) opens this small menu at the pointer instead of the browser's.
-   A row with its own menu (a page, a collection) claims the event first. */
+/* Right-click on the sidebar's ground opens this menu. A row with its own menu claims the event first. */
 function SidebarGroundMenu({
   at,
   onClose,
@@ -1361,10 +1263,8 @@ export function AppSidebar({
 }: {
   readonly folders: readonly Folder[] | undefined
   readonly shelves: readonly Shelf[] | undefined
-  /** The viewer's arrangement of the Library (4.19's `sidebar_order`). */
   readonly sidebarOrder: readonly string[]
   readonly onSidebarOrderChange: (ids: readonly string[]) => void
-  /** The viewer's Focus lists in their order (`focus_lists`, round 8). */
   readonly focusLists: readonly FocusListKey[]
   readonly onFocusListsChange: (next: readonly FocusListKey[]) => void
   readonly groups: FolderGroupActions
@@ -1377,10 +1277,9 @@ export function AppSidebar({
   readonly onSidebarWidthReset: () => void
   readonly onOpenSearch: () => void
 }): React.JSX.Element {
-  /* On a phone the sidebar is a drawer, and it closes on the navigation it was
-     opened to make. */
+  /* On a phone the sidebar is a drawer that closes on navigation. */
   const { isMobile, setOpenMobile, state } = useSidebar()
-  /* Hidden on a laptop means gone: out of the tab order and the tree too. */
+  /* Hidden on a laptop means gone: out of the tab order and the tree. */
   const hidden = !isMobile && state === 'collapsed'
   useEffect(() => {
     if (isMobile) setOpenMobile(false)
@@ -1389,16 +1288,15 @@ export function AppSidebar({
   const navigate = useNavigate()
   const create = useCreateFolder()
   const createShelf = useCreateShelf()
-  /* One page per press, the row "+"'s rule: a double click must not stack
-     Untitled pages while the first create is in flight. A ref and not
-     `create.isPending`, which has not rendered yet when the second click of a
-     double click arrives. Opened with its name selected, so typing replaces
-     "Untitled". */
+  /*
+   * One page per press: a ref, because `create.isPending` has not rendered when a double click's second click
+   * lands.
+   */
   const creating = useRef(false)
   const newPage = (): void => {
     if (creating.current) return
     creating.current = true
-    /* `kind: null`: the new project's page offers the picker (step 7). */
+    /* `kind: null`: the new project's page offers the picker. */
     create.mutate(
       { name: 'Untitled', kind: null },
       {
@@ -1409,8 +1307,7 @@ export function AppSidebar({
       },
     )
   }
-  /* Collection creation mirrors a new Work: one request, then its existing
-     title editor is the naming surface. No dialog and no second Collection UI. */
+  /* One request, then the collection's title editor names it. No dialog. */
   const creatingCollection = useRef(false)
   const newCollection = (): void => {
     if (creatingCollection.current) return
@@ -1437,10 +1334,6 @@ export function AppSidebar({
     event.preventDefault()
     setGroundMenu({ x: event.clientX, y: event.clientY })
   }
-  /* The Library draws only project roots and true sub-pages. Tabs are removed
-     from this projection, and a sub-page directly under a tab is lifted under
-     the project root so the sidebar keeps the page hierarchy without copying
-     the project's tab strip. */
   const allFolders = folders ?? NO_FOLDERS
   const libraryFolders = useMemo(() => libraryPages(allFolders), [allFolders])
   const activeLibraryId = useMemo(() => {
@@ -1477,15 +1370,12 @@ export function AppSidebar({
       inert={hidden}
       role="navigation"
       aria-label="Pages"
-      /* No slide: the resize handle sets this width, and a transition would
-         make the column lag the pointer. */
+      /* No transition: the resize handle sets this width and must not lag the pointer. */
       className="h-full shrink-0 border-r border-border bg-sidebar transition-none"
     >
-      {/* Solid and above the list, so nothing scrolling in the list shows
-          through the head; the list below is the one scroll container. */}
+      {/* Solid and above the list, so scrolled rows do not show through; the list is the one scroll container. */}
       <SidebarContent className="pt-2 pb-2" onContextMenu={openGroundMenu}>
-        {/* Focus and Library: one heading style and one gap above each
-            heading; each heading's "+" adds to its own group. */}
+        {/* Focus and Library share one heading style; each "+" adds to its own group. */}
         <FocusGroup
           lists={focusLists}
           onChange={onFocusListsChange}
@@ -1531,8 +1421,7 @@ export function AppSidebar({
         </SidebarGroup>
       </SidebarContent>
 
-      {/* The foot: one row of square icon buttons, collapse at the far
-          right. Each is its own Tab stop; Ctrl/Cmd+K still opens search. */}
+      {/* The foot: square icon buttons, collapse at the far right. Ctrl/Cmd+K opens search. */}
       <SidebarFooter className="border-t border-border p-2" onContextMenu={openGroundMenu}>
         <div className="flex items-center gap-1">
           <FootTip label={<>Search <kbd data-slot="kbd" className="font-sans opacity-70">{SEARCH_KEYS}</kbd></>}>
@@ -1571,7 +1460,7 @@ export function AppSidebar({
       {pageTree.leaving === null ? null : (
         <ConfirmDialog
           message={leaveFolderConfirm(
-            /* Step 8: leaving any page leaves its project, so name that. */
+            /* Leaving any page leaves its project, so name that. */
             allFolders.find((f) => f.id === pageTree.leaving?.project_id)?.name ?? pageTree.leaving.name,
           )}
           onContinue={pageTree.confirmLeave}

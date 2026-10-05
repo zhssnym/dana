@@ -1,14 +1,7 @@
 /*
-Where a task stands in the story of its page: future, present or past. The
-Linear view draws these as its three parts and the Board as its three columns
-(Not started, In progress, Done), so both read this one rule, and this one
-order within each (round 5): the Board's columns list their cards exactly as
-Linear lists its steps.
-
-In progress is not a stored state: a pending task whose start date is today or
-earlier has started. Starting a step writes its start date; putting it back in
-the queue clears it. See scratchpad r4/linear/DECISIONS.md.
-*/
+ * Where a task stands: future, present or past, in one order. In progress is not stored: a pending task whose
+ * start date is today or earlier has started.
+ */
 import type { PageView } from '../../../shared/pages.js'
 import type { TaskCard } from '../../../shared/tasks.js'
 
@@ -19,8 +12,10 @@ export function stageOf(task: Pick<TaskCard, 'status' | 'start_date'>, today: st
   return task.start_date !== null && task.start_date <= today ? 'present' : 'future'
 }
 
-/** The start date that starts a task today. The server holds start <= due, so
- * an overdue task starts on its due day. */
+/**
+ * The start date that starts a task today. Start <= due on the server, so an overdue task starts on its due
+ * day.
+ */
 export function startDay(task: Pick<TaskCard, 'due_date'>, today: string): string {
   return task.due_date !== null && task.due_date < today ? task.due_date : today
 }
@@ -60,9 +55,8 @@ export interface Milestone {
 }
 
 /**
- * The queue, as milestones: loose steps first, then each top-level section in
- * page order, each in page order. A section whose steps have all started or
- * finished has left the queue; an empty one is still a place to add steps.
+ * Loose steps first, then each top-level section in page order. A section whose steps have all started has left
+ * the queue.
  */
 export function futureMilestones(
   page: PageView,
@@ -92,11 +86,7 @@ export function futureMilestones(
   return groups.length > 0 ? groups : [loose]
 }
 
-/**
- * The past, oldest first so the story runs down into the present: finished
- * work as the completed query returns it (newest first), reversed, with
- * abandoned steps, which have no completion day, before them.
- */
+/** Oldest first: the completed query (newest first) reversed, with abandoned steps before it. */
 export function pastOrder<T extends { readonly task: TaskCard }>(
   finishedNewestFirst: readonly T[],
   abandoned: readonly T[],

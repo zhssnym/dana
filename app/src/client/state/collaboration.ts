@@ -8,11 +8,8 @@ import {
 import type { CollaborationPresentation } from '../shell/tabs.js'
 
 /*
- * Team is a non-modal side surface, so it has no Dialog trigger primitive to
- * return focus to for us. Keep the opener with the workspace tab that owns the
- * Team presentation: switching tabs leaves it untouched, switching back keeps
- * the same close destination, and closing Team never focuses a control from an
- * unrelated tab.
+ * Team is non-modal, so no Dialog returns focus. Keep its opener per workspace tab, so closing Team never
+ * focuses a control from another tab.
  */
 const teamOpeners = new Map<string, HTMLElement>()
 
@@ -36,11 +33,7 @@ function restoreTeamOpener(tabId: string): void {
   if (opener?.isConnected === true) opener.focus()
 }
 
-/**
- * React-state-shaped adapter for Team's open flag. FolderPage can keep its
- * existing control flow while the value itself belongs to the active workspace
- * tab instead of the mounted route component.
- */
+/** React-state-shaped, so FolderPage keeps its control flow while the value lives on the workspace tab. */
 export function useTeamPanelState(folderId: string): readonly [boolean, Dispatch<SetStateAction<boolean>>] {
   const collaboration = useActiveCollaboration()
   const open = collaboration?.kind === 'team' && collaboration.folderId === folderId
@@ -69,7 +62,6 @@ export function useTeamPanelState(folderId: string): readonly [boolean, Dispatch
   return [open, setOpen] as const
 }
 
-/** Team's sidebar/full presentation, on the same workspace-tab record. */
 export function useTeamPresentation(
   folderId: string,
 ): readonly [CollaborationPresentation, (next: CollaborationPresentation) => void] {
