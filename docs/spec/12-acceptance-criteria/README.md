@@ -1,8 +1,7 @@
 ## 12. Acceptance criteria
 
-Given/when/then, one behaviour each; this section is the definition of done. A criterion is a
-requirement whether or not a test runs it: only a small core is executable, and
-`app/tests/README.md` says which.
+Given/when/then, one behaviour each. Criteria are optional: a change does not need one. Only a
+small core has tests, and `app/tests/README.md` says which.
 
 ## The rules
 
