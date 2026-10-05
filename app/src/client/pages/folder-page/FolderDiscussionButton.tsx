@@ -1,4 +1,3 @@
-// The folder header's Discussion button, which opens and closes the chat dock.
 import { Button } from '../../components/ui/button.js'
 import { cn } from '../../components/ui/utils.js'
 import { MessagesSquare } from '../../lib/icons.js'

@@ -1,15 +1,9 @@
-/* The Library tree's keyboard path. */
 import { useCallback, useEffect, useRef } from 'react'
 import type { PageTree } from '../page-tree.js'
 
-/*
-The Library's keyboard path: one Tab stop for the whole tree (roving
-tabindex), the arrows between rows. A row is a page's link or a collection
-heading's link (its fold, for a bare label). The row's other buttons (fold,
-"+", "…") stay for the pointer and leave the Tab order; Shift+F10 opens the
-"…". `folder-row.tsx` draws the page rows, so their tabindex is set here on
-the DOM, again whenever rows mount.
-*/
+/* One Tab stop for the whole tree (roving tabindex), arrows between rows; a
+   row's other buttons leave the Tab order and Shift+F10 opens its "…". Another
+   file draws the page rows, so their tabindex is set here on the DOM. */
 const TREE_ROW = '[data-page-row] > a, [data-tree-row]'
 
 export function pageRowLink(root: ParentNode, id: string): HTMLElement | null {
@@ -52,7 +46,7 @@ export function useLibraryKeys(tree: PageTree, mayRename: (id: string) => boolea
     }
   }, [rows])
 
-  /* Every render, and whenever a row mounts on its own (a fold, the "+"). */
+  /* Every render, since rows also mount on their own (a fold, the "+"). */
   useEffect(() => {
     sync()
   })

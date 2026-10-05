@@ -7,8 +7,7 @@ const FolderCanvas = lazy(() => import('../../components/page/canvas/FolderCanva
 const WorkCalendar = lazy(() => import('../../views/WorkCalendar.js'))
 import { PageSection } from '../../components/page/PageSection.js'
 import { PageBody } from '../../components/page/PageStates.js'
-/* The empty-state icon goes to `PageBody`, whose `StateIcon` is typed on the
-   raw lucide component. */
+/* `PageBody`'s `StateIcon` is typed on the raw lucide component. */
 import { Folder as FolderIcon } from '../../lib/icons.js'
 import { mayDraw } from '../../lib/folder-authority.js'
 import type { FolderViewerFacts } from '../../lib/folder-authority.js'
@@ -93,8 +92,7 @@ export function FolderWorkBody({
         ) : null}
         <PageBody
           query={open}
-          /* The thread ends in its own add line, which an empty page
-             needs, so the generic empty state is never drawn. */
+          /* The thread ends in its own add line, so the generic empty state never draws. */
           isEmpty={false}
           emptyCopy={FOLDER_EMPTY}
           emptyIcon={FolderIcon}
@@ -128,8 +126,7 @@ export function FolderWorkBody({
               context={context}
               actions={actions}
               onAsk={onAsk}
-              /* A Doc passes the reader's edit right: a reader who
-                 cannot write there has nothing filtered to hear about. */
+              /* A Doc is never filtered, so only the edit right decides. */
               arrangeable={kind === 'doc' ? sharedPageEditable : !filteringTasks}
               resultsWritable={sharedPageEditable}
               {...(kind === 'doc'

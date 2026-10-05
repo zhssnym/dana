@@ -1,4 +1,3 @@
-// Where a thread's address on the folder page is drawn: here, or on the Discussion tab.
 import { useEffect } from 'react'
 import type { NavigateFunction } from 'react-router'
 
@@ -20,10 +19,8 @@ export function useThreadAddress({
   readonly isDefault: boolean
   readonly discussionTab: Folder | undefined
 }): boolean {
-  /* A thread's address: `?discussion=` (ConsultationLinkPage, Discuss, an
-     old link) or a notification's `?conversation=open` about the page's own
-     thread, never on Desk. On a project with a Discussion tab it moves there;
-     otherwise (the Desk, a project without one) the thread is drawn here. */
+  /* A thread's address moves to the project's Discussion tab; without one
+     (or on the Desk) the thread is drawn here. */
   const threadAsked =
     search.get('discussion') !== null || (search.get('conversation') === 'open' && !isDefault)
   const moveThreadTo =

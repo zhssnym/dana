@@ -1,4 +1,3 @@
-/* One page row in the Library, with its sub-pages under it. */
 import { useNavigate } from 'react-router'
 import { FolderRow } from '../../components/folder-row.js'
 import { SidebarMenu } from '../../components/ui/sidebar.js'

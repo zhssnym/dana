@@ -1,4 +1,3 @@
-// The folder page's head: the cover band and the project's header row.
 import type { useRenameFolder } from '../../api/mutations.js'
 import { PageCover } from '../../components/page-cover.js'
 import { FolderHeader } from '../../components/folder-head.js'
@@ -35,8 +34,7 @@ export function FolderHead({
     <>
       {hasCover && !isDefault ? (
         <div className="-mt-4 md:-mt-6">
-          {/* A viewer below Can edit reads the band and is offered nothing
-              on it (AC-011, AC-193). */}
+          {/* Below Can edit, the band is read only. */}
           <PageCover storageName={coverKey} readOnly={gates?.identity !== true} />
         </div>
       ) : null}
@@ -60,7 +58,7 @@ export function FolderHead({
             patch.mutate({ id: headId, body: { icon: null } })
           }}
           actions={actions}
-          /* Covers are for projects; the Desk is not one (M4). */
+          /* The Desk is not a project, so it has no cover. */
           coverKey={isDefault ? undefined : coverKey}
         />
       </PageSection>

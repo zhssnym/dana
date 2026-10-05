@@ -1,4 +1,3 @@
-// The folder page's row of tabs, or the sentence when the tabs could not load.
 import { FolderTabs } from '../../components/folder-tabs.js'
 import type { Folder } from '../../../shared/folders.js'
 import type { FolderActs } from './folder-acts.js'

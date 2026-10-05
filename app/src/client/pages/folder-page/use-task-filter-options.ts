@@ -1,4 +1,3 @@
-// The people and labels the folder page's Task filter offers, and what it allows.
 import { useMemo } from 'react'
 
 import type { useLabels } from '../../api/labels.js'

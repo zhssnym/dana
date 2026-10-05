@@ -1,29 +1,6 @@
 /*
-The sidebar: the application's only chrome, and a navigation landmark.
-
-Top to bottom, and nothing else (round 2, Sidebar):
-
-  Today · Upcoming · Assigned · Library · the foot row
-
-Nothing sits above Focus.
-
-- **Focus** holds the cross-project lists (`focus-group.tsx`): Today,
-  Upcoming and Assigned by default, plus the saved filters its "+" adds.
-- **Library**: the Desk folder first, then the viewer's shelves and folders as
-  one ordered column (`library-order.ts`). A row is its icon and its name; its
-  "…" appears on hover in space the row already reserves, and a right-click
-  opens that same menu. The Library's one "+" makes a top-level page or a
-  private collection. Right-click on the sidebar's ground opens the same menu.
-- **Pages mirror their real hierarchy**: Library ordering and collections place
-  only roots. A page with a visible `parent_folder_id` is drawn indented under
-  that parent, using the existing page-tree fold and sibling order. Tabs/facets
-  are still project-internal navigation and do not become another sidebar tree.
-- **The foot** is one row of square icon buttons: Search (Ctrl K / ⌘K,
-  named in its tooltip), the bell, Settings, Trash, and collapse at the far
-  right. People is a section of Settings; /app/people still answers.
-
-Collapsing hides the sidebar entirely (`collapsible="offcanvas"`); the shell
-draws the one small control that brings it back.
+The sidebar: Focus lists, the Library (Desk, then shelves and page trees), and the
+foot row. Tabs stay inside their project. Collapsed, it is hidden entirely.
 */
 import { useEffect, useMemo, useState } from 'react'
 
@@ -92,10 +69,8 @@ export function AppSidebar({
 }: {
   readonly folders: readonly Folder[] | undefined
   readonly shelves: readonly Shelf[] | undefined
-  /** The viewer's arrangement of the Library (4.19's `sidebar_order`). */
   readonly sidebarOrder: readonly string[]
   readonly onSidebarOrderChange: (ids: readonly string[]) => void
-  /** The viewer's Focus lists in their order (`focus_lists`, round 8). */
   readonly focusLists: readonly FocusListKey[]
   readonly onFocusListsChange: (next: readonly FocusListKey[]) => void
   readonly groups: FolderGroupActions
@@ -108,10 +83,9 @@ export function AppSidebar({
   readonly onSidebarWidthReset: () => void
   readonly onOpenSearch: () => void
 }): React.JSX.Element {
-  /* On a phone the sidebar is a drawer, and it closes on the navigation it was
-     opened to make. */
+  /* On a phone the drawer closes on the navigation it was opened to make. */
   const { isMobile, setOpenMobile, state } = useSidebar()
-  /* Hidden on a laptop means gone: out of the tab order and the tree too. */
+  /* Collapsed means out of the tab order and the accessibility tree too. */
   const hidden = !isMobile && state === 'collapsed'
   useEffect(() => {
     if (isMobile) setOpenMobile(false)
@@ -128,10 +102,6 @@ export function AppSidebar({
     event.preventDefault()
     setGroundMenu({ x: event.clientX, y: event.clientY })
   }
-  /* The Library draws only project roots and true sub-pages. Tabs are removed
-     from this projection, and a sub-page directly under a tab is lifted under
-     the project root so the sidebar keeps the page hierarchy without copying
-     the project's tab strip. */
   const allFolders = folders ?? NO_FOLDERS
   const libraryFolders = useMemo(() => libraryPages(allFolders), [allFolders])
   const activeLibraryId = useMemo(() => {
@@ -168,15 +138,12 @@ export function AppSidebar({
       inert={hidden}
       role="navigation"
       aria-label="Pages"
-      /* No slide: the resize handle sets this width, and a transition would
-         make the column lag the pointer. */
+      /* No transition: it would make the column lag the resize handle. */
       className="h-full shrink-0 border-r border-border bg-sidebar transition-none"
     >
-      {/* Solid and above the list, so nothing scrolling in the list shows
-          through the head; the list below is the one scroll container. */}
+      {/* The one scroll container. */}
       <SidebarContent className="pt-2 pb-2" onContextMenu={openGroundMenu}>
-        {/* Focus and Library: one heading style and one gap above each
-            heading; each heading's "+" adds to its own group. */}
+        {/* Each heading's "+" adds to its own group. */}
         <FocusGroup
           lists={focusLists}
           onChange={onFocusListsChange}
@@ -222,8 +189,7 @@ export function AppSidebar({
         </SidebarGroup>
       </SidebarContent>
 
-      {/* The foot: one row of square icon buttons, collapse at the far
-          right. Each is its own Tab stop; Ctrl/Cmd+K still opens search. */}
+      {/* Each foot button is its own Tab stop. */}
       <SidebarFoot
         currentPath={currentPath}
         isMobile={isMobile}
@@ -234,7 +200,7 @@ export function AppSidebar({
       {pageTree.leaving === null ? null : (
         <ConfirmDialog
           message={leaveFolderConfirm(
-            /* Step 8: leaving any page leaves its project, so name that. */
+            /* Leaving any page leaves its project, so name that. */
             allFolders.find((f) => f.id === pageTree.leaving?.project_id)?.name ?? pageTree.leaving.name,
           )}
           onContinue={pageTree.confirmLeave}

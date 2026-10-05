@@ -1,4 +1,3 @@
-/* The Library's two creates, New work and New collection. */
 import { useRef } from 'react'
 import { useNavigate } from 'react-router'
 import { useCreateFolder } from '../../api/mutations.js'
@@ -17,16 +16,13 @@ export function useLibraryCreate(shelves: readonly Shelf[] | undefined): {
   const navigate = useNavigate()
   const create = useCreateFolder()
   const createShelf = useCreateShelf()
-  /* One page per press, the row "+"'s rule: a double click must not stack
-     Untitled pages while the first create is in flight. A ref and not
-     `create.isPending`, which has not rendered yet when the second click of a
-     double click arrives. Opened with its name selected, so typing replaces
-     "Untitled". */
+  /* A ref, not `create.isPending`, which has not rendered yet when the second
+     click of a double click arrives. */
   const creating = useRef(false)
   const newPage = (): void => {
     if (creating.current) return
     creating.current = true
-    /* `kind: null`: the new project's page offers the picker (step 7). */
+    /* `kind: null`: the new project's page offers the picker. */
     create.mutate(
       { name: 'Untitled', kind: null },
       {
@@ -37,8 +33,6 @@ export function useLibraryCreate(shelves: readonly Shelf[] | undefined): {
       },
     )
   }
-  /* Collection creation mirrors a new Work: one request, then its existing
-     title editor is the naming surface. No dialog and no second Collection UI. */
   const creatingCollection = useRef(false)
   const newCollection = (): void => {
     if (creatingCollection.current) return

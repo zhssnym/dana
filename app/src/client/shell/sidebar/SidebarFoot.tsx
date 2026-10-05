@@ -1,4 +1,3 @@
-/* The sidebar's foot: Search, the bell, Settings, Trash and collapse. */
 import type { ReactElement } from 'react'
 import { Link } from 'react-router'
 import { Search, Settings, Trash2 } from '../../lib/icons.js'
@@ -10,8 +9,7 @@ import { paths } from '../../routes.js'
 const IS_MAC =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 
-/** The foot's one button shape: a square icon, a tint on hover, and a
-    tooltip naming it. The same class dresses the bell and the collapse. */
+/** Shared by every foot button, including the bell and the collapse. */
 export const FOOT_BUTTON =
   'flex size-(--control-height) shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground [&_svg]:!size-4'
 
