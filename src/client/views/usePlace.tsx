@@ -8,7 +8,7 @@ import type { TaskCard } from '../../shared/tasks.js'
 import { useCreateTask, usePatchBundle, usePullIntoMyDay } from '../api/mutations.js'
 import { useBundle, useMe } from '../api/queries.js'
 import { presenterToday } from '../parts/presenters.js'
-import { AddCoverAction, PageCover } from '../components/page-cover.js'
+import { PageCover } from '../components/page-cover.js'
 import { PageMark, usePageHasCover } from '../components/page-head.js'
 import { IconPicker } from '../components/page/IconPicker.js'
 import { Button } from '../components/ui/button.js'
@@ -290,11 +290,6 @@ export function PlaceHead({
             )}
           </PopoverContent>
         </Popover>
-      )}
-      {storageName === undefined ? null : (
-        <div className="mt-1">
-          <AddCoverAction storageName={storageName} />
-        </div>
       )}
       <div className="mt-1.5 flex items-baseline justify-between gap-6">
         <div className="flex min-w-0 items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
