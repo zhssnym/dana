@@ -77,6 +77,7 @@ import { folderGates } from '../lib/folder-authority.js'
 import { folderRowDisplay, shelfMark } from '../parts/presenters.js'
 import { folderLink, shelfLink } from '../lib/nav-links.js'
 import { paths } from '../routes.js'
+import { heldForTab, sidebarDragOver, sidebarDropAt, TAB_STRIP } from './tab-drop.js'
 import { NotificationsBell } from '../components/notifications-bell.js'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
@@ -819,14 +820,18 @@ function FolderGroupBlock({
     onLift: swallowNextClick,
     describe: (index) => group.folders[index]?.name ?? 'Page',
     onOver: (from, point) => {
-      /* Onto a page, or between sub-pages: the tree answers first. */
+      /* Out of the sidebar: the row comes loose, and opens as a tab if it is
+         let go on the tab strip (`tab-drop.ts`). */
       const folder = group.folders[from]
+      if (sidebarDragOver(point, folder === undefined ? null : paths.folder(folder.id)) !== null) return TAB_STRIP
+      /* Onto a page, or between sub-pages: the tree answers first. */
       if (folder !== undefined && pages.probe(folder, point, false) !== null) return TREE_KEY
       return zones.containerAt(point, self)
     },
     onDropAt: (from, point) => {
       const folder = group.folders[from]
       if (folder === undefined) return false
+      if (sidebarDropAt(point, paths.folder(folder.id))) return true
       const drop = pages.probe(folder, point, false)
       if (drop !== null) {
         pages.commit(folder, drop)
@@ -992,7 +997,7 @@ function FolderGroupBlock({
         <CollapsibleContent>
           <SidebarMenu>
             {group.folders.map((folder, index) => {
-              const state = inner.itemState(index)
+              const state = heldForTab(inner.itemState(index), inner.overKey)
               return (
                 <SidebarFolderRow
                   key={folder.id}
@@ -1042,6 +1047,13 @@ function FolderGroupBlock({
  * middle of a row now means "inside this page", and one gesture cannot mean
  * both. A collection is made from the Library's "+".
  */
+/** Where a Library row opens: its page, or its collection's. A label with
+ * no collection behind it has no page, so it cannot become a tab. */
+function entryPath(entry: DirectoryEntry): string | null {
+  if (entry.kind === 'folder') return paths.folder(entry.folder.id)
+  return entry.shelf === null ? null : paths.shelf(entry.shelf.id)
+}
+
 function LibraryColumn({
   entries,
   onOrderChange,
@@ -1075,6 +1087,13 @@ function LibraryColumn({
     },
     onOver: (from, point) => {
       const entry = entries[from]
+      /* Out of the sidebar: the row comes loose, and opens as a tab if it is
+         let go on the tab strip (`tab-drop.ts`). */
+      if (sidebarDragOver(point, entry === undefined ? null : entryPath(entry)) !== null) {
+        setDrop(null)
+        pages.clearMark()
+        return TAB_STRIP
+      }
       if (entry === undefined || entry.kind === 'group') {
         setDrop(null)
         pages.clearMark()
@@ -1104,6 +1123,7 @@ function LibraryColumn({
     onDropAt: (from, point) => {
       setDrop(null)
       const entry = entries[from]
+      if (entry !== undefined && sidebarDropAt(point, entryPath(entry))) return true
       if (entry === undefined || entry.kind === 'group') return false
       const tree = pages.probe(entry.folder, point, true)
       if (tree !== null) {
@@ -1132,7 +1152,7 @@ function LibraryColumn({
     <SidebarGroupContent ref={zones.registerZone(DIRECTORY)}>
       <SidebarMenu>
         {entries.map((entry, index) => {
-          const state = outer.itemState(index)
+          const state = heldForTab(outer.itemState(index), outer.overKey)
           const proposal = null
 
           if (entry.kind === 'group') {

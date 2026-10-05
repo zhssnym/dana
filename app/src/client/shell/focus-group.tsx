@@ -28,6 +28,7 @@ import { EyeOff, MoreHorizontal, Plus, Trash2 } from '../lib/icons.js'
 import { moved, swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
 import type { SortableItemState } from '../lib/use-sortable-list.js'
 import { focusMark, focusOffers, focusRows } from './focus-lists.js'
+import { heldForTab, sidebarDragOver, sidebarDropAt } from './tab-drop.js'
 import type { FocusList, FocusListKey, FocusMark } from './focus-lists.js'
 import { grip } from './library-drag.js'
 
@@ -60,6 +61,10 @@ export function FocusGroup({
     count: shown.length,
     onLift: swallowNextClick,
     describe: (index) => shown[index]?.name ?? 'List',
+    /* Out of the sidebar: the row comes loose, and opens as a tab if it is
+       let go on the tab strip (`tab-drop.ts`). */
+    onOver: (from, point) => sidebarDragOver(point, shown[from]?.path ?? null),
+    onDropAt: (from, point) => sidebarDropAt(point, shown[from]?.path ?? null),
     onReorder: (from, to) => {
       onChange([...moved(shown.map((list) => list.key), from, to), ...hidden])
     },
@@ -120,7 +125,7 @@ export function FocusGroup({
               active={currentPath === list.path}
               itemRef={sortable.setItemRef(index)}
               onPointerDown={grip(sortable.handleProps(index)).onPointerDown}
-              state={sortable.itemState(index)}
+              state={heldForTab(sortable.itemState(index), sortable.overKey)}
               onDrop={() => {
                 onChange(lists.filter((key) => key !== list.key))
               }}
