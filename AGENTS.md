@@ -24,11 +24,19 @@ npm run e2e                         # browser tests (Playwright)
 
 `TEST_DATABASE_URL` set means Postgres. Unset means PGlite.
 
+## Work fast: the local loop
+
+1. Run `DANA_DEV_LOGIN=1 npm run dev`. A saved change shows in the browser in about one
+   second. Make and check all small changes here, not on GitHub.
+2. Commit locally and often. A local commit costs nothing.
+3. Push only when the feature or fix is complete. Do not push each small change.
+
 ## Ship a change
 
 1. Make a branch from `main`. Open a pull request. The title is a Conventional Commit
    (`feat:`, `fix:`, `chore:`, `docs:`).
-2. Before you push, run `npm run gate -- --quick` and the tests for the code you changed.
+2. Before you push, run `npm run gate -- --quick` (about 30 seconds) and the tests for the
+   code you changed.
 3. CI runs lint, typecheck, build, all tests on Postgres and a browser smoke test. CI runs
    on Hassan's Windows PC, so CI waits when that PC is off.
 4. Merge with squash only when CI is green. **A merge to `main` deploys to production.**
