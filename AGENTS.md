@@ -61,7 +61,7 @@ These pass every test when they are wrong. Look for them in your diff.
 - **Content Security Policy.** A source that is not in `securityHeaders` in
   `app/src/server/index.ts` fails only in the browser. Check a new source in a browser.
 - **Authorization.** Each route that takes an id needs its own `accessOf(...)` check.
-  The ac-397 test checks ids in the path only. It does not check ids in the query or body.
+  `app/tests/security/authorization-sweep.test.ts` checks ids in the path only. It does not check ids in the query or body.
 - **Storage keys.** Never rename a `localStorage` or `sessionStorage` key. A rename resets
   that setting for all users.
 

@@ -1,5 +1,5 @@
 /*
-AC-014: given the owner deletes a custom folder,
+given the owner deletes a custom folder,
 then the response carries 7.4's exact counts, the folder leaves every list
 and view, and it waits in Trash with its memberships, tasks of all
 statuses, steps, My Day entries, reminders, and pending invites held; when
@@ -150,8 +150,8 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-014: deleting a custom folder marks it, and the pass removes it', () => {
-  test('AC-014 adversarial: the folder counts exclude abandoned rows before the delete', async () => {
+describe('deleting a custom folder marks it, and the pass removes it', () => {
+  test('adversarial: the folder counts exclude abandoned rows before the delete', async () => {
     // 8.11: abandoned counts on neither side. Asserted against the same
     // rows the deletion response will classify, so the two readings of the
     // folder cannot disagree.
@@ -163,7 +163,7 @@ describe('AC-014: deleting a custom folder marks it, and the pass removes it', (
     ).toEqual({ pending: 2, completed: 1 })
   })
 
-  test('AC-014 adversarial: the detail lists exactly the pending invites before the delete', async () => {
+  test('adversarial: the detail lists exactly the pending invites before the delete', async () => {
     // The key is pending_invites (7.4), and pending is the word: the
     // declined invite seeded beside the two live ones must not appear.
     // Element fields are 7.4's five.
@@ -212,7 +212,7 @@ describe('AC-014: deleting a custom folder marks it, and the pass removes it', (
     ).toBe(doomedTaskIds[1])
   })
 
-  test('AC-014: the delete answers 200 with the exact deleted counts', async () => {
+  test('the delete answers 200 with the exact deleted counts', async () => {
     const { owner, folderId } = await stage()
     const response = await owner.browser.api(`/folders/${folderId}`, {
       method: 'DELETE',
@@ -229,7 +229,7 @@ describe('AC-014: deleting a custom folder marks it, and the pass removes it', (
     ).toEqual({ tasks_open: 2, tasks_completed: 1, tasks_abandoned: 1 })
   })
 
-  test('AC-014: the folder is marked and every dependent row waits with it', async () => {
+  test('the folder is marked and every dependent row waits with it', async () => {
     const { owner, folderId, doomedTaskIds, doomedInviteIds } = await stage()
     const db = app.db
 
@@ -272,7 +272,7 @@ describe('AC-014: deleting a custom folder marks it, and the pass removes it', (
     expect(doomedTaskIds.length, 'the premise still holds').toBe(4)
   })
 
-  test('AC-014: the trashed folder reads as nonexistent for everyone', async () => {
+  test('the trashed folder reads as nonexistent for everyone', async () => {
     const { owner, member, folderId } = await stage()
     for (const viewer of [owner, member]) {
       const probe = await viewer.browser.api(`/folders/${folderId}`)
@@ -284,7 +284,7 @@ describe('AC-014: deleting a custom folder marks it, and the pass removes it', (
     }
   })
 
-  test('AC-014: the lapsed window purges the folder and everything it held', async () => {
+  test('the lapsed window purges the folder and everything it held', async () => {
     const { folderId, doomedTaskIds, doomedInviteIds, bareInviteId } =
       await stage()
     const db = app.db
@@ -358,7 +358,7 @@ describe('AC-014: deleting a custom folder marks it, and the pass removes it', (
     ).toBe(1)
   })
 
-  test('AC-014 adversarial: the control folder kept every row through both acts', async () => {
+  test('adversarial: the control folder kept every row through both acts', async () => {
     const { owner, controlFolderId, controlTaskId } = await stage()
     const db = app.db
     expect(
@@ -384,7 +384,7 @@ describe('AC-014: deleting a custom folder marks it, and the pass removes it', (
     }
   })
 
-  test('AC-014: invariants hold afterwards', async () => {
+  test('invariants hold afterwards', async () => {
     const { owner, member, controlFolderId } = await stage()
     await expectFolderInvariants(
       app.db,

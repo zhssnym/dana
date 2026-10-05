@@ -1,5 +1,5 @@
 /*
-AC-025: given creation with only a title, then the task lands in the
+given creation with only a title, then the task lands in the
 caller's Inbox, assigned to the caller, pending, undated.
 
 Four defaults in one sentence, and each is a place an implementation can be
@@ -90,8 +90,8 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-025: a title-only create lands in the Inbox with the 7.6 defaults', () => {
-  test('AC-025: the task lands in the caller\'s Inbox', async () => {
+describe('a title-only create lands in the Inbox with the 7.6 defaults', () => {
+  test('the task lands in the caller\'s Inbox', async () => {
     const { inboxId, body } = await stage()
     const folder = body.folder as Record<string, unknown>
     expect(
@@ -108,7 +108,7 @@ describe('AC-025: a title-only create lands in the Inbox with the 7.6 defaults',
     ).toBe('Desk')
   })
 
-  test('AC-025: the task is assigned to the caller', async () => {
+  test('the task is assigned to the caller', async () => {
     const { author, body } = await stage()
     const assignee = body.assignee as Record<string, unknown> | null
     expect(
@@ -118,14 +118,14 @@ describe('AC-025: a title-only create lands in the Inbox with the 7.6 defaults',
     expect((assignee as Record<string, unknown>).id).toBe(author.id)
   })
 
-  test('AC-025: the task is pending and undated', async () => {
+  test('the task is pending and undated', async () => {
     const { body } = await stage()
     expect(body.status, 'a new task is pending (spec 4.5)').toBe('pending')
     expect(body.due_date, 'nothing dated it, so due_date is null').toBeNull()
     expect(body.due_time, 'nothing timed it, so due_time is null').toBeNull()
   })
 
-  test('AC-025: the stored row agrees with the body on all four', async () => {
+  test('the stored row agrees with the body on all four', async () => {
     const { author, inboxId, taskId } = await stage()
     const row = await requireTaskRow(app.db, taskId)
     expect(String(row.folder_id), 'the stored folder is the Inbox').toBe(inboxId)
@@ -142,7 +142,7 @@ describe('AC-025: a title-only create lands in the Inbox with the 7.6 defaults',
     ).toBe(author.id)
   })
 
-  test('AC-025 adversarial: nothing the body did not ask for was invented', async () => {
+  test('adversarial: nothing the body did not ask for was invented', async () => {
     const { taskId, body } = await stage()
     expect(body.important, 'important defaults to false (spec 7.6, 4.5)').toBe(
       false,
@@ -167,7 +167,7 @@ describe('AC-025: a title-only create lands in the Inbox with the 7.6 defaults',
     ).toBeUndefined()
   })
 
-  test('AC-025 adversarial: creating a task does not pull it into My Day', async () => {
+  test('adversarial: creating a task does not pull it into My Day', async () => {
     const { taskId, body } = await stage()
     expect(
       body.pulled,
@@ -179,7 +179,7 @@ describe('AC-025: a title-only create lands in the Inbox with the 7.6 defaults',
     ).toEqual([])
   })
 
-  test('AC-025 adversarial: the title limits of 10.3 are enforced', async () => {
+  test('adversarial: the title limits of 10.3 are enforced', async () => {
     const { author } = await stage()
     const empty = await createTask(author, { title: '' })
     expectStatus(
@@ -207,7 +207,7 @@ describe('AC-025: a title-only create lands in the Inbox with the 7.6 defaults',
     expect(atLimit.title, 'the accepted title is stored whole').toHaveLength(300)
   })
 
-  test('AC-025 adversarial: creating in a folder the caller cannot see answers 404', async () => {
+  test('adversarial: creating in a folder the caller cannot see answers 404', async () => {
     const { author, strangerFolderId } = await stage()
     const response = await createTask(author, {
       title: 'p3 ac025 trespass',
@@ -227,7 +227,7 @@ describe('AC-025: a title-only create lands in the Inbox with the 7.6 defaults',
     ).toBe(0)
   })
 
-  test('AC-025: invariants hold afterwards', async () => {
+  test('invariants hold afterwards', async () => {
     const { author, stranger, inboxId, taskId, strangerFolderId } = await stage()
     await expectTaskInvariants(
       app.db,

@@ -1,5 +1,5 @@
 /*
-AC-1170: deleting a post leaves every reply to it in the thread.
+deleting a post leaves every reply to it in the thread.
 
 A member replies to the owner's post; the owner deletes the post. The post's
 row is gone, and the reply's row is still stored, under the same Discussion,
@@ -47,7 +47,7 @@ async function post(actor: Actor, path: string, body: Record<string, unknown>): 
   return String((posted.json() as { id?: unknown }).id)
 }
 
-describe('AC-1170 a reply survives its parent being deleted', () => {
+describe('a reply survives its parent being deleted', () => {
   test('the post goes; the reply stays, parent_id NULL, body intact', async () => {
     const [owner, member] = (await cast.of(app)) as [Actor, Actor]
     await connect(app.db, owner.id, member.id)

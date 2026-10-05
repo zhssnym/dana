@@ -1,5 +1,5 @@
 /*
-AC-1546: GET /stats answers the accounts on DANA_OPERATORS and no one else,
+GET /stats answers the accounts on DANA_OPERATORS and no one else,
 and what it answers is counts and one row per account, never a page's name.
 
 **Why this exists.** The route takes no id, so the ac-397 sweep never drives
@@ -35,7 +35,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-1546 the stats are the operators\' alone', () => {
+describe('the stats are the operators\' alone', () => {
   test('an operator reads counts, a stranger reads not found, no session reads 401', async () => {
     const [operator, stranger] = (await cast.of(app)) as [Actor, Actor]
     await createFolder(stranger, PAGE)
