@@ -49,7 +49,7 @@ file.
 - A bad or absent CSRF token gets 403.
 - Every GET without a session gets 401. The only public routes are the health probe, the two
   sign-in routes and the CSP report endpoint.
-- The test `app/tests/security/session-and-csrf-sweep.test.ts` checks these rules on
+- The test `tests/security/session-and-csrf-sweep.test.ts` checks these rules on
   every mounted route. A new public route needs an entry there with its reason.
 
 ## Authorization
@@ -61,7 +61,7 @@ itself. Dana has two mechanisms, and a new route needs both:
   query without this join returns no rows, not the rows of another person. Personal label
   queries filter on `owner_user_id` in the same position.
 - **Gates.** Each mutation and each route with an id must call an `accessOf(...)` gate
-  (`app/src/server/domain/folder-access.ts`) before it touches rows. Nothing adds the gate
+  (`src/server/domain/folder-access.ts`) before it touches rows. Nothing adds the gate
   for you.
 
 Rules for ids:
@@ -69,7 +69,7 @@ Rules for ids:
 - Never trust a `folder_id`, `task_id`, `user_id` or `file_id` from the client without a
   gate. Database constraints are the last defence, not the first.
 - An id in the query string or the body needs its own gate in the handler that reads it.
-- The test `app/tests/security/authorization-sweep.test.ts` calls each route with an
+- The test `tests/security/authorization-sweep.test.ts` calls each route with an
   id in its path as a signed-in stranger. Each new route of this kind needs a row in its
   table. The sweep cannot see ids in the query string or the body.
 
@@ -84,7 +84,7 @@ What a caller gets:
 
 ## Limits
 
-- The server enforces every input limit. The numbers live in `app/src/shared/` and in the
+- The server enforces every input limit. The numbers live in `src/shared/` and in the
   domain modules. A change to a limit is a product change.
 - A value above its limit gets 422 with the field name.
 - An upload or copy above the storage quota of the account gets 413.
@@ -96,7 +96,7 @@ What a caller gets:
 
 ## Rate limits
 
-- `RATE_LIMIT_POLICY` in `app/src/server/security/rate-limit.ts` holds all the numbers.
+- `RATE_LIMIT_POLICY` in `src/server/security/rate-limit.ts` holds all the numbers.
 - Per user: invites, search, general mutations and data export.
 - Per client address: the two sign-in routes and CSP reports. These routes have no session
   to key on. Each sign-in route has its own counter, so an attack on one route cannot block
@@ -114,7 +114,7 @@ What a caller gets:
 
 ## Logs
 
-- Each log line must go through the logger in `app/src/server/security/log.ts`. Each event
+- Each log line must go through the logger in `src/server/security/log.ts`. Each event
   takes a closed set of fields, so other data has no path into the log.
 - Dana must never log:
   - user content: task titles, notes, step titles, comments, page text, file names
@@ -133,7 +133,7 @@ What a caller gets:
 
 ## Response headers and CSP
 
-- `securityHeaders` in `createApp` (`app/src/server/index.ts`) sets the headers on every
+- `securityHeaders` in `createApp` (`src/server/index.ts`) sets the headers on every
   response, before every handler. Thus errors also have them. The comment above it gives
   the reason for each CSP source.
 - The edge sets HSTS. The process never sets it.
@@ -141,7 +141,7 @@ What a caller gets:
   never weaken them.
 - Keep the CSP as narrow as the client needs. Add a source only for a thing the product
   does, and write its reason in the comment.
-- `script-src` is `'self'` plus the hash of the inline theme script in `app/index.html`.
+- `script-src` is `'self'` plus the hash of the inline theme script in `index.html`.
   Never add `'unsafe-inline'`, `blob:` or `data:` to `script-src`.
 - Dana permits `blob:` and `data:` only for bytes that the page already holds: images,
   media and the crop `fetch()`.
@@ -149,7 +149,7 @@ What a caller gets:
   data, such as a cover photo search result, proxy it through the Dana origin.
 - The service worker falls back to `script-src`. Check the worker after each change to
   `script-src`.
-- The theme hash needs LF line endings (`.gitattributes`). A CRLF copy of `app/index.html`
+- The theme hash needs LF line endings (`.gitattributes`). A CRLF copy of `index.html`
   gives a different hash, and production then blocks the theme script with no error.
 - `npm run dev` sends no CSP. Test each CSP change on the production build in a real
   browser.

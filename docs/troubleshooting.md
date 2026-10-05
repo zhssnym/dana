@@ -29,7 +29,7 @@ These give no error and no red test. Read your diff for them before opening a PR
 
 ### Migrations
 - **A migration never ran, and every read of its columns throws.** The drizzle migrator applies
-  a file only when its `when` in `app/db/migrations/meta/_journal.json` is greater than the last
+  a file only when its `when` in `db/migrations/meta/_journal.json` is greater than the last
   applied one. It reads `tag` and `when`; `idx` does nothing. If a higher `when` deploys first,
   every lower migration is skipped without an error. Give a new entry a `when` above every
   existing one, and keep journal entries in ascending order when you resolve a conflict: array
@@ -42,7 +42,7 @@ These give no error and no red test. Read your diff for them before opening a PR
   destructive changes across two releases (expand, then contract). Never edit an applied
   `.sql` file.
 - **A constraint has no explicit name.** Name every constraint and index. The catalog in
-  `app/db/constraint-catalog.ts` and the spec refer to them by name.
+  `db/constraint-catalog.ts` and the spec refer to them by name.
 - **A both-or-neither CHECK admits the row it was written to refuse.** A CHECK fails only on
   FALSE, and NULL passes. `(a IS NULL AND b IS NULL) OR (a > 0 AND b > 0)` accepts `a` null
   with `b` set. Write `(a IS NULL) = (b IS NULL) AND (a IS NULL OR (a > 0 AND b > 0))`, and add
@@ -58,8 +58,8 @@ These give no error and no red test. Read your diff for them before opening a PR
   fix forward. Never loosen the check to make the deploy go through.
 - **You added a foreign key into `files(id)`.** The reclaim sweep will delete a file that the
   new column still points at. Add the matching `NOT EXISTS` arm to `fileIsUnreferenced()` in
-  `app/src/server/domain/files.ts`, then update the list in
-  `app/tests/data-loss/file-reclaim-spares-references.test.ts`, which fails by design until you do.
+  `src/server/domain/files.ts`, then update the list in
+  `tests/data-loss/file-reclaim-spares-references.test.ts`, which fails by design until you do.
   References that aren't foreign keys (such as `users.avatar_url`) are invisible to that guard.
 
 ### Request fields
@@ -78,18 +78,18 @@ These give no error and no red test. Read your diff for them before opening a PR
   missing from the CSP is refused silently; it looks exactly like "no picture set". The browser
   posts the violation to `POST /api/csp-report`, which logs a `csp_violation` event in the
   server's security log. Look there, or in the browser console. Add the source to
-  `securityHeaders` in `app/src/server/index.ts`, say what it's for in the PR, and check it in a
+  `securityHeaders` in `src/server/index.ts`, say what it's for in the PR, and check it in a
   real browser. A unit test can only show the string is present.
 
 ### Authorization
 - **A new route that takes an id serves rows to anyone signed in.** There is no authorization
   chokepoint, whatever spec 10.2 says. Authorization is hand-written `accessOf(...)` gates, plus
   membership checks inside SQL `FROM` clauses. Write the gate yourself, and add the route's row
-  to `app/tests/security/authorization-sweep.test.ts` saying what a stranger gets.
+  to `tests/security/authorization-sweep.test.ts` saying what a stranger gets.
 - **The authorization sweep is green, but an id-bearing route is still open.** The sweep only drives ids in the
   **path**. An id taken from the query string or the body is invisible to it
   (`GET /events?folder=` is the standing example), and so is a router mounted inside another
-  router. `app/tests/security/session-and-csrf-sweep.test.ts` checks **authentication**
+  router. `tests/security/session-and-csrf-sweep.test.ts` checks **authentication**
   (session and CSRF) only, never who may see what.
 
 ### Storage keys
@@ -98,13 +98,13 @@ These give no error and no red test. Read your diff for them before opening a PR
 
 ### Styling and display text
 - **A wrong colour or a wrong date label passes the whole suite.** No test checks the values in
-  `app/src/client/styles/tokens.css` or the words that `app/src/client/parts/presenters.ts`
+  `src/client/styles/tokens.css` or the words that `src/client/parts/presenters.ts`
   produces. List any change to either file in the PR, with before and after, and look at the
   result in a browser.
 
 ## 3. Tests and the gate
 
-All commands run from `app/`. From the repository root there is no `package.json`.
+All commands run from the repository root.
 
 - **`npm run gate` printed `GATE: incomplete`.** It has three outcomes:
   - `green`: all six steps ran and passed.
@@ -114,7 +114,7 @@ All commands run from `app/`. From the repository root there is no `package.json
   `--quick` always ends `incomplete` (exit 0) because it runs lint, typecheck and build only.
   A full run with no `TEST_DATABASE_URL` ends `incomplete` (non-zero) because the Postgres leg
   fell back to PGlite. A leg that reports no tally counts as red.
-- **`npm test` failed although every test passed.** `app/scripts/run-suite.mjs` fails any run
+- **`npm test` failed although every test passed.** `scripts/run-suite.mjs` fails any run
   where vitest collected more files than it accounted for, because vitest can lose files to a
   dead worker and still exit 0. Read the file count, not just the exit code. Pass vitest flags
   after `--`, as in `npm test -- --maxWorkers=2 <file>`.
@@ -124,35 +124,35 @@ All commands run from `app/`. From the repository root there is no `package.json
 - **Which database did that run use?** `TEST_DATABASE_URL` set means the Postgres leg; unset or
   empty means PGlite. The variable is ambient and changes between machines and sessions, so
   print it before trusting a green. Use `env -u TEST_DATABASE_URL npm test` to force PGlite.
-  Nothing loads `app/.env` for a test run.
+  Nothing loads `.env` for a test run.
 - **You're not sure which Postgres database a test ran in.** `TEST_DATABASE_URL` names a *base*
   database. Each vitest worker gets its own `dana_test_r<run>_w<slot>`, created and migrated at
-  the start and emptied before each file (`app/tests/support/postgres-leg.ts`). The role needs
+  the start and emptied before each file (`tests/support/postgres-leg.ts`). The role needs
   `CREATEDB`. A count that climbs across tests on this leg is a real defect, not a flake.
 - **Text sorts differently on Postgres and PGlite.** The base database must be created with the
   builtin `C.UTF-8` locale, using the exact statement from `createDatabaseSql` in
-  `app/tests/support/postgres-leg.ts`. Never point the variable at a
+  `tests/support/postgres-leg.ts`. Never point the variable at a
   database that inherited the cluster default.
 - **A test asserts a server error message and fails on another machine.** Postgres error text
   is translated (it's French on Hassan's PC). Assert the SQLSTATE, the constraint name, or the
-  column field instead; `expectRejectedWith` in `app/tests/support/helpers.ts` does this.
+  column field instead; `expectRejectedWith` in `tests/support/helpers.ts` does this.
 - **Vitest says "No test files found", or `ERR_LOAD_URL`.** In Vitest 4, positional arguments
   are substring filters, not regexes, so `"auth(orization|-sweep)"` matches nothing. And
   `--reporter=basic` no longer exists. To run one test by title, use
   `npx vitest run -t "<words from the title>"`.
-- **Your focused tests are green, but something else broke.** Changes under `app/src/shared/`
-  or `app/src/server/domain/` reach tests nobody was thinking about. Scope the suite while you
+- **Your focused tests are green, but something else broke.** Changes under `src/shared/`
+  or `src/server/domain/` reach tests nobody was thinking about. Scope the suite while you
   iterate, then run all of it before you say you're done.
-- **`npm test` is green, but the screen is broken.** `app/vitest.config.ts` runs every test
+- **`npm test` is green, but the screen is broken.** `vitest.config.ts` runs every test
   under `environment: 'node'`, so for client code the suite mostly proves it compiles. To render
   a component in a test, put `// @vitest-environment jsdom` on line 1, call `afterEach(cleanup)`
   (`globals` is off, so Testing Library doesn't unmount on its own), and stub image loading
   (`Avatar` renders no `<img>` until the image loads, and jsdom never loads one). Otherwise, run
   the browser test or the app, or say plainly that it wasn't checked in a browser.
 - **Every request answers 500 from session resolution, and the throw is in
-  `PglitePreparedQuery.queryWithCache`.** The local app/.data PGlite directory is corrupt. The
+  `PglitePreparedQuery.queryWithCache`.** The local .data PGlite directory is corrupt. The
   tell is that the 500s come from `resolveSession`, not from the handler you changed. Run
-  `rm -rf app/.data`; it's scratch and never committed. The cause is unknown.
+  `rm -rf .data`; it's scratch and never committed. The cause is unknown.
 - **A test that relies on two concurrent connections behaves differently on PGlite.** PGlite is
   single-connection: it serializes statements, so it can't reproduce races between parallel
   transactions. Spec 11.15 says exactly what that does and doesn't cost; test concurrency on
@@ -175,13 +175,13 @@ run, and a record from a dirty tree describes something that isn't the commit.
   `Timeout terminating forks worker`, with **no assertion failures**. The machine is overloaded,
   usually by a CI job beside several agents. Re-run on a quiet machine.
 - **Connection reset.** You see `read ECONNRESET`, or a route logs
-  `Connection terminated unexpectedly`. `app/db/client.ts` has `'error'` listeners on the pool
+  `Connection terminated unexpectedly`. `db/client.ts` has `'error'` listeners on the pool
   and on checked-out clients, so a reset socket now drops one connection instead of killing the
   worker; the seam logs `database_connection_lost`. A whole file lost at its start, every test
   skipped, is a connection the server refused with a FATAL (a missing database, too many
   clients): on Windows the backend's exit can reset the socket before the client reads the
   FATAL. So never connect to a database that may not exist; ask `pg_database` from the base
-  database, as `app/tests/support/postgres-leg-admin.ts` does.
+  database, as `tests/support/postgres-leg-admin.ts` does.
 - **Two clocks in two zones.** A date comparison is red for an hour or two every evening. The
   server read one timezone (the database session's `current_date`, or the viewer's `tz`) and the
   test read UTC. Force the zone to tell them apart: `TZ=UTC` settles PGlite, but on Postgres the
@@ -198,8 +198,8 @@ run, and a record from a dirty tree describes something that isn't the commit.
   or clone the tree to a path with no dot directory, or rely on CI.
 - **Page crashes, tests failing at 0 ms, and timeouts that pass alone.** Two browser runs are
   sharing a port, both seeding and truncating one database. The port is `DANA_GATE_PORT`
-  (default 3100), read by `app/scripts/gate-port.mjs` for both the gate and
-  `app/playwright.config.ts`. Give each parallel session its own port. The gate refuses to
+  (default 3100), read by `scripts/gate-port.mjs` for both the gate and
+  `playwright.config.ts`. Give each parallel session its own port. The gate refuses to
   start if anything is already listening on that port.
 - **`ECONNREFUSED` scattered across files after you restarted a run.** Killing the server on
   the port doesn't kill `playwright test`, which keeps writing into `test-results/`. Kill every
@@ -223,7 +223,7 @@ run, and a record from a dirty tree describes something that isn't the commit.
   commit tells you whether *this commit* fails.
 - **Each browser run takes minutes before the first test.** `npm run e2e` starts
   `npm run e2e:app`, which runs `vite build` every time. Set `DANA_GATE_PREBUILT=1` to reuse an
-  existing build. `app/playwright.config.ts` forces `TEST_DATABASE_URL` empty for the server it
+  existing build. `playwright.config.ts` forces `TEST_DATABASE_URL` empty for the server it
   starts, so you don't need to unset it yourself.
 - **`Executable doesn't exist at …/chromium_headless_shell-<version>/…`.** The installed
   Playwright browsers don't match the version `@playwright/test` pins. Run
@@ -232,15 +232,15 @@ run, and a record from a dirty tree describes something that isn't the commit.
 ## 6. Server
 
 - **Page endpoints like `/views/my-day` suddenly answer 404.** Route mount order in
-  `app/src/server/index.ts` is load-bearing: the views router must be mounted before the
+  `src/server/index.ts` is load-bearing: the views router must be mounted before the
   bundle router, or the bundle router's `/views/:id` shadows the page endpoints. Don't
   reorder mounts casually.
 - **`Cannot read properties of undefined (reading 'optional')`, or `X is not a function` in
   exactly one file, while the symbol looks fine.** That's an import cycle, usually in
-  `app/src/shared/` or `app/src/server/domain/`, which are webs rather than trees. The error
+  `src/shared/` or `src/server/domain/`, which are webs rather than trees. The error
   appears where the `undefined` is used, not where the cycle is. Move the shared leaf into a
   module that imports only its own dependencies, and re-export it from the old location.
-  `app/src/shared/rich-content.ts` and `app/src/server/domain/document-hash.ts` are examples.
+  `src/shared/rich-content.ts` and `src/server/domain/document-hash.ts` are examples.
 - **Rate limits or reminders behave strangely with two instances.** There must be exactly one
   production instance: the in-memory rate limiter and the 60-second reminder tick both assume
   it. Raise it before scaling out.
@@ -255,19 +255,19 @@ run, and a record from a dirty tree describes something that isn't the commit.
 ## 7. Client
 
 - **A request fails with 403 or 422, and it looks like a backend bug.** Every server call must
-  go through `app/src/client/api/http.ts`, which adds the CSRF header and the timezone. Lint
+  go through `src/client/api/http.ts`, which adds the CSRF header and the timezone. Lint
   refuses direct `fetch(...)` calls, but not an alias like `const g = fetch`.
-  `app/src/client/lib/viewer.ts` is the one exemption (it reads a `data:` URL, not the network).
+  `src/client/lib/viewer.ts` is the one exemption (it reads a `data:` URL, not the network).
 - **Where does a colour go?** Raw colour, size, spacing and radius values belong only in
-  `app/src/client/styles/tokens.css`, as Tailwind `@theme` variables. Nothing enforces this
+  `src/client/styles/tokens.css`, as Tailwind `@theme` variables. Nothing enforces this
   any more, so check your diff for hex values in components.
 - **An issue's screenshot won't download.** The repository is private, so `user-attachments`
   URLs need a token:
   `curl -H "Authorization: Bearer $(gh auth token)" -o issue.png "<url>"`. Most client issues
   are a screenshot and one sentence, and the screenshot is the specification.
 - **"The sidebar" spans two folders.** Navigation rows are in
-  `app/src/client/shell/app-sidebar.tsx`, and folder rows are in
-  `app/src/client/components/folder-row.tsx`. Grep for what you see on screen rather than
+  `src/client/shell/app-sidebar.tsx`, and folder rows are in
+  `src/client/components/folder-row.tsx`. Grep for what you see on screen rather than
   guessing from folder names.
 
 ## 8. Git, GitHub and CI
@@ -277,7 +277,7 @@ run, and a record from a dirty tree describes something that isn't the commit.
   conflicted commit only. Use `git -c core.commentChar=';' rebase --continue`, then diff
   `git log -1 --format=%B` for the old and new sha.
 - **Resolving a rebase or merge conflict.**
-  - `app/db/migrations/meta/_journal.json`: keep both entries in ascending `when` order.
+  - `db/migrations/meta/_journal.json`: keep both entries in ascending `when` order.
     If both sides took the same migration number, renumber the branch's file and journal
     `tag` together and give it a `when` above `main`'s last. Merge several
     migration-carrying branches in `when` order.
@@ -308,11 +308,11 @@ run, and a record from a dirty tree describes something that isn't the commit.
 
 ## 9. Secrets and config
 
-- **`app/.env` is committed.** This is deliberate: the repository is private and has two
+- **`.env` is committed.** This is deliberate: the repository is private and has two
   collaborators. The repo therefore stays private, and any credential that leaves it is
   rotated. Never copy the file anywhere else. A branch that deletes it deletes it from every
   working tree that checks that branch out.
-- **Never commit app/.data.** It's the local PGlite scratch database.
+- **Never commit .data.** It's the local PGlite scratch database.
 
 ## 10. Tools and libraries
 
