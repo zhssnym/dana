@@ -1,20 +1,42 @@
 # Dana
 
-Dana helps you plan and finish projects without juggling multiple tools. Each project is a page:
-you write down what it's for, break the work into tasks in one thread, and keep track of what's done
-and what's left. Add people to a project and talk things through in threads next to the work.
+Dana is a tool to plan and finish projects. Each project is a page:
 
-Think of it as Notion's editor, GitHub Issues and Slack's threads, trimmed down to what a person needs
-to finish a project. It's free and in beta: [dana.so](https://dana.so). You sign in with Google.
+- Write what the project is for.
+- Divide the work into tasks.
+- See what is done and what remains.
+- Add people, and discuss the work in threads beside it.
 
-**Stack:** one Node app. Vite + React on the front end, an Express API on the back end, Postgres in
-production (PGlite locally), deployed on Render. No Docker needed.
+Dana joins a document editor, an issue tracker and chat threads in one tool, with only the
+parts that a person needs to finish a project. Dana is free and in beta at
+[dana.so](https://dana.so). You sign in with Google.
 
-**To run it:** from the repository root, run `npm ci`, then
-`DANA_DEV_LOGIN=1 npm run dev`. `npm test` runs the tests.
+## Stack
 
-**Working on the code:** read `AGENTS.md` first. It has the commands, how a change gets in, and where
-the rest of the docs live.
+- One Node 24 process: an Express 5 API and a Vite and React app.
+- Postgres in production, on Render. PGlite on your computer and in tests.
+- Uploaded files are in Cloudflare R2.
+- A merge to `main` deploys to production.
 
-**Team:** Hassan runs the project, the back end and the infrastructure, built with Claude Code. Imran
-does product and design.
+## Run it
+
+Run these commands from the repository root:
+
+```bash
+npm ci
+DANA_DEV_LOGIN=1 npm run dev
+```
+
+Then open the address that Vite shows. `DANA_DEV_LOGIN=1` lets you sign in without Google.
+
+To do the tests, run `npm test`.
+
+## Change the code
+
+Read `AGENTS.md` first. It gives the commands, the steps to ship a change, and the traps
+to look for. The rules that the code does not show are in `docs/`.
+
+## Team
+
+- Hassan: the project, the back end and the infrastructure. He builds Dana with Claude Code.
+- Imran: product and design.
