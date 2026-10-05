@@ -1,24 +1,10 @@
-/*
-The seams between the Discussion lifecycle (issue #320, `domain/consultation.ts`)
-and structured input rounds (issue #321, `domain/consultation-input.ts`).
-
-Both functions run **inside the writing transaction of the Discussion act that
-calls them, under that Discussion's row lock** (the same lock every input-round
-write takes), so whatever they write or read commits or rolls back with the act,
-and no response can land between the act's check and its write.
-*/
+// Hooks between Discussion acts and input rounds. Both run inside the act's transaction,
+// under the Discussion's row lock.
 import { sql } from 'drizzle-orm'
 
 import { rowsOf, type Executor } from '../database.js'
 
-/**
- * Called once by `resolveDiscussion`, after the new Outcome is current (#321:
- * "resolving the parent Discussion closes any open round atomically").
- * Idempotent: a Discussion with no open round is untouched. Reopen has no
- * counterpart, because a closed round never reopens; a new one may be opened.
- * `closed_by` stays null and `close_reason` says why: the resolver is the
- * Discussion's `resolved_by`, and a copy here could only disagree with it.
- */
+/** Called by `resolveDiscussion`: closes any open round. Idempotent. A closed round never reopens. */
 export async function onDiscussionResolved(
   tx: Executor,
   discussionId: string,
@@ -31,12 +17,7 @@ export async function onDiscussionResolved(
   )
 }
 
-/**
- * Whether anybody other than `creatorId` has given structured input to the
- * Discussion. `trashDiscussion` asks it on the creator's own-unshared path
- * (#320: a creator may remove an accidental Discussion only while it has "no
- * structured-input response"), beside its own comment and Outcome checks.
- */
+/** Whether anyone but `creatorId` gave structured input; a creator may trash only without it. */
 export async function discussionHasOtherInput(
   tx: Executor,
   discussionId: string,

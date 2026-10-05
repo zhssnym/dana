@@ -1,33 +1,6 @@
-/*
-The page module: 4.17's block list under 7.16's PUT-whole contract, for
-folder pages and shelf pages alike (the two differ only in which column
-holds the page's home, and 4.17's CHECK keeps it exactly one).
-
-The PUT is the page: blocks arriving with an id edit the row they name,
-blocks without one insert, and stored blocks the list no longer carries are
-deleted, which is how a section dies and its tasks survive (4.5's SET NULL). Concurrency is last-write-wins per block: an edit carries the
-updated_at it read, and a mismatch answers 409 before anything in the
-request writes, a request being one unit. An edit naming a block that no
-longer exists is the same conflict wearing its endpoint state: someone
-else's write removed it, and resurrecting it under the old id would be the
-lost-update this rule exists to refuse.
-
-One PUT is one mutation and one event (4.13), whatever it did to however
-many blocks.
-
-A block naming a file names one the page's own home can reach, and which
-predicate that is depends on the home (issue #107, 2026-09-04). See
-`fileScopeCondition` below: this is a gate written by hand, in the module that
-takes the id, because nothing in this build adds one for you.
-
-The read joins `files` for one thing only: 4.16's width and height, so that a
-reader who did not upload the picture can reserve its space before the bytes
-arrive (issue #27). It is a LEFT JOIN on the file's primary key, so a block
-with no file, and a file stored before migration 0009, both answer null and
-multiply no rows. Nothing about the write path knows these columns exist: the
-shape belongs to the file and a PUT that carried it would be a second record
-of one fact.
-*/
+// The legacy page PUT (4.17, 7.16) for folder and shelf pages. The PUT is the whole page: blocks with an id
+// edit, without one insert, missing ones are deleted. A stale updated_at or a vanished block is a 409 before
+// any write. One PUT is one event. Block files are gated by `fileScopeCondition`.
 import { applyDocument, documentMetadata, DocumentRefusal, touchesPageTree } from './page-document.js'
 import { lockPageTree } from './page-tree.js'
 import { sql } from 'drizzle-orm'
@@ -70,9 +43,7 @@ function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
 }
 
-/** 4.16's dimensions as the join hands them over: absent for a block with no
- * file, null for a file stored before migration 0009 (issue #27). Both read
- * as null here, and the contract says null means unknown. */
+/** Absent for a block with no file, null for an older file without dimensions; both read as null. */
 function nullableInt(value: unknown): number | null {
   return value === null || value === undefined ? null : Number(value)
 }
@@ -106,29 +77,9 @@ export interface PageHome {
 }
 
 /*
-Qualified with the block table's alias rather than bare, and the reason is a
-column collision rather than taste: the read below joins `files`, which
-carries a `folder_id` of its own (4.16's visibility scope), so an unqualified
-`folder_id` is ambiguous and the statement fails to parse. Every statement in
-this module aliases page_blocks `b` so this fragment reads the same in all
-three.
-
-**The viewer is part of the condition, since issue #35.** Until then these
-functions took no viewer at all, which made them the one place in this
-directory where authorization lived entirely in the caller: everywhere else
-the membership check is written inside the `FROM` clause, so a query that
-forgets it returns nothing rather than another person's rows, and a page read
-could not do that. Every caller had in fact gated — `routes/workshop.ts` calls
-`accessOf` before both folder-page routes and `shelfView` before both shelf-page
-routes, checked one by one — so this repairs a shape rather than a leak, and
-the route gates stay where they are because only they can tell 404 from an
-empty page.
-
-EXISTS rather than a join, so the scope multiplies no rows and adds no column
-to the ambiguity the paragraph above is about. A folder page is visible to its
-members while the folder is not trashed, which is `accessOf`'s own predicate; a
-shelf is its owner's alone (4.18).
-*/
+Qualified with alias `b` because `files` also has a `folder_id`. The viewer is part of the condition, so a
+caller that forgets to gate gets nothing. EXISTS, so the scope multiplies no rows.
+ */
 function homeCondition(home: PageHome, viewerId: string) {
   return home.folderId !== null
     ? sql`b.folder_id = ${home.folderId}
@@ -139,8 +90,7 @@ function homeCondition(home: PageHome, viewerId: string) {
                          AND vs.user_id = ${viewerId})`
 }
 
-/** The page's home as the viewer can see it, by the same two functions the
- * routes gate with, so "visible" has one definition rather than two. */
+/** Uses the same two functions the routes gate with, so "visible" has one definition. */
 async function homeIsVisible(
   tx: Executor,
   home: PageHome,
@@ -152,9 +102,7 @@ async function homeIsVisible(
         (await shelfView(tx, viewerId, home.shelfId)) !== null
 }
 
-/** The composed page read. The item list carries identity and order only;
- * block payloads remain in `blocks`, while task payloads remain the
- * TaskCards returned by Q7. That keeps one task shape across every view. */
+/** The composed page read. Items carry identity and order only; payloads stay in `blocks` and TaskCards. */
 async function pageItemsIn(
   executor: Executor,
   viewerId: string,
@@ -215,51 +163,15 @@ export async function pageView(
 export type PutPageResult =
   | { kind: 'written'; page: PageView }
   | { kind: 'stale'; blockId: string }
-  /** The blocks, by their index in the request, whose `file_id` names a file
-   * this page cannot reach. Indexes rather than field names because naming a
-   * field is the route's job (`http/errors.ts`), and a missing file and an
-   * unreachable one are one outcome here so that the answer discloses
-   * nothing either way (10.2). */
+  /** Block indexes whose `file_id` this page cannot reach. Missing and unreachable are one answer (10.2). */
   | { kind: 'file_not_here'; blockIndexes: readonly number[] }
   | { kind: 'not_found' }
-  /** Visible, and not this member's to write (issue #228). */
   | { kind: 'forbidden'; reason: string }
 
 /*
-The gate on a block's `file_id`, and it is two clauses because `page_blocks`
-has two homes and `page_blocks_one_home_check` (migration 0003) keeps it to
-exactly one.
-
-**A folder-homed page scopes to its own folder**, which is `createComment`'s
-`AND folder_id = $folderId` one object over. Until issue #107 there was no clause
-at all and no composite foreign key either, so a member of folder A could
-plant a file id from folder B and everyone in A learned that a file with that
-id exists — and, since #106 put the picture's shape on the block read, what
-shape it is. The bytes were never served: `serveFile` scopes independently.
-Disclosure of existence, which is why this is a defect rather than an
-incident.
-
-**A shelf-homed page scopes with `readableFileScope`**, and the reasoning that
-deferred #107 got this half backwards. `page_blocks.folder_id` is NULL for a
-shelf page, so `AND folder_id = NULL` matches nothing at all rather than
-gating anything, and it would refuse the shelf its own pictures. The predicate
-`serveFile` answers with is the right one here: a shelf is private (4.18), so
-in practice that is the caller's own folder-less upload, plus anything in a
-folder they are a member of — the same rule `PATCH /shelves/:id` applies to a
-shelf cover.
-
-**No kind clause, unlike the three cover gates.** A cover is a picture by
-definition and a `voice` note stored as one would be drawn as a broken image;
-a page block's file is whatever 4.17 lets a block carry, and narrowing it here
-would refuse rows this endpoint has always accepted for a reason no criterion
-states. The scope is the defect; the kind is not.
-
-A composite foreign key `(file_id, folder_id)` → `files (id, folder_id)` would
-make the folder half structural rather than remembered, which is #74's whole
-argument. It is a section 4 change and needs a unique index on the referenced
-pair, and it cannot express the shelf half at all, so the WHERE is the fix and
-the FK is priced rather than taken.
-*/
+A block's `file_id` gate. A folder page scopes to its own folder. A shelf page has no folder_id,
+so it scopes with `readableFileScope`. No kind clause: unlike covers, a block may carry any file kind.
+ */
 function fileScopeCondition(home: PageHome, viewerId: string) {
   return home.folderId !== null
     ? sql`f.folder_id = ${home.folderId}`
@@ -273,24 +185,12 @@ export async function putPage(
   blocks: readonly PageBlockWrite[],
 ): Promise<PutPageResult> {
   return inTransaction(db, async (tx) => {
-    /* The insert below writes `home.folderId` as it was handed over, so the
-       scoped read alone would not stop a write into a folder the viewer
-       cannot see: an ungated caller would find no stored blocks, refuse
-       nothing, and insert. This is the check that makes that impossible, and
-       it is why the viewer had to be threaded rather than only joined. The
-       routes gate before they call, so this answers nobody today; it is here
-       so that a caller which forgets is refused rather than obeyed. */
+    /* The insert writes `home.folderId` as given, so check visibility here even though routes gate first. */
     if (!(await homeIsVisible(tx, home, viewerId))) {
       return { kind: 'not_found' } as const
     }
 
-    /* And the Access half of the same argument (issue #228). The route gates
-       before it calls, so this answers nobody today either; it is here for
-       the same reason the visibility check above is, and it is the reason
-       `mayPerform` is a pure function over facts rather than a middleware --
-       a future non-HTTP caller reaches the same answer through the same
-       door. A shelf page has no Folder and no Folder Access: it is one
-       person's own page (4.18), which `homeIsVisible` has already settled. */
+    /* The Access half, for the same reason. A shelf page has no Folder Access; visibility settled it. */
     if (home.folderId !== null) {
       const facts = await accessOf(tx, viewerId, home.folderId)
       if (facts === null) return { kind: 'not_found' } as const
@@ -300,11 +200,7 @@ export async function putPage(
       }
     }
 
-    /* The file gate (issue #107), before the row lock rather than after it:
-       a body naming a file this page cannot reach is refused whatever the
-       stored blocks say, so it never has to hold anything to be answered.
-       One read for every distinct id, the way `createComment` resolves its
-       attachments, and all or nothing — a request is one unit. */
+    /* The file gate runs before the row lock. One read for all distinct ids; all or nothing. */
     const wanted = [
       ...new Set(
         blocks.flatMap((block) =>
@@ -337,11 +233,7 @@ export async function putPage(
       }
     }
 
-    /* The legacy whole-page writer and #184's page actions share the same
-       folder ordering domain during rolling deployment, so they share its
-       lock too. Without this, a PUT could reseed the list while a drag was
-       computing a key from the old sequence. Shelf pages have no tasks and
-       keep their existing block-row lock. */
+    /* The legacy writer and page actions share the folder's ordering lock, so a PUT cannot reseed during a drag. */
     if (home.folderId !== null) {
       await tx.execute(
         sql`SELECT 1 FROM folders WHERE id = ${home.folderId}::uuid FOR UPDATE`,
@@ -352,11 +244,7 @@ export async function putPage(
       const modern = await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE folder_id=${home.folderId}::uuid AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR kind NOT IN ('section','paragraph','image','folder_ref') OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id AND jsonb_typeof(r.created_task_ids)='array')) LIMIT 1`)
       if(modern.length) return {kind:'stale',blockId:String(modern[0]?.id)} as const
     }
-    /* #221, the Shelf half of the same rule. Once a Shelf has been written
-       through the document transaction, or holds a block the legacy editor
-       cannot draw, the legacy whole-page writer is refused: it would read
-       only the four kinds it knows and write the rest back as deletions. A
-       Shelf the composer has never touched keeps the legacy PUT exactly. */
+    /* Refuse the legacy writer on a Shelf the composer has written: it would delete blocks it cannot draw. */
     if (home.folderId === null && home.shelfId !== null) {
       await tx.execute(sql`SELECT 1 FROM shelves WHERE id = ${home.shelfId}::uuid FOR UPDATE`)
       const modern = await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE shelf_id=${home.shelfId}::uuid AND (rich_content IS NOT NULL OR kind NOT IN ('section','paragraph','image','folder_ref')) UNION ALL SELECT shelf_id AS id FROM shelf_document_receipts WHERE shelf_id=${home.shelfId}::uuid LIMIT 1`)
@@ -371,8 +259,7 @@ export async function putPage(
       current.map((row) => [String(row.id), toIso(row.updated_at)]),
     )
 
-    // Every stale refusal happens before the first write: a request is one
-    // unit, so a body that fails on any block applies none of itself.
+    // Every stale refusal happens before the first write: a body that fails on any block applies none.
     for (const block of blocks) {
       if (block.id === undefined) continue
       const known = stored.get(block.id)
@@ -419,13 +306,10 @@ export async function putPage(
       }
     }
 
-    /* Re-express the result after every insert, edit, delete and reorder has
-       landed. Running this before the writes leaves newly inserted legacy
-       blocks with a null key and preserves stale Section membership. */
+    /* After every write has landed; earlier would leave new blocks keyless and Section membership stale. */
     await reseedLegacyPage(tx, home)
 
-    // The name at act time (4.13), read from whichever table is the page's
-    // home.
+    // The name at act time (4.13), from whichever table is the page's home.
     const named = await rowsOf(
       tx,
       home.folderId !== null
@@ -449,9 +333,7 @@ export async function putPage(
   })
 }
 
-/** Old PUT clients still arrange page blocks. Re-express that legacy result
- * in the composed keyspace so shelf reorder and the pre-#184 folder API keep
- * their behavior during a rolling deployment. */
+/** Re-express a legacy PUT's order in the composed keyspace for old clients. */
 async function reseedLegacyPage(tx: Executor, home: PageHome): Promise<void> {
   if (home.folderId === null) {
     const rows = await rowsOf(
@@ -549,16 +431,12 @@ export type PageActionResult =
   | { kind: 'bad_anchor'; field: 'after' | 'before' }
   | { kind: 'section_not_here' }
   | { kind: 'file_not_here' }
-  /** #220: the file is here and it was uploaded as a different kind from the
-   * one this block declares. Distinct from `file_not_here` on purpose — that
-   * one must disclose nothing about a row the caller cannot reach, and this
-   * one is about a row they demonstrably can. */
+  /** The file is reachable but was uploaded as another kind. Unlike `file_not_here`, this may say so. */
   | { kind: 'file_kind_mismatch'; message: string }
   | { kind: 'not_convertible' }
   | { kind: 'forbidden'; reason: string }
 
-/** #184's narrow transactional boundary: one user gesture, one folder lock,
- * one durable mixed placement. */
+/** One user gesture, one folder lock, one durable mixed placement. */
 export async function actOnFolderPage(
   db: Db,
   viewerId: string,
@@ -572,8 +450,7 @@ export async function actOnFolderPage(
     if (!decision.allowed) {
       return { kind: 'forbidden', reason: decision.reason }
     }
-    // A transaction that creates, trashes or re-homes a sub-page takes the
-    // tree lock before the folder row (page-tree.ts's lock order).
+    // Creating, trashing or re-homing a sub-page takes the tree lock before the folder row.
     if (body.action === 'document_transaction' && touchesPageTree(body)) await lockPageTree(tx)
     await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${folderId}::uuid FOR UPDATE`)
     if (body.action === 'document_transaction') {
@@ -673,10 +550,7 @@ export async function actOnFolderPage(
                WHERE id = ${body.item.id}::uuid AND folder_id = ${folderId}::uuid`,
         )
         if (blocks.length === 0) return { kind: 'not_found' }
-        /* A Section is a semantic span, not one draggable row. #184's
-           production canvas does not offer heading drag; accepting it here
-           would move only the heading while leaving every member behind and
-           make the persisted order contradict collapse. */
+        /* A Section is a span, not one row: moving the heading alone would leave its members behind. */
         if (String(blocks[0]?.kind) === 'section') {
           return { kind: 'not_convertible' }
         }
@@ -771,17 +645,7 @@ export async function actOnFolderPage(
           )
           if (file.length === 0) return { kind: 'file_not_here' }
         }
-        /* 4.17's width, read off the shared constant rather than repeated as a
-           literal. This said `!== 'image'` until #220's adversarial review:
-           migration 0024 widened `page_blocks_width_pct_kind_check` to image
-           **and** video and `WIDTH_BLOCK_KINDS` says the same for the document
-           contract, so a width dragged onto a video through the incremental
-           path was refused by a server whose database, whose shared constant
-           and whose `document_transaction` all admitted it. It failed closed,
-           which made it a gap rather than a hazard, and it existed because the
-           rule was written down in three places and this was a fourth spelling
-           of it. */
-        // A `page` block is its sub-page's name and nothing else (wave 2).
+        // A `page` block is its sub-page's name and nothing else.
         if (String(block.kind) === 'page') return { kind: 'not_convertible' }
         if (
           body.width_pct != null &&
@@ -797,7 +661,7 @@ export async function actOnFolderPage(
         const sets: ReturnType<typeof sql>[] = []
         if (body.text !== undefined) sets.push(sql`text = ${body.text}`)
         if (body.file_id !== undefined) sets.push(sql`file_id = ${body.file_id}`)
-        // Issue #267: a block given a file again has nothing missing to report.
+        // A block given a file again has nothing missing to report.
         if (body.file_id != null) sets.push(sql`file_reclaimed_at = NULL`)
         if (body.width_pct !== undefined) sets.push(sql`width_pct = ${body.width_pct}`)
         sets.push(sql`updated_at = now()`)
@@ -827,21 +691,14 @@ export async function actOnFolderPage(
   }).catch((error: unknown) => {
     if (error instanceof DocumentRefusal) {
       if (error.kind === 'stale') return {kind:'stale' as const,blockId:folderId}
-      // #220's mismatch carries its own sentence, which names the block kind
-      // and the kind the file was actually uploaded as; a generic 422 here
-      // would leave the caller guessing which of the two to change.
+      // The mismatch carries its own sentence naming both kinds.
       if (error.kind === 'file_kind_mismatch') return {kind:'file_kind_mismatch' as const,message:error.message}
       return {kind:error.kind} as const
     }
     throw error
   })
 }
-/**
- * #221: a Shelf's `document_transaction`. The Shelf is resolved and locked in
- * the transaction that writes, so the owner check and the write read one
- * snapshot. Refusals leave as `ShelfDocumentRefusal`; a Shelf that is not the
- * viewer's is `not_found`, never 403 (4.18, 10.2).
- */
+/** A Shelf's `document_transaction`, resolved and locked in the writing transaction. Not the viewer's: not_found. */
 export async function actOnShelfPage(
   db: Db,
   viewerId: string,
@@ -873,8 +730,7 @@ export async function actOnShelfPage(
   })
 }
 
-/** The read again, on the transaction's own snapshot, so the response can
- * never describe blocks the write did not leave. */
+/** Read again on the transaction's snapshot, so the response matches what the write left. */
 async function pageViewIn(
   tx: Executor,
   viewerId: string,
@@ -893,8 +749,7 @@ async function pageViewIn(
         ORDER BY b.page_position ASC NULLS LAST, b.position ASC, b.id ASC`,
   )
   return {
-    /* #221: a Shelf reads its own revision now, where it used to read the
-       empty document's constant. Old clients never read it on a Shelf. */
+    /* A Shelf reads its own revision. */
     ...(home.folderId === null && home.shelfId !== null
       ? await shelfDocumentMetadata(tx, home.shelfId)
       : await documentMetadata(tx, home.folderId)),

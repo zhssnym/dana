@@ -1,44 +1,6 @@
-/*
-The 8.10 account deletion transaction, steps 1 to 6c.
-
-This file and its caller sit either side of a deliberate seam: the auth
-module owns the DELETE /me route and session destruction, and this file owns
-the transaction it calls. So the function below
-takes an executor rather than a handle and opens nothing: 8.10's first words
-are "One transaction", and steps 7 and 8, the identity scrub and the session
-revocation, live in the auth module and must commit with these six or not at
-all. A route that scrubbed a user whose sessions still authenticated, or
-transferred folders that a failed scrub then left owned by a live account,
-would be exactly the split this shape prevents.
-
-The order is 8.10's own, and it is the whole design rather than a preference.
-folders.owner_id is RESTRICT (4.3), so every folder the account owns must be
-handed on or deleted before the row is touched; the transfer runs before the
-deletion so a folder with other members survives, and the deletion runs
-before the membership sweep so a folder's own rows are gone before anything
-counts what is left of it.
-
-Nothing here is new machinery. Step 2 is 8.9's transfer with its second
-caller, step 3 is 8.8's cascade, step 4 is 5.3's R-CLEAN, each imported from
-the module that already owns it, so an implementation cannot drift from the
-one those sections state.
-
-**Step 6c exists because no ON DELETE clause on users(id) fires here, and that
-is the one thing to know before adding a table to this schema (issue #253,
-2026-09-20).** Step 7 scrubs the users row rather than deleting it, and in
-issue #230's words, which are better than #253's: *a row that is never deleted
-fires no `ON DELETE` clause — not `CASCADE`, not `SET NULL`, not `RESTRICT` —
-so a table that keyed its cleanup to `users` is not cleaned up at all, and
-nothing anywhere reports it.* Fourteen cascade keys are in that position and
-`sessions_user_id_fkey` is a fifteenth outside section 4, and before 6c nine
-of the fifteen left a departed account's rows standing indefinitely.
-`USER_CASCADE_DISPOSALS` below is the enumeration, one entry per foreign key
-with what happens to it and why, and
-`tests/guards/guard-account-deletion-sweep.test.ts` fails when the schema
-grows a sixteenth that nothing here names — over `SET NULL` as well as
-`CASCADE`, there being none of the former today and that being the reason to
-enumerate it rather than to wait for one.
-*/
+// 8.10 account deletion, steps 1 to 6c, inside the caller's transaction (the auth module runs steps 7 and 8).
+// Step 7 scrubs the users row instead of deleting it, so no ON DELETE clause on users(id) ever fires:
+// every table keyed to users needs an entry below and, if swept, a statement in step 6c.
 import { notSamplePerson } from '../sample/people.js'
 import { sql } from 'drizzle-orm'
 
@@ -47,70 +9,29 @@ import { rowsOf } from '../database.js'
 import { blocksNamingFiles, markBlocksReclaimed } from './files.js'
 import type { Executor } from '../database.js'
 
-/**
- * What becomes of one foreign key that points at `users(id)` with
- * `ON DELETE CASCADE` when the account it names is deleted under 8.10.
- *
- * `deleted` means a statement in the deletion transaction removes the rows,
- * and `where` names it. `retained` means the rows deliberately outlive the
- * account, and `why` is the argument for that rather than a note that nobody
- * got to it. **There is no third value meaning "the cascade handles it"**,
- * which is the false premise issue #253 exists to remove from this file.
- */
+/** What account deletion does about one CASCADE foreign key to users(id): `deleted` (by `where`) or `retained` (`why`). */
 export interface UserCascadeDisposal {
   /** The constraint name, as `db/constraint-catalog.ts` spells it. */
   fk: string
   table: string
   disposition: 'deleted' | 'retained'
-  /** Which statement removes the rows, or empty when they are retained. */
   where: string
   why: string
 }
 
 /**
- * Every `ON DELETE CASCADE` foreign key referencing `users(id)`, and what
- * account deletion does about each. The guard asserts this list against the
- * schema in both directions, so a table added with such a key and no entry
- * here goes red, and an entry naming a key the schema no longer has goes red
- * too.
- */
-/**
- * What becomes of one foreign key that points at `users(id)` with
- * `ON DELETE RESTRICT` or `NO ACTION`.
- *
- * The list above is where to read first: that one enumerates the clauses that
- * promise to change a row and cannot, because 8.10 step 7 scrubs the `users`
- * row rather than deleting it. **These promise to *refuse* a delete that never
- * comes**, which is why the guard left them alone -- a clause that refuses
- * nothing leaves nothing in a wrong state.
- *
- * That reasoning is right for seventeen of the eighteen and was wrong for one.
- * `folder_facets.owner_id` names a **private facet**: writing that no other
- * member may read, in a folder the account is leaving. Nothing was ever going
- * to clear it, and nobody would ever have been able to read it or remove it
- * again. So the enumeration is widened rather than the clause changed: every
- * key here says whether its rows are **swept** by a statement this codebase
- * runs, or **outlive** the account deliberately, and the guard asserts the
- * list against the live schema in both directions. A nineteenth key is then a
- * decision somebody has to write down rather than a silence.
- *
- * `outlives` is the ordinary answer and is not an apology. 4.13 makes an act
- * survive its actor on purpose, which is the whole reason step 7 scrubs
- * instead of deleting, and provenance that vanished would rewrite the record
- * of work other people did.
+ * What becomes of one RESTRICT or NO ACTION foreign key to users(id): swept by a statement, or outlives the account.
+ * Outliving is normal: 4.13 keeps acts after their actor.
  */
 export interface UserRestrictDisposal {
   /** The constraint name, as `db/constraint-catalog.ts` spells it. */
   fk: string
   table: string
   disposition: 'swept' | 'outlives'
-  /** Which statement removes the rows, or empty when they outlive. */
   where: string
   why: string
 }
 
-/** Every `ON DELETE RESTRICT` or `NO ACTION` foreign key referencing
- * `users(id)`, and what becomes of its rows when the account goes. */
 export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
   {
     fk: 'folder_facets_owner_id_fkey',
@@ -282,6 +203,7 @@ export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
   },
 ]
 
+/** Every CASCADE foreign key to users(id). The guard test checks this list against the schema both ways. */
 export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
   {
     fk: 'folders_archived_by_fkey',
@@ -419,23 +341,14 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
 ]
 
 /**
- * Steps 1 to 6c of 8.10 for one account, inside the caller's transaction.
- *
- * The caller supplies the transaction and runs steps 7 and 8 after this
- * returns. Nothing here reads or writes the sessions table, and nothing here
- * scrubs the user row: after this function the account still exists, owns no
- * folder, holds no membership, appears on no roster, offers no pending
- * invite, and holds no row in any of step 6c's eleven personal tables.
+ * Steps 1 to 6c of 8.10, inside the caller's transaction. Afterwards the account still exists but owns no folder,
+ * holds no membership, connection or pending invite, and has no rows in step 6c's tables.
  */
 export async function deleteAccountData(
   tx: Executor,
   userId: string,
 ): Promise<AccountDeletionCounts> {
-  // 1. The invites the account had offered. Invalidated is 5.2's terminal
-  // state for exactly this transition, and responded_at is set because 4.9
-  // gives it to any terminal transition. The sweep is by inviter and pending
-  // status and nothing wider: an invite merely addressed to this account's
-  // email belongs to somebody else's decision and keeps waiting.
+  // 1. Invalidate the invites the account offered. Invites addressed to it are someone else's and keep waiting.
   const pendingInvites = await rowsOf(
     tx,
     sql`SELECT count(*)::int AS n FROM invites
@@ -446,13 +359,8 @@ export async function deleteAccountData(
         WHERE inviter_id = ${userId} AND status = 'pending'`,
   )
 
-  // 2. Owned folders that other people are in survive, under 8.9's rule:
-  // the remaining member with the earliest join, ties to the lower user id.
-  // The default folder is excluded by INV-2, which never lets one transfer,
-  // and by INV-3, which never lets one hold a second member.
-  //
-  // Step 8: ownership and people are the project's. Each shared project
-  // goes to its heir, and `transferOwnership` moves every page of it.
+  // 2. Shared projects go to the member who joined earliest, ties to the lower user id (8.9).
+  // The default folder never transfers (INV-2, INV-3).
   const transferable = await rowsOf(
     tx,
     sql`SELECT id FROM folders f
@@ -466,17 +374,8 @@ export async function deleteAccountData(
     await transferOwnership(tx, String(row.id), userId)
   }
 
-  // 3. Everything still owned after the transfers: the default folder, which
-  // 8.10 names outright, and every custom folder nobody else was in. The
-  // cascade of 8.8 takes their tasks in all three statuses and, through the
-  // tasks, steps, My Day entries and reminders; pending invites carrying the
-  // folder go with it by the FK cascade of 5.2's folder-deleted row, which is
-  // removal rather than the invalidation step 1 gave the survivors.
-  //
-  // Step 6a's collection half runs first, because these deletes cascade the
-  // files rows of every doomed folder, whoever uploaded them, and those rows
-  // are the only index to the bytes in the store: read after the delete
-  // there is nothing left that knows the objects exist.
+  // 3. Delete everything still owned. Collect the files rows first: the cascade drops them,
+  // and they are the only index to the bytes in the store.
   const cascadeFiles = await rowsOf(
     tx,
     sql`SELECT f.id FROM files f
@@ -491,11 +390,7 @@ export async function deleteAccountData(
     await deleteFolderRow(tx, String(row.id))
   }
 
-  // 4. What remains are memberships in other people's folders, each left as
-  // a clean leave would leave it: the account's assigned tasks in the folder
-  // unassigned, its My Day entries for that folder's tasks deleted, the
-  // membership row gone, and a folder that drops to exactly one member swept
-  // so every task in it belongs to that member (INV-5).
+  // 4. Leave every other folder as a clean leave would (R-CLEAN, INV-5).
   const memberships = await rowsOf(
     tx,
     sql`SELECT folder_id FROM folder_members WHERE user_id = ${userId}`,
@@ -504,11 +399,7 @@ export async function deleteAccountData(
     await runRClean(tx, String(row.folder_id), userId)
   }
 
-  // 5. Both rosters, in one statement: 4.2 stores the pair once in canonical
-  // order, so deleting every row containing this account clears the entry
-  // from the other side too. The rows are deleted rather than left for 7.3's
-  // soft-deleted exclusion to hide, which is what 4.2 records the deletion
-  // transaction doing explicitly.
+  // 5. Both rosters in one statement: each pair is stored once.
   const connections = await rowsOf(
     tx,
     sql`SELECT count(*)::int AS n FROM connections
@@ -519,10 +410,7 @@ export async function deleteAccountData(
          WHERE user_a_id = ${userId} OR user_b_id = ${userId}`,
   )
 
-  // 6. The remainder sweep. Steps 3 and 4 already took the entries their
-  // folders and memberships accounted for; this takes any that outlived
-  // both, so the end state is zero rows for the account whichever step
-  // reached each one.
+  // 6. Remove any My Day entries that outlived steps 3 and 4.
   const myDayEntries = await rowsOf(
     tx,
     sql`SELECT count(*)::int AS n FROM my_day_entries WHERE user_id = ${userId}`,
@@ -531,17 +419,8 @@ export async function deleteAccountData(
     sql`DELETE FROM my_day_entries WHERE user_id = ${userId}`,
   )
 
-  // 6a. Every files row still owned by the account, wherever it sits: the
-  // folderless avatar, whose id was published on every roster the person
-  // ever appeared in, and their uploads in folders that survive them. A
-  // transferred folder keeps its other members' files; what leaves with the
-  // person is what they put in (8.10 step 6a). The rows delete inside the transaction; the objects belong to the
-  // caller, who removes every collected id from the store only after the
-  // commit, the order 7.15's delete uses, so a rollback cannot have already
-  // destroyed bytes whose rows survived.
-  // Issue #267: a page block in a surviving folder that wore one of these
-  // files keeps its row and loses its reference (ON DELETE SET NULL); read
-  // them first so it reads as reclaimed rather than as a never-filled block.
+  // 6a. Delete every files row the account still owns; the caller removes the objects after commit.
+  // Read the blocks wearing these files first, so they show as reclaimed after ON DELETE SET NULL.
   const wearers = await blocksNamingFiles(
     tx,
     sql`SELECT id FROM files WHERE owner_id = ${userId}`,
@@ -555,26 +434,8 @@ export async function deleteAccountData(
   for (const row of cascadeFiles) fileIds.add(String(row.id))
   for (const row of ownedFiles) fileIds.add(String(row.id))
 
-  /*
-  6c. The personal-rows sweep (issue #253, 2026-09-20).
-
-  Ten tables whose only tie to this account is a column declared
-  `REFERENCES users(id) ON DELETE CASCADE`. Reading the schema, none of them
-  belongs in this function — the cascade says the rows leave with the user.
-  **It never fires.** Step 7 scrubs the users row rather than deleting it, so
-  there is no DELETE for any of those cascades to hang off, and until this
-  step every one of these rows outlived the account that made it. The
-  argument for each table is its entry in `USER_CASCADE_DISPOSALS` above, and
-  the guard holds this list and that one equal to the schema.
-
-  Written as one statement per table rather than a loop over names: the
-  guard reads this source for `DELETE FROM <table>`, and a table swept by an
-  interpolated identifier would be invisible to it and to grep alike. The
-  order is alphabetical and carries no meaning, none of the eleven referencing
-  another; `shelves` cascades its page blocks and `labels` its assignment
-  rows in task_personal_labels and folder_personal_labels, both of which are
-  cascades off a real DELETE and do fire.
-  */
+  // 6c. Tables whose only tie to the account is a users(id) CASCADE that never fires (step 7 scrubs instead).
+  // One literal statement per table: the guard test reads this source for `DELETE FROM <table> WHERE`.
   const swept = [
     await rowsOf(
       tx,
@@ -647,14 +508,9 @@ export interface AccountDeletionCounts {
   memberships: number
   connections: number
   myDayEntries: number
-  /** Files rows step 3's cascades dropped plus the rows step 6a deleted. */
   files: number
-  /** Step 6c's total across its eleven tables: the rows fourteen inert
-   * cascades promised to take and did not (issue #253). One number rather
-   * than ten, because the deletion log's question is whether the sweep ran
-   * and reached something, not which table held what. */
+  /** Step 6c's total across its tables. */
   personalRows: number
-  /** The collected object ids: the caller removes each from the store after
-   * the transaction commits (8.10 step 6a). */
+  /** The caller removes each from the store after the transaction commits. */
   fileIds: string[]
 }

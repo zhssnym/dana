@@ -1,40 +1,6 @@
-/*
-The sample workspace (7.20): written into a
-brand-new account inside 7.1's provisioning transaction, so the first page a
-person sees is already full, and taken out again in one act.
-
-**Every object the sample makes is registered in sample_objects by its own
-id**, and that register is the whole of the removal's knowledge. It is a
-register rather than a column on the owning rows because the rows are
-section 4's, and because a task the person completes, moves, renames
-or trashes keeps its id, so the register still finds it however it has been
-handled since. What it deliberately does not carry are the objects that ride
-another's fate: steps, page blocks, comments, reminders, Today pulls and
-events all cascade with their task or folder by 4's own named constraints,
-so recording them would be recording the cascade twice.
-
-**Two rules.**
-
-A task moved out of the sample is the person's. Removal takes a registered
-task whose folder is still a sample folder or Desk (the sample put four
-there itself); a task the person has moved into a folder they made
-themselves has been adopted, and it stays, its register row dropped. The
-same for a folder the person has shared: a sample folder with another
-member is left where it is, reported back so the strip can say so, and its
-register row dropped, because the moment it had a second member it stopped
-being a sample and became a thing two people hold. A sample page the person
-wrote into (a task, a block, a comment or a thread of theirs) is not
-destroyed but moved to Trash, whole from the top of its sample tree, and
-named back: removal is not a delete that reaches their own work, and with
-nothing of the old sample left in view the undo's fresh copy duplicates
-nothing.
-
-Removal goes through `domain/trash.ts`'s `destroyFolders` and `destroyTasks`,
-the one collection the purge and the permanent delete already share, so a
-file the person attached to a sample conversation is collected and its bytes
-removed after the commit exactly as 7.15 orders it. Nothing here writes a
-DELETE against a task or folder table of its own.
-*/
+// The sample workspace (7.20): written inside account provisioning, removed in one act.
+// Every object it makes is registered in sample_objects; cascading children are not.
+// Removal keeps what became the person's: moved tasks and shared pages stay; pages they wrote into go to Trash.
 import { randomUUID } from 'node:crypto'
 
 import { sql } from 'drizzle-orm'
@@ -77,10 +43,6 @@ import type {
   SampleThread,
 } from './content.js'
 
-/* ------------------------------------------------------------------ *
- * Dates, relative to today in the person's zone
- * ------------------------------------------------------------------ */
-
 const WEEKDAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'] as const
 
 function parseDay(date: string): Date {
@@ -98,8 +60,7 @@ function shiftDays(date: string, days: number): string {
   return formatDay(d)
 }
 
-/** Resolves a content date against today: a count of days, the next given
- * weekday (today counts), or the next given day of the month (today counts). */
+/** A count of days, the next given weekday, or the next given day of the month (today counts for both). */
 export function resolveDue(anchor: string, due: SampleDue): string {
   if (typeof due === 'number') return shiftDays(anchor, due)
   const base = parseDay(anchor)
@@ -116,19 +77,10 @@ export function resolveDue(anchor: string, due: SampleDue): string {
   return formatDay(base)
 }
 
-/* ------------------------------------------------------------------ *
- * Creation
- * ------------------------------------------------------------------ */
-
 type SampleKind = 'shelf' | 'folder' | 'task' | 'view'
 
-/*
-The sample's own clock. The whole sample is one transaction, where `now()` is
-one instant, so every row would share a `created_at` and every list that
-orders by `created_at, id` would fall through to a random uuid. Each row takes
-its own millisecond instead, in the order `content.ts` lists it, all within
-the minute before now so nothing is created in the future.
-*/
+// The sample's own clock: one transaction has one now(), so each row takes its own millisecond
+// in content order, inside the minute before now, to keep created_at ordering stable.
 type SampleClock = () => SQL
 function sampleClock(): SampleClock {
   let tick = 0
@@ -138,7 +90,6 @@ function sampleClock(): SampleClock {
   }
 }
 
-/** A moment `days` (and `hours`) before now, for posts and completions. */
 function ago(days: number, hours = 0): SQL {
   const minutes = Math.round(days * 24 * 60 + hours * 60)
   return sql`now() - make_interval(mins => ${minutes}::int)`
@@ -156,12 +107,10 @@ async function register(
   )
 }
 
-/** The sample people's ids, which removal does not count as someone else
- * holding a page. */
+/** Removal does not count these as someone else holding a page. */
 export const SAMPLE_PERSON_IDS: readonly string[] = SAMPLE_PEOPLE.map((person) => person.id)
 
-/* The three sample people: users rows with no google_sub and no email, which
-   is to say no way to sign in. Shared by every sample; written once. */
+/* Users with no google_sub and no email, so nobody can sign in. Shared by every sample. */
 async function ensureSamplePeople(tx: Executor): Promise<void> {
   for (const person of SAMPLE_PEOPLE) {
     await tx.execute(
@@ -172,7 +121,6 @@ async function ensureSamplePeople(tx: Executor): Promise<void> {
   }
 }
 
-/** Everything the writer resolves by name while it writes. */
 interface SampleContext {
   readonly tx: Executor
   readonly clock: SampleClock
@@ -201,8 +149,7 @@ interface Run {
   mention?: { user_id: string }
 }
 
-/** A content text as its plain projection and its rich runs (null when it
- * is plain text with nothing on it). */
+/** Plain projection plus rich runs (null when plain). */
 function richText(
   ctx: SampleContext,
   value: SampleText | undefined,
@@ -242,8 +189,6 @@ async function writeTask(ctx: SampleContext, folderId: string, task: SampleTask)
   const assignee = task.assignee === undefined ? userId : personId(ctx, task.assignee)
   const seriesId = task.repeat === undefined ? null : randomUUID()
 
-  /* A repeating task's earlier occurrences, each completed on its day: the
-     completion history a month of use leaves behind. */
   for (const daysAgo of task.history ?? []) {
     const made = await rowsOf(
       tx,
@@ -278,7 +223,6 @@ async function writeTask(ctx: SampleContext, folderId: string, task: SampleTask)
   await register(tx, userId, 'task', taskId)
   ctx.tasks.set(task.title, taskId)
 
-  // A sample task's steps are its checklist, after its notes (0060).
   await appendChecklist(tx, taskId, task.steps ?? [])
   if (task.today === true && status === 'pending') {
     await tx.execute(
@@ -299,8 +243,6 @@ async function writeTask(ctx: SampleContext, folderId: string, task: SampleTask)
   return taskId
 }
 
-/** A post's stored shape: its plain body and, when it carries runs, the
- * one-paragraph post content. */
 function postColumns(ctx: SampleContext, value: SampleText): { body: string; content: string | null } {
   const { text, rich } = richText(ctx, value)
   const content =
@@ -310,8 +252,7 @@ function postColumns(ctx: SampleContext, value: SampleText): { body: string; con
   return { body: text, content }
 }
 
-/** Writes one post, its likes (thumbs_up reactions, by the column's
- * default) and its replies into a Discussion. */
+/** Likes are thumbs_up reactions, by the column's default. */
 async function writePost(
   ctx: SampleContext,
   folderId: string,
@@ -343,13 +284,11 @@ async function writePost(
   }
 }
 
-/** Hours before now, the one clock posts are compared on. */
 function hoursAgo(post: { daysAgo: number; hoursAgo?: number }): number {
   return post.daysAgo * 24 + (post.hoursAgo ?? 0)
 }
 
-/** A Discussion and its posts; `taskId` links it to the task it is about
- * (M5: a sample task's conversation is its Discussion, as a real one is). */
+/** A Discussion and its posts; `taskId` links it to its task. */
 async function writeThread(
   ctx: SampleContext,
   folderId: string,
@@ -368,8 +307,7 @@ async function writeThread(
         RETURNING id`,
   )
   const discussionId = String(made[0]?.id)
-  /* Issue #497: the link is a discussion_tasks edge; a sample task's thread
-     is the one Discuss would have made, so it carries that provenance. */
+  /* The link is a discussion_tasks edge with the provenance Discuss would give it. */
   if (taskId !== null) {
     await tx.execute(
       sql`INSERT INTO discussion_tasks (discussion_id, task_id, created_via_task, created_at)
@@ -396,8 +334,6 @@ async function writeThread(
   }
 }
 
-/** A Doc page's document (Purpose, Results or a custom tab): flat blocks, in
- * order. */
 async function writeDocDocument(
   ctx: SampleContext,
   pageId: string,
@@ -405,7 +341,7 @@ async function writeDocDocument(
 ): Promise<void> {
   const keys = initialKeys(blocks.length)
   for (const [index, block] of blocks.entries()) {
-    // The Doc kind rule, since this insert does not go through the applier.
+    // This insert bypasses the applier, so check the Doc kind rule here.
     if (!allowedIn(block.kind, 'doc')) throw new Error(`The sample puts a ${block.kind} block on a Doc page.`)
     const { text, rich } = richText(ctx, block.text)
     await ctx.tx.execute(
@@ -425,8 +361,7 @@ type OutlineItem = {
   list_parent_block_id: string | null
 }
 
-/** The Work document, through the page's own applier, so the sample is held
- * to every rule a person's edit is: nesting, sections, rich text. */
+/** Through the page's own applier, so the sample obeys every rule a person's edit does. */
 async function writeMainDocument(
   ctx: SampleContext,
   folder: SampleFolder,
@@ -477,8 +412,7 @@ async function writeMainDocument(
     if ('task' in item) {
       const id = ownTasks.get(item.task)
       if (id === undefined || id === '') continue
-      /* A repeating task's history stands just above its live occurrence,
-         oldest first: done work reads as progress above what is next. */
+      /* A repeating task's history goes just above its live occurrence, oldest first. */
       if ((folder.tasks ?? []).some((task) => task.title === item.task && (task.history ?? []).length > 0)) {
         const earlier = await rowsOf(
           tx,
@@ -503,7 +437,6 @@ async function writeMainDocument(
       putBlock(item, null)
     }
   }
-  // Whatever the document did not name goes last.
   for (const item of await positionedItems(tx, folderId)) {
     if (placed.has(item.id)) continue
     outline.push({ kind: item.kind, id: item.id, section_block_id: section, list_parent_block_id: null })
@@ -528,10 +461,8 @@ async function writeFolderRow(
 ): Promise<string> {
   const { tx, clock, userId } = ctx
   const childPosition = parentId === null ? null : await lastChildPosition(tx, parentId)
-  /* Step 7: a top-level sample page is a Work project whose tab sits at
-     `a1`, leaving `a0` for its Purpose tab; a sub-page joins the parent's
-     project, a Doc when it has no tasks, as migration 0061 decides from
-     what a sub-page held before its tabs became child pages. */
+  /* A top-level page is a Work project with its tab at `a1`, leaving `a0` for Purpose.
+  A sub-page joins the parent's project, as a Doc when it has no tasks. */
   const newId = randomUUID()
   const kind = parentId === null ? 'work' : (folder.tasks ?? []).length === 0 ? 'doc' : 'work'
   const project = parentId === null
@@ -551,10 +482,8 @@ async function writeFolderRow(
   )
   const folderId = String(inserted[0]?.id)
   await register(tx, userId, 'folder', folderId)
-  /* The sample workspace is the new account's own: owner plus Full control,
-     with the baseline transition beside it (issue #228). The sample people
-     are ordinary members who can edit. Step 8: people belong to the
-     project, so only a project root gets rows. */
+  /* The owner gets Full control plus the baseline transition; sample people are members who can edit.
+  People belong to the project, so only a project root gets rows. */
   if (parentId === null) {
     await tx.execute(
       sql`INSERT INTO folder_members (folder_id, user_id, access)
@@ -588,12 +517,7 @@ async function writeFolderRow(
   return folderId
 }
 
-/**
- * One more page of a sample project: a tab of the root (`tabPosition`) or a
- * child Doc page of a sub-page (`parentId`, with its home block, as
- * migration 0061 gives one on a Doc or Work sub-page). It has
- * its project's people, as every page does (step 8).
- */
+/** One more page of a sample project: a tab of the root, or a child Doc page of a sub-page. */
 async function writeSamplePage(
   ctx: SampleContext,
   source: string,
@@ -616,8 +540,6 @@ async function writeSamplePage(
   return id
 }
 
-/** Purpose, Results and a custom tab: Doc tabs of a project (Purpose before
- * Work, the others after), or child Doc pages of a sub-page. */
 async function writeDocPages(ctx: SampleContext, folder: SampleFolder, folderId: string): Promise<void> {
   const isRoot = folder.parent === undefined
   const place = (tabPosition: string) =>
@@ -636,12 +558,7 @@ async function writeDocPages(ctx: SampleContext, folder: SampleFolder, folderId:
   }
 }
 
-/**
- * Writes the whole sample for one account on the caller's executor. The
- * caller owns the transaction: provisioning runs it inside 7.1's own, so a
- * fault anywhere takes the account down with it rather than leaving half a
- * workspace, and POST /sample runs it inside one of its own.
- */
+/** Writes the whole sample on the caller's transaction, so a fault takes the new account down with it. */
 export async function createSampleWorkspace(
   tx: Executor,
   userId: string,
@@ -661,8 +578,6 @@ export async function createSampleWorkspace(
 
   // The page tree first, parents before children, so every name resolves.
   const people = new Map<string, readonly SamplePersonKey[]>()
-  /* A project's own sub-pages sit in its Pages tab, right after Work, as
-     "Add a page inside" and migration 0061 place them. */
   const pagesTabs = new Map<string, string>()
   const pagesTabOf = async (rootId: string): Promise<string> => {
     const known = pagesTabs.get(rootId)
@@ -701,8 +616,7 @@ export async function createSampleWorkspace(
   for (const folder of SAMPLE_WORKSPACE.folders) {
     for (const task of folder.tasks ?? []) {
       for (const blocker of task.waitsOn ?? []) {
-        /* By title: a title that names no sample task says so here, rather
-           than failing every sign-up on a ''::uuid cast. */
+        /* Fail clearly on a title that names no sample task, not on a ''::uuid cast. */
         const dependent = ctx.tasks.get(task.title)
         const blocking = ctx.tasks.get(blocker)
         if (dependent === undefined || blocking === undefined) {
@@ -716,7 +630,6 @@ export async function createSampleWorkspace(
     }
   }
 
-  // Then the writing and the conversations.
   for (const folder of SAMPLE_WORKSPACE.folders) {
     const folderId = ctx.folders.get(folder.name) ?? ''
     await writeMainDocument(ctx, folder, folderId)
@@ -734,7 +647,7 @@ export async function createSampleWorkspace(
     }
     for (const thread of folder.threads ?? []) await writeThread(ctx, folderId, thread)
   }
-  // Step 7: a project with threads anywhere has its Discussion tab, last.
+  // A project with threads anywhere gets its Discussion tab, last.
   for (const folder of SAMPLE_WORKSPACE.folders) {
     if (folder.parent !== undefined) continue
     const rootId = ctx.folders.get(folder.name) ?? ''
@@ -768,12 +681,7 @@ export async function createSampleWorkspace(
   return countLive(tx, userId)
 }
 
-/* ------------------------------------------------------------------ *
- * Reading
- * ------------------------------------------------------------------ */
-
-/** The registered objects that still exist, by kind. A register row whose
- * object the person destroyed themselves counts for nothing. */
+/** The registered objects that still exist, by kind. */
 async function countLive(db: Executor, userId: string): Promise<SampleCounts> {
   const rows = await rowsOf(
     db,
@@ -802,17 +710,10 @@ export async function sampleStatus(db: Executor, userId: string): Promise<Sample
   return { present, counts }
 }
 
-/* ------------------------------------------------------------------ *
- * Removal
- * ------------------------------------------------------------------ */
-
 export interface SampleRemoval {
-  /** The files rows the cascades dropped; the caller removes the bytes
-   * after its commit (7.15's order). */
+  /** The caller removes these files' bytes after its commit (7.15). */
   fileIds: string[]
-  /** Sample folders left standing because someone else is a member. */
   keptFolders: string[]
-  /** Sample pages the person wrote into, moved to Trash with their writing. */
   trashedFolders: string[]
 }
 
@@ -830,13 +731,8 @@ export async function removeSampleWorkspace(
   return inTransaction(db, async (tx) => {
     await tx.execute(sql`SELECT 1 FROM users WHERE id = ${userId}::uuid FOR UPDATE`)
 
-    // What the person wrote after the sample did: a task the sample did not
-    // write, a block written or edited since (the sample's own carry the
-    // register's moment, one transaction's now()), a comment or a thread of
-    // theirs posted since.
-    // A project's writing is in any of its pages: the root and its tabs (a
-    // Discussion tab's threads, a Doc tab's blocks). A sub-page is its own
-    // registered row and is judged on its own.
+    // What the person wrote after the sample did: a new task, a block written or edited since,
+    // or their own comment or thread. A project's writing is in any of its tabs; a sub-page is judged alone.
     const ownWriting = (folder: SQL, since: SQL): SQL => {
       const pages = sql`(SELECT pf.id FROM folders pf
                           WHERE pf.id = ${folder}
@@ -861,8 +757,7 @@ export async function removeSampleWorkspace(
 
     const folders = await rowsOf(
       tx,
-      /* A sub-page under a tab (a project's Pages tab) hangs from its
-         project for this walk: tabs are not registered. */
+      /* Tabs are not registered, so a sub-page under a tab hangs from its project for this walk. */
       sql`SELECT f.id, f.name,
                  (SELECT CASE WHEN pp.tab_position IS NOT NULL THEN pp.project_id ELSE pp.id END
                     FROM folders pp WHERE pp.id = f.parent_folder_id) AS parent_folder_id,
@@ -875,11 +770,8 @@ export async function removeSampleWorkspace(
           JOIN folders f ON f.id = s.id AND f.owner_id = ${userId}::uuid
           WHERE s.user_id = ${userId}::uuid AND s.kind = 'folder'`,
     )
-    // A sample page someone else holds stays where it is. A sample page the
-    // person wrote into goes to Trash, whole, from the top of its sample
-    // tree, so their writing comes back in its place on a restore, nothing
-    // of the sample stays in view, and the undo's fresh sample has no
-    // survivor beside it to duplicate.
+    // A page someone else holds stays. A page the person wrote into goes to Trash whole,
+    // from the top of its sample tree, so a fresh sample on undo duplicates nothing.
     const byId = new Map(folders.map((row) => [String(row.id), row]))
     const shared = (id: string): boolean => Number(byId.get(id)?.others ?? 0) > 0
     const rootOf = (id: string): string => {
@@ -899,7 +791,6 @@ export async function removeSampleWorkspace(
           .map((row) => rootOf(String(row.id))),
       ),
     ]
-    // A page the person already put in Trash with their writing in it stays there.
     const inTrashedTree = (id: string): boolean =>
       trashRoots.includes(rootOf(id)) ||
       (byId.get(id)?.trashed === true && byId.get(id)?.own_work === true)
@@ -912,7 +803,6 @@ export async function removeSampleWorkspace(
 
     if (trashRoots.length > 0) {
       await lockPageTree(tx)
-      // A shared page under one going to Trash stays live, at the top level.
       const detach = keptRows
         .filter((row) => row.parent_folder_id !== null && inTrashedTree(String(row.parent_folder_id)))
         .map((row) => String(row.id))
@@ -928,9 +818,7 @@ export async function removeSampleWorkspace(
       }
     }
 
-    // A doomed project's tabs go with it. They are not registered (only the
-    // root and sub-pages are), and a page left out of the doomed list is
-    // released into a project of its own rather than deleted.
+    // Tabs are not registered: list them, or they would be released into projects of their own.
     if (doomedFolders.length > 0) {
       const tabs = await rowsOf(
         tx,
@@ -946,8 +834,7 @@ export async function removeSampleWorkspace(
       }
     }
 
-    // The tasks still where the sample put them: in a doomed sample folder
-    // or on Desk. A task in any other folder has been adopted.
+    // Tasks still in a doomed sample folder or on Desk. A task anywhere else was adopted.
     const doomedTasks: SQL = sql`
       SELECT t.id FROM sample_objects s
       JOIN tasks t ON t.id = s.id
@@ -976,9 +863,7 @@ export async function removeSampleWorkspace(
       fileIds.push(...destroyed.fileIds)
     }
 
-    // Shelves (accounts provisioned before the sample became a page tree
-    // still have registered ones), and the memberships that spelled them on any folder the person
-    // put on one themselves (4.18 holds the two in step).
+    // Shelves from accounts provisioned before the sample became a page tree, and their memberships (4.18).
     const shelves = await rowsOf(
       tx,
       sql`DELETE FROM shelves
@@ -1012,8 +897,7 @@ export async function removeSampleWorkspace(
           RETURNING id`,
     )
 
-    // The settings bundle's references to what is gone: the sidebar's
-    // order, the pin list and the per-page arrangements are keyed by id.
+    // The settings bundle keys sidebar order, pins and page arrangements by id.
     const gone = [
       ...doomedFolders,
       ...shelves.map((row) => String(row.id)),
@@ -1036,8 +920,7 @@ export async function removeSampleWorkspace(
       )
     }
 
-    // The register is spent whatever it named: adopted tasks and kept
-    // folders are the person's from here.
+    // Adopted tasks and kept folders are the person's from here.
     await tx.execute(sql`DELETE FROM sample_objects WHERE user_id = ${userId}::uuid`)
 
     return { fileIds, keptFolders, trashedFolders }
@@ -1048,18 +931,7 @@ export type RestoreSampleResult =
   | { kind: 'restored'; status: SampleStatus }
   | { kind: 'shelf_name_taken' }
 
-/**
- * POST /sample: the workspace again for an account that no longer has one.
- * Idempotent while it is present, which is what lets the undo bar and a
- * double press both land on one workspace.
- *
- * The person's zone is read here rather than handed in, under the same lock
- * that serialises the restore, and the refusal below is classified here
- * rather than in the route (issue #38): `routes/sample.ts` held both, and it
- * was the only route file in the directory issuing SQL of its own or reading
- * a driver's error code. A route parses, calls, and maps a result to a
- * status; this is the result for it to map.
- */
+/** POST /sample: recreate the workspace. Idempotent while it is present, so undo and a double press land once. */
 export async function restoreSampleWorkspace(
   db: Db,
   userId: string,
@@ -1082,9 +954,7 @@ export async function restoreSampleWorkspace(
     })
     return { kind: 'restored', status }
   } catch (error) {
-    // 4.18's (user_id, name) unique: the person has a shelf of their own by
-    // one of the sample's names, and the sample will not rename theirs to
-    // make room for its own.
+    // The person already has a shelf named like one of the sample's (4.18 unique).
     const message = String((error as { message?: string })?.message ?? error)
     if (/23505|unique/i.test(message)) return { kind: 'shelf_name_taken' }
     throw error

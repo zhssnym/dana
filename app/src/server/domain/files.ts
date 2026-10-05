@@ -7,12 +7,7 @@ import { copyPageFile } from './files-core.js'
 
 export * from './files-core.js'
 
-/**
- * Issue #497: moving a Task moves only files owned by the Task document.
- * Discussion attachments belong to their Discussion, because a persisted
- * Discussion ↔ Task edge is a reference and no longer makes the Discussion
- * (or its comments/files) part of the Task's move lifecycle.
- */
+/** A Task move carries only the Task document's files; Discussion attachments stay with their Discussion. */
 export async function carryTaskFilesOnMove(
   tx: Executor,
   store: ObjectStore | undefined,
