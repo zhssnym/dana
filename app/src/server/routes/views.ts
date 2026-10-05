@@ -1,27 +1,7 @@
 /*
-The 7.10 surface: the six view pages, the calendar, the folder page, and
-search. Handlers validate with the shared schemas, delegate every read to
-src/server/views, and serialize; no predicate and no order lives here, since an order
-written in a handler is an order section 6 cannot be compared to.
-
-Mounted under /api/v1 by the boot file. The router carries
-its own session attachment and steps aside when another router's already ran,
-the folders router's arrangement, so it composes whichever order routers
-mount in behind the same 11.3 links. That block is `preamble.ts` since issue
-#36.
-
-GET /folders/:id/tasks lives here rather than in folders.ts: the path prefix
-is the folders router's, but the endpoint is 7.10's. Express matches on the whole path, so the two routers never see
-each other's requests whichever mounts first.
-
-Status grammar (5.4, 7.0, 10.2): no session 401; a folder that does not exist
-or that the viewer is not a member of 404, never 403, so existence never
-leaks; every validation failure 422 with the field named, which for this
-surface is tz on every endpoint, start and end on the calendar, q on search,
-and section and cursor where they are taken.
-
-Every endpoint is a GET, so there is no CSRF link on this router: 7.0 makes
-GETs safe and requires the token on mutations, and this package has none.
+The 7.10 read routes: view pages, calendar, folder tasks and search. No
+predicate or order lives here; reads are src/server/views'. A hidden folder is
+404, never 403. All GETs, so no CSRF.
 */
 import type { Request, Response, Router } from 'express'
 
@@ -73,12 +53,7 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
   const searchLimit = optionalLimit(options.rateLimits?.search)
   const securityLog = options.securityLog ?? createSecurityLogger()
 
-  /**
-   * The tz every view takes (7.0), and the whole of what six of the nine
-   * endpoints validate. An absent tz fails the same check an invalid one
-   * does, and the schema carries no default: UTC would hand most of the world the wrong
-   * day with nothing on the wire to say it had been substituted.
-   */
+  /** tz is required on every view (7.0); there is no UTC default. */
   const zoneOf = (req: Request, res: Response): string | null => {
     const parsed = viewQuery.safeParse(req.query)
     if (!parsed.success) {
@@ -87,10 +62,6 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
     }
     return parsed.data.tz
   }
-
-  /* ---------------------------------------------------------------- *
-   * The six pages
-   * ---------------------------------------------------------------- */
 
   router.get(
     '/views/my-day',
@@ -105,13 +76,7 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
     },
   )
 
-  /*
-  Four pages take nothing but tz and read no date at all: Q2, Q3, Q4 and Q5
-  are predicates over due_date's nullness, the star and the status, none of
-  which asks what day it is. tz is still required of them, because 7.0
-  requires it of every view endpoint and a client that omits it on one page
-  and not another is a client with a bug this refusal names.
-  */
+  /* These read no date, but 7.0 still requires tz on every view. */
   const page =
     (read: (db: Db, viewerId: string) => Promise<unknown>) =>
     async (req: Request, res: Response) => {
@@ -126,11 +91,8 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
   router.get('/views/important', requireSession, retiredRoute(securityLog, 'get_views_important'), page(importantView))
   router.get('/views/all', requireSession, page(allView))
 
-  /*
-  The Focus lists' one query (views/focus.ts). No path id, so no ac-397 row;
-  it scopes itself through accessibleTasks like every list here, and
-  guard-list-visibility drives it as a stranger.
-  */
+  /* No path id, so no ac-397 row; scoped by accessibleTasks and covered by
+     guard-list-visibility. */
   router.get('/views/focus', requireSession, async (req: Request, res: Response) => {
     const db = database(res)
     if (db === null) return
@@ -155,14 +117,7 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
         return
       }
       const { tz: _tz, start, end, folder_id: folderId } = parsed.data
-      /*
-      Q3C's two range rules, measured by src/server/time because they are
-      calendar arithmetic, and answered here because that module says
-      outright that naming the field and choosing the status are the
-      route's. Both are 422 naming the pair, which adds no status to the
-      surface: 7.0 already gives every endpoint 422 for a validation
-      failure with the field named.
-      */
+      /* Range rules come from src/server/time; the route names the fields. */
       const range = checkCalendarRange(start, end)
       if (!range.ok) {
         sendFieldValidationError(res, [
@@ -203,10 +158,6 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * The folder page
-   * ---------------------------------------------------------------- */
-
   router.get(
     '/folders/:id/tasks',
     requireSession,
@@ -218,17 +169,12 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
         sendValidationError(res, parsed.error)
         return
       }
-      /*
-      The request is judged before the folder is resolved, so a malformed
-      request answers the same 422 whoever sent it and a caller cannot read
-      a folder's existence off the order the two checks run in.
-      */
+      /* The query is validated before the folder is resolved, so the order of
+         checks reveals nothing about existence. */
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
       const viewerId = viewer(req)
       if ((await accessOf(db, viewerId, folderId)) === null) {
-        // Q7 is "member only, else 404", and 7.0 makes inaccessible read as
-        // 404 rather than 403 so nothing leaks that the folder exists.
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
@@ -242,10 +188,6 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
         )
     },
   )
-
-  /* ---------------------------------------------------------------- *
-   * Search
-   * ---------------------------------------------------------------- */
 
   router.get('/search', requireSession, searchLimit, async (req: Request, res: Response) => {
     const db = database(res)

@@ -1,9 +1,6 @@
 /*
-The 7.16 page contract: a folder's or shelf's page is one list of
-blocks, PUT whole and read whole. Concurrency is last-write-wins per block
-with 409 on stale evidence (4.17); there is no operational transform, so the
-wire shape is the storage shape plus the updated_at each write must carry
-back for the blocks it claims to be editing.
+The 7.16 page contract: a folder's or shelf's page is one list of blocks.
+Last write wins per block, with 409 on a stale `updated_at` (4.17).
 */
 import { z } from 'zod'
 
@@ -15,10 +12,8 @@ export type { ListBlockKind, PresentationHeadingKind, DocumentBlockKind, MediaBl
 import { taskTitle } from './tasks.js'
 
 /**
- * The pre-canvas whole-page writer's vocabulary (`PUT /pages`, `insert_block`),
- * unchanged by #219. A legacy client is not required to gain the structured
- * vocabulary and must not be able to write a kind whose extra state it knows
- * nothing about; the modern document transaction is the only way in.
+ * Kinds the legacy whole-page writer (`PUT /pages`, `insert_block`) may write.
+ * Other kinds are written only through `document_transaction`.
  */
 export const LEGACY_PAGE_BLOCK_KINDS = [
   'section',
@@ -28,12 +23,7 @@ export const LEGACY_PAGE_BLOCK_KINDS = [
 ] as const
 export type LegacyPageBlockKind = (typeof LEGACY_PAGE_BLOCK_KINDS)[number]
 
-/**
- * Every kind a stored block may carry, which is what a *read* answers and what
- * the browser validates a response against. It is wider than the write
- * vocabulary above on purpose: #219's six structured kinds are readable by
- * every client and writable only through `document_transaction`.
- */
+/** Every stored kind; reads accept all of them. */
 export const PAGE_BLOCK_KINDS = DOCUMENT_BLOCK_KINDS
 export type PageBlockKind = (typeof PAGE_BLOCK_KINDS)[number]
 
@@ -42,17 +32,14 @@ export const MAX_BLOCKS_PER_PAGE = 500
 
 const blockWrite = z
   .object({
-    /** Absent inserts; present edits the named block and must carry the
-     * updated_at it read (4.17's evidence). */
+    /** Absent inserts; an edit must carry the updated_at it read. */
     id: z.uuid().optional(),
     kind: z.enum(LEGACY_PAGE_BLOCK_KINDS),
     position: z.number().int().min(0),
     text: z.string().max(4000).nullable().optional(),
     file_id: z.uuid().nullable().optional(),
     ref_folder_id: z.uuid().nullable().optional(),
-    /** 4.17's width: the person's dragged width as a percentage of the
-     * column, clamped at a quarter and at full width. Absent and null both mean
-     * nobody has dragged it, which is a different fact from a stored 100. */
+    /** Dragged width, 25 to 100. Null means never dragged, unlike a stored 100. */
     width_pct: z.number().int().min(25).max(100).nullable().optional(),
     updated_at: z.iso.datetime().optional(),
   })
@@ -102,55 +89,31 @@ export interface PageBlock {
   page_position: string | null
   section_block_id: string | null
   /**
-   * #219's list nesting, and the second of two independent parents. This one is
-   * writing structure — the list item this list item sits under — where
-   * `section_block_id` above is Work grouping. A nested list item inside a
-   * Section carries both; either may be null while the other is not.
+   * The list item this one nests under: writing structure, independent of
+   * `section_block_id` (Work grouping).
    */
   list_parent_block_id: string | null
-  /** 0038: true on a presentation heading that folds its children (a toggle
-   * heading), null otherwise. Optional because older readers omit it. */
+  /** True on a heading that folds its children. Optional: older readers omit it. */
   toggleable?: boolean | null
-  /** A checklist item's tick, and null on every other kind. Authored content:
-   * it completes no Task, assigns nobody and moves no progress bar. */
+  /** Checklist tick; null on other kinds. Never completes a Task. */
   checked: boolean | null
   rich_content?: RichContent | null
   text: string | null
   file_id: string | null
   /*
-  The shape of the picture `file_id` names, or null (4.16 as migration 0009
-  left it, issue #27).
-
-  **These are read-only and they are the file's, not the block's**, which is
-  why they are absent from `blockWrite` above and why they carry the `file_`
-  prefix that `width_pct` does not. `width_pct` is a decision the person made
-  about this block, so a PUT carries it; the dimensions are a fact about the
-  bytes, so they arrive with the block and are never sent back. One image
-  placed on three pages is one shape reported three times rather than three
-  numbers free to disagree.
-
-  **Null means unknown and must draw exactly what today draws.** Every file
-  stored before migration 0009 has null here and no backfill has been run, so
-  a client that treats null as anything but "I do not know this picture's
-  shape" would break pages that work now. `components/page-image.tsx`'s 16 by
-  9 fallback is that behaviour and it stays; these fields let it be right
-  instead, for a reader who did not upload the picture.
+  The named file's dimensions: read-only facts about the file, never sent back.
+  Null means unknown (files before migration 0009); clients must keep their
+  16:9 fallback for it.
   */
   file_width: number | null
   file_height: number | null
   /**
-   * Issue #267: when the server deleted the file this media block named, as an
-   * ISO instant, or null. Non-null only on an image/file/audio/video block
-   * whose `file_id` is null — the file was chosen and is gone — which is what
-   * separates it from a freshly inserted block nobody has filled yet (null
-   * `file_id`, null here). Read-only, like the dimensions: never sent back.
-   * Optional so an older server's response still parses.
+   * When the server deleted this block's file, or null. Non-null only on a
+   * media block with a null `file_id`, which separates "was deleted" from "never
+   * filled". Read-only; optional for older servers.
    */
   file_reclaimed_at?: string | null
-  /** The name the file was uploaded under (`files.name`), or null. Read-only
-   * and the file's, like the dimensions: a generic File block shows it after a
-   * reload without copying it onto the block. Optional so an older server's
-   * response still parses. */
+  /** `files.name`, read-only. Optional for older servers. */
   file_name?: string | null
   ref_folder_id: string | null
   width_pct: number | null
@@ -162,7 +125,7 @@ export interface PageView {
   task_placements?: {id:string;section_block_id:string|null}[]
   mutation?: {mutation_id:string;committed_revision:string;replayed:boolean;created_task_ids:string[]}
   blocks: PageBlock[]
-  /** One persisted folder-page sequence. Shelf pages contain block refs only. */
+  /** The folder page's order; shelf pages hold block refs only. */
   items: PageItemRef[]
 }
 
@@ -250,11 +213,7 @@ export const pageActionBody = z.discriminatedUnion('action', [
 ])
 export type PageActionBody = z.infer<typeof pageActionBody>
 
-/*
-The read half, as in `shelves.ts`, `events.ts` and `comments.ts`: `PageBlock`
-and `PageView` are interfaces only, and `api/http.ts` parses every response
-through a zod schema. Written from `domain/pages.ts`'s `pageView`.
-*/
+/* The zod read half, written from domain/pages.ts's pageView. */
 export const pageBlock = z.object({
   rich_content: richContent.nullable().optional(),
   id: z.uuid(),

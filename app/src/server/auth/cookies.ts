@@ -1,19 +1,7 @@
 /*
-The three cookies of 11.6 and the flags they carry.
-
-Secure is set unconditionally on all three, never derived from the request's
-transport. TLS terminates ahead of the process (11.11), so the process always
-speaks plain http and a derived flag would never be set at all: the attribute
-describes the cookie the server is asking the browser to keep, not the hop it
-arrived over.
-
-SameSite is Lax rather than Strict because the session cookie has to survive
-the browser's redirect back from Google, which Strict would drop, and rather
-than None because None is no cross-site protection at all.
-
-Reading is hand-rolled rather than pulled from a dependency: the header is one
-line of key=value pairs, and the only subtlety is that a cookie value may
-contain an equals sign, so the split is on the first one only.
+The three 11.6 cookies. Secure is always set: TLS ends before this process, so
+a flag derived from the request would never be set. SameSite=Lax so the
+session survives the redirect back from Google.
 */
 import type { Request, Response } from 'express'
 
@@ -35,21 +23,15 @@ export function readCookie(req: Request, name: string): string | undefined {
     try {
       return decodeURIComponent(raw)
     } catch {
-      // decodeURIComponent throws URIError on malformed percent-encoding, and
-      // a cookie is attacker-controlled input: "dana_session=%" would
-      // otherwise take down every route behind this middleware with a 500,
-      // and keep doing it, because nothing on that path clears the cookie the
-      // browser goes on resending. An undecodable value is simply not a
-      // session identifier, so it is returned as it stands and fails the
-      // lookup, which is the 401 that 7.0 requires.
+      // A malformed value must not throw (a resent bad cookie would 500 every
+      // request); it simply fails the session lookup, giving 401.
       return raw
     }
   }
   return undefined
 }
 
-/** The pending-authorization pointer: httpOnly, so it can never be mistaken
- * for the readable CSRF cookie, and short-lived. */
+/** The pending-authorization pointer: httpOnly and short-lived. */
 export function setPendingCookie(res: Response, value: string): void {
   res.cookie(PENDING_COOKIE, value, {
     httpOnly: true,
@@ -69,9 +51,7 @@ export function clearPendingCookie(res: Response): void {
   })
 }
 
-/** The session identifier (httpOnly) and its CSRF token (readable), together,
- * because 11.6's double submit is inoperable if either is set without the
- * other. */
+/** Set together: the double-submit CSRF check needs both. */
 export function setSessionCookies(
   res: Response,
   sessionToken: string,
@@ -94,15 +74,8 @@ export function setSessionCookies(
 }
 
 /**
- * Drops any Set-Cookie lines already queued for these names. Without it a
- * response can carry two instructions for one cookie: every authenticated
- * request refreshes the session cookie's lifetime (10.1's rolling expiry),
- * and logout and account deletion are authenticated requests, so the response
- * that destroys a session was also handing the browser a fresh 30-day copy of
- * it. Browsers apply the last line and the session was gone from the database
- * either way, so nothing misbehaved; a response that contradicts itself and
- * relies on header order to come out right is still one nobody should have to
- * reason about, least of all here.
+ * Drops queued Set-Cookie lines for these names, so a logout response does not
+ * also carry the rolling-expiry refresh of the cookie it deletes.
  */
 function dropQueuedCookies(res: Response, names: readonly string[]): void {
   const queued = res.getHeader('Set-Cookie')
@@ -116,9 +89,7 @@ function dropQueuedCookies(res: Response, names: readonly string[]): void {
 
 export function clearSessionCookies(res: Response): void {
   dropQueuedCookies(res, [SESSION_COOKIE, CSRF_COOKIE])
-  // The attributes match the ones the cookies were set with, httpOnly
-  // included, so the deletion addresses the same cookie rather than a
-  // sibling that differs by one attribute.
+  // Same attributes as when set, so the deletion targets the same cookie.
   res.clearCookie(SESSION_COOKIE, {
     httpOnly: true,
     secure: true,

@@ -1,32 +1,10 @@
 /*
-The 4.11 recurrence grammar: parse and validate, nothing else.
-
-This file is in src/shared rather than in src/server/time because one grammar
-has to serve two callers that must never disagree: the write-path validator,
-which 4.11 requires revalidated server-side and which sits in front of the
-recurrenceRule primitive in tasks.ts, and the iterator in src/server/time,
-which evaluates the same string. src/shared is the one directory both import,
-and the client's convenience validation is a third caller with the same need.
-
-**No evaluation lives here, and no dependency.** What a rule means on a
-calendar is 8.5's question and the iterator's code; this file answers only
-whether a string is inside the subset and, when it is, what its parts are.
-The split is what keeps the validator free of a date library and keeps the
-iterator from re-deriving a grammar it would derive differently.
-
-**The length bound of 4.5 is not here.** The column is 200 characters and the
-recurrenceRule primitive of shared/tasks.ts already states it; a bound stated
-twice is a bound that will one day disagree with itself. A rule can be
-grammatical and still too long (BYDAY admits a repeated day list), so the
-caller needs both checks and gets them from the two places that own them.
-
-What this file deliberately does not export is a formatter. 4.11 admits only
-strings the preset builder can produce, and that builder is the client's; its
-serializer belongs beside this parser
-rather than inside the component that calls it.
+The 4.11 recurrence grammar: parse and validate only, no evaluation. Shared by
+the write validator, the client and the iterator in src/server/time so they
+never disagree. The 200-character bound lives in tasks.ts's recurrenceRule;
+callers need both checks.
 */
 
-/** 4.11: FREQ is one of these four and nothing else. */
 export const RECURRENCE_FREQUENCIES = [
   'DAILY',
   'WEEKLY',
@@ -35,8 +13,7 @@ export const RECURRENCE_FREQUENCIES = [
 ] as const
 export type RecurrenceFrequency = (typeof RECURRENCE_FREQUENCIES)[number]
 
-/** 4.11: BYDAY values are MO to SU. The order is RFC 5545's own listing and
- * carries no week-start meaning; WKST is the iterator's business. */
+/** BYDAY values. The order carries no week-start meaning. */
 export const RECURRENCE_WEEKDAYS = [
   'MO',
   'TU',
@@ -48,29 +25,16 @@ export const RECURRENCE_WEEKDAYS = [
 ] as const
 export type RecurrenceWeekday = (typeof RECURRENCE_WEEKDAYS)[number]
 
-/** 4.11's INTERVAL bounds, stated once so the validator and any future preset
- * builder read the same numbers. */
 export const RECURRENCE_INTERVAL_MIN = 1
 export const RECURRENCE_INTERVAL_MAX = 99
 
-/** 4.11's BYMONTHDAY bounds. 29 to 31 are excluded to avoid RFC skip
- * semantics in short months, which is the reason the paragraph states. */
+/** BYMONTHDAY 1 to 28: 29 to 31 would need RFC skip semantics in short months. */
 export const RECURRENCE_MONTHDAY_MIN = 1
 export const RECURRENCE_MONTHDAY_MAX = 28
 
 /**
- * A rule string taken apart, with every optional part resolved.
- *
- * interval is always a number because 4.11 gives it a default of 1, and a
- * caller that had to remember the default is a caller that will one day
- * forget it. byDay and byMonthDay are null rather than absent when the
- * frequency does not admit them, which the parse already guarantees.
- *
- * until is a calendar date in the YYYY-MM-DD form every date on this contract
- * takes, not the YYYYMMDD the rule string spells. The two forms are one date;
- * translating here is the same argument as defaulting interval, and it is
- * what lets the iterator compare an UNTIL against a due_date without knowing
- * that RRULE writes its dates differently (11.9).
+ * A parsed rule with defaults resolved: interval defaults to 1, and `until`
+ * is YYYY-MM-DD, not RRULE's YYYYMMDD.
  */
 export interface RecurrenceRule {
   readonly freq: RecurrenceFrequency
@@ -80,14 +44,7 @@ export interface RecurrenceRule {
   readonly until: string | null
 }
 
-/**
- * Why a string is outside the subset, in the terms 4.11 uses.
- *
- * A discriminated result rather than a throw, and a reason rather than a
- * boolean: the schema layer raises 4.11's 422, and 7.0 wants
- * the field named with something a person can act on, while the iterator
- * wants the parts. One function serves both.
- */
+/** A result with a reason, so the schema can name the problem in its 422. */
 export type RecurrenceParse =
   | { readonly ok: true; readonly rule: RecurrenceRule }
   | { readonly ok: false; readonly reason: string }
@@ -104,25 +61,14 @@ function isWeekday(value: string): value is RecurrenceWeekday {
   return (RECURRENCE_WEEKDAYS as readonly string[]).includes(value)
 }
 
-/** A whole number written without a sign, padding or exponent. Written out
- * rather than handed to Number() because Number(" 1 "), Number("1e2") and
- * Number("+1") all succeed and none of them is a value string. */
+/** Digits only: Number() also accepts " 1 ", "1e2" and "+1". */
 function parseCount(value: string): number | null {
   if (!DIGITS_PATTERN.test(value)) return null
   const parsed = Number(value)
   return Number.isSafeInteger(parsed) ? parsed : null
 }
 
-/**
- * RFC 5545's DATE form, YYYYMMDD, turned into a calendar date that exists.
- *
- * 11.9 rules this form and only this form: within an RRULE the UNTIL value is
- * a DATE or DATE-TIME, the DATE form carries no separators, and admitting the
- * extended spelling would widen 4.11 rather than read it. The
- * existence check is here rather than in the iterator because 20260230 is not
- * a date at all, and a validator that stored it would hand the iterator a
- * bound no instance can ever be compared against honestly.
- */
+/** RFC 5545 DATE (YYYYMMDD) only, and it must be a real date (not 20260230). */
 function parseUntil(value: string): string | null {
   if (!UNTIL_PATTERN.test(value)) return null
   const year = value.slice(0, 4)
@@ -144,23 +90,8 @@ function refuse(reason: string): RecurrenceParse {
 }
 
 /**
- * The 4.11 subset, parsed.
- *
- * Two decisions about how strict to be, both following 11.9's UNTIL rule.
- *
- * **Part order is free, and case is not.** RFC 5545 fixes no order for the
- * parts of a recurrence rule, so both orderings of a rule are equally valid
- * value strings and refusing one would invent a constraint neither 4.11 nor
- * the RFC states. The UNTIL rule turns on the opposite fact: the extended
- * spelling of a date is not a valid value string of the RFC at all, so
- * admitting it would widen 4.11. Case is the same kind of
- * narrowing as the subset itself, and it is where the preset-builder sentence
- * bites: names and values are matched exactly as RFC 5545 writes them,
- * because a builder emits one spelling and free-form input is rejected.
- *
- * **A part may appear once.** RFC 5545 says a rule part must not occur more
- * than once in a recurrence rule, so a second FREQ is not a value string
- * whichever value it carries.
+ * The 4.11 subset. Part order is free (RFC 5545 fixes none); case is exact, as
+ * the preset builder writes it; each part may appear once.
  */
 export function parseRecurrenceRule(value: unknown): RecurrenceParse {
   if (typeof value !== 'string') {
@@ -226,9 +157,7 @@ export function parseRecurrenceRule(value: unknown): RecurrenceParse {
               `BYDAY must be one or more of ${RECURRENCE_WEEKDAYS.join(', ')}`,
             )
           }
-          // A repeated day is dropped rather than refused: RFC 5545 makes
-          // BYDAY a list and a list naming Monday twice still selects Monday.
-          // The subset's narrowing is which days may appear, not how often.
+          // A repeated day is dropped, not refused: the list still selects that day.
           if (!days.includes(token)) days.push(token)
         }
         byDay = days
@@ -241,9 +170,6 @@ export function parseRecurrenceRule(value: unknown): RecurrenceParse {
           parsed < RECURRENCE_MONTHDAY_MIN ||
           parsed > RECURRENCE_MONTHDAY_MAX
         ) {
-          // 4.11 excludes 29 to 31 by name; everything outside 1 to 28 fails
-          // the same way, and the message says the bound rather than the
-          // reason because a person reading a 422 wants the number.
           return refuse(
             `BYMONTHDAY must be ${String(RECURRENCE_MONTHDAY_MIN)} to ${String(RECURRENCE_MONTHDAY_MAX)}`,
           )
@@ -262,9 +188,8 @@ export function parseRecurrenceRule(value: unknown): RecurrenceParse {
         break
       }
       case 'COUNT': {
-        // Named on its own so the refusal says why rather than "unknown
-        // part": 4.11 excludes COUNT deliberately, because honoring it needs
-        // a durable occurrence ordinal that row deletion would corrupt.
+        // Refused by name: COUNT would need an occurrence ordinal that row
+        // deletion would corrupt.
         return refuse('COUNT is not supported')
       }
       default: {
@@ -295,9 +220,6 @@ export function parseRecurrenceRule(value: unknown): RecurrenceParse {
   }
 }
 
-/** The same question asked as a predicate, for the callers that only need a
- * yes: the client's convenience validation, and any guard that has already
- * decided what its own message says. */
 export function isRecurrenceRule(value: unknown): boolean {
   return parseRecurrenceRule(value).ok
 }

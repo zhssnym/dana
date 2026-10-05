@@ -1,13 +1,6 @@
 /*
-The 7.12 surface: events and notifications. Handlers validate
-with the shared schemas, resolve access through the domain modules, and
-serialize; events are never written here, because the 10.2 chokepoint is the
-only writer and it lives with the mutations.
-
-Status grammar, the surface's usual (7.0, 10.2): no session 401; a scope the
-viewer cannot read 404, never 403, so existence never leaks; a malformed
-query 422 naming the field. The two read-state POSTs are idempotent through
-their no-op rows and carry the CSRF link like every mutation (11.3).
+The 7.12 events and notifications routes. Events are never written here. A
+scope the viewer cannot read is 404, never 403.
 */
 import type { Request, Response, Router } from 'express'
 
@@ -56,9 +49,8 @@ export function createEventsRouter(options: EventsRouterOptions = {}): Router {
       return
     }
 
-    // The subject scope: readable exactly when the subject is (7.12). A
-    // shelf is its owner's alone (4.18); a comment reference is not
-    // resolved here, so it names nothing the viewer can read, which 10.2 answers as not-found rather than a hint.
+    // Readable exactly when the subject is. Comment subjects are not resolved
+    // here, so they are always 404.
     const subject = parseSubjectRef(String(parsed.data.subject))
     const readable =
       subject.kind === 'folder'

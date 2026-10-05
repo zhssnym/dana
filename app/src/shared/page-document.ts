@@ -3,31 +3,18 @@ import { taskTitle } from './tasks.js'
 import { folderName } from './folders.js'
 import type { FileKind } from './files.js'
 
-/* `richContent` moved to `rich-content.ts` with issue #230 and is re-exported
-   here unchanged, because the Responsibility document is its third consumer
-   and importing this file from `shared/responsibility.ts` closed a cycle
-   through `tasks.ts` and `folders.ts`. That file carries the reasoning and
-   the definition; nothing about the rule moved with it. */
+/* Re-exported from rich-content.ts, which exists to break an import cycle. */
 export { richContent } from './rich-content.js'
 export type { RichContent } from './rich-content.js'
 import { richContent } from './rich-content.js'
 /**
- * Sections nest three levels deep: H1 at the page root, H2 under an H1, H3 under
- * an H2. There is no heading-level column; a Section's level is its depth in the
- * existing section_block_id relation, and this is the only place the ceiling is
- * written down. Raising it is a contract change (#218).
+ * Sections nest three deep (H1 to H3). The level is the depth in the
+ * section_block_id relation; this is the only place the ceiling is written.
  */
 export const MAX_SECTION_DEPTH = 3
 /**
- * #219's structured writing vocabulary, as Dana-native kinds rather than as
- * opaque BlockNote document JSON: BlockNote is the editor, not the storage
- * format. Three of the six nest — a list item's child is another list item and
- * nothing else — and the other three are leaves.
- *
- * `code` is deliberately outside RICH_TEXT_BLOCK_KINDS. A code block is plain
- * code text; nothing in Dana bolds, italicises or links inside one (R1
- * decision 6), and `page_blocks_rich_content_check` says the same thing in the
- * database.
+ * Dana-native structured kinds; BlockNote is the editor, not the storage
+ * format. `code` is not rich text (`page_blocks_rich_content_check`).
  */
 export const LIST_BLOCK_KINDS = ['bullet','numbered','checklist','toggle'] as const
 export type ListBlockKind = (typeof LIST_BLOCK_KINDS)[number]
@@ -37,16 +24,8 @@ export const PRESENTATION_HEADING_KINDS = ['heading1','heading2','heading3'] as 
 export type PresentationHeadingKind = (typeof PRESENTATION_HEADING_KINDS)[number]
 export const isPresentationHeadingKind = (kind:string):kind is PresentationHeadingKind => (PRESENTATION_HEADING_KINDS as readonly string[]).includes(kind)
 /**
- * #220's media vocabulary. Four kinds, one stored file each, named by `file_id`
- * and by nothing else: a media block copies no filename, no MIME and no byte
- * size, because the `files` row is the one authority on all three and two
- * copies of a fact are two facts free to disagree.
- *
- * **`file` is not a fallback for the other three and the four are not ordered.**
- * Which one a block is was decided when the file was uploaded, by how the
- * person inserted it — dropped as media, or chosen through the File command —
- * and `BLOCK_FILE_KINDS` below is what makes the server keep that decision
- * rather than re-derive it from an extension it must never trust.
+ * Media kinds: one stored file each, by `file_id` only. Name, MIME and size are
+ * read from the `files` row. The kind is fixed at upload; see BLOCK_FILE_KINDS.
  */
 export const MEDIA_BLOCK_KINDS = ['image','file','audio','video'] as const
 export type MediaBlockKind = (typeof MEDIA_BLOCK_KINDS)[number]
@@ -54,41 +33,16 @@ export const isMediaKind = (kind:string):kind is MediaBlockKind => (MEDIA_BLOCK_
 export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video','diagram','divider','page','result'] as const
 export type DocumentBlockKind = (typeof DOCUMENT_BLOCK_KINDS)[number]
 /**
- * The kinds that persist a dragged width (4.17's `width_pct`, 25 to 100).
- *
- * #220 R1 extends the restrained centred width from image to previewable
- * **video** and stops there: audio uses its natural compact player width, and
- * a generic file block does not resize in M1. Migration 0024's
- * `page_blocks_width_pct_kind_check` says the same thing in the database.
- * Player state — position, volume, speed — is never persisted at all.
+ * Kinds that persist a width (25 to 100); matches
+ * `page_blocks_width_pct_kind_check` (0024).
  */
 export const WIDTH_BLOCK_KINDS = ['image','video'] as const
 /**
- * Which stored file kinds each media block kind may name — the whole of
- * "insertion mode is preserved, not re-derived".
- *
- * The same JPG is an Image block when it was dropped as media and a File block
- * when it was inserted through the File command. Both are legitimate, they are
- * different, and the difference is a decision the person made that the server
- * validated at upload time. Reading it back off the filename would throw that
- * decision away and would trust an extension, which is presentation and never
- * security truth. So the rule is a table, and it is checked before the first
- * write in `applyDocument`.
- *
- * **It fails closed in the direction that matters.** A `file` row holds
- * untrusted bytes of any type and is served as an attachment; an `image`,
- * `audio` or `video` row passed a validation at upload and is served inline. A
- * `file` row may therefore never be dressed as previewable media, which is the
- * mismatch that would matter, and an `image`, `audio` or `video` row may never
- * be quietly demoted into a File block either — a File block is a File block
- * because its bytes were uploaded as one.
- *
- * `cover` is admitted for `image` alone and only because it was already
- * reachable: a cover is a raster that went through the same decode and
- * re-encode as an `image`, folder duplication has produced `cover` copies of
- * page pictures since issue #128, and refusing them here would make documents
- * that save today stop saving. It is a widening of nothing: no other kind gains
- * a second home.
+ * Which stored file kinds each media block may name, checked in applyDocument.
+ * The kind chosen at upload is kept, never re-derived from an extension. A
+ * `file` row (untrusted bytes, served as an attachment) may never pose as
+ * previewable media. `cover` is allowed for `image` because duplication
+ * produces cover copies of page pictures.
  */
 export const BLOCK_FILE_KINDS:Readonly<Record<MediaBlockKind,readonly FileKind[]>> = {
  image:['image','cover'],
@@ -97,55 +51,27 @@ export const BLOCK_FILE_KINDS:Readonly<Record<MediaBlockKind,readonly FileKind[]
  video:['video'],
 }
 /**
- * R2's frontend-safe rule for **Open** against Download-only, and it reads the
- * block kind rather than the filename, the extension or the MIME.
- *
- * A generic File block is served `Content-Disposition: attachment` with
- * `X-Content-Type-Options: nosniff`, unconditionally and for every type, so an
- * "Open" on one could not open anything even if it were safe to: the browser
- * downloads it. Download is therefore the only honest action on a File block,
- * whatever its extension says it is, and an executable, an unknown binary and a
- * file with no extension at all are covered by the same sentence rather than by
- * a list somebody has to keep. The three previewable kinds are served inline
- * after a server-side validation, and those are the ones Dana may open.
- *
- * Download is always available wherever the viewer may read the file.
+ * Only previewable kinds may Open: File blocks are always served as attachments
+ * with nosniff, so Download is their only action, whatever the extension.
  */
 export const blockMayOpen = (kind:string):boolean => kind==='image'||kind==='audio'||kind==='video'
-/** #213: `result` is the native Result, a Results facet's block alone (the
- * facet applier and `page_blocks_result_home_check` say so). */
+/** `result` belongs to a Results facet only (`page_blocks_result_home_check`). */
 export const RICH_TEXT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,...LIST_BLOCK_KINDS,'quote','callout','result'] as const
-/** The one test for "may this take part in list nesting", written once. */
 export const isListKind = (kind:string):kind is ListBlockKind => (LIST_BLOCK_KINDS as readonly string[]).includes(kind)
 /**
- * Any block nests (wave 2, migration 0038). `list_parent_block_id` is the
- * general block parent: a child may be any kind but a Section (a Section's
- * place is `section_block_id`, Work grouping), and a parent is one of the
- * writing kinds below -- text, a heading, a list item, a toggle, a quote or a
- * callout. A picture, a file, a code block, a diagram or a divider holds
- * nothing. The database states only the child half
- * (`page_blocks_list_parent_kind_check`); the parent half, precedence, the one
- * Section rule and the depth ceiling are `domain/document-outline.ts`.
+ * Parents a block may nest under (0038). Any kind but a Section may be a child.
+ * The database checks only the child half; the rest is domain/document-outline.ts.
  */
 export const NEST_PARENT_KINDS = ['paragraph',...PRESENTATION_HEADING_KINDS,...LIST_BLOCK_KINDS,'quote','callout','result'] as const
-/** How deep blocks nest under blocks: a root block is depth 0, its child 1. */
+/** Root blocks are depth 0. */
 export const MAX_NEST_DEPTH = 12
-/** May a block of this kind sit under another block at all. */
 export const mayNest = (childKind:string):boolean => childKind!=='section'
-/** The one test for "may a block of `childKind` nest under one of `parentKind`". */
 export const mayNestUnder = (childKind:string,parentKind:string):boolean =>
  mayNest(childKind) && (NEST_PARENT_KINDS as readonly string[]).includes(parentKind)
 /**
- * An outline item carries both parent relations, and they are independent.
- * `section_block_id` is Work grouping: which Section this block or Task belongs
- * to. `list_parent_block_id` is writing structure: which list item this list
- * item is nested under. A nested list item inside a Section carries both, and
- * neither is ever inferred from the other or from visual proximity.
- *
- * The outline is the whole truth about structure. An item that omits
- * `list_parent_block_id` is not nested, exactly as an item that omits
- * `section_block_id` is at the page root; it defaults rather than being
- * required so that a version 2 workflow file written before #219 still imports.
+ * Two independent parents: `section_block_id` (Work grouping) and
+ * `list_parent_block_id` (writing structure). Neither is inferred from the
+ * other. The latter defaults to null so pre-#219 workflow files still import.
  */
 export const documentOutlineItem = z.object({kind:z.enum(['block','task']),id:z.uuid(),section_block_id:z.uuid().nullable(),list_parent_block_id:z.uuid().nullable().default(null)}).superRefine((item,ctx)=>{
  if(item.list_parent_block_id===null)return
@@ -155,69 +81,34 @@ export const documentOutlineItem = z.object({kind:z.enum(['block','task']),id:z.
 export type DocumentOutlineItem = z.infer<typeof documentOutlineItem>
 export const documentOperation = z.discriminatedUnion('op',[
  z.object({op:z.literal('put_block'),id:z.uuid(),block_kind:z.enum(DOCUMENT_BLOCK_KINDS),text:z.string().max(4000).nullable(),rich_content:richContent.nullable(),file_id:z.uuid().nullable(),ref_folder_id:z.uuid().nullable(),width_pct:z.number().int().min(25).max(100).nullable(),checked:z.boolean().nullable().default(null),toggleable:z.boolean().nullable().optional()}).superRefine((b,ctx)=>{
-  // A toggle heading (0038): only a presentation heading folds its children.
   if((b.toggleable??null)!==null && !isPresentationHeadingKind(b.block_kind))ctx.addIssue({code:'custom',path:['toggleable'],message:'Only a heading folds.'})
   if((b.block_kind==='section'||isPresentationHeadingKind(b.block_kind)) && (b.text?.length??0)>120)ctx.addIssue({code:'custom',path:['text'],message:'A heading has at most 120 characters.'})
   if(b.rich_content!==null && (!(RICH_TEXT_BLOCK_KINDS as readonly string[]).includes(b.block_kind)||b.rich_content.runs.map(r=>r.text).join('')!==b.text))ctx.addIssue({code:'custom',path:['rich_content'],message:'Rich content must match its text projection.'})
-  // 4.17's width, as #220 leaves it: an image and a previewable video persist
-  // one, and nothing else does (WIDTH_BLOCK_KINDS above).
   if(b.width_pct!==null && !(WIDTH_BLOCK_KINDS as readonly string[]).includes(b.block_kind))ctx.addIssue({code:'custom',path:['width_pct'],message:'Width belongs to an image or a video.'})
-  // A tick is authored content and it belongs to a checklist item alone: it is
-  // not a Task's status and completes nothing (R1 decision 3). Omitting it on a
-  // checklist item means unchecked; the server stores false rather than null.
+  // A tick is authored content, never a Task status. Unticked is stored as false.
   if(b.checked!==null && b.block_kind!=='checklist')ctx.addIssue({code:'custom',path:['checked'],message:'Only a checklist item is checked or unchecked.'})
-  // The six structured kinds are writing, so they carry neither a picture nor a
-  // folder reference. Widening that is another issue's to make.
   if((b.file_id!==null||b.ref_folder_id!==null)&&((STRUCTURED_BLOCK_KINDS as readonly string[]).includes(b.block_kind)||isPresentationHeadingKind(b.block_kind)))ctx.addIssue({code:'custom',path:['file_id'],message:'A structured text block carries no file and no folder reference.'})
-  // #220: a media block names one stored file and nothing else. It carries no
-  // folder reference (that is `folder_ref`'s whole job), and it carries no text
-  // and no rich content — a caption is a paragraph, and the filename the block
-  // shows is read from the `files` row rather than copied onto the block.
-  // #222: a diagram is its source text alone; the picture is derived on read.
+  // A media block names one file; its name comes from the `files` row. A diagram is source text only.
   if(b.block_kind==='diagram'&&(b.file_id!==null||b.ref_folder_id!==null))ctx.addIssue({code:'custom',path:['file_id'],message:'A diagram carries no file and no folder reference.'})
   if(isMediaKind(b.block_kind)&&b.ref_folder_id!==null)ctx.addIssue({code:'custom',path:['ref_folder_id'],message:'A media block carries no folder reference.'})
-  // A divider is a rule and nothing else: no text, no rich content, no file,
-  // no folder reference and no width.
   if(b.block_kind==='divider'&&((b.text!==null&&b.text!=='')||b.rich_content!==null||b.file_id!==null||b.ref_folder_id!==null||b.width_pct!==null))ctx.addIssue({code:'custom',path:['text'],message:'A divider carries no text, no file, no folder reference and no width.'})
-  // Wave 2: a `page` block stands for one sub-page of this Folder and is its
-  // name alone -- the title is the sub-page's own, read from the folder the
-  // viewer can see, never copied here. It names that page and nothing else.
+  // A page block names its sub-page; the title is read from that folder, never copied.
   if(b.block_kind==='page'&&(b.ref_folder_id===null||(b.text!==null&&b.text!=='')||b.rich_content!==null||b.file_id!==null||b.width_pct!==null))ctx.addIssue({code:'custom',path:['ref_folder_id'],message:'A page block names one page and carries nothing else.'})
   if((b.block_kind==='file'||b.block_kind==='audio'||b.block_kind==='video')&&((b.text!==null&&b.text!=='')||b.rich_content!==null))ctx.addIssue({code:'custom',path:['text'],message:'A file, audio or video block carries no text of its own.'})
   /*
-  4.17: a media block **references one stored file by `file_id`**. Until this
-  landed, a `file`, an `audio` or a `video` block naming nothing was accepted
-  here, accepted by `applyDocument` and accepted by the database, all three
-  answering 200 — a player with no track under it. The rule is stated here
-  rather than as a CHECK for the reason migration 0024 gives about the
-  constraint it deliberately does not write, and it is stated in the *schema*
-  rather than in `applyDocument` so that it is scoped to the operations this
-  transaction carries and to nothing else. That is not a detail. A null
-  `file_id` on a media row is routine: `page_blocks_file_id_fkey` is ON DELETE
-  SET NULL, so 7.19's ordinary reclaim produces one, and `update_block`
-  reaches the column directly and takes a null besides. Read over the merged
-  document the rule would turn deleting a picture into a page that can never be
-  saved again, which is the trap AC-600 closes for the pairing gate.
-
-  **`image` is exempt, and it is a decision rather than an omission.** Every
-  picture in the composer begins as an empty image block — BlockNote's own
-  image block is inserted with no URL and a file-picker panel, and the canvas
-  adapter projects a fileless one straight back to `file_id: null` — so the
-  editor saves one on the keystroke after a person inserts a picture, and has
-  since long before #220. The three kinds #220 added have no such placeholder
-  state: each is inserted from a file that already exists. AC-602 pins both
-  halves.
+  file/audio/video blocks must name a file. Checked in the schema, not over the
+  merged document, because a stored media row can legitimately have a null
+  file_id (ON DELETE SET NULL); checking that would make the page unsavable.
+  `image` is exempt: the editor saves an empty image block before a file is
+  picked. AC-602 pins both.
   */
   if((b.block_kind==='file'||b.block_kind==='audio'||b.block_kind==='video')&&b.file_id===null)ctx.addIssue({code:'custom',path:['file_id'],message:'A file, audio or video block names one stored file.'})
  }),
  z.object({op:z.literal('delete_block'),id:z.uuid()}),
  z.object({op:z.literal('create_task'),id:z.uuid(),title:taskTitle}),
- /* Wave 2 (pages in pages), a Folder's Main document only. `create_page`
-    makes sub-page `id` under this Folder -- members and presets copied from
-    it (Hassan's decision 1) -- and its home `page` block `block_id`, which the
-    final outline must place. `trash_page` moves sub-page `folder_id` (and the
-    sub-pages its actor may trash) to Trash; the same transaction must delete
-    its `page` block, and a `page` block is never deleted without it. */
+ /* Main document only. `create_page` makes sub-page `id` (members copied from
+    this Folder) and its home `page` block; `trash_page` must delete that block
+    in the same transaction, and a `page` block is never deleted without it. */
  z.object({op:z.literal('create_page'),id:z.uuid(),block_id:z.uuid(),title:folderName}),
  z.object({op:z.literal('trash_page'),folder_id:z.uuid()}),
  z.object({op:z.literal('set_outline'),items:z.array(documentOutlineItem).max(1500)})

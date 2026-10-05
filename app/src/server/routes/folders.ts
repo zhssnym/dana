@@ -1,22 +1,6 @@
 /*
-The 7.4 surface: folders and membership. Handlers validate with the shared
-schemas, resolve access through the domain module, delegate every decision
-that touches rows, and serialize; no business logic lives here.
-
-Mounted under /api/v1 by the boot file. The router
-carries its own session attachment so it composes whichever order routers
-mount in: when the auth router ran first on this request, its attachSession
-already resolved the cookie and this one steps aside, and when it did not,
-this router still stands alone behind the same three middleware links
-(11.3: session, CSRF on mutations, then the handler, with rate limiting).
-That block lives in `preamble.ts` since issue #36, with what is and
-is not true of it written down there.
-
-Status grammar, uniform across the surface (5.4, 7.0, 10.2): no session
-401; inaccessible or nonexistent folder 404, never 403, so existence never
-leaks; visible but not permitted 403; the 5.3 and INV-2 rule conflicts
-409; limit and guard failures 422 through the shared schemas and the
-domain results.
+The 7.4 folder and membership routes. Inaccessible or missing folders answer
+404, never 403, so existence never leaks (10.2); visible but not permitted is 403.
 */
 import type { Request, Response, Router } from 'express'
 
@@ -110,20 +94,7 @@ export function createFoldersRouter(
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
   const securityLog = options.securityLog ?? createSecurityLogger()
 
-  /*
-  The gate every folder-scoped handler in this file begins with (issue #228).
-
-  It is two steps rather than one and the order is 10.2's: resolve the folder
-  first, which answers 404 to anybody outside it and so never confirms that
-  the folder exists; then ask the resolver whether the *action* is permitted,
-  which answers 403 to somebody who demonstrably sees the folder already.
-  Handing back the facts rather than a boolean is what lets the handler go on
-  to use the preset, the owner flag and the folder's name without a second
-  read.
-
-  Nothing here decides anything. The whole answer is `mayPerform`'s, and this
-  is the two lines of plumbing that carry it to a status code.
-  */
+  /* Resolve the folder first (404 to outsiders), then ask mayPerform (403). */
   const gate = async (
     req: Request,
     res: Response,
@@ -145,23 +116,17 @@ export function createFoldersRouter(
     return facts
   }
 
-  /* ---------------------------------------------------------------- *
-   * Leaving, and the two rules that now stand in front of it
-   * ---------------------------------------------------------------- */
-
   const STRANDED =
     'This folder would be left with nobody in Full control. Give another member Full control first.'
 
-  /** Step 8: people belong to the project, so a membership act named on any
-   * page of it acts on its project root. Called after the caller's own gate
-   * on the page, which keeps a stranger's answer the 404 of AC-397. */
+  /** Membership acts on any page apply to its project root. Call after the
+   * page's own gate, so a stranger still gets 404. */
   const projectFor = async (db: Db, res: Response, folderId: string): Promise<string | null> => {
     const project = await projectOf(db, folderId)
     if (project === null) sendError(res, 404, 'not_found', 'Not found.')
     return project
   }
 
-  /** Whether `targetId` is the structural owner of `folderId`. */
   const targetIsOwner = async (
     db: Db,
     folderId: string,
@@ -171,9 +136,7 @@ export function createFoldersRouter(
     return target !== null && target.isOwner
   }
 
-  /** Whether removing or releasing `userId` would leave no Full control
-   * behind. Reads the target's own facts rather than the actor's, because the
-   * invariant is about the standing being given up. */
+  /** Whether removing `userId` would leave no Full control member. */
   const lastCustodian = async (
     db: Db,
     folderId: string,
@@ -186,27 +149,9 @@ export function createFoldersRouter(
   }
 
   /*
-  The leave, shared by `DELETE /folders/:id/members/:userId` addressed at
-  oneself and by `DELETE /folders/:id/my-membership`.
-
-  **Automatic "earliest remaining member" succession is gone for an ordinary
-  voluntary leave**, which is R6 section 2 and the single largest behaviour
-  change in issue #228. Joining a folder first is not evidence that anybody
-  intended you to hold custody of it, and the old rule handed custody on that
-  evidence every time an owner walked away. An owner now transfers ownership
-  explicitly, to an active member who currently holds Full control, and only
-  then may leave; where no such member exists they must make one, or delete
-  the folder.
-
-  The continuity invariant is checked for every leaver, owner or not: the last
-  active human Full-control member cannot walk out either.
-
-  `transferOwnership: false` on every path through here is therefore not an
-  omission. `domain/folders.ts`'s automatic transfer survives for one caller
-  only -- 8.10's account-deletion transaction -- and R6 section 3 keeps that
-  as a distinct audited recovery path rather than as ordinary succession,
-  with `DELETE /me` refusing ahead of it so the ordinary road never reaches
-  it.
+  Shared by both leave routes. Owners must transfer ownership first: there is
+  no automatic succession on a voluntary leave (only 8.10 account deletion
+  transfers). The last Full-control member cannot leave either.
   */
   const leave = async (
     res: Response,
@@ -255,10 +200,6 @@ export function createFoldersRouter(
     res.status(204).end()
   }
 
-  /* ---------------------------------------------------------------- *
-   * Folders
-   * ---------------------------------------------------------------- */
-
   router.get('/folders', requireSession, async (req: Request, res: Response) => {
     const db = database(res)
     if (db === null) return
@@ -267,8 +208,6 @@ export function createFoldersRouter(
       sendError(res, 422, 'validation_failed', 'tabs: must be 1')
       return
     }
-    // 7.4 names the Folder objects and their order and no wrapper, so the
-    // array answers bare, the literal reading.
     const folders = await listFolders(db, viewer(req))
     res.status(200).json(query.data.tabs === '1' ? folders : withoutProjectTabs(folders))
   })
@@ -283,9 +222,8 @@ export function createFoldersRouter(
       if (db === null) return
       const parsed = parseBody(postFoldersBody, req, res, securityLog)
       if (parsed === null) return
-      /* Wave 2: a sub-page. `parent_folder_id` is a body id, so
-         `createSubPage` gates it itself (404 non-member or trashed parent,
-         403 below Can edit there) and copies the parent's members. */
+      /* A sub-page: createSubPageIn gates the body id itself (404 non-member or
+         trashed parent, 403 below Can edit) and copies the parent's members. */
       if (parsed.parent_folder_id !== undefined && parsed.parent_folder_id !== null) {
         const sub = await createSubPageIn(db, viewer(req), parsed.parent_folder_id, {
           name: parsed.name,
@@ -321,11 +259,7 @@ export function createFoldersRouter(
             return
         }
       }
-      /* The description rides the create rather than a PATCH behind it
-         (7.4, 2026-09-04). Absent is undefined here and NULL in the row,
-         which is every folder made before this. */
-      /* Step 7: absent `kind` is a Work project, what every caller made
-         before; null is an unpicked one (the picker). */
+      /* Absent `kind` means a Work project; null leaves it unpicked. */
       const result = await createFolder(
         db,
         viewer(req),
@@ -360,24 +294,11 @@ export function createFoldersRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      // 7.4: Folder plus members plus pending invites, one object. The
-      // pending-invites key name is the other half of the routed shape
-      // question; pending_invites is the candidate, precise about which
-      // invites 7.4 lists.
-      //
-      // The invites are Full control's alone since issue #228, which
-      // classifies a pending invite's email and intended Access as
-      // member administration rather than ordinary Work. Everyone else
-      // gets the empty array rather than a missing key, so that "not yours to
-      // see" and "there are none" stay one shape on the wire; the members
-      // array, with each member's current Access, stays visible to every
-      // member.
+      // Pending invites are Full control's only; others get [] so "hidden" and
+      // "none" have one shape. Members and their Access are visible to all.
       res.status(200).json({
         ...folder,
-        /* Wave 2: the breadcrumb, cut at the first ancestor this viewer is
-           not a member of or that is trashed (`visibleAncestors`). */
         ancestors: (await visibleAncestors(db, viewer(req), [folderId])).get(folderId) ?? [],
-        // Issue #205: finite progress per Section, additive.
         section_progress: await sectionProgressOf(db, folderId),
         members: await membersOf(db, folderId),
         pending_invites: mayPerform(facts, 'invite.view').allowed
@@ -399,11 +320,6 @@ export function createFoldersRouter(
       if (folderId === null) return
       const parsed = parseBody(patchFolderBody, req, res, securityLog)
       if (parsed === null) return
-      /*
-      A Folder's identity (4.3) is ordinary shared Work (#209): Can edit and
-      above change all of it, including the name, and Can contribute and below
-      change none of it. Ownership confers no authority here.
-      */
       const access = await gate(req, res, folderId, 'folder.profile.edit')
       if (access === null) return
       const outcome = await patchFolderProfile(db, viewer(req), folderId, {
@@ -439,11 +355,7 @@ export function createFoldersRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      /* Moving a Folder to Trash is recoverable administrative deletion and
-         belongs to Full control, not to custody (#228). The owner who lowered
-         their own Access does not reach it here; what they keep is
-         `folder.restore` and the permanent destruction below, which are the
-         two custody acts. */
+      /* Trash is Full control's, not the owner's (#228). */
       const access = await gate(req, res, folderId, 'folder.trash')
       if (access === null) return
       if (access.isDefault) {
@@ -467,10 +379,6 @@ export function createFoldersRouter(
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * The page tree: move a page (wave 2)
-   * ---------------------------------------------------------------- */
-
   router.patch(
     '/folders/:id/location',
     requireSession,
@@ -481,11 +389,8 @@ export function createFoldersRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      /* The path id's own gate first (10.2 order: 404 before anything about
-         the body). `moveFolder` resolves it again inside its transaction,
-         under the tree lock, along with the two body ids the ac-397 sweep
-         cannot see: `parent_folder_id` and `after_id` each answer 404 unless
-         the actor is a member of that live page. */
+      /* Path id gate first. moveFolder checks the body ids (parent_folder_id,
+         after_id) inside its transaction; the ac-397 sweep cannot see them. */
       const access = await gate(req, res, folderId, 'folder.page.edit')
       if (access === null) return
       const parsed = parseBody(patchFolderLocationBody, req, res, securityLog)
@@ -516,16 +421,14 @@ export function createFoldersRouter(
           sendError(res, 422, 'validation_failed', 'after_id: must name a page directly inside the new parent, or a tab of the same project.')
           return
         case 'not_movable':
-          /* A plain sentence: the move toast shows it as it is. */
+          // The move toast shows this sentence as it is.
           sendError(res, 422, 'validation_failed', outcome.reason)
           return
       }
     },
   )
 
-  /* Step 7: POST /folders/:id/tabs picks an unpicked project's kind or adds
-     a tab. `:id` is any page of the project: its own gate first (404 to a
-     stranger, 403 below Can edit), then `addTab` gates the project root. */
+  /* `:id` is any page of the project: its own gate first, then addTab gates the root. */
   router.post(
     '/folders/:id/tabs',
     requireSession,
@@ -561,10 +464,6 @@ export function createFoldersRouter(
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * My membership: the personal label and color (4.4)
-   * ---------------------------------------------------------------- */
-
   router.patch(
     '/folders/:id/my-membership',
     requireSession,
@@ -577,11 +476,6 @@ export function createFoldersRouter(
       if (folderId === null) return
       const parsed = parseBody(patchFolderMyMembershipBody, req, res, securityLog)
       if (parsed === null) return
-      /* `personal.membership_label` rather than an ungated read: #228's
-         personal-actions rule puts a member's own label and colour for a
-         Folder outside Folder Access, so every preset down to Can view may set it, and the action
-         is *named* so that the audit in #228 is total rather than silent
-         about it. */
       const access = await gate(
         req,
         res,
@@ -589,8 +483,7 @@ export function createFoldersRouter(
         'personal.membership_label',
       )
       if (access === null) return
-      // Any member, own row only (5.4): the viewer id scopes the UPDATE,
-      // so another member's row is unreachable by construction.
+      // The viewer id scopes the UPDATE, so another member's row is unreachable.
       const projectId = await projectFor(db, res, folderId)
       if (projectId === null) return
       await setMyMembership(db, viewer(req), projectId, parsed)
@@ -598,10 +491,6 @@ export function createFoldersRouter(
       res.status(200).json(folder)
     },
   )
-
-  /* ---------------------------------------------------------------- *
-   * Members
-   * ---------------------------------------------------------------- */
 
   router.post(
     '/folders/:id/members',
@@ -617,8 +506,6 @@ export function createFoldersRouter(
       const parsed = parseBody(postFolderMembersBody, req, res, securityLog)
       if (parsed === null) return
       const actorId = viewer(req)
-      /* Accepted R8A: administering members is Full control's and Can edit
-         explicitly cannot administer people. AC-024 drives it. */
       const access = await gate(req, res, folderId, 'member.add')
       if (access === null) return
       const projectId = await projectFor(db, res, folderId)
@@ -662,16 +549,8 @@ export function createFoldersRouter(
           return
         case 'added': {
           /*
-          5.3: the share-grant email follows the successful add alone, through
-          the notify module; under test the injected sink observes it, in
-          production Resend sends it.
-
-          The members read comes before the send: the add has already
-          committed, and this read is the one the 201 body is built from
-          either way. It is where the actor's own display_name is, which the
-          email names, and the actor is necessarily in it, a non-member being
-          unable to reach this line. The folder's name comes from the access
-          read this handler made before it granted. So the copy costs no query.
+          5.3: the share-grant email follows a successful add. The members read
+          supplies both the 201 body and the actor's display name.
           */
           const members = await membersOf(db, folderId)
           if (result.targetEmail !== null) {
@@ -690,10 +569,7 @@ export function createFoldersRouter(
           const added = members.find(
             (member) => member.user.id === parsed.user_id,
           )
-          // The row was inserted in this request; not finding it is a state
-          // the contract has no shape for, and answering a degenerate body is
-          // worse than failing loudly (the
-          // boot error handler envelopes this as the 500 it is).
+          // Inserted in this request; missing means a bug, so fail as a 500.
           if (added === undefined) {
             throw new Error(
               `membership ${parsed.user_id} vanished between insert and read`,
@@ -727,19 +603,13 @@ export function createFoldersRouter(
       const projectId = await projectFor(db, res, folderId)
       if (projectId === null) return
       if (!(await isMember(db, projectId, targetId))) {
-        // The membership named by the path does not exist; 404 is 7.0's
-        // word for that, and it holds for the leave-again repeat too.
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
 
-      // The three legal shapes of 5.3 and 7.4, in one place.
       if (targetId !== actorId) {
-        /* Accepted R8A: removal is administering members, so it is Full
-           control's rather than the owner's. The same line refuses removing
-           the structural owner outright: the
-           owner leaves by transferring custody first, and nobody administers
-           them out of it. AC-397's member row pins the 403 either way. */
+        /* Removal is Full control's; the owner cannot be removed, only transfer
+           ownership. */
         const decision = mayPerform(access, 'member.remove')
         if (!decision.allowed) {
           sendError(res, 403, 'forbidden', decision.reason)
@@ -770,11 +640,7 @@ export function createFoldersRouter(
     },
   )
 
-  /*
-  The leave, addressed as one's own membership (the 9.6 door).
-  The same three shapes as the members path above with the target fixed to
-  the caller: an alias of 5.3's leave rather than a new act.
-  */
+  // Leaving via one's own membership; the same rules as the members path.
   router.delete(
     '/folders/:id/my-membership',
     requireSession,
@@ -792,24 +658,9 @@ export function createFoldersRouter(
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * Access administration (issues #228, #209)
-   * ---------------------------------------------------------------- */
-
   /*
-  Change one member's Access.
-
-  Everything hard about this lives in `changeMemberAccess`, inside one
-  transaction behind the folder's own row lock: the target is still a member,
-  the `from` the caller believed is still true, the owner is not being
-  administered by somebody else, the Folder is not left without a custodian,
-  the write, and the append-only transition. This handler's whole job is the
-  authority check in front of it and the mapping of six outcomes onto 7.0's
-  status taxonomy.
-
-  The path carries two ids and both are gated. `member.access.change`
-  answers for the actor, and the row in AC-397's table says what a stranger
-  and a plain member each get.
+  Change one member's Access. changeMemberAccess does the checks under the
+  folder's row lock; this maps its outcomes to statuses.
   */
   router.patch(
     '/folders/:id/members/:userId',
@@ -831,27 +682,16 @@ export function createFoldersRouter(
       )
       if (parsed === null) return
       const actorId = viewer(req)
-      /* Self-demotion is not member administration and must not require it:
-         R5 lets the owner lower their own Access, and R9 section 8 records a
-         member lowering themselves as its own transition kind. A member
-         acting on their own row is therefore admitted at any preset, and the
-         rules that still bind them -- the continuity invariant, and the
-         refusal to *raise* oneself -- are the domain's, below. */
+      /* A member may change their own row at any preset; the domain still
+         enforces continuity. */
       if (targetId === actorId) {
         const own = await accessOf(db, actorId, folderId)
         if (own === null) {
           sendError(res, 404, 'not_found', 'Not found.')
           return
         }
-        /* Refusing rather than permitting: a member may lower their own
-           standing and may never raise it. `atLeast(current, next)` is "what
-           I hold is at least what I am asking for", so its negation is
-           exactly a self-promotion. The owner's way back up is
-           `owner.custody_recovery` below, a custody act with its own
-           transition kind; anybody else's way back up is somebody else
-           granting it. Without this line, "change my own access" would be a
-           self-service promotion to Full control for every member of every
-           folder in Dana. */
+        /* Never self-promotion: without this, any member could grant themselves
+           Full control. An owner's way back is owner.custody_recovery. */
         if (!atLeast(own.access, parsed.access)) {
           sendError(
             res,
@@ -890,8 +730,7 @@ export function createFoldersRouter(
           sendError(res, 409, 'conflict', STRANDED)
           return
         case 'stale':
-          // R9 section 16: two racing changes must not both claim the same
-          // `from`. The loser is told what the row actually holds now.
+          // Two racing changes: the loser is told what the row holds now.
           sendError(
             res,
             409,
@@ -916,15 +755,8 @@ export function createFoldersRouter(
   )
 
   /*
-  Owner custody recovery (governing R5, #228's ownership rules, R9 section 8).
-
-  The one act on this surface that reads no preset at all. It exists so that
-  an owner who lowered their ordinary Access -- which R5 explicitly permits,
-  and which is the whole point of separating custody from Access -- is never
-  locked out of their own Folder by the people they delegated to. The
-  transition it writes is `owner_recovered_full_control` and not
-  `access_changed`, because R9 section 8 requires ordinary History to show a
-  recovery as a recovery rather than as an unexplained self-grant.
+  Owner custody recovery: reads no preset, so an owner who lowered their own
+  Access is never locked out. Recorded as `owner_recovered_full_control`.
   */
   router.post(
     '/folders/:id/owner-recovery',
@@ -958,19 +790,7 @@ export function createFoldersRouter(
     },
   )
 
-  /*
-  The Access history, R9A's boundary drawn as two routes.
-
-  #228 owns the *truth* of these records and owes two surfaces: the Folder's
-  own history, and a member-specific recent view for the member panel. It
-  owes no filter taxonomy, no search and no grouping -- those are the M2
-  History product's, and inventing a query language here would be
-  the duplication that section warns about.
-
-  Visible to every current member. A person whose membership
-  ended keeps their entries in the record and loses the Folder, which is why
-  these read through the ordinary gate rather than through the history table.
-  */
+  /* Access history, visible to every current member through the ordinary gate. */
   const history = async (
     req: Request,
     res: Response,
@@ -1017,29 +837,10 @@ export function createFoldersRouter(
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * Responsibility (issue #230, #209 R5 / R7 section O / R10)
-   * ---------------------------------------------------------------- */
-
   /*
-  Five routes, and the thing worth reading before any of them is where the
-  authority decision lives, because it is not the same place for all five.
-
-  Three of them -- the two reads and the member-details projection -- decide
-  entirely here, through `gate`, because their answer depends on nothing but
-  the viewer's own durable facts. The self-edit grant toggle decides here too,
-  for the same reason: `responsibility.self_edit_grant.manage` is Full
-  control's whatever the target holds.
-
-  **The commit does not**, and that is deliberate. Whether the actor may write
-  this document can depend on the *target's* `can_edit_own_responsibilities`,
-  which is a fact about another row that must be read under the same lock as
-  the write it authorizes -- R7's transactional requirement, the one the
-  assignee check already obeys in `domain/tasks.ts`. So the route resolves the
-  folder (404 for anybody outside it, 10.2) and `commitResponsibility` makes
-  the decision inside its transaction, handing back `forbidden` with the
-  resolver's own reason. A gate here that read the grant first would be a
-  projection authorizing a write, however fresh it was.
+  Responsibility routes. The commit does not gate here: authority can depend on
+  the target's self-edit grant, which must be read under the write's lock, so
+  commitResponsibility decides inside its transaction.
   */
   const memberOfPath = (
     req: Request,
@@ -1065,13 +866,8 @@ export function createFoldersRouter(
       if (access === null) return
       const projectId = await projectFor(db, res, ids.folderId)
       if (projectId === null) return
-      /* No membership check on the *subject*. A document belonging to a
-         membership that ended is not an active member's Responsibility and
-         `activeStandingOf` will not return it, so this answers the empty
-         standing for a former member rather than 404 -- the same shape a
-         current member with nothing written gets, and for the same reason:
-         "there is none" and "you may not see it" must not be two answers a
-         prober can tell apart. */
+      /* A former member's document is answered as empty standing, not 404, so
+         "none" and "hidden" cannot be told apart. */
       const body: GetResponsibilityResponse = {
         member_id: ids.memberId,
         responsibility: await activeStandingOf(db, projectId, ids.memberId),
@@ -1111,9 +907,6 @@ export function createFoldersRouter(
           sendError(res, 403, 'forbidden', outcome.reason)
           return
         case 'stale':
-          /* R10's optimistic-concurrency rule, answered the way the page
-             document answers its own: 409, the draft stays the caller's, and
-             nothing was overwritten. */
           sendError(
             res,
             409,
@@ -1150,10 +943,8 @@ export function createFoldersRouter(
         'responsibility.history.read',
       )
       if (access === null) return
-      /* Proof 15, and it is this gate and nothing else: a former member reads
-         404 here because they are no longer in the folder, not because
-         anything hides their own entries from them. Being the subject of a
-         record is not a route back into a folder. */
+      /* A former member gets 404 from the gate; being a record's subject is not
+         a way back into a folder. */
       const projectId = await projectFor(db, res, ids.folderId)
       if (projectId === null) return
       const page = await responsibilityHistoryOf(db, projectId, {
@@ -1220,17 +1011,8 @@ export function createFoldersRouter(
   )
 
   /*
-  The member-details projection (#230 "Member-details backend contract").
-
-  It reads at `folder.read`, which is every member: a member's Access and
-  their Responsibility are already Folder-visible, so this composes two things the roster already shows with a
-  count of their current work.
-
-  The three `viewer_may_*` flags are computed here from `mayPerform` rather
-  than in the domain, because a projection that answered them would be a
-  projection that authorizes, which R8A forbids by name. They say whether a
-  control is worth rendering. The answer to "may this happen" is still only
-  the route's, and every one of the four routes above asks it again.
+  Member details, readable by every member. The `viewer_may_*` flags only decide
+  whether to draw a control; the routes above check again.
   */
   router.get(
     '/folders/:id/members/:userId',
@@ -1279,17 +1061,7 @@ export function createFoldersRouter(
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * Internal Task dependencies (7.25, #207)
-   * ---------------------------------------------------------------- */
-
-  /*
-  One read of every edge whose two ends are both live Tasks of this Folder,
-  so "Save as workflow" asks once rather than once per Task. `folder.read`
-  is every member's, so this is the membership gate: 404 to anybody outside
-  the Folder before any edge is looked at, and the query joins both ends to
-  the Folder, so an edge reaching a Task elsewhere never leaves the server.
-  */
+  /* Every edge with both ends in this Folder, in one read for "Save as workflow". */
   router.get(
     '/folders/:id/dependencies',
     requireSession,

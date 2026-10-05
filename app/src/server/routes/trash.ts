@@ -1,21 +1,8 @@
 /*
-The 7.13 surface: the Trash listing, the two restores, and the two
-permanent deletes. The deletes that fill it
-live on the task and folder surfaces they always did; here is the way back
-and the way out.
-
-The permanent deletes are **Full control's, and they are not one rule**: a
-task's needs Full control with ownership ignored, a folder's needs Full
-control *and* the owner together (#228's Full-control list with governing R5;
-the sentence is in `domain/trash.ts` beside each gate). Somebody below the bar can see the row
-and is told 403, the one place on this surface where 10.2's grammar admits a
-forbidden rather than a not-found. Both answer 204 with nothing, there being
-nothing left to describe.
-
-Access by folder membership, never by who deleted (7.13), and the 10.2
-grammar throughout: a row that does not exist, is not trashed, or is out of
-the viewer's reach is one answer, 404. Restores answer the restored object
-so the client can place it without a second round trip.
+The 7.13 Trash routes: list, restore, permanent delete. Access follows folder
+membership, never who deleted; anything missing or out of reach is 404. Below
+the delete bar the row is visible, so that refusal is 403. Task and folder
+permanent deletes follow different rules (see domain/trash.ts).
 */
 import type { Request, Response, Router } from 'express'
 
@@ -40,8 +27,7 @@ import { routerWithPreamble } from './preamble.js'
 export interface TrashRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
-  /** The store the permanent deletes remove objects from after their
-   * transaction commits. */
+  /** Objects are removed after the delete commits. */
   fileStore?: ObjectStore
 }
 
@@ -102,11 +88,8 @@ export function createTrashRouter(options: TrashRouterOptions = {}): Router {
     res.status(200).json(await trashView(db, viewer(req)))
   })
 
-  // POST /tasks/:id/restore is served by the tasks router, where
-  // 7.6's restore transition already owns the path: the two meanings have
-  // disjoint domains (a trashed row is invisible to the transition), so one
-  // handler forks on the row's state rather than two routers racing for the
-  // route. Only the folder restore lives here.
+  // POST /tasks/:id/restore lives in the tasks router: one handler forks on
+  // whether the task is trashed. Only the folder restore is here.
   router.post(
     '/folders/:id/restore',
     requireSession,
@@ -140,13 +123,11 @@ export function createTrashRouter(options: TrashRouterOptions = {}): Router {
       return
     }
     if (outcome.kind === 'forbidden') {
-      // The resolver's own sentence (issue #228): the two permanent deletes
-      // no longer share one rule, so they no longer share one refusal.
+      // The resolver's sentence: task and folder deletes have different rules.
       sendError(res, 403, 'forbidden', outcome.reason)
       return
     }
-    // After the commit, 7.15's order: a row that no longer exists is the
-    // only thing that may lose its bytes.
+    // After the commit, so only rows that are gone lose their bytes.
     await removeObjects(options.fileStore, outcome.fileIds)
     res.status(204).end()
   }

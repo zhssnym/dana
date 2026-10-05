@@ -1,68 +1,33 @@
 /*
-"Referenced from" (issue #214, under #203's one-home rule): the reciprocal
-presentation of a Dana Link, as a read.
-
-**Nothing here is stored, and that is #320's rule as much as #223's.** A Dana
-Link's only durable form is the `href` a rich-content run already holds (and,
-for a Folder, the `ref_folder_id` of a `folder_ref` block). There is no
-backlink table and no graph to keep in step: "what references this" is
-answered by scanning the documents the reader can already open, at the moment
-they ask. A link removed from a document therefore stops being a backlink the
-instant the document is saved, with nothing to reconcile.
-
-**Propagation is live, never copied.** A backlink row carries the referencing
-document's *current* name and the target's own read carries the target's
-current title; nothing is copied from one to the other, so a factual change
-(a rename, a completion) is seen by every surface on its next read. No
-interpretive content is ever rewritten automatically: a document that says
-something about a target keeps saying it until a person edits it.
-
-**Access filtering is the whole contract.** A source the reader could not
-open is not answered — not as a count, not as a redacted row. The target
-itself resolves through `resolveReference`, so a target the reader cannot
-open is the same 404 a missing one is.
+"Referenced from": computed at read time by scanning documents the reader can
+open; nothing is stored. A source the reader cannot open is omitted entirely,
+not counted or redacted. Names are live, never copied.
 */
 import { z } from 'zod'
 
-/** Where the referencing text lives: a page document (a Folder's page, a
- * Shelf's page, a Facet's page or a Task's document), a member's
- * Responsibility document, or the posts of a thread (W-C: a Discussion's
- * posts, or a Task's comments, written in the editor). */
+/** Where the referencing text lives: a page document, a Responsibility, or thread posts. */
 export const BACKLINK_SURFACES = ['page', 'responsibility', 'post'] as const
 export type BacklinkSurface = (typeof BACKLINK_SURFACES)[number]
 
-/** The object that owns the referencing document. */
 export const BACKLINK_HOMES = ['folder', 'shelf', 'facet', 'task', 'discussion'] as const
 export type BacklinkHome = (typeof BACKLINK_HOMES)[number]
 
-/** The most referencing documents one read answers. A backlink panel lists
- * places, and a target referenced from more than this many documents the
- * reader can open is better served by search than by a longer list;
- * `truncated` says the list was cut. */
+/** Documents per read; `truncated` says the list was cut. */
 export const BACKLINK_LIMIT = 50
 
 export const backlink = z.object({
   surface: z.enum(BACKLINK_SURFACES),
-  /** `folder` for a Folder page and for a Responsibility document, `shelf`
-   * for a Shelf page, `facet` for a Facet page, `task` for a Task document
-   * (#221) and for a Task's posts, `discussion` for a Discussion's posts
-   * (W-C). A reader must tolerate a home it does not know. */
+  /** The object owning the document. Readers must tolerate unknown homes. */
   home: z.enum(BACKLINK_HOMES),
-  /** The id of the home: a folder, shelf, facet or task id. */
   home_id: z.uuid(),
-  /** The Folder the document belongs to: the folder itself, the facet's
-   * folder, the Responsibility's folder, the Task's folder; null for a Shelf
-   * page. */
+  /** The document's Folder; null for a Shelf page. */
   folder_id: z.uuid().nullable(),
-  /** The member whose Responsibility document holds the link; null on a page. */
+  /** Whose Responsibility holds the link; null otherwise. */
   member_id: z.uuid().nullable(),
-  /** The home's live name, as its own read answers it (a Discussion's or a
-   * Task's title for posts). */
+  /** The home's live name (a Discussion's or Task's title for posts). */
   label: z.string(),
-  /** The blocks of a page document that carry the link, in document order.
-   * Empty for a Responsibility document, whose blocks have no stable ids. For
-   * surface `post`, the ids of the posts (comments) that carry it, oldest
-   * first. */
+  /** Blocks carrying the link, in document order (empty for Responsibilities,
+   * whose blocks have no ids). For posts, the comment ids, oldest first. */
   block_ids: z.array(z.uuid()),
 })
 export type Backlink = z.infer<typeof backlink>
