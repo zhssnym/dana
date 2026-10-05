@@ -24,7 +24,6 @@ on:
       - '.claude/**'
       - '.vscode/**'
       - '*.md'
-      - 'LICENSE'
   pull_request:
   workflow_dispatch:
 

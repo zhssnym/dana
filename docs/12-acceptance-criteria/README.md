@@ -1,8 +1,7 @@
 ## 12. Acceptance criteria
 
-Given/when/then, one behaviour each; this section is the definition of done. A criterion is a
-requirement whether or not a test runs it: only a small core is executable, and
-`app/tests/README.md` says which.
+Given/when/then, one behaviour each. Criteria are optional: a change does not need one. Only a
+small core has tests, and `app/tests/README.md` says which.
 
 ## The rules
 
@@ -11,7 +10,7 @@ requirement whether or not a test runs it: only a small core is executable, and
 - Numbers are never reused. A new criterion takes the number named below, and the same
   commit moves that line on by one past the highest number it spent.
 - Retiring a criterion is deleting its bullet; its number stays spent.
-- History is git's: `git log -S 'AC-NNN' -- docs/spec/` finds every commit that touched one.
+- History is git's: `git log -S 'AC-NNN' -- docs/` finds every commit that touched one.
 
 ## The next number
 

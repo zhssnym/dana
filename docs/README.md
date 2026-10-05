@@ -1,68 +1,58 @@
-# What belongs in this folder
+# Dana specification
 
-**One rule, and it is a test you can run in your head.**
+What Dana must do, and a short reason when a rule is not clear. The specification is
+reference. When the specification and the code do not agree, the code is the current
+behavior. Correct the one that is wrong.
 
-> If an agent could answer this by reading the code or running something, in
-> under a minute, it does not belong here.
->
-> If an agent could not answer it at all, or would burn an afternoon
-> rediscovering it, it belongs here and nowhere else.
+`troubleshooting.md` lists the traps that fail silently, flaky test classes and machine setup.
 
-## Why the rule is the rule
+## Conventions
 
-**A document that describes behaviour is a second copy of the code, and it is
-the copy nobody runs.** When they disagree the code wins, always, but the reader
-does not know that until they have lost the time. The drift is not a maintenance
-failure to be fixed by more diligence; it is what prose about behaviour does, and
-the only reliable defence is not to write it.
+- 24-hour clock. ISO 8601 dates. Ranges use "to".
+- SQL fragments are Postgres, and are reference only. The text rule wins.
+- "The viewer" (V) is the signed-in user who makes the request. today(V) is the current
+  date in the time zone of V's request (section 8.1).
 
-## What to keep
+## Addressing
 
-Every kind has one thing in common: **the code cannot tell you.**
+Section N is the folder whose name starts with N. Section N.M is the file in that folder
+whose name starts with N.M. Code comments cite "section N.M", so:
 
-- **Contracts.** What Dana must do, in `spec/`. Its README says what goes in it
-  and what does not.
-- **Hazards.** Where a tool, library or machine does something other than what a
-  model assumes: `troubleshooting.md`, and spec 11.15 for library recall. The
-  code shows the workaround, never the assumption it defends against.
-- **Registries with no other home.** Numbers that must not collide and that
-  nothing else allocates, such as the acceptance criterion allocator in
-  `spec/12-acceptance-criteria/README.md`.
-- **Direction.** What Dana is building and why, in `milestones/`.
-- **Reasons.** Why a rule is the way it is, in one or two sentences beside the
-  rule, when it would otherwise look arbitrary.
+- Do not renumber a section, and do not use a number again. A new subsection takes the
+  next free number.
+- To remove a subsection, delete its file and its table row.
+- The same rule applies to `AC-NNN` numbers.
 
-## What to delete
+## Rules
 
-- **Descriptions of behaviour.** What an endpoint returns, what a screen shows,
-  what a function does. Grep it. Run it. Read it.
-- **Restatements.** If a shape is in `app/src/shared/`, the zod schema is the
-  contract. If a constraint is in a migration, the migration is the truth.
-- **Narrative.** How something came to be. Git and the pull request hold it.
-- **Anything nobody honours.** A process no branch has followed in a month is
-  not a process.
+- Write the current rule only. No history, dates or "it used to". Git keeps the history.
+- Do not copy code: no column lists, zod shapes, route tables, constants or UI text. The
+  code is the truth.
+- Do not write counts. They become wrong at the next change.
+- Open questions and notes go in an issue or a PR.
+- Update a section when a product rule changes. You do not have to update it for each
+  change.
+- An acceptance criterion is optional. If you add one, write one line in section 12:
+  `- AC-NNN Given …, when …, then … (spec N.M)`. Take the next number from
+  [`12-acceptance-criteria/README.md`](12-acceptance-criteria/README.md) and move the
+  allocator in the same commit.
 
-## Writing something new here
+`app/tests/guards/guard-agent-instructions.test.ts` checks that each backticked repository
+path in `troubleshooting.md` and in the root `AGENTS.md` exists.
 
-Three questions, in order. A no to any of them means do not write it.
+## Sections
 
-1. **Could I find this out by running or grepping something?** If yes, do not
-   write it.
-2. **Is it true right now, and would I notice if it stopped being true?** If
-   nothing would tell you, it will rot. Make something assert it, or leave it out.
-3. **Would deleting it cost somebody real time?** If not, do not write it.
-
-**No scratch files.** Notes, audits, plans and open questions go in the pull
-request description or a GitHub issue, never in a new file here.
-
-## What is here
-
-| | |
-| - | - |
-| `spec/` | The contract, by numbered section. Section 12 holds the acceptance criteria and their number allocator |
-| `troubleshooting.md` | Silent failures, flaky test classes, and machine-specific notes |
-| `milestones/` | What Dana is building and why, one brief file per milestone. A wishlist, never a progress tracker or a second copy of the spec |
-
-`app/tests/guards/guard-agent-instructions.test.ts` checks that every backticked
-repository path in `troubleshooting.md` (and in the root `AGENTS.md`) exists.
-Nothing else here is read by a test.
+| Section | Folder | Covers |
+| - | - | - |
+| 1 | [`01-scope/`](01-scope/) | What Dana is, and what it does and does not do |
+| 2 | [`02-glossary/`](02-glossary/) | Each term, with one meaning |
+| 3 | [`03-invariants/`](03-invariants/) | The properties that must always be true |
+| 4 | [`04-data-model/`](04-data-model/) | Tables, constraints, storage formats, indexes |
+| 5 | [`05-state-machines/`](05-state-machines/) | Task status, invites, membership, permissions |
+| 6 | [`06-queries/`](06-queries/) | The queries behind each page |
+| 7 | [`07-api/`](07-api/) | Endpoints, their shapes and their error codes |
+| 8 | [`08-business-logic/`](08-business-logic/) | Time zones, Today, recurrence, reminders, sharing, deletion |
+| 9 | [`09-ui/`](09-ui/) | Page structure, states and fixed text |
+| 10 | [`10-non-functional/`](10-non-functional/) | Auth, limits, logging, PWA, email, headers |
+| 11 | [`11-architecture/`](11-architecture/) | The stack, its constraints and known hazards |
+| 12 | [`12-acceptance-criteria/`](12-acceptance-criteria/) | The criteria and the number allocator |
