@@ -36,7 +36,7 @@ export const dueTime = z
     error: 'must be a wall-clock time in HH:MM form, at minute precision',
   })
 
-// Issue #487: Start and Due endpoint times share 4.11's floating, minute-precision write form.
+// Start and Due times share the floating minute-precision form.
 export const startTime = dueTime
 
 export const wallClockTime = z.iso.time({
@@ -324,7 +324,7 @@ export const taskCard = z.object({
 })
 export type TaskCard = z.infer<typeof taskCard>
 
-/** Issue #497: compact live/readable Discussion reference on TaskDetail. */
+/** A Discussion reference on TaskDetail. */
 export const taskLinkedDiscussion = z.object({
   id: z.uuid(),
   title: z.string(),
@@ -339,8 +339,7 @@ export const taskDetail = taskCard.extend({
   steps: z.array(taskStep),
   completed_at: z.iso.datetime().nullable(),
   completed_by: z.uuid().nullable(),
-  /** Durable edges survive soft Trash and moves; this projection contains
-   * only linked Discussions that are live and readable to this viewer. */
+  /** Only linked Discussions that are live and readable to this viewer. */
   linked_discussions: z.array(taskLinkedDiscussion),
 })
 export type TaskDetail = z.infer<typeof taskDetail>

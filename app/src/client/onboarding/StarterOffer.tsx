@@ -1,14 +1,4 @@
-/*
-9.13's first-run offer. For a fresh account it takes the place of Today's empty
-state: a heading line, one plain row per starter, and "No thanks".
-
-**Fresh is two facts and a dismissal.** 9.13: the account holds no page but
-Desk and no task anywhere. The page runs the cheap half (`useMayBeFresh`);
-this component reads the All view only for an account that passed it.
-Dismissal is local to the device, in `localStorage`.
-
-Choosing a starter posts an ordinary 7.16 import and opens what it made.
-*/
+/* First-run offer (spec 9.13): replaces Today's empty state for a fresh account. Dismissal is per device. */
 import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 
@@ -19,7 +9,7 @@ import { paths } from '../routes.js'
 
 import { STARTERS, type Starter } from './starters.js'
 
-/** 9.13's copy, normative. */
+/** Spec 9.13 copy, normative. */
 const COPY = {
   heading: 'Start with an example',
   dismiss: 'No thanks',
@@ -35,7 +25,6 @@ function readDismissed(): boolean {
   }
 }
 
-/** Answers the offer for this device: "No thanks", or removing the sample. */
 export function dismissStarters(): void {
   try {
     window.localStorage.setItem(DISMISSED_KEY, '1')
@@ -44,7 +33,7 @@ export function dismissStarters(): void {
   }
 }
 
-/** The cheap half of 9.13's freshness test: one page, and it is Desk. */
+/** The cheap half of the freshness test: one page, and it is Desk. */
 export function useMayBeFresh(): boolean {
   const folders = useFolders()
   const list = folders.data
@@ -53,13 +42,8 @@ export function useMayBeFresh(): boolean {
 }
 
 /**
- * The offer when the account is fresh and has not dismissed it, in place of
- * `body` and after `quickAdd` (the page's own "New task", which comes first);
- * otherwise `body` then `quickAdd`, the list's own order.
- *
- * `quickAdd` keeps one place in the tree in both states: the first task a
- * fresh person adds ends the offer, and an input remounted elsewhere would
- * drop focus and the keystrokes typed after Enter.
+ * `quickAdd` keeps one place in the tree in both states: the first task ends the offer, and a remounted input
+ * would drop focus and the keys typed after Enter.
  */
 export function StarterOffer({
   body,
@@ -113,7 +97,7 @@ export function StarterOffer({
               }}
             />
           ))}
-          {/* A row action like any other: 2px under the rows, not set apart. */}
+          {/* A row action like any other, not set apart. */}
           <Row
             aria-disabled={importWorkflow.isPending}
             label={<span className="text-muted-foreground">{COPY.dismiss}</span>}

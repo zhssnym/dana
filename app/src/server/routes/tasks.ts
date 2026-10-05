@@ -1,23 +1,6 @@
 /*
-The 7.6 and 7.8 surfaces: tasks and My Day membership. Handlers
-validate with the shared schemas, delegate every decision that touches rows
-to the domain module, and serialize; no business logic lives here.
-
-Mounted under /api/v1 by the boot file. The router carries its own session
-attachment and steps aside when another router's already ran, the folders
-router's arrangement, so it composes whichever order routers mount in behind
-the same 11.3 links (session, CSRF on mutations, then the handler, with rate
-limiting). That block is `preamble.ts` (issue #36).
-
-Status grammar, uniform across the surface (5.4, 7.0, 10.2): no session 401;
-a task or folder that does not exist, or that the viewer is not a member of,
-404, never 403, so existence never leaks; the 5.1 state conflicts and the
-INV-5 unassign guard 409; limit and membership failures 422 through the
-shared schemas and the domain results.
-
-Both My Day calls answer the affected TaskDetail, as
-7.8 says. The shapes carry their grounds and their names in src/shared/tasks.ts, and the
-handlers below answer them.
+The 7.6 to 7.9 task routes. A task or folder the viewer cannot see is 404,
+never 403, so existence never leaks (10.2).
 */
 import type { Request, Response, Router } from 'express'
 import { z } from 'zod'
@@ -83,37 +66,23 @@ function notFound(res: Response): void {
   sendError(res, 404, 'not_found', 'Not found.')
 }
 
-/** 10.2's other half, and the one every Access refusal on this surface uses
- * (issue #228): the caller demonstrably sees the folder -- the domain module
- * resolved their membership before it refused -- so there is no existence
- * left for a 404 to protect, and the refusal carries the resolver's own
- * sentence about which rule it broke. */
+/** 403 is safe here: the domain already confirmed the caller sees the folder. */
 function forbidden(res: Response, reason: string): void {
   sendError(res, 403, 'forbidden', reason)
 }
 
-/** 10.3's 422 for a rule the rows answer rather than the body: the field is
- * named the way sendValidationError names one, so a caller reads one grammar
- * whichever layer refused. */
+/** A 422 for a rule the rows answer, worded like sendValidationError's. */
 function fieldError(res: Response, field: string, problem: string): void {
   sendError(res, 422, 'validation_failed', `${field}: ${problem}.`)
 }
 
-/** The same 422 for the two refusals 7.9 names, which the domain
- * module raises because both read a row: the field is the mode the caller
- * sent, so a client reads one grammar whether the schema or the row refused
- * it (7.9, 4.8, 10.3). */
 function reminderError(res: Response, refusal: ReminderRefusal): void {
   fieldError(res, refusal.field, refusal.problem)
 }
 
 /*
-7.6's transition envelope, one shape for all four endpoints: the task, the
-successor a recurring completion generates, and the successor a G-SERIES
-uncomplete deletes. The keys are always present so the client contract never
-changes shape. Which of them a call fills is the domain
-module's answer and not this function's: 5.1 puts generation on two of the
-four endpoints and the guard on the other two, and a no-op fills neither.
+7.6's transition envelope: all three keys are always present. The domain decides
+which are filled.
 */
 function transitionBody(
   task: TaskDetail,
@@ -132,12 +101,6 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
   const securityLog = options.securityLog ?? createSecurityLogger()
 
-  // 11.10: routes that touch the database require options.dbClient and fail
-  // only when called without it (the auth router's convention).
-  /* ---------------------------------------------------------------- *
-   * Tasks
-   * ---------------------------------------------------------------- */
-
   router.post(
     '/tasks',
     requireSession,
@@ -151,8 +114,6 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       const result = await createTask(db, viewer(req), parsed)
       switch (result.kind) {
         case 'folder_not_found':
-          // 7.6 guards the create on membership of the named folder, and an
-          // inaccessible folder reads as nonexistent (10.2).
           notFound(res)
           return
         case 'assignee_not_member':
@@ -192,11 +153,8 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     res.status(200).json(task)
   })
 
-  /* ---------------------------------------------------------------- *
-   * The Task document (issue #221): 7.16's PageView and document
-   * transaction over the Task's own blocks. Read by any member who can
-   * see the Task; written under `task.edit`, the gate a `notes` PATCH has.
-   * ---------------------------------------------------------------- */
+  /* The Task document (#221): read by any member who sees the Task, written
+     under `task.edit`. */
 
   router.get('/tasks/:id/document', requireSession, async (req: Request, res: Response) => {
     const db = database(res)
@@ -257,11 +215,8 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       const taskId = parsedId(res, req.params.id)
       if (taskId === null) return
       /*
-      7.6: "status is not accepted here (409 if present)". It is asked before
-      the schema parses, because the schema would strip the field and answer
-      200 on a request 7.6 refuses, and it is asked before access resolves
-      because the answer is the same for every id: a body-level refusal that
-      reads no row leaks nothing about which rows exist.
+      Checked before parsing, because the schema would strip `status` and
+      answer 200. A body-only check reads no row, so it leaks nothing.
       */
       if (carriesStatus(req.body)) {
         sendError(
@@ -278,9 +233,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       switch (result.kind) {
         case 'not_found':
         case 'target_not_found':
-          // 7.6 reads 404 for a target the caller is not a member of, never
-          // 422, because a 422 would confirm that a folder the caller cannot
-          // see exists, which is the leak 10.2 forbids.
+          // 404, never 422: a 422 would confirm the hidden folder exists.
           notFound(res)
           return
         case 'assignee_not_member':
@@ -322,17 +275,11 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           fieldError(res, 'start_time', 'requires a start_date')
           return
         case 'rule_without_date':
-          // 7.6's dependency check on the arm only the row can answer: the
-          // body-level half is in the shared schema, which refuses a rule
-          // sent in the same breath as a cleared date.
+          // The row-dependent half; the schema refuses a rule sent with a cleared date.
           fieldError(res, 'recurrence_rule', 'requires a due_date')
           return
         case 'start_after_due':
-          /* 4.5's start-before-due CHECK said as a 422 before the constraint
-             speaks, the way the two above are. The domain names which of the
-             pair the body sent, because that is the end the person moved, and
-             the message is written from the other end so it reads the same
-             either way. */
+          /* The domain names the end the body moved. */
           fieldError(
             res,
             result.field,
@@ -351,9 +298,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           )
           return
         case 'reminder_refused':
-          // The third field of the same dependency check, and 4.8's mode rule
-          // with it. A reminder sent here writes the row 7.9's PUT writes, so
-          // it answers the refusals 7.9 names, in the same words.
+          // Same refusals and words as 7.9's PUT.
           reminderError(res, result.refusal)
           return
         case 'forbidden':
@@ -389,31 +334,10 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * The 5.1 transitions
-   * ---------------------------------------------------------------- */
-
   /*
-  The tz of 7.6's two generating transitions, and it is two rules rather
-  than one.
-
-  This is the present-value half, which is the half a route can answer alone:
-  a value that is not an IANA identifier is 422 naming tz, always, on either
-  endpoint and whatever the row holds, because 7.0 refuses a value outside
-  what a parameter admits rather than narrowing it to a default. The absent
-  half is the domain module's, because only the rows can say whether the
-  transition would evaluate a date, and it comes back as a result rather than
-  as a value missing here.
-
-  Undefined means the parameter was not sent. viewTz is imported rather than
-  restated, the 7.8 pull's reason: it carries the 11.15 sign guard that closes
-  Intl's offset-identifier hole, and a second validator on this surface would
-  be a second answer to one of 10.3's rows. It is wrapped in an object so the
-  issue carries path ['tz'] rather than the empty path sendValidationError
-  reads as a body-shaped failure.
-
-  Uncomplete and restore never reach this: 7.6 gives them no parameter, so a
-  tz sent to one of them is an unknown query parameter and 7.0 tolerates it.
+  A present but invalid tz is 422 here. Whether an absent tz is a problem is the
+  domain's call, since only the rows know whether a date gets evaluated. Wrapped
+  in an object so the issue's path is ['tz'].
   */
   const zoneOf = (req: Request, res: Response): string | null | undefined => {
     if (!('tz' in req.query)) return undefined
@@ -425,8 +349,6 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     return zone.data.tz
   }
 
-  /** One handler for the four endpoints, because 7.6 gives them one response
-   * and 5.1 one table; the event is the only thing that differs. */
   const transition =
     (event: TransitionEvent) => async (req: Request, res: Response) => {
       const db = database(res)
@@ -440,12 +362,8 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         tz = zone
       }
       /*
-      One path, two graves, disjoint by construction (7.13): a
-      trashed task is invisible to the 5.1 transition below, and a visible
-      task is by definition not trashed, so "restore" means the one thing
-      the row's state admits. The un-trash is tried first because its
-      domain is the one the transition cannot see, and a miss costs one
-      indexed read.
+      A trashed task is invisible to the transition, so try the un-trash first;
+      a miss costs one indexed read.
       */
       if (event === 'restore') {
         const untrashed = await restoreTask(db, viewer(req), taskId)
@@ -458,11 +376,8 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           res.status(200).json(transitionBody(returned))
           return
         }
-        /* The un-trash refused on Access rather than on the row's state, so
-           the fall-through below must not happen: this task *is* trashed, the
-           5.1 transition cannot see it, and letting it through would turn a
-           403 the caller earned into a 404 about a row they can see in Trash
-           (issue #228). */
+        /* Refused on Access: answer 403, not fall through to a 404 about a row
+           the caller can see in Trash. */
         if (untrashed !== 'not_found') {
           forbidden(res, untrashed.reason)
           return
@@ -477,9 +392,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           sendError(res, 409, 'conflict', result.message)
           return
         case 'tz_required':
-          // 7.6: the transition would run generation and no zone was
-          // named, so nothing happened and the same call retried with one
-          // gets the transition it asked for.
+          // Nothing happened; the same call with a tz succeeds.
           fieldError(
             res,
             'tz',
@@ -526,10 +439,6 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     )
   }
 
-  /* ---------------------------------------------------------------- *
-   * 7.6's order endpoint
-   * ---------------------------------------------------------------- */
-
   router.post(
     '/tasks/:id/order',
     requireSession,
@@ -551,9 +460,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           notFound(res)
           return
         case 'not_arrangeable':
-          // A hand order is the unscheduled list's alone: a dated row is
-          // ordered by its date and a completed one by when it was
-          // finished, which is a state conflict rather than a bad request.
+          // Only undated, unfinished tasks have a hand order; others are a state conflict.
           sendError(
             res,
             409,
@@ -578,27 +485,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * Task dependencies (M1-C2, issue #224)
-   * ---------------------------------------------------------------- */
-
   /*
-  Three endpoints around one directed relation: the task in the path is the
-  **dependent**, and the task in the body is what it waits on. "Blocks…" is
-  the same contract with source and target reversed — to make A block B, the
-  client posts to B naming A — which is why there is no second surface for it
-  and no second row in the table.
-
-  **They are not on the TaskDetail and deliberately not.** 7.0 enumerates
-  that object's keys exactly, so a dependency projection folded into it would
-  be a contract change rather than an addition beside one. A task's relations are their own
-  read, which is also what lets a row-level client ask for them only where it
-  draws them.
-
-  The status grammar is this router's throughout: an inaccessible end of
-  either kind is 404 and never 403 (10.2), a refusal the rows answer rather
-  than the body is 422 naming the field (10.3), and the domain module makes
-  every one of those decisions.
+  The path task is the dependent; the body task is what it waits on. To make A
+  block B, post to B naming A. Kept off TaskDetail, whose keys 7.0 fixes.
   */
 
   router.get(
@@ -638,8 +527,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       )
       switch (result.kind) {
         case 'not_found':
-          // Either end. One answer for both, so the refusal says nothing
-          // about which of the two ids the caller was not allowed to name.
+          // Either end; one answer so the caller learns nothing about which.
           notFound(res)
           return
         case 'self_dependency':
@@ -657,9 +545,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           )
           return
         case 'exists':
-          // The pair was already related, so nothing was created and the
-          // request asked for a state that already held. 200 with the edge
-          // that is there, which is what makes a retry safe.
+          // Already related: 200 with the existing edge, so retries are safe.
           res.status(200).json(result.edge)
           return
         case 'forbidden':
@@ -684,10 +570,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       if (taskId === null) return
       const dependencyId = parsedId(res, req.params.dependencyId)
       if (dependencyId === null) return
-      // 404 for an edge that is not there, which is this repository's normal
-      // delete semantics (DELETE /connections/:userId, DELETE /tasks/:id)
-      // rather than an idempotent 204: a caller naming an edge that does not
-      // touch this task has asked for something that was never true.
+      // 404 for an edge that is not there, like other deletes here, not an idempotent 204.
       const result = await deleteTaskDependency(
         db,
         viewer(req),
@@ -706,10 +589,8 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * 7.7 steps: shims over the body's checklist items for old clients,
-   * until the contract release (domain/tasks.ts says why)
-   * ---------------------------------------------------------------- */
+  /* 7.7 steps: shims over checklist items for old clients, until the contract
+     release (see domain/tasks.ts). */
 
   function answerShim(res: Response, result: ChecklistShimResult, status: number): void {
     switch (result.kind) {
@@ -774,10 +655,6 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * 7.8 My Day membership
-   * ---------------------------------------------------------------- */
-
   router.post(
     '/tasks/:id/my-day',
     requireSession,
@@ -789,13 +666,8 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       const taskId = parsedId(res, req.params.id)
       if (taskId === null) return
       /*
-      7.8's tz: an absent or invalid one is
-      422 naming the field, the treatment 7.0 gives the parameter on every
-      view endpoint. viewTz is imported rather than restated for that reason,
-      and wrapped in an object here so the issue carries path ['tz']: a bare
-      viewTz.safeParse would raise an issue with an empty path, which
-      sendValidationError drops, and the caller would read "A JSON object
-      body is required." on a query-parameter failure.
+      Absent or invalid tz is 422. Wrapped in an object so the issue's path is
+      ['tz']; an empty path would read as a body error.
       */
       const zone = z.object({ tz: viewTz }).safeParse(req.query)
       if (!zone.success) {
@@ -807,8 +679,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         notFound(res)
         return
       }
-      // 200 rather than 201: 7.8 makes the pull an insert-or-nothing, and a
-      // repeat is a no-op answering the same status as the first call.
+      // 200, not 201: the pull is insert-or-nothing and a repeat is a no-op.
       res.status(200).json(result.task)
     },
   )
@@ -828,28 +699,14 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         notFound(res)
         return
       }
-      // 200 and not 204, which 7.8 states outright, and idempotent: an
-      // absent entry is nothing to remove rather than a missing resource.
+      // 200 (7.8), and idempotent: no entry is nothing to remove.
       res.status(200).json(result.task)
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * 7.9 Reminder
-   * ---------------------------------------------------------------- */
-
   /*
-  The two endpoints 7.9 names, on the router the rest of the task
-  surface already lives on: the row they address is 4.8's, keyed by the task
-  in the path, and every guard on it is a fact about that task.
-
-  The body is parsed before the task is resolved, the ordering 7.6's status
-  refusal and 7.4 use: a
-  refusal that reads no row tells a prober nothing about which rows exist.
-  What the schema answers here is 4.8's exclusive-or and 10.3's offset range,
-  properties of the value sent; the two refusals 7.9 names by name both read
-  the task's own columns and are the domain module's, which is why they arrive
-  as a result rather than as a parse failure.
+  The body is parsed before the task is resolved, so a refusal reads no row.
+  Row-dependent refusals come back from the domain.
   */
   router.put(
     '/tasks/:id/reminder',
@@ -875,9 +732,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           forbidden(res, result.reason)
           return
         case 'written':
-          // 200 with the affected TaskDetail: 7.0 gives the
-          // reminder no object of its own and this section offers no GET for
-          // one, so the parent task is the only object that reports the call.
+          // The reminder has no object of its own, so answer the TaskDetail.
           res.status(200).json(result.task)
           return
       }
@@ -903,9 +758,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         forbidden(res, result.reason)
         return
       }
-      // 7.9's own 204, and idempotent: the 404 above is the task's, never the
-      // reminder's, so a second call and a task that never had one both land
-      // here.
+      // Idempotent: the 404 above is about the task, never the reminder.
       res.status(204).end()
     },
   )

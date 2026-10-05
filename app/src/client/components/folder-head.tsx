@@ -1,28 +1,5 @@
-/*
-The folder's header: at most two rows.
-
-Row one is the mark, the name and, at the far right, the folder's compact
-project controls. There is no progress count (round 7): nobody measures a page
-by how many tasks are done.
-
-**No description line** (round 2): a page's Purpose tab is where its "why" is
-written. A description already stored stays in the data and is simply not
-drawn; nothing migrates it.
-
-**Everything is edited in place.** The name is a heading that becomes a field on
-a click; the mark opens the icon picker. A viewer below Can edit gets the same
-rows with nothing pressable (issue #228, AC-011): a heading and a glyph.
-
-**"Add cover" appears above the title on hover** (round 3, Notion's place for
-it), and only while the page has none; once there is a cover the band's own
-picker changes or removes it. `FolderCoverDialog` below is kept for the
-sidebar's `?folder-action=cover` link.
-
-Discussion has one project-level control here. It opens the sidebar by default
-(#575); the explicit expand action owns full-page navigation and browser
-history. This header only recognizes when a full-screen Discussion URL is on
-screen so the project-level Discussion trigger is not duplicated there.
-*/
+// The folder header: mark, name and project controls, all edited in place. A viewer
+// below Can edit gets the same rows with nothing pressable.
 import { useRef, useState } from 'react'
 import { useLocation, useMatch } from 'react-router'
 
@@ -65,22 +42,19 @@ export function FolderHeader({
   readonly color: string
   readonly iconKey: string | null
   readonly colorKey: string | null
-  /** Can edit and above (issue #228). */
   readonly editable: boolean
   readonly renaming: boolean
   readonly onRenamingChange: (next: boolean) => void
   readonly onRename: (next: string) => void
   readonly onPickIdentity: (next: { icon?: string; color?: string }) => void
-  /** Clears the icon back to the plain page glyph; without it the picker offers no Remove. */
+  /** Without it the picker offers no Remove. */
   readonly onRemoveIcon?: () => void
-  /** The page/project actions supplied by FolderPage. */
   readonly actions: React.ReactNode
-  /** The page's cover storage name; with it, an editor gets "Add cover". */
+  /** With it, an editor gets "Add cover". */
   readonly coverKey?: string
 }): React.JSX.Element {
   const [markOpen, setMarkOpen] = useState(false)
-  /* Where a click on the heading landed, as a text offset, so the field opens
-     with the caret there; null (the `?folder-action=rename` path) selects all. */
+  // Where the heading click landed, so the field opens with the caret there; null selects all.
   const caretAt = useRef<number | null>(null)
   const routeId = useMatch('/app/folders/:id')?.params.id ?? null
   const routePage = useFolder(routeId ?? '', routeId !== null).data
@@ -134,8 +108,7 @@ export function FolderHeader({
           <span className="mt-1 flex size-[var(--control-height)] shrink-0 items-center justify-center">{glyph}</span>
         )}
         {editable && renaming ? (
-          /* A textarea sized to its content, so a long name wraps while it is
-             edited just as the heading does; Enter never makes a newline. */
+          // A textarea sized to its content, so a long name wraps while edited.
           <textarea
             key={name}
             defaultValue={name}
@@ -161,7 +134,7 @@ export function FolderHeader({
                 event.preventDefault()
                 const header = event.currentTarget.closest('header')
                 event.currentTarget.blur()
-                /* Notion: Enter in the title goes on writing in the body. */
+                // Enter in the title continues in the body.
                 if (header !== null) focusBodyAfter(header)
               }
               if (event.key === 'Escape') {
@@ -175,7 +148,6 @@ export function FolderHeader({
             )}
           />
         ) : (
-          /* A heading, always, and the click is the rename (AC-226, AC-217). */
           <h1
             data-page-title=""
             onClick={
@@ -195,8 +167,7 @@ export function FolderHeader({
           </h1>
         )}
         <div className="mt-1 flex shrink-0 items-center gap-1">
-          {/* Discussion's project-level trigger is not duplicated as an active
-              button while its full-screen section is already on screen. */}
+          {/* Hide the Discussion trigger while its full-screen view is already on screen. */}
           <div className={cn('contents', fullScreenDiscussion && '[&>button[aria-pressed]]:hidden')}>
             {actions}
           </div>
@@ -206,7 +177,6 @@ export function FolderHeader({
   )
 }
 
-/* The text offset under a point inside `heading`, or its end. */
 function caretOffset(heading: HTMLElement, x: number, y: number): number {
   const length = heading.textContent?.length ?? 0
   let node: Node | null = null
@@ -224,8 +194,7 @@ function caretOffset(heading: HTMLElement, x: number, y: number): number {
   return Math.min(offset, length)
 }
 
-/* The first editable body after the header (the Work editor), caret at its
-   start. Nothing editable below (another tab, a viewer) leaves focus alone. */
+// Nothing editable below (another tab, a viewer) leaves focus alone.
 function focusBodyAfter(header: HTMLElement): void {
   requestAnimationFrame(() => {
     for (const node of document.querySelectorAll<HTMLElement>('[contenteditable="true"]')) {
@@ -246,10 +215,7 @@ function focusBodyAfter(header: HTMLElement): void {
   })
 }
 
-/**
- * The cover picker for the sidebar's `?folder-action=cover` link: images
- * only (the colours are one press away on the page's own "Add cover").
- */
+/** The cover picker for the sidebar's `?folder-action=cover` link: images only. */
 export function FolderCoverDialog({
   storageName,
   open,

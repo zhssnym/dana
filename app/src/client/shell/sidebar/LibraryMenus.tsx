@@ -1,4 +1,3 @@
-/* The Library's "+" menu and the sidebar's right-click menu, which offer the same items. */
 import { Folders, Import, Plus } from '../../lib/icons.js'
 import { Button } from '../../components/ui/button.js'
 import {
@@ -8,7 +7,6 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu.js'
 
-/** The Library's "+": the same three items as its right-click. */
 export function NewPageButton({
   onNewPage,
   onNewCollection,
@@ -45,7 +43,6 @@ export function NewPageButton({
   )
 }
 
-/* New work, New collection and Import work, in the "+" and right-click alike. */
 function ProjectItems({
   onNewPage,
   onNewCollection,
@@ -73,9 +70,8 @@ function ProjectItems({
   )
 }
 
-/* Right-click on the sidebar's own ground (empty space, the Library heading,
-   the lists) opens this small menu at the pointer instead of the browser's.
-   A row with its own menu (a page, a collection) claims the event first. */
+/* Opens at the pointer on a right-click of the sidebar's empty ground.
+   A row with its own menu claims the event first. */
 export function SidebarGroundMenu({
   at,
   onClose,

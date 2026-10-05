@@ -1,18 +1,5 @@
-/*
-Connected work: reciprocal facet references placed in an authored facet without
-creating a second relationship model.
-
-One placement now represents exactly one source object. The durable placement
-is still a normal document paragraph carrying a marked Dana Link, but its marker
-also names the exact source block. That makes the visual row and the data model
-agree: one compact source label on the left, one canonical live mirror on the
-right. Legacy row-level placements are normalized in place into these exact
-source placements, so existing work is not left grouped or lost.
-
-The mirror is a live editor for the canonical block. Its save goes through the
-source page's existing document transaction endpoint, with the source page's
-current revision and outline. No copied content or mirror table is introduced.
-*/
+// Connected work: facet references placed in a facet document. Each placement is a
+// paragraph with a marked Dana Link naming one source block, mirrored live beside it.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -351,9 +338,10 @@ export interface ConnectedSourceDocumentRoute {
   readonly method: 'POST' | 'PUT'
 }
 
-/** Page-block mirrors can write only through a source document that already
- * has Dana's document transaction contract. Current tabs/facets are native
- * folder pages, so they intentionally share the Folder route here. */
+/**
+ * Mirrors write only through a source document with the transaction contract.
+ * Tabs and facets are folder pages, so they share the folder route.
+ */
 export function connectedSourceDocumentRoute(row: ConnectedWorkItem): ConnectedSourceDocumentRoute | null {
   if (row.surface !== 'page') return null
   if (row.home === 'folder' || row.home === 'facet') {
@@ -864,10 +852,8 @@ export function ConnectedWork({ id, className = '' }: {
     },
   })
 
-  /* Old placements named only their containing source document, so one marker
-     could draw several mirrors. Normalize only those legacy markers. Existing
-     source-specific placements are never auto-moved: unplaced work stays a
-     person's placement decision. */
+  // Legacy markers named only the source document. Normalize those; never move
+  // source-specific placements automatically.
   useEffect(() => {
     if (editor === null || !connected.isSuccess) return
     const byRow = new Map<string, PlacementRef[]>()
@@ -905,9 +891,8 @@ export function ConnectedWork({ id, className = '' }: {
     }
   }, [editor, id, connected.isSuccess, placements, rowsByKey])
 
-  /* A removed relationship cannot leave a dead placement. Exact source ids let
-     us remove only the source that vanished while leaving sibling references
-     from the same document intact. */
+  // A removed relationship must not leave a dead placement. Remove only the source
+  // that vanished.
   useEffect(() => {
     if (editor === null || !connected.isSuccess || connected.data.truncated) return
     const stale = placements.filter((ref) => {

@@ -1,4 +1,3 @@
-/* A collection in the Library: its heading, its menu and its pages. */
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { ChevronRight, Folders } from '../../lib/icons.js'
@@ -18,8 +17,6 @@ import { shelfMark } from '../../parts/presenters.js'
 import { shelfLink } from '../../lib/nav-links.js'
 import { paths } from '../../routes.js'
 import { heldForTab, sidebarDragOver, sidebarDropAt, TAB_STRIP } from '../tab-drop.js'
-/* The one drag engine, and the Library's answers to the two questions it asks
-   about anything outside the list it is sorting. */
 import { swallowNextClick, useSortableList } from '../../lib/use-sortable-list.js'
 import type { SortableItemState } from '../../lib/use-sortable-list.js'
 import { DIRECTORY, grip } from '../library-drag.js'
@@ -34,13 +31,8 @@ import { TREE_KEY, usePageTree } from './page-tree-context.js'
 import { SHELF_ACTION_PARAM } from './folder-action.js'
 import { SidebarFolderRow } from './SidebarFolderRow.js'
 
-/**
- * A shelf: a collapsible group of folder rows headed by its name.
- *
- * The heading is the shelf's icon and name. The icon is the fold (it turns
- * into a chevron under the pointer, in the same box, so nothing shifts); the
- * name opens the shelf's page. Its "…" is the same menu a right-click opens.
- */
+/** The icon is the fold and turns into a chevron in the same box, so nothing
+ *  shifts; the name opens the shelf's page. */
 export function FolderGroupBlock({
   group,
   activeId,
@@ -84,11 +76,10 @@ export function FolderGroupBlock({
     onLift: swallowNextClick,
     describe: (index) => group.folders[index]?.name ?? 'Page',
     onOver: (from, point) => {
-      /* Out of the sidebar: the row comes loose, and opens as a tab if it is
-         let go on the tab strip (`tab-drop.ts`). */
+      /* Out of the sidebar, the row opens as a tab if dropped on the tab strip. */
       const folder = group.folders[from]
       if (sidebarDragOver(point, folder === undefined ? null : paths.folder(folder.id)) !== null) return TAB_STRIP
-      /* Onto a page, or between sub-pages: the tree answers first. */
+      /* The tree answers before the containers. */
       if (folder !== undefined && pages.probe(folder, point, false) !== null) return TREE_KEY
       return zones.containerAt(point, self)
     },
@@ -168,7 +159,7 @@ export function FolderGroupBlock({
           <CollapsibleTrigger
             aria-label={`Show the pages in ${group.label}`}
             data-no-drag
-            /* A bare label has no page: its fold is the heading's one stop. */
+            /* A bare label has no page link, so its fold is the heading's one Tab stop. */
             {...(group.shelf === null ? { 'data-tree-row': '' } : { tabIndex: -1 })}
             className="relative flex size-6 shrink-0 items-center justify-center rounded-sm outline-none hover:bg-sidebar-accent"
           >
@@ -204,19 +195,15 @@ export function FolderGroupBlock({
               kind="shelf"
               name={group.label}
               width="w-44"
-              /* The collection page's own "…" (M4: one menu per object), plus
-                 Rename for a bare label, whose title is not a field anywhere. */
               handlers={{
                 history:
                   shelfId === null
                     ? undefined
                     : () => {
-                        /* Asks the page, as a folder row does: a sheet
-                           here would unmount when the phone sidebar closes. */
+                        /* Asks the page: a sheet here would unmount when the phone sidebar closes. */
                         void navigate(`${paths.shelf(shelfId)}?${SHELF_ACTION_PARAM}=history`)
                       },
-                /* A shelf with a page renames in its page title (the one home);
-                   only a bare label, which has no page, renames here. */
+                /* A shelf renames in its page title; only a bare label renames here. */
                 rename:
                   group.shelf === null
                     ? () => {

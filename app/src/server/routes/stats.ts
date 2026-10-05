@@ -1,9 +1,6 @@
 /*
-GET /stats: aggregate counts for the people who run Dana, and nobody else.
-
-The gate is an email allowlist, `DANA_OPERATORS`, checked against the signed-in
-account. Everyone else, signed in or not, gets the same 404 an unknown path
-gets, so the route does not say it exists.
+GET /stats: aggregate counts for operators listed in DANA_OPERATORS (by email).
+Everyone else gets 404, so the route does not reveal itself.
 */
 import type { Request, Response, Router } from 'express'
 

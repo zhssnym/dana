@@ -1,19 +1,7 @@
 /*
-The Discussion presentation adapter (issue #546, tab-scoped by #569 and
-sidebar-first at the project level by #575).
-
-The selected project/thread/filter/presentation/return context live on the
-active workspace tab in `shell/tabs.ts`; this module only gives Discussion
-callers a narrow API for that state. Switching workspace tabs therefore
-changes the visible presentation without mutating either tab. The sidebar
-width is deliberately different: it is a shared viewer/window preference and
-remains here in localStorage.
-
-`openChatDock` always opens Discussion beside the current page. Project-level
-and task-specific entry points therefore share the same lightweight default;
-full screen is an explicit presentation change from the sidebar or a direct
-Discussion URL.
-*/
+ * Discussion presentation: the state lives on the active workspace tab (`shell/tabs.ts`); this is its narrow
+ * API. The width is a per-window preference in localStorage. `openChatDock` always opens beside the page.
+ */
 import { useSyncExternalStore } from 'react'
 
 import {
@@ -26,13 +14,12 @@ import {
 import type { DiscussionFilter } from '../shell/tabs.js'
 
 export interface ChatDockState {
-  /** Workspace tab that owns this presentation; used to isolate local UI state. */
+  /** The workspace tab that owns this presentation. */
   readonly workspaceTabId: string
   /** Any page of the project; the server lists the whole project's threads. */
   readonly folderId: string
-  /** The open thread, or null for the project's list of threads. */
+  /** The open thread, or null for the list. */
   readonly discussionId: string | null
-  /** The thread-list filter this workspace tab last used. */
   readonly filter: DiscussionFilter
 }
 
@@ -100,7 +87,7 @@ export function openChatDock(next: {
 export function openDiscussionFullScreen(next: {
   readonly folderId: string
   readonly discussionId: string | null
-  /** Undefined preserves the same Discussion's remembered source. */
+  /** Undefined keeps the same Discussion's remembered source. */
   readonly returnTo?: string | null
 }): void {
   updateActiveCollaboration((current) => {

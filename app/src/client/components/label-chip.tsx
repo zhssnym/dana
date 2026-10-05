@@ -1,10 +1,4 @@
-/*
-One Label identity everywhere Dana draws it (#493): a quiet colour-tinted pill.
-The colour is the stored hex (`parts/identity-colors.ts` says why a shared
-identity colour is a literal and not a token), while the fill and ring are
-transparent derivations of that same identity. Labels therefore read as real
-objects without becoming louder than the Task they classify.
-*/
+// A label as a tinted pill. The colour is the stored hex; fill and ring derive from it.
 import { cn } from "./ui/utils.js"
 
 export interface LabelLook {
@@ -51,17 +45,11 @@ export function LabelChip({ label, className }: { readonly label: LabelLook; rea
   )
 }
 
-/** Labels in the one order every surface draws them: by name. */
 export function byName<T extends { readonly name: string }>(labels: readonly T[]): T[] {
   return [...labels].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
 }
 
-/**
- * Dense rows keep the Task title first. Desktop shows at most two pills and
- * then +N; a metadata-heavy row or narrow screen shows one and counts the
- * rest. The same component feeds Work rows and Board cards, so neither surface
- * invents another Label language.
- */
+/** Desktop shows at most two pills then +N; a crowded row or narrow screen shows one. */
 export function RowLabels({
   labels,
   crowded = false,

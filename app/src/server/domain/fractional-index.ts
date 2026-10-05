@@ -1,40 +1,8 @@
-/*
-The key arithmetic behind 4.5's `position`: a string of base-62 digits
-ordered lexicographically, with a key computable strictly between any two.
+// Fractional index keys for `position`: base-62 strings with a key between any two, so a drop writes one row.
+// Integer-part keys stop appends from growing a digit each time (the `fractional-indexing` algorithm).
+// The column is COLLATE "C", so JavaScript and the database sort keys the same way. Ties break by id.
 
-**Why a string and not a number.** A plain integer renumbers every row below
-a drop; a fractional index does not. A drop writes one row here,
-whatever the list's length, which is also what makes two people dragging one
-shared list cheap: they touch different rows and never renumber each other's.
-
-**Why the key has an integer part.** The obvious midpoint alone is not
-enough, and the failure is not exotic: every drag to the bottom of a list
-appends after the current last key, and a plain midpoint grows the key by a
-digit each time, so a folder somebody rearranges often walks into a key
-nothing can be appended after. The published shape solves it by splitting a
-key into an integer part, whose first character encodes its own length, and a
-fractional part; appending increments the integer part instead of extending
-it, and prepending decrements it. This is the jitterless
-`generateKeyBetween` of the MIT-licensed `fractional-indexing` package,
-re-expressed here in TypeScript rather than added as a dependency, because it
-is a hundred lines of arithmetic that this repository's own tests can hold
-and a supply-chain surface it does not need. `fractional-index.test.ts` is
-those tests, and the append and prepend cases are there because they are the
-ones the naive version fails.
-
-**Ties are expected and are not this module's problem.** Two placements into
-one gap compute the same key by construction. Section 6's preamble ends every
-order with id, so the tie resolves to one sequence both readers see.
-
-**Collation.** The column is `COLLATE "C"`, so the order this module reasons
-about (JavaScript's comparison, by code unit) and the order the database
-sorts by are the same order in every database Dana runs on. The alphabet is
-ASCII digits and letters, whose code units and bytes agree, and 4.5's
-`tasks_position_format_check` refuses anything outside it.
-*/
-
-/** Base 62, ascending in byte order: digits, then capitals, then lowercase,
- * which is ASCII's own sequence and therefore C collation's. */
+/** Base 62 in ASCII order, which is C collation's order. */
 const DIGITS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 
 const ZERO = DIGITS[0] as string
@@ -50,12 +18,7 @@ function charAt(key: string, index: number): string {
   return key[index] ?? ZERO
 }
 
-/**
- * How long the integer part starting with `head` is, which is what the head
- * character encodes: `a` opens a two-character integer, `b` a three, and so
- * on up to `z`, with the capitals running the same scale downwards for keys
- * below the first one anybody wrote.
- */
+/** The integer part's length, encoded by its head: `a` opens two characters, `b` three; capitals run downwards. */
 function integerLength(head: string): number {
   if (head >= 'a' && head <= 'z') {
     return head.charCodeAt(0) - 'a'.charCodeAt(0) + 2
@@ -78,9 +41,7 @@ function requireInteger(part: string): void {
   }
 }
 
-/** The invariant a stored key must satisfy: a readable integer part, and a
- * fractional part that does not end in the least digit, which is what leaves
- * room below every key inside its own prefix. */
+/** A stored key needs a readable integer part and a fraction not ending in the least digit. */
 function requireKey(key: string): void {
   if (key === `A${ZERO.repeat(26)}`) {
     throw new Error(`invalid order key: ${key}`)
@@ -137,12 +98,7 @@ function decrementInteger(part: string): string | null {
   return nextHead + body.join('')
 }
 
-/**
- * A fractional part strictly between `a` and `b`, where the empty string is
- * no lower bound and null is no upper one. Shared prefixes are peeled off,
- * then either a digit exists between the two leading digits or the recursion
- * descends one place.
- */
+/** A fractional part strictly between `a` and `b`; empty `a` is no lower bound and null `b` no upper one. */
 function midpoint(a: string, b: string | null): string {
   if (b !== null && a >= b) {
     throw new Error(`order keys are not in sequence: ${a} is not below ${b}`)
@@ -160,18 +116,12 @@ function midpoint(a: string, b: string | null): string {
   const low = a === '' ? 0 : DIGITS.indexOf(charAt(a, 0))
   const high = b === null ? DIGITS.length : DIGITS.indexOf(charAt(b, 0))
   if (high - low > 1) return digit(Math.round(0.5 * (low + high)))
-  // The two leading digits are adjacent, so nothing fits between them at
-  // this place and the answer lives one place deeper.
+  // Adjacent leading digits leave no room here, so the answer is one place deeper.
   if (b !== null && b.length > 1) return b.slice(0, 1)
   return digit(low) + midpoint(a.slice(1), null)
 }
 
-/**
- * The key for a task dropped between two neighbours, either of which may be
- * absent because the drop was at an end of the list.
- *
- * Both absent is the one-row list, which has one place to be.
- */
+/** The key between two neighbours, either of which may be absent at a list end. */
 export function keyBetween(
   lower: string | null,
   upper: string | null,
@@ -212,14 +162,7 @@ export function keyBetween(
   return lowInteger + midpoint(lowFraction, null)
 }
 
-/**
- * `count` keys in ascending order, for the pass that gives a folder's list
- * its first arrangement.
- *
- * Built by appending, which is the operation the integer part makes cheap:
- * a thousand keys stay three characters long, where a plain midpoint would
- * have grown one a digit at a time.
- */
+/** `count` ascending keys, built by appending so they stay short. */
 export function initialKeys(count: number): string[] {
   const keys: string[] = []
   let previous: string | null = null

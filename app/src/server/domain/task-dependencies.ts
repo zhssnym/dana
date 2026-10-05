@@ -1,77 +1,7 @@
-/*
-The M1-C2 dependency relation (issue #224): one directed row per relation,
-read from either end, with its lifecycle state derived rather than stored.
-
-## What is stored and what is not
-
-`task_dependencies` (migration 0019) holds the edge and nothing about its
-progress. Four things follow, and all four are the same decision:
-
-- **No `blocked` task status.** 4.5's three statuses are untouched and nothing
-  here writes to `tasks`. A dependency write changes no status, no date, no
-  assignment and no membership; it inserts or deletes one row in one table.
-- **Completing, reopening or abandoning a blocker needs no write here.** The
-  state is read off the blocker's own `status` column, so it cannot drift from
-  the column that already is the truth.
-- **Abandoned is not done.** A dependency on an abandoned blocker is
-  `unresolved`: the blocker is not coming back and it did not finish, and
-  calling that satisfied would report work as unblocked that nobody did.
-- **A soft-deleted task keeps its edges** and restores whole. Both endpoint
-  foreign keys cascade, so it is the *permanent* delete (7.13) and the 11.7
-  purge — both of which `DELETE FROM tasks` — that take the rows away.
-
-## Access, and what a read is allowed to say
-
-10.2 is the whole of the authorization rule and there is no chokepoint to lean
-on, so every entry point here resolves access itself through
-`accessibleTask`, which is the same predicate `GET /tasks/:id` gates on.
-
-A write needs **both** ends: the dependent (the task in the path) and the
-blocker (the task in the body). An inaccessible end is 404 and never 403, so a
-caller cannot learn from the status code whether the id they guessed names a
-real task. That is the whole of the protection on the write side, and it is
-deliberate that the refusal for a task in somebody else's folder is
-indistinguishable from the refusal for a uuid nobody has ever used.
-
-A read is the harder half, because an edge can outlive access to one of its
-ends: a cross-folder dependency is made by somebody who could read both, and a
-later unshare takes one end away without touching the row. Such an edge is
-returned with `task` null and `state` `unknown`. It is not hidden, because the
-near end has something real attached to it and a list that silently omitted it
-would be lying to the person who can see the near task; and it carries nothing
-of the far task, not its title, not its folder, not its status and not its id.
-`state` is the one that is easy to leak by accident: it is a function of the
-blocker's status, so reporting it for a blocker the viewer cannot read would
-be reporting that task's status. `unknown` is what stands in its place.
-
-## Cycles
-
-A self-edge is refused here and also by
-`task_dependencies_no_self_edge_check`, in that order: the constraint is the
-floor and the domain refusal is what makes it a 422 rather than a 500.
-
-Everything longer is this module's, because no constraint can see it. The walk
-is a recursive CTE asking one question — is the proposed dependent already
-reachable from the proposed blocker, following `depends_on` edges — and the
-answer is yes exactly when the new edge would close a cycle, of length two or
-of length twenty. `UNION` rather than `UNION ALL` so the walk terminates even
-if a cycle somehow already existed.
-
-**The check and the insert are serialized by a transaction-scoped advisory
-lock**, and that is not belt and braces. Two concurrent requests, A→B and
-B→A, each read a graph with no cycle in it and each then writes; the cycle
-exists afterwards and neither request ever saw it. Row locks on the two tasks
-do not close that, because the cycle a write completes can run through tasks
-neither request names. One lock over the whole relation is the cheap correct
-answer: dependency writes are rare, and the alternative is a graph invariant
-that holds only when nobody is in a hurry.
-
-The walk reads edges the viewer may not be able to see, and must: a graph that
-skipped the invisible edges would cheerfully admit a cycle through a folder
-somebody else owns. The refusal therefore tells a caller that *some* path
-exists between two tasks they can both already read, which is the narrowest
-thing it can say while remaining correct.
-*/
+// Task dependencies: one directed row per relation; state is derived from the blocker's status, never stored.
+// Abandoned is not done: it leaves the dependency unresolved. Inaccessible ends answer 404, and read results
+// redact the far task to `task: null, state: 'unknown'`. Writes take one advisory lock so concurrent edges
+// cannot close a cycle together; the cycle walk reads every edge, visible or not.
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
@@ -88,19 +18,10 @@ import type { Executor } from '../database.js'
 import { joinVisibleFolder } from './folder-access.js'
 import { accessibleTask, mayActOnTask } from './tasks.js'
 
-/**
- * The one key every dependency write takes, for the whole of its transaction.
- *
- * Arbitrary, like the migration lock in the test harness; what matters is only
- * that every writer agrees on it. It is taken before the cycle walk reads
- * anything, so the walk and the insert that trusts it are one decision.
- */
+/** The advisory lock every dependency write takes before the cycle walk. The value only has to be agreed. */
 const DEPENDENCY_GRAPH_LOCK = 727224
 
-/** 4.5's three statuses read as the relation's three lifecycle states.
- * Pending means the work is still ahead, completed means it is done, and
- * abandoned means it stopped without being done — which leaves the dependency
- * unresolved rather than satisfied. */
+/** Pending is active, completed is satisfied, abandoned is unresolved. */
 export function stateOfBlocker(status: TaskStatus): DependencyState {
   switch (status) {
     case 'completed':
@@ -118,13 +39,7 @@ function instantOf(value: unknown): string {
     : new Date(String(value)).toISOString()
 }
 
-/**
- * The far end of an edge, or null where the viewer cannot read it.
- *
- * The lateral join below leaves every `far_*` column null in that case, so one
- * test on the id settles the whole object: there is no arrangement of this
- * function in which a title or a folder name survives a missing membership.
- */
+/** The far end of an edge, or null where the viewer cannot read it (every `far_*` column is then null). */
 function summaryOf(row: Record<string, unknown>): DependencyTaskSummary | null {
   if (row.far_id === null || row.far_id === undefined) return null
   return {
@@ -140,14 +55,8 @@ function summaryOf(row: Record<string, unknown>): DependencyTaskSummary | null {
 }
 
 /**
- * The far task of each edge, resolved with exactly the predicate
- * `accessibleTask` uses: a live task, in a live folder, that the viewer is a
- * member of. `near` names which column of the edge is the task being read, and
- * `far` the other one, so one statement serves both projections.
- *
- * The lateral is what keeps the redaction honest. A left join on `tasks` with
- * the membership test bolted on afterwards would hand this function a row it
- * then had to remember to blank; here the far task simply is not there.
+ * Each edge's far task, through a lateral join with `accessibleTask`'s predicate, so an unreadable far task
+ * is simply absent rather than blanked afterwards. `near` names the column of the task being read.
  */
 async function edgesOf(
   executor: Executor,
@@ -180,15 +89,8 @@ async function edgesOf(
 }
 
 /**
- * `GET /tasks/:id/dependencies`. Null means the task does not exist or the
- * viewer is not a member of its folder, which 10.2 makes one answer: 404.
- *
- * The two projections differ in where the state comes from, and that is the
- * only asymmetry in this module. A `depends_on` entry's state is the far
- * task's, because the far task is the blocker, so an unreadable far task
- * leaves it `unknown`. A `blocks` entry's state is the *near* task's, the
- * task being read being the blocker there, so it is always knowable and an
- * unreadable dependent redacts the summary and nothing else.
+ * `GET /tasks/:id/dependencies`; null is 404 (10.2). A `depends_on` state is the far task's, so it can be
+ * `unknown`; a `blocks` state is the near task's, so it is always known.
  */
 export async function readTaskDependencies(
   executor: Executor,
@@ -234,31 +136,17 @@ export async function readTaskDependencies(
 }
 
 export type CreateDependencyResult =
-  /** Either end is nonexistent, trashed, or in a folder the viewer is not a
-   * member of. One answer for all three (10.2): 404. */
+  /** Either end is missing, trashed or not readable: one 404 (10.2). */
   | { kind: 'not_found' }
-  /** A task cannot wait on itself. The CHECK refuses it too; this is what
-   * makes the refusal a 422 naming the field rather than a 500. */
+  /** The CHECK refuses it too; this makes it a 422 instead of a 500. */
   | { kind: 'self_dependency' }
-  /** The edge would close a cycle of some length. */
   | { kind: 'cycle' }
-  /** Created, 201. */
   | { kind: 'created'; edge: TaskDependencyEdge }
-  /** The pair was already related, so the request asked for a state that
-   * already holds. 200 with the edge that was already there. */
+  /** The pair was already related: 200 with the existing edge. */
   | { kind: 'exists'; edge: TaskDependencyEdge }
-  /** Visible, and not this member's to relate (issue #228). */
   | { kind: 'forbidden'; reason: string }
 
-/**
- * `POST /tasks/:id/dependencies`, where `:id` is the dependent.
- *
- * The order of the refusals is the order of what they cost: the self-edge is
- * arithmetic, access is two indexed reads, and the cycle walk is the only one
- * that touches the graph. Access comes before the walk so that a caller who
- * can read neither end learns nothing about the shape of somebody else's
- * dependencies.
- */
+/** `POST /tasks/:id/dependencies`, `:id` being the dependent. Access is checked before the cycle walk. */
 export async function createTaskDependency(
   db: Db,
   viewerId: string,
@@ -276,18 +164,8 @@ export async function createTaskDependency(
     const blocker = await accessibleTask(tx, viewerId, blockingTaskId)
     if (blocker === null) return { kind: 'not_found' } as const
 
-    /*
-    `task.dependency.manage` on **both** ends (issue #228).
-
-    R8 puts this beyond Can contribute for a reason worth restating here: a
-    dependency is not a private annotation, it imposes a planning consequence
-    on whoever holds the other task. Checking only the dependent end would let
-    a member with Can edit in one Folder hang somebody else's work in a Folder
-    where they merely comment. The two ends can be in different Folders --
-    `createTaskDependency` resolves each separately and the contract admits a
-    cross-Folder edge -- so both are asked, and neither is asked with an
-    assignee escape, because this action names none.
-    */
+    /* `task.dependency.manage` on both ends, which may be in different Folders: a dependency
+    imposes on whoever holds the other task. */
     for (const end of [dependent, blocker]) {
       const decision = mayActOnTask(end, 'task.dependency.manage')
       if (!decision.allowed) {
@@ -295,11 +173,7 @@ export async function createTaskDependency(
       }
     }
 
-    /* The new edge says the dependent waits on the blocker, so it closes a
-       cycle exactly when the blocker already waits — through any number of
-       hops — on the dependent. The walk runs over every edge in the table,
-       visible to this viewer or not, because a graph invariant that held only
-       over the rows one person can see would not be one. */
+    /* The edge closes a cycle exactly when the blocker already waits, through any hops, on the dependent. */
     const closes = await rowsOf(
       tx,
       sql`WITH RECURSIVE reachable(task_id) AS (
@@ -345,11 +219,7 @@ export async function createTaskDependency(
       } as const
     }
 
-    /* Already related. The request asked for a state the table is already in,
-       so it is answered with the row that is there rather than refused: a
-       client that lost a response and retried gets the same edge back, and
-       two people adding the same blocker do not race each other into a 409.
-       The status the route gives it says which of the two happened. */
+    /* Already related: answer with the existing row, so a retry or a concurrent duplicate gets the same edge. */
     const existing = await rowsOf(
       tx,
       sql`SELECT id, created_at, created_by FROM task_dependencies
@@ -371,10 +241,7 @@ export async function createTaskDependency(
   })
 }
 
-/** The folder chip 7.0 gives a task, for the one task a create already knows
- * the viewer can read. A second read rather than a column on `TaskAccess`,
- * because widening that shape for one caller would put a name on every
- * access resolution in the server. */
+/** The folder chip for the created edge's task, read separately to keep `TaskAccess` small. */
 async function folderChip(
   executor: Executor,
   folderId: string,
@@ -392,16 +259,8 @@ async function folderChip(
 }
 
 /**
- * `DELETE /tasks/:id/dependencies/:dependencyId`.
- *
- * The edge is named by its own id and must touch the task in the path, so a
- * member of one folder cannot remove an edge between two tasks in another by
- * guessing its id: the statement's own predicate is the authorization, on top
- * of the access resolution above it.
- *
- * Either end may remove the relation. It is one row and both tasks are party
- * to it, and there is no reading of 5.4 under which a member may add a blocker
- * to a task and not take one off.
+ * `DELETE /tasks/:id/dependencies/:dependencyId`. The edge must touch the task in the path, so its id alone
+ * cannot remove an edge elsewhere. Either end may remove it.
  */
 export async function deleteTaskDependency(
   db: Db,
@@ -412,12 +271,7 @@ export async function deleteTaskDependency(
   return inTransaction(db, async (tx) => {
     const task = await accessibleTask(tx, viewerId, taskId)
     if (task === null) return 'not_found'
-    /* The same authority that creates a relation removes one, on this
-       function's own stated reasoning: there is no reading under which a
-       member may add a blocker to a task and not take one off. Only the end
-       named in the path is checked, because that is the only end this caller
-       has demonstrably resolved; the far end may be a task they cannot read
-       at all, which is what the edge's surrogate id exists for. */
+    /* Only the path's end is checked: the far end may be a task the caller cannot read. */
     const decision = mayActOnTask(task, 'task.dependency.manage')
     if (!decision.allowed) {
       return { kind: 'forbidden', reason: decision.reason }
@@ -435,25 +289,8 @@ export async function deleteTaskDependency(
 }
 
 /**
- * The duplication rule, which is one sentence: **relationships travel only
- * when both ends travel together.**
- *
- * `identity` maps every source task id that was copied to the id of its copy.
- * An edge is carried across when *both* of its endpoints are keys of that map,
- * and it is then written between the two copies. An edge with one end outside
- * the copied set is dropped rather than retained, because retaining it would
- * bind the new folder's work to the old folder's, which is the one outcome the
- * rule exists to prevent.
- *
- * **No copied task can end up pointing at an original**, and that is
- * structural rather than checked: the only identifiers this function writes
- * are values of `identity`, and every value of `identity` is a task this
- * duplication just created. The `IN` pair in the read is the same rule said a
- * second time, one layer earlier, so a mapping bug cannot even fetch an edge
- * it would have to drop.
- *
- * It runs inside the caller's transaction, so the copied folder and its
- * relations commit together or not at all.
+ * Copies edges only when both ends were copied (`identity` maps source id to copy id).
+ * Every id written is a value of `identity`, so no copy can point at an original. Runs in the caller's transaction.
  */
 export async function copyDependenciesWithin(
   tx: Executor,
@@ -490,17 +327,8 @@ export async function copyDependenciesWithin(
 }
 
 /**
- * `GET /folders/:id/dependencies`: the Folder's internal edges, in one
- * statement. The caller has already resolved the Folder through `accessOf`,
- * which is membership of a live Folder, and that is all `accessibleTask`
- * asks of a live Task inside it — so both ends of every row returned are
- * Tasks the viewer can read, and no redaction is owed.
- *
- * **Both ends are joined to this Folder**, and that is the whole security
- * content of the query: an edge with one end elsewhere names a Task the
- * viewer may not be able to read, which `readTaskDependencies` redacts and
- * this read therefore simply never returns. A trashed Task at either end is
- * left out for the same reason `GET /tasks/:id` answers 404 for it.
+ * `GET /folders/:id/dependencies`: edges with both ends in this Folder, so every end is readable.
+ * The caller has resolved the Folder through `accessOf`.
  */
 export async function readFolderDependencies(
   executor: Executor,

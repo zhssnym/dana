@@ -1,22 +1,8 @@
 /*
-GET /views/focus: one query behind the Focus lists (Today, Upcoming, Assigned,
-Important, Overdue, No date, All open).
-
-It is built from the queries the lists already read, not beside them: Today's
-rows are Q1's (`openGroups` in my-day.ts), and every other list is Q5's stream
-(Q3's dated rows over Q2's grouped ones, `plannedRows` and `tasksRows` in
-lists.ts). What this file adds is the filter, pushed into the SQL so the
-1000-row cap counts what the list shows rather than what it later hides.
-The filters read the rung (`rungOf` in cards.ts) in SQL; Today's headings
-read the same two arms (late, started) off the card, which carries both dates.
-
-Every list shows open work only: the screens drop abandoned rows
-(`withoutDropped`), so the query leaves them out.
-
-`group=today` reproduces TodayPage's four headings (Carried over, Today,
-Started, Added), rule for rule. Assigned's per-person groups are the client's
-(`groupRows(..., 'person')` in client/views/grouping.ts): they sort names in
-the viewer's locale and name a deleted account in the client's words.
+GET /views/focus: one query behind the Focus lists, built from the existing
+queries (Q1 for Today, Q3 over Q2 otherwise) with filters pushed into SQL so
+the 1000-row cap counts what the list shows. Open work only. `group=today`
+mirrors TodayPage's four headings; per-person grouping is the client's.
 */
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
@@ -48,11 +34,8 @@ function whenScope(when: FocusWhen, viewerId: string, todayLocal: string): SQL {
     case 'undated':
       return sql` AND ${rung} = 'undated'`
     case 'upcoming':
-      /* `upcomingRows` in client/shell/focus-lists.ts: dated, not pulled in,
-         and not the viewer's own late, started or due-today work, which
-         Today holds. IS NOT DISTINCT FROM, because a plain `=` on an
-         unassigned row is null and NOT (null AND true) would drop a
-         teammate's overdue task from both lists. */
+      /* Mirrors `upcomingRows` in client/shell/focus-lists.ts: dated, not pulled
+         in, and not the viewer's own late, started or due-today work. */
       return sql` AND ${SCHEDULED} AND e.task_id IS NULL
         AND NOT (t.assignee_ids @> ARRAY[${viewerId}::uuid]
                  AND ${rung} IN ('overdue', 'started', 'today'))`
@@ -60,12 +43,8 @@ function whenScope(when: FocusWhen, viewerId: string, todayLocal: string): SQL {
 }
 
 /**
- * TodayPage's four headings over Q1's two groups, as the screen sorts them.
- * Overdue work (a deadline before today) is carried over, started or not;
- * started work (every Q1 row is pending) whose start has arrived is started;
- * the rest of Q1's today group is due today (or undated, or a later start
- * with no deadline), or added by hand when its deadline is later. Late and
- * started are `rungOf`'s first two arms, read off the card.
+ * TodayPage's four headings over Q1's two groups: late work is carried over,
+ * begun work is started, the rest is due today or added by hand.
  */
 function todayGroups(
   carried: readonly TaskCard[],
@@ -89,7 +68,6 @@ function todayGroups(
     else if (task.due_date === null || task.due_date <= todayLocal) dueToday.push(task)
     else added.push(task)
   }
-  /* One order across both sources: due date, undated last. Stable. */
   started.sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'))
   return [
     { key: 'carried', rows: carriedShown },
@@ -111,7 +89,6 @@ export async function focusView(
 
   let sections: TaskCard[][]
   if (query.when === 'on_today') {
-    /* Q1 as My Day reads it; `important` narrows its cards here. */
     const open = await openGroups(executor, viewerId, todayLocal)
     const keep = (rows: TaskCard[]) =>
       query.important ? rows.filter((task) => task.important) : rows

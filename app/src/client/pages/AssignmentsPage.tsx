@@ -1,12 +1,7 @@
 /*
-Assigned, at /app/assignments: every open task the viewer can read, grouped by
-person with "You" first and "Unassigned" last: GET /views/focus's open rows,
-grouped here by grouping.ts in the viewer's locale. The "New task" row assigns to
-the viewer, which 7.6 does by default. "From" on a row names the creator,
-since Dana records no assigner. No View menu (M4): no board, grouping, sort
-or "Show completed". The sidebar shows this page only to a viewer on a page
-with another member; the address itself always works.
-*/
+ * Assigned: every open task the viewer can read, grouped by person, "You" first and "Unassigned" last. "From"
+ * names the creator, since Dana records no assigner.
+ */
 import { UserRoundCheck } from '../lib/icons.js'
 
 import { useFocusView, useMultiMemberFolderIds } from '../api/queries.js'
@@ -28,7 +23,7 @@ export function AssignmentsPage(): React.JSX.Element {
   const actions = useRowActions()
   const confirm = useConfirm()
   const basis = useRowBasis()
-  /* One Tab stop for the page's rows; arrows, Enter and Space (`row-keys.ts`). */
+  /* One Tab stop for the page's rows (`row-keys.ts`). */
   const keys = useRowKeys<HTMLDivElement>()
   const multiMemberFolderIds = useMultiMemberFolderIds()
 
@@ -44,8 +39,7 @@ export function AssignmentsPage(): React.JSX.Element {
   return (
     <div ref={keys} className="space-y-6">
       <PlaceHead place={place} controls={null} />
-      {/* Rows bleed their padding into the gutter: a checkbox, a heading
-          and the title share one left edge. */}
+      {/* Rows bleed their padding into the gutter so checkbox, heading and title share one left edge. */}
       <div className="-mx-1.5">
         <PageBody
           query={view}

@@ -1,20 +1,5 @@
-/*
-The one block selection every canvas has: the editor's own multi-block
-selection. `block-selection.ts` (the API the block menu, the keys and the
-marquee use) reads and writes it through the helpers here.
-
-A block selection is BlockNote's `MultipleNodeSelection`: a ProseMirror
-selection that sits between blocks, just before the first selected block and
-just after the last, all of them siblings. It is the selection BlockNote's side
-menu builds when a drag starts over a selected range (`dragStart` in
-`@blocknote/core/src/extensions/SideMenu/dragging.ts`), so dragging any
-selected block's handle moves them all, with nothing of ours. The class is not
-exported; `multipleNodeSelectionClass` recovers it from the JSON id it
-registers ("multiple-node").
-
-Being the editor's selection, it is what undo, a click in text (which replaces
-it) and the drag all see; there is no second copy to fall out of step.
-*/
+// The block selection is BlockNote's `MultipleNodeSelection`, so undo, clicks and
+// handle drags all see it. The class is not exported; it is recovered from its JSON id.
 import { Selection } from 'prosemirror-state'
 import type { EditorState, SelectionBookmark } from 'prosemirror-state'
 import type { Mappable } from 'prosemirror-transform'
@@ -27,7 +12,7 @@ export function isBlockSelection(selection: Selection): boolean {
   return (selection.toJSON() as { type?: string }).type === 'multiple-node'
 }
 
-/** The blocks a block selection holds, in document order (siblings). */
+/** The blocks a block selection holds, in document order. */
 export function selectedBlocks(state: EditorState): SelectedBlock[] {
   const { selection, doc } = state
   if (!isBlockSelection(selection)) return []
@@ -43,7 +28,6 @@ export function selectedBlocks(state: EditorState): SelectedBlock[] {
   return blocks
 }
 
-/** Every block's position, by id. */
 export function blockPositions(doc: PMNode): Map<string, { pos: number; node: PMNode }> {
   const positions = new Map<string, { pos: number; node: PMNode }>()
   doc.descendants((node, pos) => {
@@ -54,10 +38,8 @@ export function blockPositions(doc: PMNode): Map<string, { pos: number; node: PM
 }
 
 /**
- * The sibling range that covers `ids`: every block is lifted to its ancestor
- * under the deepest group holding all of them, and everything between the
- * first and the last is included (a block selection is one contiguous run,
- * as in Notion). Null when none of the ids is in the document.
+ * The sibling range covering `ids`: each block is lifted to the deepest group holding
+ * all of them, and everything between is included. Null when none is present.
  */
 export function rangeFor(doc: PMNode, ids: Iterable<string>): { from: number; to: number } | null {
   const positions = blockPositions(doc)
@@ -81,13 +63,8 @@ export function rangeFor(doc: PMNode, ids: Iterable<string>): { from: number; to
 type SelectionClass = { new ($anchor: ResolvedPos, $head: ResolvedPos): Selection }
 let multipleNodeSelection: SelectionClass | null | undefined
 
-/*
-BlockNote registers MultipleNodeSelection with `Selection.jsonID` but defines
-no `fromJSON` of its own, so `Selection.fromJSON` dispatching to it recurses
-into itself. That dispatch is `cls.fromJSON(doc, json)`, though, with the class
-as `this`: for one call, the base method is swapped for one that reports its
-`this` and stops, and the class is ours to construct directly.
-*/
+// BlockNote's class has no `fromJSON`, so `Selection.fromJSON` would recurse. Swap the
+// base method for one call to capture the class from `this`.
 function multipleNodeSelectionClass(doc: PMNode): SelectionClass | null {
   if (multipleNodeSelection !== undefined) return multipleNodeSelection
   const base = Selection as unknown as { fromJSON: (this: unknown, doc: PMNode, json: unknown) => Selection }
@@ -104,12 +81,7 @@ function multipleNodeSelectionClass(doc: PMNode): SelectionClass | null {
   return captured
 }
 
-/*
-Undo gives the picked blocks back picked. ProseMirror's history keeps the
-selection each change started from as a bookmark, and BlockNote's class has
-only the base one, a caret's; this one resolves to the same run of blocks
-(or near where it was, when that run is gone).
-*/
+// So undo restores the picked blocks: BlockNote's class only has the caret bookmark.
 class BlockRunBookmark implements SelectionBookmark {
   constructor(readonly Multiple: SelectionClass, readonly from: number, readonly to: number) {}
   map(mapping: Mappable): SelectionBookmark {
@@ -140,7 +112,7 @@ export function blockSelectionFor(doc: PMNode, ids: Iterable<string>): Selection
 /** Called before a view enters block selection (the canvas closes its text toolbar). */
 export const beforeBlockSelection = new WeakMap<EditorView, () => void>()
 
-/** Block-select `ids` (normalised to one sibling run). False when none exist. */
+/** Block-select `ids` as one sibling run. False when none exist. */
 export function selectBlocks(view: EditorView, ids: Iterable<string>): boolean {
   const selection = blockSelectionFor(view.state.doc, ids)
   if (selection === null) return false

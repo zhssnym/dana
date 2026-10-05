@@ -1,44 +1,19 @@
 /*
-The 7.14 contract: a comment on a task or on the folder's own
-thread, replies that name the post they answer (4.15), reactions from a fixed set, files by
-reference to 7.15's rows. The thread read returns whole and ordered; there
-is no pagination, a conversation being read as a conversation.
-
-Files are referenced, never uploaded here: POST /api/v1/files (7.15) stores
-each one first, under its own 25 MB cap and the account's 1 GB quota, and a
-comment names the rows that already exist. So this body carries no bytes and
-needs no size limit of its own; the only number it enforces is 10.3's count.
+The 7.14 comment contract. Files are uploaded first through POST /api/v1/files
+and referenced here by id, so only 10.3's count applies. Threads are read whole.
 */
 import { z } from 'zod'
 import { richContent } from './rich-content.js'
 
-/**
- * 10.3's "Files per comment | 10". The number lives here so the schema, the
- * domain module and the criterion that measures the boundary all read one
- * constant rather than three literals that can drift apart.
- */
+/** 10.3's files-per-comment cap. */
 export const COMMENT_FILE_CAP = 10
 
 /*
-A post's content (Wave 2, W-C: Discussion threads). A post is written in the
-same editor as a page, so its content is a small block tree in the page's own
-vocabulary: rich text is `richContent`, a code block is plain `text`, a
-checklist item carries `checked`, a media block names one `file_id`. Pages-only
-kinds are not here: no Section, no Task, no folder/page reference, no diagram.
-
-**`body` is derived from this, never sent beside it.** The server writes the
-plain text of every block (`postPlainText`), clipped to 4000 characters, into
-`comments.body`, so search, notifications, snippets and every reader that
-predates posts keep working. A comment written before posts has `content`
-NULL and its `body` is the whole post, drawn as text.
-
-**A media block may only name one of the same comment's own `file_ids`.** The
-file is the comment's attachment row; the block only says where it sits in
-the writing. A block naming any other file is refused (422) before a write,
-because otherwise a post could display a file its author cannot read.
-
-The database says the same thing in `comments_content_check` (migration 0040):
-version 1, `blocks` an array, at most 256 KiB serialized.
+A post's content: a small block tree in the page's vocabulary, without
+pages-only kinds. The server derives `comments.body` (plain text, 4000 chars)
+from it; it is never sent beside it. A media block may only name one of the
+same comment's own `file_ids`, or a post could show a file its author cannot
+read. `comments_content_check` (migration 0040) enforces the version and size.
 */
 export const POST_CONTENT_VERSION = 1
 export const MAX_POST_BLOCKS = 500
@@ -93,7 +68,6 @@ export const postBlock: z.ZodType<PostBlock> = z.lazy(() =>
     })),
 )
 
-/** Walks every block, depth first, in reading order. */
 export function walkPostBlocks(blocks: readonly PostBlock[], visit: (block: PostBlock, depth: number) => void, depth = 0): void {
   for (const block of blocks) {
     visit(block, depth)
@@ -118,7 +92,6 @@ export const postContent = z
   .transform(({ version, blocks }) => ({ version, blocks: [...blocks] }))
 export type PostContent = z.infer<typeof postContent>
 
-/** The file ids a post's media blocks name, in reading order. */
 export function postFileIds(content: PostContent): string[] {
   const ids: string[] = []
   walkPostBlocks(content.blocks, (block) => { if (block.file_id !== undefined) ids.push(block.file_id) })
@@ -126,10 +99,8 @@ export function postFileIds(content: PostContent): string[] {
 }
 
 /**
- * The plain text of a post: one line per block that has words, runs joined,
- * trimmed, clipped to 4000 characters (`comments_body_length_check`). Empty
- * string when the post has no words (pictures only), which the server stores
- * as a NULL body.
+ * One line per block with words, clipped to 4000 (`comments_body_length_check`).
+ * Empty for a words-free post, which the server stores as a NULL body.
  */
 export function postPlainText(content: PostContent): string {
   const lines: string[] = []
@@ -142,51 +113,27 @@ export function postPlainText(content: PostContent): string {
 }
 
 /*
-The write half, widened from one file to ten on 2026-09-03 (issue #22).
-
-10.3 has said ten since it was written and this endpoint took one, so the
-limit and the product disagreed. Imran ruled on the issue that the ten stands
-and the endpoint moves: "People may need to add a few screenshots together,
-and they should stay in one comment."
-
-**Both spellings are accepted and `file_id` is not being removed.** It is
-defined as exactly `file_ids: [that id]` and is folded into the list by
-`attachedFileIds` below, which is the only thing in the codebase that knows
-there are two spellings. The reason it stays is the failure mode this folder
-is famous for: nothing here is `.strict()`, so a field the server does not
-read is accepted, discarded, and answered 200. The shipping client posts
-`file_id` (`components/task-editing.tsx`), and a change that replaced the
-field rather than widening beside it would have made every existing
-attachment vanish silently into a 201 with no file on it, which is avoidable
-for the cost of one alias.
-
-Sending both is refused rather than merged. Two spellings of the same thing
-in one body have no order between them that the caller can predict, and a
-server that guessed would be inventing the very thing this endpoint is now
-being careful about.
+`file_id` is an alias for `file_ids: [id]`, kept because a client still posts it
+and an unread field would be dropped with a 200. attachedFileIds is the only
+reader of both. Sending both is refused rather than merged.
 */
 export const postCommentBody = z
   .object({
     body: z.string().min(1).max(4000).optional(),
-    /** A post written in the editor (W-C). The server derives `body` from
-     * it; the two are never sent together. */
+    /** The server derives `body` from it; never sent with `body`. */
     content: postContent.optional(),
     parent_id: z.uuid().optional(),
-    /** The one-file spelling 7.14 names. Equivalent to a `file_ids`
-     * of one, and never sent beside it. */
+    /** Same as `file_ids` of one; never sent with it. */
     file_id: z.uuid().optional(),
-    /** Up to 10.3's cap, in the order they are to be attached. */
+    /** In attachment order. */
     file_ids: z
       .array(z.uuid())
       .max(COMMENT_FILE_CAP, {
         error: `must name at most ${String(COMMENT_FILE_CAP)} files`,
       })
       .optional(),
-    /* r5 discuss: where a post goes is its address, never its body -- a
-       Discussion's is `/discussions/:id/comments`, a task's talk is its
-       Discussion's (M5). Sent here they were parsed and dropped,
-       so the post landed somewhere the caller did not ask for with a 201;
-       they are refused by name instead (11.14's `z.never`). */
+    /* A post's place is its URL, never its body: refuse these by name rather
+       than drop them and answer 201 for the wrong place. */
     task_id: z.never({ error: 'is not read here: a task is discussed in its Discussion' }).optional(),
     discussion_id: z.never({ error: 'is not read here: a Discussion post goes to /discussions/:id/comments' }).optional(),
   })
@@ -197,12 +144,8 @@ export const postCommentBody = z
       path: ['file_ids'],
     },
   )
-  /*
-  The primary key of comment_files is (comment_id, file_id), so the same id
-  twice is a constraint violation wearing a 500. It is refused here instead,
-  and refused rather than deduplicated: dropping one of two ids a caller
-  actually sent is the silent-loss failure again, in miniature.
-  */
+  /* Same id twice would violate comment_files' primary key (a 500). Refused,
+     not deduplicated, so no id the caller sent is silently dropped. */
   .refine(
     (comment) =>
       comment.file_ids === undefined ||
@@ -223,73 +166,31 @@ export const postCommentBody = z
   )
 export type PostCommentBody = z.infer<typeof postCommentBody>
 
-/**
- * The two spellings folded into one ordered list, which is what the server
- * reads and what "ordered as attached" (7.14) means: the order the caller
- * wrote them in.
- *
- * Exported rather than inlined so that the alias exists in exactly one place.
- * A second reader of `file_id` is how the two spellings would one day
- * disagree about which files a comment carries.
- */
+/** Both spellings as one ordered list. The only reader of `file_id`. */
 export function attachedFileIds(comment: PostCommentBody): string[] {
   if (comment.file_ids !== undefined) return [...comment.file_ids]
   return comment.file_id === undefined ? [] : [comment.file_id]
 }
 
 /*
-The edit half: the words and the attachments (issue #94). 7.14 lets a person
-add or remove attachments on an existing comment without deleting and
-reposting it, and `domain/comments.ts` does the work. This schema and that
-module change together, because nothing in this folder is `.strict()`: a
-declared field with no reader parses, is discarded, and answers 200.
-
-**`file_ids` here is the full new set, not an addition.** Omitted means the
-attachments are untouched, `[]` removes every one of them, and any other list
-makes the set exactly those ids in that order. There is no add-one or
-remove-one spelling, because a composer that holds the whole set and sends it
-is the shape that cannot get out of step with what the person is looking at,
-and a partial verb would need an ordering rule between two callers that this
-endpoint has no way to give.
-
-**Only one spelling, and that is deliberate rather than an oversight.** The
-create half takes `file_id` as well, and the reason is written above
-`attachedFileIds`: the shipping client posts it, so replacing it would have
-made every attachment from that client vanish into a 201. No client has ever
-sent anything but `body` here, so there is no second spelling to keep alive
-and inventing one would only guarantee the two disagree one day. `file_id` is
-declared and refused instead of being tolerated and dropped: 11.14 rules
-`.strict()` out for this folder and names `z.never({ error })` as what an
-endpoint uses when it means to refuse one field, which answers 422 naming it
-without making the object strict. Somebody who knows the create half's alias
-will try it here, and being told which spelling to use is the whole difference
-between a caller who can fix their request and a 200 that changed nothing.
-
-**`body` became optional and the object did not become emptier for it.** A
-wordless comment is legal — 4.15 admits one carrying files alone, and the
-create half's own rule is "words or a file, at least one" — so a required
-`body` of at least one character would have made exactly those comments the
-ones whose attachments could never be edited. The same at-least-one rule
-applies here instead, and the resulting comment must still satisfy it: a `[]`
-that would leave neither words nor files is refused by the route, which is the
-only place that knows what the comment already holds.
+Editing words and attachments (#94). `file_ids` is the full new set: omitted
+leaves attachments alone, [] removes all. `file_id` is refused here by name so
+a caller learns the right spelling instead of getting a 200 that changed
+nothing. `body` is optional because a comment may carry files only; the route
+refuses an edit that would leave neither words nor files.
 */
 export const patchCommentBody = z
   .object({
     body: z.string().min(1).max(4000).optional(),
-    /** The post's whole new content (W-C); only its author may send it. The
-     * server derives `body` from it; never sent beside `body`. */
+    /** Author only; the server derives `body` from it. */
     content: postContent.optional(),
-    /** The full new set, up to 10.3's cap, in the order they are to be
-     * attached. Omitted leaves the attachments alone. */
+    /** The full new set, in attachment order. Omitted leaves attachments alone. */
     file_ids: z
       .array(z.uuid())
       .max(COMMENT_FILE_CAP, {
         error: `must name at most ${String(COMMENT_FILE_CAP)} files`,
       })
       .optional(),
-    /** Refused rather than dropped: the create half's one-file spelling has
-     * no meaning here, and a silent 200 is what issue #94 was opened about. */
     file_id: z
       .never({
         error:
@@ -297,10 +198,7 @@ export const patchCommentBody = z
       })
       .optional(),
   })
-  /* `comment_files` is keyed on (comment_id, file_id), so the same id twice is
-     a constraint violation wearing a 500. Refused rather than deduplicated,
-     for the create half's reason: dropping one of two ids a caller actually
-     sent is the silent-loss failure again, in miniature. */
+  /* Duplicates would violate the primary key; refused, not deduplicated. */
   .refine(
     (patch) =>
       patch.file_ids === undefined ||
@@ -317,26 +215,18 @@ export const patchCommentBody = z
   )
 export type PatchCommentBody = z.infer<typeof patchCommentBody>
 
-/** A comment's file as the thread answers it, 4.16's own columns and no
- * more (7.14): enough to draw the tile, the name and the meta line without
- * downloading the bytes. */
+/** A comment's file: enough to draw the tile without downloading the bytes. */
 export interface CommentFile {
   id: string
   name: string
   mime: string
   bytes: number
-  /** 4.16's shape as migration 0009 added it (issue #27): the tile can be
-   *  drawn at the picture's proportion before the bytes arrive, for every
-   *  reader of the thread rather than only the person who attached it. Null
-   *  for an attachment that is not an image and for anything stored before
-   *  0009, and null means unknown: draw what was drawn before. */
+  /** Null for non-images and files stored before 0009: unknown, draw as before. */
   width: number | null
   height: number | null
 }
 
-/** The whole reaction set: a small fixed one, keyed by name so the stored
- * value never depends on how a client encodes the glyph. A like from before
- * reactions is a `thumbs_up`. */
+/** The fixed reaction set, keyed by name. A pre-reaction like is `thumbs_up`. */
 export const REACTIONS = {
   thumbs_up: '👍',
   heart: '❤️',
@@ -351,8 +241,7 @@ export const reactionKey = z.enum(REACTION_KEYS)
 
 export interface CommentReaction {
   reaction: ReactionKey
-  /** Who left it (user ids, earliest first); never empty. The viewer's own
-   * is found by looking for their id. */
+  /** User ids, earliest first; never empty. */
   by: string[]
 }
 
@@ -360,19 +249,14 @@ export interface CommentLine {
   id: string
   folder_id: string
   task_id: string | null
-  /** The Discussion a Folder-level comment belongs to (issue #320, 4.31);
-   * null on a Task thread. Optional in the type only so older fixtures
-   * still compile: the server always answers it. */
+  /** Null on a Task thread. Optional only for older fixtures; always sent. */
   discussion_id?: string | null
   parent_id: string | null
   author_id: string
   body: string | null
-  /** The post's editor content (W-C); null for a comment written before
-   * posts, whose `body` is then the whole post. Optional in the type only
-   * so older fixtures compile: the server always answers it. */
+  /** Null for comments written before posts. Optional only for older fixtures. */
   content?: PostContent | null
-  /** One entry per reaction someone has left, in the order each was first
-   * left; a reaction nobody has left is absent. */
+  /** In first-left order; reactions nobody has left are absent. */
   reactions: CommentReaction[]
   files: CommentFile[]
   created_at: string
@@ -383,11 +267,7 @@ export interface ThreadView {
   comments: CommentLine[]
 }
 
-/*
-The read half: `api/http.ts` parses every response through a zod schema, and
-`CommentLine` and `ThreadView` above are interfaces only. Written from
-`domain/comments.ts`, as the read halves in `shelves.ts` and `events.ts` are.
-*/
+/* Zod schemas for the read half; the client parses every response. */
 export const commentReaction = z.object({
   reaction: reactionKey,
   by: z.array(z.uuid()).min(1),
@@ -423,19 +303,8 @@ export const getThreadResponse = z.object({
 export type GetThreadResponse = z.infer<typeof getThreadResponse>
 
 /*
-PATCH /comments/:id answers `{ edited: true }` (`routes/conversation.ts`); the
-deletes and the like pair answer 204 and carry no body to parse.
-
-**`comment` joined it on 2026-09-04 with attachment editing (issue #94), and
-`edited` stayed.** The endpoint now changes something a caller cannot see from
-the request it sent — the resolved file rows, with their names, types, sizes
-and dimensions — so it answers the comment as the thread would read it, which
-is the create half's answer and the fresh-read convention 7.1, 7.2 and 7.4
-carry on their own mutations. `edited` is kept rather than replaced for the
-reason `file_id` is kept on the create half: the shipping client parses this
-response through this schema, and a key removed here fails that parse at the
-moment somebody edits a comment. It is the same one-word answer it always was
-and nothing has to stop reading it.
+PATCH /comments/:id answers `{ edited: true, comment }`. Keep `edited`: the
+shipping client parses it and would fail without it.
 */
 export const patchCommentResponse = z.object({
   edited: z.literal(true),
@@ -443,11 +312,5 @@ export const patchCommentResponse = z.object({
 })
 export type PatchCommentResponse = z.infer<typeof patchCommentResponse>
 
-/**
- * The stable refusal code for a write to a Discussion's conversation while
- * that Discussion is resolved or in Trash (issue #320): 409, because the
- * request is well formed and the caller may act once the Discussion is
- * reopened or restored. Covers new comments and replies, edits, deletes
- * (moderation included) and likes.
- */
+/** 409 code for writes to a resolved or trashed Discussion's conversation. */
 export const DISCUSSION_FROZEN = 'discussion_frozen'

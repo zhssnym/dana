@@ -1,20 +1,5 @@
-/*
-Work's last line (M4 §2.5): always an empty task line, "Add a task…".
-
-- Typing a title and Enter makes a Task, through the page's own Task act
-  (`createTaskFrom`, the one `[] ` and `/task` use), at the end of the page:
-  after the last block of the innermost last Section (`lastLinePlace`). The
-  line keeps the caret, so the next Enter makes the next Task.
-- `/` opens the page's slash menu on a new line there, for any other kind.
-- `#`, `##`, `###` and a space make that heading there (`headingLine`).
-- On a phone the line is pinned to the bottom of the screen above the safe
-  area. While pinned, a Task goes to the end of the Section in view.
-
-It is one line, not a second editor: nothing typed here is page writing until
-Enter. Saving a Task remounts the page's editor (a checkpoint), so what is
-typed, the caret and an Enter pressed while the page was busy are held here
-per page and picked up by the next mount. Held in memory only, never storage.
-*/
+// Work's last line, "Add a task…". Saving a task remounts the page's editor, so
+// the typed text, caret and queued Enters are held per page in memory across mounts.
 import { useEffect, useRef, useState } from 'react'
 import { SuggestionMenu } from '@blocknote/core/extensions'
 import { createTaskFrom, hasTaskCommand, lastLinePlace, lineTitles, openLineAt } from './commands.js'
@@ -31,13 +16,10 @@ interface Held {
   mountedAt: number
   /** Until when a mount takes the caret back: only a remount this line's own save caused. */
   resume: number
-  /** Lets go of the page's held scroll, while one is held. */
   release: (() => void) | null
   /**
-   * A title was handed back (refused, or nowhere to write it): the queue waits
-   * for the next Enter. 'line' when the line shows it (that Enter sends it
-   * first), 'queue' when it went back to the queue's front because the line
-   * held other typing.
+   * A title was handed back (refused, or nowhere to write it): the queue waits for the
+   * next Enter. 'line' when the line shows it, 'queue' when it went back to the front.
    */
   paused: 'line' | 'queue' | null
 }
@@ -47,7 +29,7 @@ const HEADING = /^(#{1,3}) $/
 /** How long an editor must have stood before an Enter is written into it (ms). */
 const SETTLE = 300
 
-/** The Section whose heading sits in the upper part of the screen, last in page order: the one being read. */
+/** The last section whose heading is in the upper half of the screen. */
 function sectionInView(editor: CanvasEditor, line: HTMLElement): string | undefined {
   const root = editor.domElement
   if (root === undefined) return undefined
@@ -72,10 +54,8 @@ function scrollerOf(element: Element | null): Element | null {
 }
 
 /**
- * Holds the page where it is read while a save remounts the editor: from the
- * Enter, before the old editor leaves, until the new one has settled (2 s) or
- * the person scrolls. The block the page scrolls keeps its height meanwhile,
- * so the gap while the editor remounts never pulls the page to its top.
+ * Hold the scroll while a save remounts the editor, until it settles (2 s) or the
+ * person scrolls. The scrolled block keeps its height so the page does not jump.
  */
 function holdScroll(state: Held, line: HTMLElement): void {
   state.release?.()
@@ -106,16 +86,15 @@ function holdScroll(state: Held, line: HTMLElement): void {
   hold()
 }
 
-/** Pinned: drawn above where it stands in the page (CSS `sticky`), so the page's end is not in view. */
+/** Pinned by CSS `sticky` above where it stands, so the page's end is not in view. */
 function pinned(line: HTMLElement): boolean {
   const before = line.previousElementSibling
   return before !== null && line.getBoundingClientRect().top < before.getBoundingClientRect().bottom - 1
 }
 
 /**
- * A line the slash menu was opened on and left empty (Esc, or a click away)
- * goes again once the caret leaves it, as an empty line does on Enter, so no
- * blank line is left above "Add a task…". The page's only line stays.
+ * A slash-menu line left empty is removed once the caret leaves it, so no blank
+ * line stays above "Add a task…".
  */
 function dropIfLeftEmpty(editor: CanvasEditor, id: string): void {
   const root = editor.domElement
@@ -138,9 +117,8 @@ function dropIfLeftEmpty(editor: CanvasEditor, id: string): void {
 
 export function AddTaskLine({ editor, page, editable }: {
   readonly editor: CanvasEditor
-  /** The page's id: what is held across the editor's remounts. */
   readonly page: string
-  /** False while the page is saving a Task; an Enter then waits for the next mount. */
+  /** False while the page saves a task; an Enter then waits for the next mount. */
   readonly editable: boolean
 }): React.JSX.Element {
   const state = held.get(page) ?? { text: '', focused: false, queue: [], mountedAt: 0, resume: 0, release: null, paused: null }
@@ -157,19 +135,17 @@ export function AddTaskLine({ editor, page, editable }: {
     return lastLinePlace(editor.document, section)
   }
 
-  /** Enter: the title joins the queue and the line empties for the next one. */
   function submit(): void {
     const title = state.text.trim()
-    // An Enter on an empty line lets what waits go on.
+    // An Enter on an empty line releases what waits.
     if (title === '') { if (state.paused !== null) { state.paused = null; poke((n) => n + 1) } return }
-    // A handed-back title on the line goes first, before what still waits behind it.
+    // A handed-back title on the line goes before what still waits.
     if (state.paused === 'line') state.queue.unshift(title)
     else state.queue.push(title)
     state.paused = null
     keep('')
   }
 
-  /** The first queued title becomes a Task, once this editor may take it. */
   function send(): void {
     const title = state.queue.shift()
     if (title === undefined) return
@@ -180,15 +156,13 @@ export function AddTaskLine({ editor, page, editable }: {
     const block = id === null ? undefined : editor.getBlock(id)
     // Nowhere to write it: the title goes back on the line, never lost.
     if (block === undefined) { giveBack(title); return }
-    /* A refused Task (the page's writing has not saved) hands its title back
-       here instead of leaving it on the page. */
+    // A refused task hands its title back here instead of leaving it on the page.
     lineTitles.set(block.id, { reused: where !== null && 'reuse' in where, giveBack })
     window.setTimeout(() => { lineTitles.delete(block.id) }, 15_000)
     createTaskFrom(editor, block)
   }
 
-  /* One title back on the line, alone: what is still queued stays queued, in
-     order, and waits for the next Enter, so two titles never become one. */
+  // One title back on the line alone; the rest stay queued, so two titles never merge.
   function giveBack(back: string): void {
     if (state.text.trim() === '') { keep(back); state.paused = 'line' }
     else { state.queue.unshift(back); state.paused = 'queue' }
@@ -204,13 +178,8 @@ export function AddTaskLine({ editor, page, editable }: {
     dropIfLeftEmpty(editor, id)
   }
 
-  /* Saving a Task remounts the page's editor, often twice in a row, and the
-     page's rows arrive over a few frames. A mount the line's own save caused
-     takes the caret back (`resume`); any other arrival, such as Back to this
-     page, does not, so a phone's keyboard never opens by itself. The page's
-     scroll is held from the Enter (`holdScroll`). An Enter that came in
-     meanwhile is sent once this editor has stood still for `SETTLE`, so it
-     is never written into an editor that is about to be replaced. */
+  // Only a remount caused by this line's own save takes the caret back, so a phone's
+  // keyboard never opens by itself. Queued Enters wait until the editor settles.
   useEffect(() => {
     state.mountedAt = performance.now()
     if (state.focused && performance.now() < state.resume) input.current?.focus({ preventScroll: true })
@@ -231,7 +200,7 @@ export function AddTaskLine({ editor, page, editable }: {
       ref={line}
       className="dana-add-task-line flex min-h-8 cursor-text items-center gap-0.5 max-md:sticky max-md:min-h-11 max-md:bottom-0 max-md:z-10 max-md:bg-background max-md:pb-[env(safe-area-inset-bottom)]"
     >
-      {/* Where a Task row's checkbox stands (add-task-line.css places it, on the thread's rail too). */}
+      {/* Stands where a task's checkbox does (add-task-line.css places it). */}
       <span aria-hidden="true" className="dana-add-task-glyph flex size-[var(--control-height)] shrink-0 items-center justify-center">
         <span className="size-[var(--checkbox-size)] rounded-xs border border-dashed border-quiet-foreground" />
       </span>
@@ -265,7 +234,6 @@ export function AddTaskLine({ editor, page, editable }: {
           if (event.nativeEvent.isComposing) return
           if (event.key === 'Enter') { event.preventDefault(); submit() }
           else if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.blur() }
-          // Up from an empty line goes back into the page, at its last block (`enterFromBelow`).
           else if (event.key === 'ArrowUp' && state.text === '' && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey) {
             event.preventDefault()
             event.currentTarget.blur()

@@ -1,17 +1,5 @@
-/*
-Covers for a page: a small set of flat colours, upload, link, and a free photo
-source, with reposition on the cover itself.
-
-The colours are theme tokens (hover, info-200, success-200, warning-200,
-danger-100) rather than hexes, so each one follows light and
-dark instead of standing as a bright slab on a dark page. There are no
-gradients (AGENTS.md, "Quiet"); a stored gradient or mark from before reads as
-the nearest flat colour.
-
-**The picker is its props.** `value`, `onPick` and `onRemove` are the interface;
-the store is the call site's (`page-cover.tsx`, through `lib/page-identity.ts`).
-`tiers` is what the caller can actually store; a tab it cannot is not drawn.
-*/
+// Page cover picker: flat colours (theme tokens, so both themes work), upload,
+// link and a photo search. `tiers` limits the tabs to what the caller can store.
 
 import { Input } from "./ui/input.js"
 import { useRef, useState, type CSSProperties } from "react"
@@ -25,9 +13,6 @@ import { cn } from "./ui/utils.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 
-/* ------------------------------------------------------------ colours -- */
-
-/* Flat, and each a token with both a light and a dark value. */
 const COLOURS: { key: string; name: string; css: string }[] = [
   { key: "colour:grey", name: "Grey", css: "var(--hover)" },
   { key: "colour:blue", name: "Blue", css: "var(--color-info-200)" },
@@ -36,14 +21,12 @@ const COLOURS: { key: string; name: string; css: string }[] = [
   { key: "colour:red", name: "Red", css: "var(--color-danger-100)" },
 ]
 
-/** A colour at random, for "Add cover" in one press. */
 export function randomCoverColour(): string {
   const pick = COLOURS[Math.floor(Math.random() * COLOURS.length)] ?? COLOURS[0]
   return pick?.key ?? "colour:grey"
 }
 
-/* Keys stored before the colours were flat: every gradient, mark, pattern and
-   stock cover reads as its nearest colour rather than vanishing. */
+// Older stored keys (gradients, marks, patterns, stock) read as the nearest colour.
 const LEGACY_KEYS: Record<string, string> = {
   "gradient:cobalt": "colour:blue",
   "gradient:cobalt-deep": "colour:blue",
@@ -74,10 +57,8 @@ const LEGACY_KEYS: Record<string, string> = {
   "stock:night": "colour:grey",
 }
 
-/* ------------------------------------------------------------ photos tier -- */
-
-/* Openverse, the openly licensed image search, through this origin's
-   `/covers/photos` proxy (10.8's CSP refuses a direct call). */
+// Openverse photo search, through this origin's `/covers/photos` proxy because
+// the CSP refuses a direct call.
 interface OpenverseResult {
   id: string
   title: string
@@ -108,9 +89,7 @@ async function searchOpenverse(query: string): Promise<OpenverseResult[]> {
     }))
 }
 
-/* ------------------------------------------------------------ the uploads -- */
-
-/* Session-only where the caller has no uploader. */
+// Session-only where the caller has no uploader.
 const uploadedCovers = new Map<string, string>()
 
 export function rememberUploadedCover(folderName: string, url: string) {
@@ -119,15 +98,13 @@ export function rememberUploadedCover(folderName: string, url: string) {
   uploadedCovers.set(folderName, url)
 }
 
-/* Whether a stored cover has a crop worth moving, photographic tiers only. */
 export function coverRepositions(key: string | undefined): boolean {
   if (!key) return false
   return key === "upload" || key.startsWith("link:")
 }
 
-/* The style for a stored cover key, or null when there is nothing to draw,
-   including an upload key whose object URL did not survive the reload, and a
-   key nobody knows (never a crash). */
+// Null when there is nothing to draw, including an upload whose object URL did not
+// survive a reload, or an unknown key.
 export function resolveCover(
   key: string | undefined,
   folderName: string,
@@ -156,8 +133,6 @@ export function resolveCover(
   const colour = COLOURS.find((cover) => cover.key === key)
   return colour ? { backgroundColor: colour.css } : null
 }
-
-/* ------------------------------------------------------------- the picker -- */
 
 function Swatch({
   name,
@@ -190,7 +165,6 @@ function Swatch({
 
 export type CoverTier = "gallery" | "upload" | "link" | "photos"
 
-/* Which tiers the caller can supply. All four by default. */
 export const ALL_COVER_TIERS: readonly CoverTier[] = ["gallery", "upload", "link", "photos"]
 
 export function FolderCoverPicker({
@@ -207,10 +181,8 @@ export function FolderCoverPicker({
   onPick: (key: string) => void
   onRemove?: () => void
   tiers?: readonly CoverTier[]
-  /* Where the caller can store the bytes, it takes them. */
   onUpload?: (file: File) => void
-  /* Where the caller can turn a chosen photograph into a stored file, the pick
-     goes there; otherwise the legacy link key. */
+  // Turns a chosen photo into a stored file; without it the pick stores a link key.
   onPickPhoto?: (photoId: string) => void
 }) {
   const [tab, setTab] = useState<CoverTier>(tiers[0] ?? "gallery")
@@ -252,7 +224,6 @@ export function FolderCoverPicker({
   }
 
   return (
-    /* The popover hugs this width rather than imposing its own. */
     <div className="w-[440px] max-w-full" onClick={(e) => e.stopPropagation()}>
       <div className="flex items-end gap-4 border-b border-border px-2.5">
         <Tabs
@@ -269,8 +240,7 @@ export function FolderCoverPicker({
             ] as const
           ).filter((item) => tiers.includes(item.value))}
         />
-        {/* The page cover carries its own Remove; only the sidebar's dialog,
-            which has no cover beside it, passes onRemove. */}
+        {/* The page cover has its own Remove; only the sidebar's dialog passes onRemove. */}
         {value && onRemove ? (
           <Button
             variant="ghost"

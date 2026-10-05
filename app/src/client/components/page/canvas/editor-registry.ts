@@ -1,13 +1,7 @@
 import type { AnyEditor } from './BlockSideMenu.js'
 
-/*
-Issue #526: Connected work is rendered after BlockNote but may be placed back
-inside the authored facet document. Keep the editor lookup local to the canvas
-rather than adding another prop through every surface that hosts CanvasSurface.
-
-The registry is DOM-scoped and cleaned on unmount. It is not application state:
-the document and its autosave remain BlockNote's authority.
-*/
+// Lets Connected work find the canvas editor it renders after, without a prop through
+// every surface. DOM-scoped and cleaned on unmount; not application state.
 const editors = new Map<HTMLElement, AnyEditor>()
 
 export function registerCanvasEditor(editor: AnyEditor): () => void {

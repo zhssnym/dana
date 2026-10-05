@@ -1,6 +1,6 @@
 import { MAX_NEST_DEPTH, MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 
-/** Validate explicit editor children; never infer ownership from preceding visible rows. */
+/** Validate explicit editor children; never infer ownership from preceding rows. */
 export interface OutlineBlock {
   readonly id: string
   readonly type: string
@@ -15,26 +15,20 @@ export interface OutlineBlock {
 }
 
 /**
- * The one test for "is this heading a Work Section". A canvas heading is a
- * Section unless it says otherwise: a flat presentation heading has
- * `isToggleable: false`, and a toggle heading (a presentation heading that
- * folds the blocks nested under it, stored heading1-3 with `toggleable`) has
- * `isToggleable: true, presentation: true`.
+ * The one test for "is this heading a Work Section". A flat presentation heading
+ * has `isToggleable: false`; a toggle heading has `isToggleable: true, presentation: true`.
  */
 export function isSectionHeading(block: { readonly type: string; readonly props: { readonly [key: string]: unknown } }): boolean {
   return block.type === 'heading' && block.props.isToggleable !== false && block.props.presentation !== true
 }
 
-/** A presentation heading that folds its children. */
 export function isToggleHeading(block: { readonly type: string; readonly props: { readonly [key: string]: unknown } }): boolean {
   return block.type === 'heading' && block.props.isToggleable === true && block.props.presentation === true
 }
 
 /**
- * The editor types that may hold nested blocks (the server's
- * `NEST_PARENT_KINDS`): text, a presentation heading (a toggle heading
- * included), a list item, a toggle, a quote and a callout. A Section holds its
- * content too, by a different relation, and is judged on its own below.
+ * Editor types that may hold nested blocks (the server's `NEST_PARENT_KINDS`). A Section
+ * holds content by a different relation and is judged on its own.
  */
 const NEST_PARENT_TYPES: ReadonlySet<string> = new Set([
   'paragraph',
@@ -63,7 +57,6 @@ const KNOWN_TYPES: ReadonlySet<string> = new Set([
   'divider',
 ])
 
-/** Whether a non-Section block of this type may hold nested blocks. */
 export function holdsNested(block: { readonly type: string; readonly props: { readonly [key: string]: unknown } }): boolean {
   return NEST_PARENT_TYPES.has(block.type) && !isSectionHeading(block)
 }
@@ -75,9 +68,8 @@ export function validateCanvasOutline(
   const taskIds = new Set<string>()
 
   /**
-   * `sectionLevel` is the level of the Section the items sit in (0 at the
-   * root); `nestDepth` is how deep they sit under ordinary blocks (0 when
-   * their parent is a Section or the page).
+   * `sectionLevel`: the level of the Section the items sit in (0 at the root);
+   * `nestDepth`: how deep they sit under ordinary blocks.
    */
   function visit(
     items: readonly OutlineBlock[],
@@ -138,18 +130,12 @@ export function validateCanvasOutline(
   return visit(blocks, 0, 0)
 }
 
-/**
- * A Shelf's own rule on top of the outline's: its headings are Sections
- * stored flat, content belonging to the heading before it by position
- * (`ShelfCanvas`), so it keeps one heading level. What nests under an
- * ordinary block is stored as it is anywhere else (0038).
- */
+/** A shelf's headings are stored flat, so it keeps one heading level. */
 export function shelfOutlineFailure(blocks: readonly OutlineBlock[]): boolean {
   return blocks.some((block) => (isSectionHeading(block) && block.props.level !== 1) || shelfOutlineFailure(block.children))
 }
 
-/** Document deletion cannot become an implicit Task deletion or partial save. */
-/** The Task ids a change would drop from the document; empty when it drops none. */
+/** The task ids a change would drop. Deleting writing must never delete a task implicitly. */
 export function removedCanvasTasks(before: readonly OutlineBlock[], after: readonly OutlineBlock[]): string[] {
   function ids(blocks: readonly OutlineBlock[]): string[] {
     return blocks.flatMap((block) => [
@@ -163,7 +149,7 @@ export function removedCanvasTasks(before: readonly OutlineBlock[], after: reado
   return ids(before).filter((id) => !remaining.has(id))
 }
 
-/** The sub-pages (folder ids) a change would drop from the document, as for Tasks above. */
+/** The sub-pages (folder ids) a change would drop, as for tasks above. */
 export function removedCanvasPages(before: readonly OutlineBlock[], after: readonly OutlineBlock[]): string[] {
   function ids(blocks: readonly OutlineBlock[]): string[] {
     return blocks.flatMap((block) => [

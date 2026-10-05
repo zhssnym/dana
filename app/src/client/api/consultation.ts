@@ -1,20 +1,4 @@
-/*
-The client half of 7.28, a Folder's Consultation (issues #212, #320): the
-Discussion list, one Discussion, its Outcomes, its conversation, and the
-Trash pair.
-
-A file of its own rather than more lines in `queries.ts` and `mutations.ts`
-because the surface is one contract (`shared/consultation.ts`) and reads best
-beside itself; the patterns are theirs exactly. Every call goes through
-`http.ts`, every key through `keys.ts`, and every successful write is followed
-by the mutation cache's unfiltered invalidation (queryClient.ts), except a
-post, which refreshes only the conversations and lists (`CHAT_WRITE`) and
-joins its thread's cached read at once.
-
-A 409 (`discussion_frozen`, a resolved Discussion refusing an edit, a second
-open General discussion) and a 403 carry the server's own sentence, which the
-mutation cache already toasts verbatim (`writeFailureMessage`).
-*/
+/* Client hooks for a folder's Consultation (spec 7.28): discussions, outcomes, posts and Trash. */
 import { useCallback } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
@@ -49,24 +33,16 @@ export type DiscussionListPage = z.infer<typeof discussionListResponse>
 const outcomeResponse = z.object({ outcome: outcomeSchema, discussion: discussionSchema })
 export type OutcomeWithDiscussion = z.infer<typeof outcomeResponse>
 
-/* r5 discuss: near-live without sockets. An open thread re-reads every few
-   seconds and the list of threads every twenty, only while the tab is visible
-   (TanStack pauses an interval in a hidden tab), and every read refetches on
-   focus as all reads do. */
+/*
+ * Near-live without sockets: poll the open thread and the thread list. TanStack pauses intervals in a hidden
+ * tab.
+ */
 const THREAD_POLL_MS = 4_000
 const LIST_POLL_MS = 20_000
 /** The open thread's own row: closed, renamed or trashed by someone else. */
 const DISCUSSION_POLL_MS = 15_000
 
-/* ------------------------------------------------------------------ *
- * Reads
- * ------------------------------------------------------------------ */
-
-/**
- * GET /folders/:id/discussions: most recent activity first, keyset paged.
- * `q` is sent trimmed and omitted when empty, so an empty search and no search
- * are one cache entry.
- */
+/** `q` is sent trimmed and omitted when empty, so an empty search and no search share one cache entry. */
 export function useDiscussions(
   folderId: string,
   state: DiscussionListState,
@@ -87,9 +63,10 @@ export function useDiscussions(
   })
 }
 
-/* GET /discussions/:id is `useDiscussion` in queries.ts (FE06's, shared).
-   This is the same read under the same key, polled while the thread is open:
-   TanStack runs the shortest interval among a key's observers. */
+/*
+ * Same key as `useDiscussion` in queries.ts, polled while the thread is open. TanStack uses the shortest
+ * interval among a key's observers.
+ */
 export function useOpenDiscussion(id: string): UseQueryResult<Discussion> {
   return useQuery({
     queryKey: queryKeys.discussion(id),
@@ -99,11 +76,8 @@ export function useOpenDiscussion(id: string): UseQueryResult<Discussion> {
 }
 
 /**
- * PUT /discussions/:id/read: this person has read the thread up to now; the
- * server also marks the thread's post notifications read. Sent outside
- * `useMutation` on purpose: the mutation cache refetches every query after a
- * write, and a read mark goes out on every open and every new post seen, so
- * only the bell and the lists of threads are refreshed.
+ * Not a `useMutation`: the mutation cache refetches every query after a write, and a read mark goes out on
+ * every open and every new post seen.
  */
 export function useMarkDiscussionRead(): (id: string) => void {
   const client = useQueryClient()
@@ -123,7 +97,6 @@ export function useMarkDiscussionRead(): (id: string) => void {
   )
 }
 
-/** GET /discussions/:id/comments: the Discussion's conversation (7.14). */
 export function useDiscussionThread(id: string | null): UseQueryResult<GetThreadResponse> {
   return useQuery({
     queryKey: queryKeys.discussionThread(id ?? ''),
@@ -133,7 +106,6 @@ export function useDiscussionThread(id: string | null): UseQueryResult<GetThread
   })
 }
 
-/** GET /outcomes/:id: the Outcome and its parent Discussion (Dana Link kind). */
 export function useOutcome(id: string | null): UseQueryResult<OutcomeWithDiscussion> {
   return useQuery({
     queryKey: queryKeys.outcome(id ?? ''),
@@ -141,10 +113,6 @@ export function useOutcome(id: string | null): UseQueryResult<OutcomeWithDiscuss
     enabled: id !== null,
   })
 }
-
-/* ------------------------------------------------------------------ *
- * Writes
- * ------------------------------------------------------------------ */
 
 /** Asks the mutation cache to toast a 422's own sentence (queryClient.ts). */
 const validationToast = { validationErrorToast: true } as const
@@ -206,11 +174,8 @@ export function useReopenDiscussion(): UseMutationResult<Discussion, Error, stri
 }
 
 /**
- * Move to Trash from inside the thread. Not a `useMutation`: the mutation
- * cache refetches every live query after a write, and the thread (and the
- * breadcrumb naming it) is still on screen while the page goes back to the
- * list, so it would ask for a Discussion that is now 404 here. Only the lists
- * and Trash are refreshed; a refusal is toasted as any write's is.
+ * Not a `useMutation`: its blanket refetch would re-read the trashed Discussion (now 404) while the thread is
+ * still on screen.
  */
 export function useTrashFromThread(): (id: string) => void {
   const client = useQueryClient()
@@ -237,7 +202,6 @@ export function useRestoreDiscussion(): UseMutationResult<Discussion, Error, str
   })
 }
 
-/** DELETE /trash/discussions/:id: permanent, Full control's (`discussion.purge`). */
 export function useDestroyTrashedDiscussion(): UseMutationResult<void, Error, string> {
   return useMutation({
     mutationFn: (id) =>
@@ -245,8 +209,6 @@ export function useDestroyTrashedDiscussion(): UseMutationResult<void, Error, st
   })
 }
 
-/** POST /discussions/:id/comments. Edit, delete and like are 7.14's
- * `/comments/:id` routes, which `usePatchComment` and friends already carry. */
 export function usePostDiscussionComment(): UseMutationResult<
   CommentLine,
   Error,
@@ -257,8 +219,7 @@ export function usePostDiscussionComment(): UseMutationResult<
     meta: CHAT_WRITE,
     onSuccess: (line, { discussionId, taskIds }) => {
       client.setQueryData<GetThreadResponse>(queryKeys.discussionThread(discussionId), (thread) => withPost(thread, line))
-      /* A task's thread is linked from the task page once someone has
-         written in it (M5), so its first post changes that page. */
+      /* A task's thread is linked from the task page after its first post, so refresh that task. */
       for (const taskId of taskIds ?? []) void client.invalidateQueries({ queryKey: queryKeys.task(taskId) })
     },
     mutationFn: ({ discussionId, body }) =>
@@ -270,12 +231,7 @@ export function usePostDiscussionComment(): UseMutationResult<
   })
 }
 
-/**
- * POST /tasks/:id/discussion (M5): the task's one Discussion, made on first
- * use and found after that (201, then 200). The caller goes to it: on the
- * project's Discussion tab, which the server adds when there is none (step 7;
- * null when this viewer may not see or add it).
- */
+/** POST /tasks/:id/discussion: the task's one Discussion, made on first use (201) and found after (200). */
 export function useDiscussTask(): UseMutationResult<
   { readonly discussion: Discussion; readonly tabId: string | null },
   Error,

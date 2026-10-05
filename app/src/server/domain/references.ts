@@ -1,50 +1,6 @@
-/*
-Dana Link resolution (issue #223, M1-C1).
-
-**This module stores nothing and this is the whole design.** It owns two
-reads: one target by id, and a short list of targets a person is typing
-towards. Both answer `ReferenceSummary`, both reach the database only through
-the gate that already governs the kind they are asking about, and neither
-writes a row, an event or a membership.
-
-## The one property to preserve
-
-A viewer who cannot open a thing cannot learn anything about it here, and
-cannot even learn that it is a thing. That is 10.2's rule and 7.0's status
-grammar, and it has a second half this feature adds: **the two doors must
-agree**. A person who pastes an exact URL and a person who types a word must
-be told the same story about the same row, or the picker becomes the oracle
-the resolver refuses to be. So both doors below are built from the same four
-gates and neither has an ungated read of its own:
-
-- a task through `accessibleTask`, whose membership join is the scope;
-- a folder through `accessOf`, the same;
-- a shelf through `shelfView`, which is scoped to its owner because 4.18 makes
-  a shelf private by construction;
-- a Purpose (#211) or Results (#213) facet through a membership join on its
-  Folder, hidden state
-  deliberately irrelevant because hide is presentation rather than access;
-- a Discussion or an Outcome (#320) through a membership join on the
-  Discussion's live Folder, the Discussion not trashed. Consultation is shared
-  by construction, so membership is the whole gate, and a trashed Discussion
-  takes every one of its Outcomes with it: both answer as a missing target
-  until it is restored.
-
-`resolveReference` applies those gates. The search queries below
-repeat their access predicates rather than resolving them per row, which is the one
-place the two doors are written twice; each query carries the same membership
-join in the same position. Nothing but this paragraph holds the two doors
-together, so a change to one gate's predicate must be made in both.
-
-## Ordering, and why there is no cursor
-
-The picker shows one short list. Context first — the tasks in the folder the
-person is composing in — then everything else that matched, then folders, then
-shelves, and the whole thing cut to `REFERENCE_SEARCH_LIMIT`. There is no
-paging because there is no page two: a person who does not see what they meant
-types another letter. That is also what keeps requirement 4's "never a flat
-dump" true by construction rather than by care.
-*/
+// Dana Link resolution: one target by id, and picker search. Stores nothing.
+// A viewer must learn nothing about a thing they cannot open, and both doors must agree:
+// the search queries repeat resolveReference's access predicates, so change a gate in both.
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
@@ -70,27 +26,19 @@ function summary(
   return { kind, id, label, path: referencePath(kind, id) }
 }
 
-/* Step 7: a facet is a tab, and a tab is a page. A tab other than the
-   project's own is labelled with the project's name and its own, "Half
-   marathon · Purpose": every project may have a Purpose, so the tab's name
-   alone would be one of many identical rows in the picker and an ambiguous
-   chip. `tf` is the page. */
+/* A tab other than the project's own is labelled "Project · Tab", since many projects have a Purpose. `tf` is the page. */
 const tabLabel = sql`(CASE WHEN tf.tab_position IS NOT NULL AND tf.id <> tf.project_id
   THEN (SELECT pr.name FROM folders pr WHERE pr.id = tf.project_id) || ' · ' || tf.name
   ELSE tf.name END)`
 
-/* A Discussion or an Outcome the viewer may open (#320): the Discussion not
-   trashed, its Folder live, the viewer a member of it. `d` is the Discussion. */
+/* The Discussion not trashed, its Folder live, the viewer a member. `d` is the Discussion. */
 const discussionGate = (viewerId: string): SQL =>
   joinVisibleFolder(viewerId, { folderId: sql`d.folder_id` })
 
-/** The most characters of an Outcome statement a chip draws. A statement may
- * run to 4000 characters and a chip is one line; the full text is the
- * Discussion's to show. */
+/** The most characters of an Outcome statement a chip draws. */
 export const OUTCOME_LABEL_MAX = 120
 
-/** An Outcome's label: its statement on one line, cut at a code point (never
- * inside a surrogate pair) with an ellipsis when it was longer. */
+/** One line, cut at a code point (never inside a surrogate pair), with an ellipsis when longer. */
 export function outcomeLabel(statement: string): string {
   const flat = statement.replace(/\s+/g, ' ').trim()
   const chars = Array.from(flat)
@@ -99,26 +47,19 @@ export function outcomeLabel(statement: string): string {
     : `${chars.slice(0, OUTCOME_LABEL_MAX - 1).join('').trimEnd()}…`
 }
 
-/* A native Result (#213) the viewer may open: a `result` block of a live
-   page (its Results tab since step 7) the viewer is a member of. `pb` is
-   the block, `rf` its page. */
+/* A `result` block of a live page the viewer is a member of. `pb` is the block, `rf` its page. */
 const resultGate = (viewerId: string): SQL => sql`
   ${joinVisibleFolder(viewerId, { folderId: sql`pb.folder_id`, folder: 'rf' })}`
 
-/** A Result's label: its statement on one line, cut as an Outcome's is; an
- * empty statement reads "Untitled result". */
+/** Cut as an Outcome's is; an empty statement reads "Untitled result". */
 export function resultLabel(text: string | null): string {
   const label = outcomeLabel(text ?? '')
   return label === '' ? 'Untitled result' : label
 }
 
 /**
- * One target, or null when the viewer cannot have it — which covers both "it
- * is not there" and "it is not yours", deliberately indistinguishably.
- *
- * The switch is exhaustive over `ReferenceKind`, so a kind added to that
- * union fails to compile here rather than falling through to a null that
- * would read as an ordinary refusal.
+ * One target, or null for both "not there" and "not yours", indistinguishably.
+ * The switch is exhaustive, so a new kind fails to compile here.
  */
 export async function resolveReference(
   executor: Executor,
@@ -139,8 +80,7 @@ export async function resolveReference(
       return shelf === null ? null : summary('shelf', shelf.id, shelf.name)
     }
     case 'facet': {
-      /* A stored facet link names a page since step 7: the facet's id was
-         kept as its tab's. */
+      /* A stored facet link names a page: the facet's id became its tab's. */
       const found = await rowsOf(
         executor,
         sql`SELECT tf.id, ${tabLabel} AS label
@@ -163,8 +103,7 @@ export async function resolveReference(
         : summary('discussion', String(row.id), String(row.title))
     }
     case 'outcome': {
-      /* Any Outcome of the Discussion, current or superseded: an old
-         Outcome's link keeps resolving to what it said (#320). */
+      /* Any Outcome, current or superseded: an old Outcome's link keeps resolving. */
       const found = await rowsOf(
         executor,
         sql`SELECT o.id, o.statement
@@ -196,17 +135,11 @@ export async function resolveReference(
 
 export interface ReferenceSearchInput {
   q: string
-  /** The folder the person is composing in, already resolved by the caller:
-   * this module never decides whether the viewer may name it, because a
-   * refusal has to be an HTTP status and that is the route's to send. */
+  /** The folder being composed in, already resolved by the caller. */
   folderId?: string
 }
 
-/** Tasks the viewer is a member of the folder of, matched on title.
- *
- * Title only, and notes deliberately not: a picker row draws a title, and a
- * match a person cannot see in the row they are offered reads as a bug in the
- * picker. `GET /search` matches notes and steps too and is unchanged. */
+/** Tasks in the viewer's folders, matched on title only: a picker row shows only the title. */
 function taskQuery(viewerId: string, pattern: string, scope: SQL): SQL {
   return sql`
     SELECT t.id, t.title
@@ -217,8 +150,7 @@ function taskQuery(viewerId: string, pattern: string, scope: SQL): SQL {
     LIMIT ${REFERENCE_SEARCH_LIMIT}`
 }
 
-/** A project's Doc tabs other than the project's own (Purpose, Results and
- * custom facets), labelled with the project's name. */
+/** A project's Doc tabs other than its own, labelled with the project's name. */
 function purposeQuery(viewerId: string, pattern: string, scope: SQL): SQL {
   return sql`
     SELECT tf.id, ${tabLabel} AS label
@@ -231,7 +163,6 @@ function purposeQuery(viewerId: string, pattern: string, scope: SQL): SQL {
     LIMIT ${REFERENCE_SEARCH_LIMIT}`
 }
 
-/** The project of the page the person composes in, for the context scopes. */
 const projectOfPage = (folderId: string): SQL =>
   sql`(SELECT cp.project_id FROM folders cp WHERE cp.id = ${folderId}::uuid)`
 
@@ -243,9 +174,7 @@ export async function searchReferences(
   const pattern = searchPattern(input.q)
   const { folderId } = input
 
-  /* Context first. Two queries rather than one ordered by a CASE, because
-     the priority is "this folder's, then the rest" and writing it as two
-     scopes is the shape a third context would extend. */
+  /* Context first, as two queries: this folder's tasks, then the rest. */
   const contextRows =
     folderId === undefined
       ? []
@@ -281,8 +210,7 @@ export async function searchReferences(
     ),
   )
 
-  /* Folders and shelves, each on its own scope: membership for one, ownership
-     for the other. Matched on name alone, for the task query's reason. */
+  /* Folders by membership, shelves by ownership, matched on name. */
   const folderRows = await rowsOf(
     executor,
     sql`SELECT f.id, f.name
@@ -294,12 +222,8 @@ export async function searchReferences(
         ORDER BY lower(f.name) ASC, f.id ASC
         LIMIT ${REFERENCE_SEARCH_LIMIT}`,
   )
-  /* Discussions matched on title, the composing Folder's first. Outcomes
-     matched on statement, and only each Discussion's current one: a
-     superseded Outcome stays resolvable by its link, but offering every
-     superseded statement to a picker would bury the answer under its drafts. */
-  /* A bare `false` would be a constant in ORDER BY, which Postgres refuses;
-     with no context the ordering simply starts at activity. */
+  /* Outcomes match only each Discussion's current one, so drafts do not bury the answer.
+  A bare `false` in ORDER BY is a constant, which Postgres refuses. */
   const inContext =
     folderId === undefined ? sql`` : sql`(d.folder_id = ${folderId}) DESC, `
   const discussionRows = await rowsOf(
@@ -321,7 +245,6 @@ export async function searchReferences(
         LIMIT ${REFERENCE_SEARCH_LIMIT}`,
   )
 
-  /* Results (#213) matched on their statement, the composing Folder's first. */
   const resultRows = await rowsOf(
     executor,
     sql`SELECT pb.id, pb.text, rf.project_id,
@@ -341,8 +264,7 @@ export async function searchReferences(
         LIMIT ${REFERENCE_SEARCH_LIMIT}`,
   )
 
-  /* The composing Folder's Results sit with its Tasks and tabs, ahead of
-     every other Page's rows; the rest keep their place near the end. */
+  /* The composing Folder's Results sit with its Tasks and tabs, ahead of other Pages' rows. */
   const isContextResult = (row: Record<string, unknown>): boolean =>
     row.in_context === true
   const resultSummary = (row: Record<string, unknown>): ReferenceSummary =>
@@ -379,7 +301,7 @@ export async function searchReferences(
   return results.slice(0, REFERENCE_SEARCH_LIMIT)
 }
 
-/** Where a native Result lives (#213), through the resolver's own gate. */
+/** Where a native Result lives, through the resolver's own gate. */
 export async function resultLocation(
   executor: Executor,
   viewerId: string,
@@ -396,8 +318,7 @@ export async function resultLocation(
     ? null
     : {
         id: String(row.id),
-        /* Step 7: the page the Result is on (its Results tab). `facet_id`
-           names the same page for clients from before tabs. */
+        /* `facet_id` names the same page for older clients. */
         folder_id: String(row.page_id),
         facet_id: String(row.page_id),
         label: resultLabel(row.text as string | null),

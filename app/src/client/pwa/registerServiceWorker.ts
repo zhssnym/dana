@@ -1,22 +1,12 @@
 
 
-/** The path the built worker is served from, and the scope it needs. */
 const SCRIPT_URL = '/sw.js'
 
 export interface ServiceWorkerHandle {
-  /** Applies the waiting version and reloads, only ever from a person's click. */
   readonly applyUpdate: () => void
 }
 
-/**
- * Registers the worker and calls `onNeedRefresh` when a new version is waiting.
- *
- * Resolves to a handle even when there is no worker to register: in
- * development, and on any build where the plugin is not wired, `/sw.js` is not
- * a script and registration fails. That is not an error condition for the
- * application, so it is swallowed here rather than surfaced; the page simply
- * has no update to offer.
- */
+/** Resolves to a handle even with no worker: in dev, `/sw.js` is not a script and registration fails silently. */
 export async function registerServiceWorker(
   onNeedRefresh: () => void,
 ): Promise<ServiceWorkerHandle> {
@@ -31,16 +21,9 @@ export async function registerServiceWorker(
   }
 
   /*
-  Whether the person has asked for the update yet.
-
-  This flag is the whole of "no forced reload" on this side. The worker claims
-  its clients on activation, so `controllerchange` fires on an ordinary first
-  visit as well as after an update, and a reload bound to that event alone
-  would reload every first visit and would do it without being asked. So the
-  reload below is bound to the click and merely waits for the controller,
-  which is the order 10.6 describes: the person chooses, then the new version
-  takes over, then the page swaps.
-  */
+   * No forced reload: the worker claims clients on activation, so `controllerchange` also fires on a first
+   * visit. The reload is bound to the click and waits for the controller.
+   */
   let asked = false
   const handle: ServiceWorkerHandle = {
     applyUpdate: () => {
@@ -50,8 +33,7 @@ export async function registerServiceWorker(
         window.location.reload()
         return
       }
-      // The generated worker skips waiting on this message and nothing else,
-      // so the person's click is the only thing that can activate it.
+      // The generated worker skips waiting on this message only, so only a click activates it.
       waiting.postMessage({ type: 'SKIP_WAITING' })
     },
   }
@@ -63,9 +45,7 @@ export async function registerServiceWorker(
     window.location.reload()
   })
 
-  // Already waiting when this page loaded: a version installed during an
-  // earlier visit and never applied. `controller` being set is what separates
-  // an update from a first install, on both paths.
+  // A version installed on an earlier visit. A set `controller` is what marks an update, not a first install.
   if (registration.waiting !== null && navigator.serviceWorker.controller !== null) {
     onNeedRefresh()
   }

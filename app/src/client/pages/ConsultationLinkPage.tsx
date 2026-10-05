@@ -1,15 +1,7 @@
 /*
-The two Dana Link addresses of #320: `/app/discussions/:id` and `/app/outcomes/:id`.
-
-Neither is a page of its own. This reads the one row the address names and
-replaces itself with its page's address carrying `?discussion=` (and
-`&outcome=` for an Outcome, which the Discussion view scrolls to); the page
-takes it on to its project's Discussion tab when there is one (step 7).
-`replace`, so the back button never bounces off this hop.
-
-A 404 answers with the same not-found copy a task's address does (`PageBody`),
-which is also what an inaccessible id gets: the server answers 404 there too.
-*/
+ * `/app/discussions/:id` and `/app/outcomes/:id`: read the row, then replace with its page's `?discussion=`
+ * address. A missing or inaccessible id shows the not-found copy.
+ */
 import { Navigate, useParams } from 'react-router'
 
 import { useOutcome } from '../api/consultation.js'

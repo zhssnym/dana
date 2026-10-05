@@ -5,24 +5,9 @@ import { useRender } from "@base-ui/react/use-render"
 import { Separator } from "./separator.js"
 import { cn } from "./utils.js"
 
-/*
-r5-primitives: the one row. Settings, Trash, People, member lists and
-menu-like lists are built from it.
-
-  [icon]  Label                               meta  [control]
-          Muted one-line description
-
-At least --row-height tall, 14px label (weight 400; `danger` turns it
-danger ink), 12px muted description, 12px muted `meta` before the control,
-the control on the right, all vertically centred. Rows in a group touch;
-the hover tint (clickable rows only) separates them, never a border.
-
-- Clickable row: pass `onClick` (it becomes a keyboard button) or `render`
-  (`render={<a href=… />}`, `render={<Link to=… />}`). Do not put a
-  `control` inside a clickable row; a row is either a target or a holder.
-- `selected`: the selection tint (--selected), not a ring, and the row
-  shows focus its own way (`data-focus="self"`).
-*/
+// The one row: icon, label with optional description, meta, control. Rows touch; only the
+// hover tint of clickable rows separates them. A row is either clickable (`onClick` or
+// `render`) or holds a `control`, never both.
 type RowProps = Omit<useRender.ComponentProps<"div">, "children"> & {
   label: React.ReactNode
   description?: React.ReactNode
@@ -101,11 +86,7 @@ function Row({
   })
 }
 
-/*
-A group of rows under one heading (14px, section weight 500, muted
-description under it). Groups are separated by --space-group; pass
-`divider` when space is not enough and the one Separator goes above.
-*/
+// A group of rows under one heading. Pass `divider` when spacing alone is not enough.
 function RowGroup({
   title,
   description,

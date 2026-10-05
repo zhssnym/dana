@@ -1,21 +1,5 @@
-/*
-@mentions in the editor (Wave 2, unit W-D).
-
-**One `@` menu.** People with access to this page come first, then pages
-(FE08's Dana Link search, `links/dana-link-picker.tsx`, unchanged in what it
-finds). Picking a person inserts a mention; picking a page inserts a Dana
-Link, exactly as before.
-
-**A mention is a quiet chip**: the person's face and name, the page's own
-text colour on the muted surface a Dana Link chip uses. On the wire it is a
-rich-text run `{ text: "@Name", mention: { user_id } }` (`adapters.ts`), so
-plain-text readers and the export still read a name. The server tells the
-person once, and only when they are a member of the page
-(`server/domain/mentions.ts`).
-
-The chip draws the name the author saw when they wrote it. It never looks a
-person up, so a chip in a page shared later names nobody new.
-*/
+// The editor's `@` menu: page members first, then pages. A mention chip shows the
+// name the author saw; it never looks the person up again.
 import { useEffect, useRef } from 'react'
 import { createReactInlineContentSpec, SuggestionMenuController, useComponentsContext } from '@blocknote/react'
 import type { DefaultReactSuggestionItem, SuggestionMenuProps } from '@blocknote/react'
@@ -45,11 +29,11 @@ interface Person {
   readonly id: string
   readonly name: string
   readonly image: string | null
-  /** Known only for the viewer and their connections (a folder roster carries none). */
+  /** Known only for the viewer and their connections. */
   readonly email?: string
 }
 
-/** A menu row: `key` is its identity (a person's id), since two people may share a name. */
+/** `key` is the row's identity, since two people may share a name. */
 type Row = DefaultReactSuggestionItem & { readonly key?: string; readonly detail?: string }
 
 /** Up to this many of the viewer's pages before anything is typed. */
@@ -62,10 +46,7 @@ export function insertMention(editor: CanvasEditor, person: Person): void {
   ] as Parameters<CanvasEditor['insertInlineContent']>[0])
 }
 
-/**
- * The `@` menu. `folderId` is the page whose members are offered; without
- * one (a Shelf, which is nobody else's) the menu offers pages only.
- */
+/** Without `folderId` (a shelf) the menu offers pages only. */
 export function MentionSuggestions({
   editor,
   folderId,
@@ -85,8 +66,7 @@ export function MentionSuggestions({
       ? []
       : [{ id: member.user.id, name: member.user.display_name, image: member.user.avatar_url, email: emails.get(member.user.id) }],
   )
-  /* Pages before two characters are typed (the search needs two): the
-     viewer's own, from the list the sidebar already holds. */
+  // Before two characters are typed (the search needs two), offer the viewer's own pages.
   const pages = useRef<readonly { id: string; name: string }[]>([])
   pages.current = (folders.data ?? []).filter((item) => item.id !== folderId).map((item) => ({ id: item.id, name: item.name }))
 
@@ -134,8 +114,7 @@ export function MentionSuggestions({
   )
 }
 
-/** The `@` list: people, then pages, each row keyed by what it is (never its
- * words, which two people can share), with a muted second line when needed. */
+/** Rows are keyed by identity, never by their words. */
 function MentionList({ items, selectedIndex, onItemClick }: SuggestionMenuProps<Row>): React.JSX.Element {
   const Components = useComponentsContext()!
   const root = useRef<HTMLDivElement>(null)

@@ -1,26 +1,6 @@
-/*
-The Diagram block's language and layout (#222). Pure functions, no DOM.
-
-**The source text is the diagram.** It is what `page_blocks.text` stores and
-what a person edits; the picture is derived from it on every render and is
-never stored, so a reload, a duplicate, an export and a workflow file all carry
-the one editable representation.
-
-The language is the arrow subset of Mermaid's flowchart syntax, because that is
-what people already type and paste, and it is small enough to own here rather
-than add a dependency:
-
-  flowchart LR          optional first line; TD/TB (default) or LR
-  Idea -> Draft         an arrow; `->` and `-->` both work
-  Draft -> Review: send an arrow with a label (also `A -->|send| B`)
-  A -> B -> C           a chain
-  R[Ready to ship]      a box with an id and a label; `R(…)`/`R{…}` too
-  % comment             `%` or `#` starts a comment line
-
-Anything else on a line is a box named by that text. Nothing here builds markup
-from strings: the renderer draws these records as React SVG elements, so every
-label reaches the page as a text node and there is nothing to sanitize.
-*/
+// The Diagram block's language and layout; pure functions, no DOM. The stored source
+// text is the diagram: the arrow subset of Mermaid flowchart syntax (`A -> B: label`).
+// Labels render as React text nodes, so there is nothing to sanitize.
 
 export interface DiagramNode { id: string; label: string; x: number; y: number; w: number; h: number }
 /** A quadratic curve: start, control, end, and where its label sits. */
@@ -121,8 +101,7 @@ export function layoutDiagram(source: string): DiagramResult {
     }
     if (!moved) break
   }
-  // A box with no arrow in sits just above the nearest box it points to,
-  // rather than at the top with one long arrow down the whole picture.
+  // A box with no incoming arrow sits just above the nearest box it points to.
   const forward = edges.filter((e) => e.from !== e.to && !back.has(`${e.from}\u0000${e.to}`))
   for (const id of ids) {
     if (forward.some((e) => e.to === id)) continue
@@ -175,8 +154,8 @@ export function layoutDiagram(source: string): DiagramResult {
   const laidEdges = edges.filter((e) => e.from !== e.to).map((edge): DiagramEdge => {
     const a = placed.get(edge.from)!, b = placed.get(edge.to)!
     const ax = a.x + a.w / 2, ay = a.y + a.h / 2, bx = b.x + b.w / 2, by = b.y + b.h / 2
-    // Bend an arrow that would otherwise lie on another: a cycle's return, one
-    // half of a two-way pair, or one that skips a layer and would cross a box.
+    // Bend an arrow that would lie on another: a cycle's return, one half of a two-way
+    // pair, or one that skips a layer.
     const span = Math.abs(rank.get(edge.to)! - rank.get(edge.from)!)
     // A two-way pair only needs to part; a long or returning arrow must clear boxes.
     const paired = pairs.has(`${edge.to}\u0000${edge.from}`) && span === 1
@@ -188,16 +167,14 @@ export function layoutDiagram(source: string): DiagramResult {
     const [x1, y1] = border(a, cx, cy)
     const [x2, y2] = border(b, cx, cy)
     const r = (n: number): number => Math.round(n * 10) / 10
-    // A label sits beside its curve, on the side it bends to, so the two
-    // labels of a two-way pair never share a spot.
+    // A label sits on the side its curve bends to, so a two-way pair's labels never collide.
     const side = bend === 0 ? 0 : Math.sign(-(by - ay))
     const anchor = Math.abs(by - ay) > Math.abs(bx - ax) && side !== 0 ? (side > 0 ? 'start' : 'end') : 'middle'
     const shift = anchor === 'start' ? 4 : anchor === 'end' ? -4 : 0
     return { ...edge, path: `M ${r(x1)} ${r(y1)} Q ${r(cx)} ${r(cy)} ${r(x2)} ${r(y2)}`, labelAt: [r((x1 + 2 * cx + x2) / 4 + shift), r((y1 + 2 * cy + y2) / 4)], labelAnchor: anchor }
   })
   const all = [...placed.values()]
-  // The drawing's box: every box, and every bent arrow's control point, which
-  // bounds its curve. A bend may reach left of or above the first box.
+  // Bounds include bent arrows' control points, which may reach past the first box.
   const xs = [...all.flatMap((n) => [n.x, n.x + n.w]), ...controls.map(([x]) => x)]
   const ys = [...all.flatMap((n) => [n.y, n.y + n.h]), ...controls.map(([, y]) => y)]
   const minX = Math.floor(Math.min(...xs) - PAD), minY = Math.floor(Math.min(...ys) - PAD)

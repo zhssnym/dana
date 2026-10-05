@@ -3,7 +3,7 @@ import { Input as InputPrimitive } from "@base-ui/react/input"
 
 import { cn } from "./utils.js"
 
-/* `bare`: a field inside something that already draws the box. */
+// `bare`: a field inside something that already draws the box.
 function Input({
   className,
   type,

@@ -1,40 +1,6 @@
-/*
-"Referenced from" (issue #214): which documents the reader can open hold a
-Dana Link to a given target. The contract is `src/shared/backlinks.ts`; this
-is the scan.
-
-## How it reads
-
-No backlink is stored (#320), so every call scans. Each query below is scoped
-by the reader's access to the **source** document before it looks at any
-content, with the same predicate the source's own page read applies:
-
-- a Folder page: a membership of a live Folder (`accessOf`'s join);
-- a Shelf page: the Shelf's owner (`shelfView`'s predicate);
-- (a facet's page is a Folder page since step 7, migration 0061);
-- a Responsibility document: a membership of the live Folder, the document
-  active. 7.4's `responsibility.read` is `can_view`, which every member holds;
-- a Task document (#221): a membership of the Task's live Folder and the Task
-  not trashed (`accessibleTask`'s predicate, which `GET /tasks/:id/document`
-  applies);
-- a thread's posts (W-C): `comments.content`, a membership of the live Folder
-  and the post's Discussion not in Trash (`discussion.read` is Can view, which
-  every member holds) or its Task not trashed. One row per thread, the post
-  ids in `block_ids`. A plain-text comment (`content` NULL) holds no links.
-
-Inside that scope a cheap `LIKE` on the target's uuid narrows the rows, and
-the real match is `parseDanaLink` over every `href` in the stored JSON — the
-same parser the client and `resolveReference` use, so a string counts as a
-link here exactly when it would count as one anywhere else. The uuid is
-validated before it reaches the pattern, so it carries no `%` or `_`.
-
-**The target's own gate is the caller's.** This module answers sources only;
-the route resolves the target through `resolveReference` first and 404s a
-target the reader cannot open, before anything is scanned.
-
-When a further document home is added, it becomes a source by adding one
-scoped query below; nothing else changes.
-*/
+// "Referenced from": which documents the reader can open link to a target. Nothing is stored, so every call scans.
+// Each source query is scoped by the reader's access first; a LIKE prefilters, then parseDanaLink decides.
+// The route gates the target itself before calling.
 import { sql } from 'drizzle-orm'
 
 import { BACKLINK_LIMIT } from '../../shared/backlinks.js'
@@ -50,14 +16,10 @@ import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { joinVisibleFolder } from './folder-access.js'
 
-/** A safety bound on the rows one source query scans after the uuid prefilter.
- * Far above any real count; it exists so no call is unbounded. */
+/** A safety bound on rows scanned per source query. */
 const SCAN_BOUND = 2000
 
-/** Every string held under an `href` key anywhere in a stored document. The
- * walk is shape-agnostic on purpose: page blocks hold one `RichContent`,
- * Responsibility documents hold a list of blocks each holding one, and a
- * future document shape needs no change here. */
+/** Every `href` string anywhere in a stored document; shape-agnostic on purpose. */
 export function hrefsIn(value: unknown, into: string[] = []): string[] {
   if (Array.isArray(value)) {
     for (const item of value) hrefsIn(item, into)
@@ -70,7 +32,6 @@ export function hrefsIn(value: unknown, into: string[] = []): string[] {
   return into
 }
 
-/** Does a stored document hold a Dana Link to `target`? */
 export function documentReferences(
   content: unknown,
   target: ReferenceTarget,
@@ -224,7 +185,6 @@ export async function backlinksOf(
     if (!documentReferences(row.content, target, origin)) continue
     hits.push({
       surface: 'post',
-      // Every post is a Discussion's since M5 (migration 0059).
       home: 'discussion',
       homeId: String(row.home_id),
       folderId: String(row.folder_id),
@@ -234,7 +194,6 @@ export async function backlinksOf(
     })
   }
 
-  /* One row per document, its blocks in document order. */
   const byDocument = new Map<string, Backlink>()
   for (const hit of hits) {
     const key = `${hit.surface}:${hit.home}:${hit.homeId}:${hit.memberId ?? ''}`

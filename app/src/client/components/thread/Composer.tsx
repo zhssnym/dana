@@ -1,10 +1,5 @@
-/*
-A thread's composer, read like a messaging app's: when a Reply is under way, a
-slim line naming whom it answers and the first line of what they wrote, with ×
-to drop it; under that, the chat field (`PostEditor`, a new post). Escape in an
-empty field drops the reply too. The placeholder is "Message", in an empty
-thread as well.
-*/
+// A thread's composer: an optional "Replying to" line with × above the chat field.
+// Escape in an empty field drops the reply too.
 import { Suspense, lazy, useState } from 'react'
 
 import type { PostContent } from '../../../shared/comments.js'
@@ -27,15 +22,15 @@ export function Composer({
 }: {
   readonly folderId: string
   readonly autoFocus?: boolean
-  /** Bumped by the thread to put the cursor here (Reply). */
+  /** Bumped by the thread to focus the field (Reply). */
   readonly focusSignal?: number
-  /** The post a Reply answers: its author's name and the gist of its words. */
+  /** The post a reply answers: its author's name and the gist of its words. */
   readonly replyingTo: { readonly name: string; readonly text: string } | null
   readonly onCancelReply: () => void
   /** Resolves when posted; a rejection keeps the writing. */
   readonly onSubmit: (content: PostContent) => Promise<unknown>
 }): React.JSX.Element {
-  /* × takes the cursor back to the field, as Reply brought it there. */
+  // × returns focus to the field, as Reply brought it there.
   const [nudge, setNudge] = useState(0)
   const cancel = (): void => {
     onCancelReply()

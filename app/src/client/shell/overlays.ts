@@ -1,27 +1,14 @@
 /*
-The seam between the global chrome and the overlays it opens (search and the
-keyboard shortcuts sheet). Without a seam the chrome would either
-have to import those surfaces or they would have to reach up into the chrome
-and re-render it.
-
-So the chrome asks and something answers. Nothing in this file knows what an
-overlay is. (There is no task form any more: a task is made in the list's own
-"New task" row.)
-
-The idiom is `state/toasts.ts` again, and for the same reason: a subscribable
-module rather than a context, so a control anywhere in the chrome can raise
-one without the two being in the same tree.
-*/
+ * A subscribable seam between the chrome and the overlays it opens (search, shortcuts sheet), so a control
+ * anywhere can open one without sharing a tree.
+ */
 
 /* `toggle`: Ctrl+K, which closes search when it is already open. */
 type SearchListener = (toggle: boolean) => void
 
 const searchListeners = new Set<SearchListener>()
 
-/*
-The keyboard shortcuts sheet: `?` opens it, and so does "Keyboard shortcuts"
-in search. The shell mounts it once, before any key can be pressed at a page.
-*/
+/* The keyboard shortcuts sheet: `?` or "Keyboard shortcuts" in search opens it. */
 type ShortcutsListener = () => void
 const shortcutsListeners = new Set<ShortcutsListener>()
 
@@ -37,20 +24,9 @@ export function onOpenShortcuts(listener: ShortcutsListener): () => void {
 }
 
 /*
-An open asked for before the overlay existed is remembered, not dropped.
-
-9.1 gives the search control a shortcut, and a shortcut is pressed against
-the window rather than against a React tree: on a cold load the key can
-arrive before the overlay has mounted and subscribed, and an event delivered
-to an empty listener set is gone for good. The person then presses a
-documented shortcut and nothing happens, which is indistinguishable from the
-shortcut not existing. So a request with nobody listening latches, and the
-first subscriber drains it.
-
-One request is latched rather than a queue: opening a surface twice is
-opening it once, and a stale request from minutes ago is not something a
-person is still waiting for once the surface is finally there.
-*/
+ * A request with nobody listening latches and the first subscriber drains it: on a cold load the key can arrive
+ * before the overlay mounts. One latch, not a queue.
+ */
 let searchPending = false
 
 export function openSearch(toggle = false): void {
@@ -74,20 +50,8 @@ export function onOpenSearch(listener: SearchListener): () => void {
 }
 
 /**
- * 9.1's two shortcuts for the search control, and `?` for the shortcuts
- * sheet, attached to the document.
- *
- * Installed from `main.tsx` at module scope rather than from a component
- * effect, so the window is listening from the moment the bundle runs instead
- * of from whenever the page tree finishes mounting. That ordering is the
- * whole point: the heavier the page under the chrome, the longer a
- * component-effect listener leaves the shortcut dead, and a shortcut that
- * works only after the app settles is a shortcut a fast typist will find
- * broken.
- *
- * Scoped to the application's own paths: the landing page of 9.2 carries no
- * overlay, and latching there would open search on a later navigation that
- * nobody asked for.
+ * Installed from `main.tsx` at module scope so the shortcut works before the page tree mounts. Only on /app
+ * paths: the landing page has no overlay, and latching there would open search later.
  */
 export function installSearchShortcut(target: Document): () => void {
   function isTyping(node: EventTarget | null): boolean {

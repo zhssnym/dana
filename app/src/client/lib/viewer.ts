@@ -1,46 +1,23 @@
-/*
-Who is looking, and what they look like, over 7.2's session and 7.15's avatar.
-
-`useViewer` answers `/me`: the display name, the initials `parts/presenters.ts`
-decides everywhere else, and `avatar_url`, which 7.15 sets from the upload and
-which sign-in fills from Google where it can.
-
-**`setViewerImage` is 7.15's `POST /me/avatar`.** `squareImageFile` runs first,
-so what goes up is a 256px square, and then the bytes go to the one route that
-sets a picture. The route answers the new serving path and the `/me` read
-carries it from then on, so every surface that draws the face updates.
-
-**The request goes through `api/http.ts`'s `uploadAvatar`**, so it takes the
-same offline check as every other write: choosing a picture with no connection
-reports 9.1's "Couldn't save. You're offline." rather than a generic failure.
-
-**`clearViewerImage` is `DELETE /api/v1/me/avatar`** (7.15), behind the Settings
-row's Remove control.
-
-`squareImageFile`: square because every avatar in the product is a circle,
-centre-cropped to the short edge because letting a portrait photograph in
-un-cropped means the browser decides what to cut, which is usually the top of
-somebody's head.
-*/
+// The viewer from `/me`, and their avatar writes. Uploads are squared to 256px first and
+// go through `api/http.ts`, so they get the offline check every write has.
 import { useMe } from '../api/queries.js'
 import { mutateApi, uploadAvatar } from '../api/http.js'
 import { queryClient, writeFailureMessage } from '../api/queryClient.js'
 import { showToast } from '../state/toasts.js'
 import { initialsOf } from '../parts/presenters.js'
 
-/* Small, because nothing draws an avatar above 40px. */
+// Small, because nothing draws an avatar above 40px.
 const MAX_EDGE = 256
 const QUALITY = 0.82
 
 export interface Viewer {
-  /* The user id, which the default face is keyed by. */
+  // The user id, which the default face is keyed by.
   id?: string
   name: string
   initials: string
   email: string
   timezone: string
-  /* 7.15's serving path, or nothing, in which case the initials stand in,
-     which is what every avatar in the product already falls back to. */
+  // The served upload path, or nothing, in which case the default face stands in.
   image?: string
 }
 
@@ -73,21 +50,14 @@ export function setViewerImage(image: string): void {
   const client = queryClient()
   void fileOf(image)
     .then((file) => uploadAvatar(file))
-    // Success says nothing: the picture itself changing is the answer.
+    // Success says nothing: the picture changing is the answer.
     .then(() => void client?.invalidateQueries())
     .catch((error: unknown) => showToast(writeFailureMessage(error)))
 }
 
 /**
- * 7.15's `DELETE /me/avatar`, the other half of the seam above.
- *
- * Through `mutateApi` rather than a hand-written `fetch` for the reason the
- * header gives for the upload: one write path, the CSRF header the caller
- * cannot forget, the offline check, and 9.1's "Couldn't save. You're offline."
- * on a Remove pressed with no connection. The route answers 204, so nothing is
- * parsed; the `/me` read is what tells every surface the picture is gone, and
- * invalidating is what makes the sidebar, the roster and the rows agree with
- * this screen in the same frame.
+ * Through `mutateApi` for the CSRF header and offline check; invalidating updates every
+ * surface at once.
  */
 export function clearViewerImage(): void {
   const client = queryClient()
@@ -96,7 +66,7 @@ export function clearViewerImage(): void {
     .catch((error: unknown) => showToast(writeFailureMessage(error)))
 }
 
-/** 7.1's PATCH /me, the one field it takes. */
+/** The one field PATCH /me takes. */
 export function setViewerTimezone(timezone: string): void {
   const client = queryClient()
   void mutateApi(null, { method: 'PATCH', path: '/me', body: { timezone } })
@@ -104,14 +74,8 @@ export function setViewerTimezone(timezone: string): void {
     .catch((error: unknown) => showToast(writeFailureMessage(error)))
 }
 
-/*
-A file, cropped square and shrunk.
-
-Square because every avatar in the product is a circle, and letting a portrait
-photograph in un-cropped means the browser decides what to cut, which is
-usually the top of somebody's head. Centre-cropping to the short edge first is
-the same choice a person would make.
-*/
+// Centre-cropped square, because avatars are circles and an uncropped portrait loses the
+// top of the head.
 export function squareImageFile(file: File): Promise<string | null> {
   return new Promise((resolve) => {
     if (!file.type.startsWith('image/')) {

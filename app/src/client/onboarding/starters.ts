@@ -1,54 +1,23 @@
 /*
-The starter workflows of 9.13 (ADD-1), as data.
-
-**These are ordinary workflow files.** Each one is exactly what a person would
-get by exporting a folder of their own, and each is imported through
-POST /workflows/import like any other, so nothing here is a seed and nothing
-is special-cased in the server. They are format 4 files, one ordered page, so
-each task sits under the Section it belongs to; the format 1 split into
-`blocks` and `tasks` could not say that, and imported every task above the
-first paragraph. Nothing but `tsc` checks them, so run one after an edit.
-
-**What a starter may hold is what 7.16's schema admits**: a folder name, task
-titles, and page blocks. So no starter carries a comment or a reminder, and
-9.13 records why that is right rather than merely structural. A fabricated
-comment would attribute words to a person who never said them. A reminder
-would mail somebody about a plan they did not make, most likely long after
-they forgot the example was there.
-
-**Every starter opens with the same paragraph**, which 9.13 fixes as normative:
-the offer's own copy is gone the moment it is answered, so the page is where a
-person is told they can delete this. It is `DELETABLE` below, written once.
-
-**The teaching is in the tasks, not in a tour.** Each folder carries a few
-tasks that ask the person to do a thing and then look at the place it went, so
-Today, Scheduled, Assignments and Important are learned by arriving at them
-with something already in them. A starter that explained the sidebar instead
-would teach a person to click rather than why to come back, which is the
-distinction 9.13 draws.
-
-The three were chosen to demonstrate different halves of the product: a trip
-is one person and a folder page, a team is sharing and assignment, and
-learning is the workflow export the landing advertises.
-*/
+ * The starter workflows (spec 9.13) as ordinary format-4 workflow files, imported like any other. Only `tsc`
+ * checks them, so run it after an edit. No comments or reminders: they would invent words or mail people.
+ */
 import type { ImportWorkflowBody } from '../../shared/workflows.js'
 
-/** 9.13's normative first paragraph, on every starter folder's page. */
+/** Spec 9.13's normative first paragraph, on every starter page. */
 const DELETABLE =
   'This is an example, and it is yours now. Change anything you like, or ' +
   'delete the whole page from its menu when you are done with it.'
 
 export interface Starter {
-  /** Stable across renames of the folder inside; used as a React key. */
+  /** Stable across folder renames; used as a React key. */
   readonly id: 'trip' | 'team' | 'learning'
-  /** The card's label. Not the folder name, which the file below carries. */
+  /** The card's label, not the folder name. */
   readonly label: string
-  /** One line on the card, saying what the example is for. */
   readonly summary: string
   readonly file: ImportWorkflowBody
 }
 
-/* A heading and a task, in the page's own words. */
 const section = (text: string) => ({ kind: 'section' as const, text, level: 1 })
 const paragraph = (text: string) => ({ kind: 'paragraph' as const, text })
 const task = (title: string) => ({ kind: 'task' as const, title })

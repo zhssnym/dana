@@ -1,25 +1,7 @@
-/*
-The sample workspace's words (7.20). One person's projects in Dana: Maya, 29,
-a product designer running seven projects that each end — a thing built,
-a trip made, a flat moved into, a race run. Each project is a page with a
-Purpose, the Work to do, Results when it is done, and the Discussion with the
-people it involves. Each project's words live in its own file under
-./projects/, gathered here.
+// The sample workspace's types (7.20). The words live in ./projects/, one file per project.
+// Dates are days relative to account creation, so the sample always reads as this month.
 
-Every string the sample writes is in this file and nowhere else, so the tone
-can be read in one sitting and edited in one place. Plain, warm and concrete;
-no jokes, no placeholder text, no reference to the product. Dates are days
-relative to the day the account was made, in the person's own zone, so the
-workspace always reads as this month rather than as the month it was written.
-
-The other people are sample people (SAMPLE_PEOPLE): users rows with no sign-in
-identity at all (no google_sub, no email), so nobody can ever sign in as them.
-They are shared by every sample and never removed; what the sample removes is
-their memberships, posts and assignments, with the sample's pages.
-*/
-
-/** Days from today, or the next given weekday, or the next given day of
- * the month. Resolved by the writer against today in the person's zone. */
+/** Days from today, the next given weekday, or the next given day of the month. */
 export type SampleDue =
   | number
   | { readonly weekday: 'MO' | 'TU' | 'WE' | 'TH' | 'FR' | 'SA' | 'SU' }
@@ -31,7 +13,7 @@ export type SampleAuthor = SamplePersonKey | 'me'
 
 export interface SamplePerson {
   readonly key: SamplePersonKey
-  /** Fixed, so every account's sample shares the same three rows. */
+  /** Fixed, so every account's sample shares the same rows. */
   readonly id: string
   readonly name: string
 }
@@ -79,9 +61,7 @@ export interface SampleBlock {
   readonly children?: readonly SampleBlock[]
 }
 
-/** One item of a page's Work document: a block, a task (by title, from the
- * page's own tasks) or a sub-page's block (by name). A task or sub-page the
- * document does not name is placed after everything it does. */
+/** A block, a task (by title) or a sub-page (by name). Unnamed tasks and sub-pages go after the rest. */
 export type SampleItem = SampleBlock | { readonly task: string } | { readonly page: string }
 
 export interface SampleStep {
@@ -137,8 +117,7 @@ export interface SampleTask {
 
 export interface SampleFolder {
   readonly name: string
-  /** The page it is a sub-page of, by name; none for a top-level page. Every
-   * parent is listed before its children. */
+  /** The parent page by name; none for a top-level page. Parents are listed first. */
   readonly parent?: string
   readonly icon?: string
   readonly color?: string

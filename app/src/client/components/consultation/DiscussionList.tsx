@@ -1,20 +1,5 @@
-/*
-The Discussion surface is one flat thread list shared by full-screen and the
-sidebar. The two presentations differ only where width requires it: full-screen
-uses a one-line row with right-side meta, while the sidebar uses the same row
-language compressed to two lines.
-
-Open and Resolved are filters, not page tabs. They live in one compact segmented
-control with a clear selected state, while "+ New thread" is the single creation
-action beside them. Full page gives the list one bounded issues-list surface;
-the sidebar keeps rows flat where a box would crowd them.
-
-Each thread has one leading mark. A thread linked to one or more Tasks shows the
-first linked Task's state mark (linking to that Task); any other shows an outline
-speech bubble while open, a filled check once resolved, and pressing it resolves
-(without a decision) or reopens, with Undo. Unread titles are heavier. Resolved
-threads are muted. The list re-reads every twenty seconds while visible.
-*/
+// The thread list shared by full-screen and the sidebar. Open and Resolved are
+// filters, not tabs.
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 
@@ -43,7 +28,6 @@ import type { ConsultationViewer } from './authority.js'
 export type DiscussionListFilter = 'open' | 'resolved'
 type State = DiscussionListFilter
 
-/** Someone else posted since this person last read the thread. */
 export function isUnread(d: Discussion, viewerId: string | null): boolean {
   const last = d.last_post
   if (last === null || last === undefined || last.author_id === viewerId) return false
@@ -51,13 +35,13 @@ export function isUnread(d: Discussion, viewerId: string | null): boolean {
   return Date.parse(last.created_at) > Date.parse(d.read_at)
 }
 
-/* Full-screen: one compact line, with its meta on the right. */
+// Full-screen: one line with meta on the right.
 const ROW =
   'grid min-h-10 w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-x-1 rounded-sm pr-2 pl-1 text-sm transition-colors duration-[var(--duration-fast)]'
 
 const MARK = 'flex size-[var(--control-height)] items-center justify-center rounded-sm'
 
-/* Sidebar: the same thread hierarchy in two lines so the title can breathe. */
+// Sidebar: two lines so the title can breathe.
 const DOCKED_ROW =
   'grid w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-x-1 rounded-sm py-1.5 pr-2 pl-0.5 text-sm transition-colors duration-[var(--duration-fast)]'
 
@@ -80,7 +64,6 @@ export function DiscussionList({
   readonly returnTo?: string | null
   readonly onOpen: (discussionId: string) => void
   readonly onStarted: (discussionId: string) => void
-  /** Controlled by the workspace tab when present; local for legacy callers. */
   readonly filter?: DiscussionListFilter
   readonly onFilterChange?: (filter: DiscussionListFilter) => void
 }): React.JSX.Element {
@@ -95,7 +78,7 @@ export function DiscussionList({
     onFilterChange?.(next)
   }
   const [starting, setStarting] = useState(false)
-  /* A pressed mark moves its row at once; the refetch then agrees. */
+  // A pressed mark moves its row at once; the refetch then agrees.
   const [moved, setMoved] = useState<ReadonlyMap<string, State>>(new Map())
   const move = (id: string, to: State | null): void => {
     setMoved((current) => {
@@ -147,8 +130,7 @@ export function DiscussionList({
     }
   }
 
-  /* The keyboard path's scope mounts once, loading or not: `useRowKeys`
-     attaches to it on the first render only. */
+  // Mount the keyboard scope even while loading: `useRowKeys` attaches on the first render only.
   if (list.isPending || list.isError) {
     return (
       <div ref={keys} className="min-w-0">
@@ -293,7 +275,7 @@ function ThreadRow({
   )
   return (
     <div
-      /* The keyboard path (`row-keys.ts`) keys rows by `data-task-id`. */
+      // The keyboard path (`row-keys.ts`) keys rows by `data-task-id`.
       data-row-key=""
       data-task-id={d.id}
       data-thread-state={state}
@@ -385,7 +367,6 @@ function ThreadRow({
   )
 }
 
-/** The row the "+ New thread" action opens at the top: a title, then Enter. */
 function NewThread({
   folderId,
   docked,

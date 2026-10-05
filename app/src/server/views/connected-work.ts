@@ -1,15 +1,7 @@
 /*
-Connected work (#488) normalizes two ways a block can reference a facet:
-
-- an inline Dana Link inside authored rich text; and
-- an explicit whole-block edge in `page_block_facets`.
-
-The exact source object is the unit in both cases. They de-duplicate by source
-document + block id, so connecting a paragraph that already contains an
-inline facet chip never makes two Connected work rows. No adjacent/proximity
-inference exists. Facet relationships are project-local: an inline Dana Link
-to another project's facet may still navigate there, but it is not projected
-as a facet relationship here.
+Connected work: a facet's references from inline Dana Links and from explicit
+block edges, de-duplicated by source document and block id. No proximity
+inference. Project-local: a link to another project's facet is not a relationship.
 */
 import { sql } from 'drizzle-orm'
 
@@ -171,9 +163,7 @@ async function persistedBlockBacklinks(
   return [...byDocument.values()]
 }
 
-/** A block source carries the same canonical read model normal Page/Task reads
- * carry. The facet mirror therefore renders one identity rather than rebuilding
- * a second representation from preview text and file chips. */
+/** Sources carry the canonical block read model, so the facet renders the same block. */
 async function blockSources(
   executor: Executor,
   viewerId: string,
@@ -314,8 +304,8 @@ export async function connectedWorkOf(
     backlinksOf(executor, viewerId, { kind: 'facet', id: facetId }, origin),
     persistedBlockBacklinks(executor, viewerId, facetId, projectId),
   ])
-  /* A cross-project facet href remains a Dana Link/navigation primitive, but
-     does not become a relationship. Shelves likewise have no Work directory. */
+  /* A cross-project facet link still navigates but is not a relationship;
+     shelves have no Work directory. */
   const inlinePage = page.results.filter((row) => row.folder_id !== null && local.has(row.folder_id))
   const inlineFacet = facet.results.filter((row) => row.folder_id !== null && local.has(row.folder_id))
   const merged = mergeFacetBacklinks(inlinePage, inlineFacet, explicit)

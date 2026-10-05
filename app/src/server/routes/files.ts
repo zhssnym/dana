@@ -1,16 +1,8 @@
 /*
-The 7.15 surface: uploads, authenticated serving, deletion, and the avatar.
-Multipart parsing is multer's, memory storage under 10.3's 25 MB
-cap so a payload larger than the law never buffers whole; everything after
-the parse is the domain module's.
-
-Status grammar (7.0, 10.2, 10.3): scope failures 404; a mime that does not
-match its declared kind, a missing file part, an undecodable image, and the
-size cap all 422 naming the field; the storage quota alone answers 413 with
-section 9's copy. Serving sets nosniff and confines kind 'file' to an
-attachment, because bytes a member chose are served on the application's
-own origin and a text/html "document" inline would be a script with a
-session.
+The 7.15 file routes. Multer buffers in memory under the 25 MB cap. Only the
+storage quota answers 413. Served files get nosniff, and kind `file` is always
+an attachment: member bytes on our origin served inline as HTML would be a
+script with a session.
 */
 import type { Request, Response, Router } from 'express'
 import multer from 'multer'
@@ -53,36 +45,10 @@ export interface FilesRouterOptions {
 }
 
 /*
-7.15's multipart fields.
-
-**`folder_id` is optional for `cover` (issues #20 and #100) and for `image`
-(issue #167).** Folders, shelves and the built-in pages get the same four
-cover options, and pictures belong to the user rather than only to a folder;
-a shelf and a place page are not folders, so a cover or a shelf page's image
-has to be storable without one. A folder-less image belongs to the uploader, is served to them alone
-(`readableFileScope`), and can be named only by a block on a page that reaches
-it (`putPage`, issue #107).
-
-**`file`, `audio` and `video` are optional too (issue #220), which leaves
-`voice` as the only kind that requires one.** A composer File,
-Audio or Video block is the shelf page's image one object over: not every kind
-of page is a folder, so a composer asset has to be able to take its page's
-scope, and a folder-less one is its uploader's alone. A recorded voice note
-still hangs on a comment thread and a thread still lives in a folder.
-
-**The refusal for `voice` stays 422 naming the field**, not the 404 a folder
-the caller cannot see would get: an absent `folder_id` on a voice note is a
-malformed request rather than a scope failure.
-
-**A generic `file` may now be uploaded with no folder and then not attached to
-a comment**, because `createComment` resolves its attachments inside a folder
-and always has. That is a 422 at attach time rather than anything worse, and
-the file is reclaimed by 7.19's sweep once nothing references it.
-
-`superRefine` rather than a check in the handler so the rule is stated once,
-in the shape the message comes from, and so `createFile`'s own restatement of
-it (migration 0015's files_folderless_kind_check) is a second line of defence
-rather than the only one.
+`folder_id` is optional for every kind but `voice`: covers, images and composer
+assets may belong to non-folder pages and are then the uploader's alone. A
+missing folder on a voice note is 422, not 404. createFile re-checks this
+(files_folderless_kind_check, migration 0015).
 */
 const FOLDERLESS_KINDS = new Set<string>(FOLDERLESS_UPLOAD_KINDS)
 
@@ -124,8 +90,7 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
     return options.fileStore
   }
 
-  /** Multer's size refusal arrives as an error, not a request; 10.3 makes
-   * it a 422 naming the field, the quota alone being 413. */
+  /** Multer's size refusal is a 422 naming the field (10.3). */
   const parsed =
     (handler: (req: Request, res: Response) => Promise<void>) =>
     (req: Request, res: Response) => {
@@ -149,9 +114,7 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         sendError(res, 404, 'not_found', 'Not found.')
         return
       case 'forbidden':
-        // 10.2's second half (issue #228): the folder resolved, so the
-        // caller demonstrably sees it, and the refusal may say which rule it
-        // broke -- the same grammar `DELETE /files/:id` moved to at #74.
+        // The caller sees the folder, so 403 may name the rule.
         sendError(res, 403, 'forbidden', outcome.reason)
         return
       case 'kind_mime_mismatch':
@@ -171,11 +134,8 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         )
         return
       case 'not_supported_media':
-        /* #220: the declared type is on the audio or video allowlist and the
-           bytes are not that container. The sentence names the way forward
-           R1 guarantees rather than only the refusal, because the caller has
-           a legitimate one: upload the same bytes as a generic file and Dana
-           will offer them for download instead of claiming a player. */
+        /* The bytes are not the declared audio/video container; the message
+           points to uploading as kind=file instead. */
         sendError(
           res,
           422,
@@ -200,7 +160,6 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         )
         return
       case 'quota_exceeded':
-        // 10.3: the one limit that answers 413, with section 9's copy.
         sendError(
           res,
           413,
@@ -224,12 +183,7 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
       const store = storeOf(res)
       if (store === null) return
       const fields = parseBody(uploadFields, req, res, securityLog, {
-        /* One sentence for the whole shape, as before, rather than the
-           per-field formatter: the parts of a multipart body are not the
-           JSON fields `sendFieldValidationError` builds its paths from.
-           The wording moves with the rule above — `folder_id` is a uuid
-           where it is sent, and required for a file or a voice note, the two
-           kinds that hang on a comment thread in a folder (issue #167). */
+        /* One sentence for the whole shape: multipart parts are not JSON paths. */
         onInvalid: () => {
           sendError(
             res,
@@ -256,21 +210,8 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         refusal(res, outcome)
         return
       }
-      /* Annotated, not inlined into `res.json`, which takes `any`: the
-         annotation is the only thing tying this literal to the schema the
-         client parses it with (#39). It catches both directions — a field
-         the schema requires and this omits, and a field this sends and the
-         schema does not declare.
-
-         4.16's width and height ride back with the id (#27). This caller is
-         holding the file and already knows its shape, so the pair is here for
-         completeness and for one real use: 7.15 downscales anything past
-         2048px, and this is the only place the answer says what the store
-         actually kept. The reader who genuinely needs the numbers is a
-         different person entirely, and reaches them through the page and
-         thread reads. Null for every kind that carries no dimensions.
-         `routes/cover-photos.ts` answers the same four for the same act,
-         where the caller never held the bytes at all. */
+      /* Typed against the client's schema; `res.json` takes `any`. Width and
+         height say what the store kept after downscaling. */
       const body: PostFilesResponse = {
         id: outcome.id,
         bytes: outcome.bytes,
@@ -297,22 +238,9 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         return
       }
       res.setHeader('X-Content-Type-Options', 'nosniff')
-      /* **An allowlist since #220, where it used to be `kind !== 'file'`.**
-         The behaviour for every kind that existed before is identical; what
-         changed is the direction it fails in. A denylist hands a kind added
-         later an inline disposition by default, on this application's own
-         origin, which is the one mistake this header exists to stop. Six
-         kinds are validated on the way in — the three image kinds through
-         sharp's decode and re-encode, #220's `audio` and `video` through the
-         MIME allowlist and a container-signature read, and `voice` through its
-         own `audio/*` rule, which is deliberately neither of those: its bytes
-         come from the browser's own recorder rather than from a file picker,
-         and narrowing it to the allowlist would refuse recordings that work
-         today (`mimeMatchesKind` in `domain/files.ts` is the whole of it) —
-         and those six are served
-         inline. `file` is untrusted bytes of any type whatever and is served
-         as an attachment, always, which with nosniff beside it is what makes
-         "Dana never executes an uploaded file" true rather than hoped for. */
+      /* An allowlist, so a new kind defaults to attachment. These kinds are
+         validated on upload; `file` is untrusted bytes and with nosniff is
+         never executed. */
       const INLINE_KINDS: ReadonlySet<FileKind> = new Set([
         'image',
         'cover',
@@ -322,8 +250,7 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         'video',
       ])
       const inline = INLINE_KINDS.has(served.kind)
-      // Control characters and quotes leave the filename: a name is data and
-      // a header is not.
+      // Strip control characters and quotes: the name goes into a header.
       const safeName = [...served.name]
         .filter((c) => {
           const code = c.charCodeAt(0)
@@ -357,12 +284,7 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         return
       }
       if (outcome === 'forbidden') {
-        /* 10.2's second half, added 2026-09-04 under issue #74: this caller
-           reads the same bytes at 200 through the GET above, so the file's
-           existence is not a thing a 404 could still be protecting, and a
-           refusal that says why is what the grammar asks for. The sentence is
-           `deleteComment`'s in shape and in the actors it names, that being
-           the same rule on the same surface (7.14, 7.15). */
+        /* The caller can already GET these bytes, so 403 leaks nothing. */
         sendError(
           res,
           403,
@@ -398,8 +320,7 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         refusal(res, outcome)
         return
       }
-      /* As above: the shared schema is the contract, this is checked
-         against it (#39). */
+      /* Typed against the client's schema, as above. */
       const body: PostAvatarResponse = {
         avatar_url: `/api/v1/files/${outcome.id}`,
       }
@@ -408,18 +329,8 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
   )
 
   /*
-  7.15's removal.
-
-  It is not `parsed`: there is no multipart body to read, and running the
-  upload parser over a bodiless DELETE would be a middleware looking for a
-  part that by definition is not there. Otherwise it is the POST's own
-  contract, session, CSRF and the general mutation limit, so a picture is
-  removed under exactly the guard it was set under.
-
-  204 and no body, which is 7.0's shape for a mutation with nothing to
-  report, and idempotent: the domain clears the column and the stored row
-  whether or not either was there, so a second press is the same act rather
-  than a 404 about a picture the person can already see is gone.
+  No multipart parser on a bodiless DELETE. Idempotent 204: a second press
+  clears nothing and is not a 404.
   */
   router.delete(
     '/me/avatar',

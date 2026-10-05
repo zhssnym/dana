@@ -1,23 +1,5 @@
-/*
-One post, read-only: its content (`shared/comments.ts` `postContent`) drawn
-in the page canvas's vocabulary — headings, nested lists, checklists, toggles,
-quotes, callouts, code, dividers and the post's own files — without loading
-the editor. A post written before posts has `content` null and its `body` is
-the whole post, drawn as text with its line breaks. Files the writing does not
-place (every attachment of an older comment) follow it as tiles.
-
-Long posts fold after about eight lines behind "Show more".
-
-A chat bubble hands in a `footer` (reactions, time): it floats at the right
-end of the last line of text when there is room, else takes a line of its
-own, and sits beside "Show more" while the post is folded.
-
-A link to a task draws as a compact card: the task's state mark, its title on
-one line and its state word, opening the task when pressed.
-
-Nothing here imports BlockNote: a thread with fifty posts draws fifty of these,
-and the editor is loaded only for the one composer.
-*/
+// One post, read-only, in the canvas's vocabulary without loading BlockNote: a thread of
+// fifty posts draws fifty of these. Older posts have only a plain `body`. Long posts fold.
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
@@ -35,8 +17,7 @@ import { MentionChip } from '../page/canvas/mention-chip.js'
 import { cn } from '../ui/utils.js'
 import { STATE_WORD, StateMark, taskState } from './timeline/state.js'
 
-/* About eight lines of body text before a post folds; a post with files
-   folds later, so a picture and its name and size show whole. */
+// About eight lines before a post folds; with files it folds later so a picture shows whole.
 const FOLD = 'max-h-40'
 const FOLD_FILES = 'max-h-96'
 
@@ -50,7 +31,7 @@ export function PostView({
   readonly content: PostContent | null | undefined
   readonly body: string | null
   readonly files: readonly CommentFile[]
-  /** Slack's "(edited)": inline after the last line when it is text, else on a line of its own. */
+  /** Inline after the last line when it is text, else on its own line. */
   readonly edited?: boolean
   /** Drawn after the text, at the right (a bubble's reactions and time). */
   readonly footer?: React.ReactNode
@@ -63,9 +44,8 @@ export function PostView({
     const element = inner.current
     if (element === null) return
     const measure = (): void => {
-      /* Once folded, stays folded for this content: the footer moving out
-         from under the fold would otherwise unfold it again. The caller
-         keys this view by the post's edit. */
+      // Once folded, stay folded for this content, or the footer moving out from under the
+      // fold unfolds it again. The caller keys this view by the post's edit.
       const over = element.scrollHeight > element.clientHeight + 4
       setOverflows((was) => was || over)
     }
@@ -97,8 +77,7 @@ export function PostView({
         ref={inner}
         className={cn(
           'min-w-0 space-y-1.5 text-sm wrap-anywhere whitespace-pre-wrap text-foreground',
-          // Each line takes its direction from its own first letter, so Arabic
-          // reads right to left and English left to right in the same post.
+          // Each line takes its direction from its first letter, for mixed Arabic and English.
           '[&_:is(p,li,h1,h2,h3,h4,blockquote)]:[unicode-bidi:plaintext] [&_:is(p,li,h1,h2,h3,h4,blockquote)]:text-start',
           footer !== undefined && 'flow-root',
           !open && (files.length > 0 ? FOLD_FILES : FOLD),
@@ -131,8 +110,6 @@ export function PostView({
   )
 }
 
-/* ------------------------------------------------------------ blocks */
-
 type Files = ReadonlyMap<string, CommentFile>
 
 /** Siblings, with consecutive list items gathered into one list. */
@@ -143,7 +120,7 @@ function Blocks({
 }: {
   readonly blocks: readonly PostBlock[]
   readonly files: Files
-  /** Drawn at the end of the last block's text (a paragraph's). */
+  /** Drawn at the end of the last block's text. */
   readonly suffix?: React.ReactNode
 }): React.JSX.Element {
   const out: React.JSX.Element[] = []
@@ -194,7 +171,7 @@ function Block({
     case 'heading1':
     case 'heading2':
     case 'heading3': {
-      // The editor's own three steps (canvas.css), so a post reads as written.
+      // The editor's own three heading sizes (canvas.css).
       const size = block.kind === 'heading1'
         ? 'text-[length:var(--text-h1-size)] leading-[var(--text-h1-line)]'
         : block.kind === 'heading2'
@@ -279,8 +256,6 @@ function Block({
   }
 }
 
-/* ------------------------------------------------------------ inline */
-
 function Runs({ rich }: { readonly rich: RichContent | undefined }): React.JSX.Element | null {
   if (!rich) return null
   return (
@@ -289,7 +264,6 @@ function Runs({ rich }: { readonly rich: RichContent | undefined }): React.JSX.E
         let node: React.ReactNode = run.text
         if (run.bold) node = <strong className="font-semibold">{node}</strong>
         if (run.italic) node = <em>{node}</em>
-        // Wave 2 (W-D): a person mention draws the canvas's chip.
         if (run.mention !== undefined) return <MentionChip key={index} label={run.text} />
         if (run.href !== undefined && danaLinkOf(run.href)?.kind === 'task') {
           return <TaskRef key={index} href={run.href} stored={run.text} />
@@ -305,10 +279,10 @@ function Runs({ rich }: { readonly rich: RichContent | undefined }): React.JSX.E
   )
 }
 
-/** A task named in a post: its mark, title and state on one line, opening
- * the task. Read only once the link itself resolves (so a task the reader
- * may not see is never asked for); until then, and if the task cannot be
- * read, it is the ordinary link chip. */
+/**
+ * A task link drawn as a compact card. The task is read only once the link resolves,
+ * so a task the reader may not see is never requested.
+ */
 function TaskRef({ href, stored }: { readonly href: string; readonly stored: string }): React.JSX.Element {
   const target = danaLinkOf(href)
   const reference = useQuery({
@@ -334,8 +308,6 @@ function TaskRef({ href, stored }: { readonly href: string; readonly stored: str
   )
 }
 
-/* ------------------------------------------------------------ files */
-
 function readableSize(bytes: number): string {
   if (bytes < 1024) return `${String(bytes)} B`
   if (bytes < 1024 * 1024) return `${String(Math.round(bytes / 1024))} KB`
@@ -356,7 +328,7 @@ function Tiles({ files }: { readonly files: readonly CommentFile[] }): React.JSX
   )
 }
 
-/** A picture in a 280px card, its name and size under it in one muted line. */
+/** A picture in a 280px card, its name and size under it. */
 function ImageTile({ file }: { readonly file: CommentFile }): React.JSX.Element {
   const [failed, setFailed] = useState(false)
   if (failed) {

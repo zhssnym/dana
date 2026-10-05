@@ -1,27 +1,6 @@
-/*
-Wave 2, pages in pages (migration 0039): the page tree's cross-row rules.
-
-A page is a `folders` row; `parent_folder_id` names the page it sits under
-and `child_position` orders it among its siblings. Sharing is per page
-(Hassan's decision 1): a sub-page copies its parent's members once, at
-creation, and nothing is inherited afterwards. So every read here that names
-another page is filtered by the viewer's own membership of THAT page, and a
-walk upward stops at the first ancestor the viewer is not a member of (or
-that is trashed): an inaccessible ancestor truncates the breadcrumb and makes
-the child a root in that viewer's sidebar, and its id and name never leave
-the server.
-
-Every function takes an `Executor` so a caller holding a transaction -- the
-PATCH /folders/:id/location route today, the document transaction's future
-`create_page` / `trash_page` ops tomorrow -- runs it on its own snapshot.
-
-Structural writes (a sub-page's creation, a move) take one fixed advisory
-transaction lock first, `lockPageTree`. The cycle and depth checks are
-recursive reads over parent pointers, and two concurrent moves that each pass
-their own check (A under B, B under A) would together make a cycle no CHECK
-can see; one lock for the whole tree serialises them. Moves are rare and
-short, so one key costs nothing worth a finer scheme.
-*/
+// The page tree: `parent_folder_id` and `child_position` on folders. Reads filter by the viewer's access,
+// and an upward walk stops at the first inaccessible or trashed ancestor, so its id never leaves the server.
+// Structural writes take `lockPageTree` first: concurrent moves could otherwise form a cycle no CHECK sees.
 import { randomUUID } from 'node:crypto'
 
 import { sql } from 'drizzle-orm'
@@ -38,14 +17,9 @@ import { seededItems } from './page-order.js'
 /** Levels from a root (depth 1) down to the deepest page, inclusive. */
 export const PAGE_TREE_MAX_DEPTH = 20
 
-/** The one advisory key every tree move and sub-page creation takes. The
- * number is arbitrary and fixed; it only has to be unique among the app's
- * advisory keys ("Dana" "Tree" in ASCII). */
+/** The one advisory key every tree move and sub-page creation takes. Arbitrary but fixed. */
 const PAGE_TREE_LOCK_KEY = '4927008461390308709'
 
-/** The rights a structural tree act needs on each page it touches: adding a
- * sub-page to a page, moving a page, and being the page a move lands under
- * are all edits of that page's structure. */
 export const PAGE_TREE_EDIT_ACTION = 'folder.page.edit' as const
 
 export async function lockPageTree(tx: Executor): Promise<void> {
@@ -54,30 +28,14 @@ export async function lockPageTree(tx: Executor): Promise<void> {
   )
 }
 
-/* ------------------------------------------------------------------ *
- * Viewer-filtered reads
- * ------------------------------------------------------------------ */
-
-/**
- * The SQL predicate "the viewer may see the parent of `f`": it is live and
- * the viewer is a member of it. `folderSelect` reports `parent_folder_id` and
- * `child_position` only under this, so the list and the single view say the
- * same thing and a hidden parent's id never reaches the wire.
- */
+/** The SQL predicate "the viewer may see the parent of `f`", so a hidden parent's id never reaches the wire. */
 export function visibleParentPredicate(viewerId: string) {
   return visibleFolder(sql`f.parent_folder_id`, viewerId)
 }
 
 /**
- * The breadcrumb of each page in `folderIds`, root first and nearest parent
- * last, as `viewerId` may see it: one recursive walk upward for the whole
- * batch, stopping at the first ancestor that is trashed or that the viewer is
- * not a member of, and never deeper than the tree may be (which also bounds a
- * walk over a cycle, were one ever written). A page with no visible parent
- * answers [] (absent from the map means the same).
- *
- * Does not check the viewer's access to the starting pages themselves: the
- * caller has resolved it (the folder view's gate, search's membership join).
+ * Each page's breadcrumb, root first, as the viewer may see it. Stops at the first trashed or non-member ancestor;
+ * the depth cap also bounds a cycle. The caller has checked access to the starting pages.
  */
 export async function visibleAncestors(
   executor: Executor,
@@ -124,14 +82,7 @@ export async function visibleAncestors(
   return result
 }
 
-/* ------------------------------------------------------------------ *
- * Structure (callers hold `lockPageTree`)
- * ------------------------------------------------------------------ */
-
-/** The ids on the chain from `folderId` up to its root, `folderId` first,
- * over every row whatever its state or anyone's access -- a trashed ancestor
- * comes back on restore, so it counts. Capped past the legal depth, so a
- * corrupt cycle still terminates and reads as too deep. */
+/** `folderId` up to its root, over every row regardless of state or access. Capped, so a cycle reads as too deep. */
 async function chainUp(tx: Executor, folderId: string): Promise<string[]> {
   const rows = await rowsOf(
     tx,
@@ -161,7 +112,6 @@ async function subtreeHeight(tx: Executor, folderId: string): Promise<number> {
   return Number(rows[0]?.height ?? 1)
 }
 
-/** Whether one more level fits under `parentId`. */
 export async function mayAddChildUnder(
   tx: Executor,
   parentId: string,
@@ -169,7 +119,6 @@ export async function mayAddChildUnder(
   return (await chainUp(tx, parentId)).length < PAGE_TREE_MAX_DEPTH
 }
 
-/** The sibling key that puts a new child last under `parentId`. */
 export async function lastChildPosition(
   tx: Executor,
   parentId: string,
@@ -183,39 +132,22 @@ export async function lastChildPosition(
   return keyBetween(last === null || last === undefined ? null : String(last), null)
 }
 
-/* ------------------------------------------------------------------ *
- * PATCH /folders/:id/location
- * ------------------------------------------------------------------ */
-
 export type MoveFolderResult =
   | { kind: 'moved' }
-  /** The page, the target parent or `after_id`'s page is missing, trashed
-   * or not the actor's: one answer (10.2). */
+  /** The page, parent or `after_id` page is missing, trashed or not the actor's: one answer (10.2). */
   | { kind: 'not_found' }
   | { kind: 'forbidden'; reason: string }
-  /** 422s: the default folder stays a root and is never a parent; a page cannot go under itself or
-   * its own descendant; the tree may not grow deeper than 20; `after_id`
-   * must be a sibling under the target parent. */
+  /** 422s: default folders stay roots and hold no children; no cycles; depth at most 20; `after_id` must be a sibling. */
   | { kind: 'default_folder' }
   | { kind: 'cycle' }
   | { kind: 'too_deep' }
   | { kind: 'not_a_sibling' }
-  /** Step 7: a tab stays in its project's tab row, a project with tabs
-   * stays a project, and a Discussion page holds no pages: 422. */
+  /** A tab stays in its project's tab row, a project with tabs stays a project, and a Discussion holds no pages. */
   | { kind: 'not_movable'; reason: string }
 
 /**
- * Moves `folderId` under `parentId` (null: make it a root). `afterId` lands
- * it right after that sibling; null puts it first; undefined puts it last.
- * A root has no sibling order of its own (roots are ordered by each viewer's
- * library), so `afterId` is ignored when `parentId` is null and the key is
- * cleared.
- *
- * Takes the tree lock itself (a no-op re-entry if the caller holds it: an
- * advisory xact lock is re-entrant within one transaction). The `page` block
- * that stands for the page in its parent's document moves in the same
- * transaction: a new parent gets it at the end of its document, a move to the
- * root removes it, and a reorder under the same parent leaves it where it is.
+ * Moves `folderId` under `parentId` (null: root). `afterId` lands it after that sibling, null first, undefined last.
+ * Takes the tree lock (re-entrant). The page's home `page` block moves in the same transaction.
  */
 export async function moveFolder(
   tx: Executor,
@@ -244,10 +176,8 @@ export async function moveFolder(
     return reorderTab(tx, actorId, page, projectId, afterId)
   }
   if (parentId === null) {
-    /* Step 7: a sub-page moved to the top level becomes a project of its
-       own, and `folders_parent_same_project_fkey`'s ON UPDATE CASCADE
-       carries its sub-pages into it. Step 8: it keeps its people, the old
-       project's, each recorded as added by the mover. */
+    /* A sub-page moved to the top becomes its own project; ON UPDATE CASCADE carries its sub-pages,
+    and it keeps the old project's people. */
     await promoteToProjects(tx, [{ id: folderId, projectId }], actorId)
     await removeHomeBlock(tx, folderId)
     await recordMove(tx, actorId, page)
@@ -274,18 +204,15 @@ export async function moveFolder(
   if (parent === null) return { kind: 'not_found' }
   const onParent = mayPerform(parent, PAGE_TREE_EDIT_ACTION)
   if (!onParent.allowed) return { kind: 'forbidden', reason: onParent.reason }
-  // The default folder stays a root, and nothing goes under one either (the
-  // same refusal POST /folders gives a default parent).
+  // The default folder stays a root, and nothing goes under one either.
   if (page.isDefault || parent.isDefault) return { kind: 'default_folder' }
   const target = await rowsOf(tx, sql`SELECT project_id, kind FROM folders WHERE id = ${parentId}::uuid`)
   if (target[0]?.kind === 'discussion') {
     return { kind: 'not_movable', reason: 'A Discussion page holds threads, not pages.' }
   }
   const targetProject = String(target[0]?.project_id)
-  /* Step 8: a page's people are its project's, so a move into another
-     project would change who sees it: the mover could hand a project to
-     people its owner never chose, or take it from them. Only a project with
-     the same owner and the same people at the same presets takes it. */
+  /* A page's people are its project's, so a move into another project is allowed only when
+  both have the same owner and the same people at the same presets. */
   if (targetProject !== projectId && !(await samePeople(tx, projectId, targetProject))) {
     return {
       kind: 'not_movable',
@@ -313,22 +240,19 @@ export async function moveFolder(
   } else if (afterId === null) {
     position = keyBetween(null, keys[0] ?? null)
   } else {
-    /* A body id: gated here like the parent, 404 before any structural
-       answer, so a stranger's page id is never confirmed by a 422. */
+    /* A body id: gated like the parent, 404 before any 422, so a stranger's id is never confirmed. */
     const after = await folderActorFacts(tx, actorId, afterId)
     if (after === null) return { kind: 'not_found' }
     const index = siblings.findIndex((row) => String(row.id) === afterId)
     if (index < 0) return { kind: 'not_a_sibling' }
     const lower = keys[index] ?? null
-    /* Equal neighbours cannot be split, so land after the run of equal keys
-       (only reachable over keys written outside this function). */
+    /* Equal neighbours cannot be split, so land after the run of equal keys. */
     const upper = keys.slice(index + 1).find((key) => lower === null || key > lower)
     position = keyBetween(lower, upper ?? null)
   }
   if (targetProject !== projectId && isRoot) await leaveProject(tx, actorId, folderId, targetProject)
-  /* Step 7: the page joins the parent's project; ON UPDATE CASCADE carries
-     its sub-pages. A project root becoming a sub-page stops being a tab,
-     and an unpicked one becomes a Doc. */
+  /* The page joins the parent's project; ON UPDATE CASCADE carries its sub-pages.
+  A root that becomes a sub-page stops being a tab, and an unpicked one becomes a Doc. */
   await tx.execute(
     sql`UPDATE folders SET parent_folder_id = ${parentId}::uuid,
                            child_position = ${position},
@@ -338,8 +262,7 @@ export async function moveFolder(
          WHERE id = ${folderId}::uuid`,
   )
   if (targetProject !== projectId) {
-    /* Step 8: a project root that became a sub-page holds no people of its
-       own now (the target has the same people and owner, checked above). */
+    /* A former root holds no people of its own (the target has the same people). */
     if (isRoot) await tx.execute(sql`DELETE FROM folder_members WHERE folder_id = ${folderId}::uuid`)
   }
   if (oldParent !== parentId) {
@@ -350,10 +273,7 @@ export async function moveFolder(
   return { kind: 'moved' }
 }
 
-/**
- * Step 8: true when both projects have the same owner and the same people
- * at the same presets, so a page moving between them changes nobody's access.
- */
+/** True when both projects have the same owner and people at the same presets. */
 async function samePeople(tx: Executor, projectId: string, otherId: string): Promise<boolean> {
   const differs = await rowsOf(
     tx,
@@ -373,11 +293,8 @@ async function samePeople(tx: Executor, projectId: string, otherId: string): Pro
 }
 
 /**
- * Step 8, before a project root becomes a page of `targetProject` (which has
- * the same people): its pending invites are invalidated, since accepting one
- * would join the other project, and its Responsibilities move there, each
- * active one ended by the mover, so every document stays readable in the
- * project's history instead of sitting unread on a page.
+ * Before a project root joins `targetProject`: invalidate its pending invites and move its Responsibilities
+ * there, ending each active one, so they stay readable in the project's history.
  */
 async function leaveProject(
   tx: Executor,
@@ -407,10 +324,7 @@ async function leaveProject(
   )
 }
 
-/**
- * Step 7: a tab moved along its project's tab row. `afterId` must be a tab
- * of the same project (null: first; undefined: last).
- */
+/** A tab moved along its project's tab row. `afterId` must be a tab of the same project. */
 async function reorderTab(
   tx: Executor,
   actorId: string,
@@ -464,27 +378,11 @@ async function recordMove(
   })
 }
 
-/* ------------------------------------------------------------------ *
- * Home blocks: a sub-page's `page` block in its parent's Main document
- * ------------------------------------------------------------------ */
-
 /*
-Lock order, so these never deadlock with a document transaction: the tree lock
-first (`lockPageTree`), then the document's folder row, then the sub-page's row.
-Every caller that changes a page's place takes the tree lock before anything
-else, and so does a document transaction carrying a tree op (`actOnFolderPage`).
+Home blocks: every live sub-page with a live parent has exactly one `page` block in its parent's Main document.
+Lock order: the tree lock, then the document's folder row, then the sub-page's row.
+ */
 
-The invariant: every live sub-page whose parent is live has exactly one `page`
-block, in the parent's Main document (`page_blocks_page_home_idx` holds "at
-most one"; these functions keep "exactly"). The writers that change a page's
-place outside a document transaction -- the sidebar "+", a move, the route
-DELETE, a restore -- call these; the document transaction's own `create_page`
-and `trash_page` write the block themselves. A document's revision is computed
-from its rows, so writing rows is all it takes to keep the other document's
-revision honest.
-*/
-
-/** The `page` block that is `folderId`'s home, wherever it is. */
 export async function homeBlockOf(
   tx: Executor,
   folderId: string,
@@ -498,9 +396,7 @@ export async function homeBlockOf(
   return row === undefined ? null : { id: String(row.id), folderId: String(row.folder_id) }
 }
 
-/** Appends `folderId`'s home block at the end of `parentId`'s Main document:
- * top level (no Section, no parent block), after every item there is. Takes
- * the parent's folder row lock, the one the document transaction holds. */
+/** Appends the home block at the top level of `parentId`'s Main document, under the parent's folder row lock. */
 export async function appendHomeBlock(
   tx: Executor,
   parentId: string,
@@ -524,8 +420,7 @@ export async function appendHomeBlock(
   return id
 }
 
-/** Removes `folderId`'s home block from whichever document holds it, under
- * that document's folder row lock. */
+/** Under that document's folder row lock. */
 export async function removeHomeBlock(tx: Executor, folderId: string): Promise<void> {
   const home = await homeBlockOf(tx, folderId)
   if (home === null) return
@@ -533,9 +428,7 @@ export async function removeHomeBlock(tx: Executor, folderId: string): Promise<v
   await tx.execute(sql`DELETE FROM page_blocks WHERE id = ${home.id}::uuid`)
 }
 
-/** After a restore: a live page under a live parent gets its home block back,
- * at the end, when it has none. A page whose parent is in Trash reads as a
- * root for now and needs none. */
+/** After a restore: a live page under a live parent gets its home block back if missing. */
 export async function ensureHomeBlock(tx: Executor, folderId: string): Promise<void> {
   const rows = await rowsOf(
     tx,
@@ -550,11 +443,8 @@ export async function ensureHomeBlock(tx: Executor, folderId: string): Promise<v
 }
 
 /**
- * Brings a trashed page back in the caller's transaction: the row, the set
- * trashed with it (`restorePageSubtree`), and the `restored` event. The caller
- * has gated `folder.restore`. Shared by POST /folders/:id/restore and the
- * document transaction, where re-putting a trashed page's `page` block (the
- * editor's Undo of "Move page to Trash") restores it in place.
+ * Restores a trashed page with its set and records `restored`, in the caller's transaction.
+ * The caller has gated `folder.restore`.
  */
 export async function restoreTrashedPage(
   tx: Executor,
@@ -578,26 +468,10 @@ export async function restoreTrashedPage(
   })
 }
 
-/* ------------------------------------------------------------------ *
- * Trash: the subtree rides its initiator
- * ------------------------------------------------------------------ */
-
 /**
- * Trashes the live descendants of `folderId` that `actorId` may move to Trash
- * (`folder.trash`), stamping each with `trashed_with_folder_id = folderId` so
- * a restore brings back exactly this set and /trash lists only `folderId`.
- * The caller trashes `folderId` itself in the same transaction (the same
- * `now()`, so the 30-day purge takes the set together).
- *
- * **A descendant the actor may not trash stays live, with its own subtree.**
- * The walk does not descend through it: its children are its members'
- * business. It keeps its `parent_folder_id` pointer: the Folder object
- * already reports a trashed parent as null, so it reads as a root to
- * everybody while the parent is in Trash, and a restore of the parent simply
- * re-attaches it. Clearing the pointer would lose the place for good the day
- * the parent comes back.
- *
- * Answers the ids it trashed, deepest-first order not guaranteed.
+ * Trashes the descendants the actor may trash, stamped with `trashed_with_folder_id = folderId` so restore
+ * brings back this set. One the actor may not trash stays live with its subtree and keeps its parent pointer.
+ * The caller trashes `folderId` itself in the same transaction.
  */
 export async function trashPageSubtree(
   tx: Executor,
@@ -609,9 +483,7 @@ export async function trashPageSubtree(
   for (let depth = 0; depth < PAGE_TREE_MAX_DEPTH && frontier.length > 0; depth += 1) {
     const children = await rowsOf(
       tx,
-      /* Step 7: a project root's other tabs go with it, as its children do
-         (a tab's `project_id` is the root's; no other page names a
-         non-root in that column). */
+      /* A project root's other tabs go with it. */
       sql`SELECT c.id FROM folders c
            WHERE (c.parent_folder_id IN (${sql.join(
                     frontier.map((id) => sql`${id}::uuid`),
@@ -666,7 +538,7 @@ export async function trashPageSubtree(
   return trashed
 }
 
-/** The facts of `actorId` on a trashed row, or null when not a member. */
+/** The actor's facts on a trashed row, or null when not a member. */
 async function trashedFacts(
   tx: Executor,
   actorId: string,
@@ -676,11 +548,8 @@ async function trashedFacts(
 }
 
 /**
- * The restore's other half: the rows trashed with `folderId`. Each one the
- * actor may restore (`folder.restore`) comes back; any other is released
- * from the set (its `trashed_with_folder_id` cleared) so it stays in Trash as
- * an entry of its own that its own members can see and restore. The caller
- * restores `folderId` itself in the same transaction.
+ * Restores the rows trashed with `folderId` that the actor may restore; others are released from the set
+ * and stay in Trash on their own. The caller restores `folderId` itself.
  */
 export async function restorePageSubtree(
   tx: Executor,
@@ -723,10 +592,8 @@ export async function restorePageSubtree(
 }
 
 /**
- * The permanent delete's other half: the ids trashed with `folderId` that
- * `actorId` may destroy (`folder.destroy`). The caller destroys them with
- * `folderId` in one statement; the rest are released by the FK's ON DELETE
- * SET NULL and stay in Trash as entries of their own, never dangling.
+ * The ids trashed with `folderId` that the actor may destroy. The rest are released by ON DELETE SET NULL
+ * and stay in Trash on their own.
  */
 export async function destroyableTrashedWith(
   tx: Executor,
@@ -750,13 +617,8 @@ export async function destroyableTrashedWith(
 }
 
 /**
- * Step 7: before `ids` are deleted for good, every page that survives them
- * but would be taken by `folders_project_id_fkey`'s cascade -- a sub-page
- * whose parent goes, a tab of a project whose root goes -- becomes a project
- * of its own, with its sub-pages (ON UPDATE CASCADE). That is what a purged
- * parent always did to a surviving child: it became a root. Such a
- * survivor was trashed or kept apart from the pages destroyed; step 8 has it
- * keep the people who saw it (`promoteToProjects`).
+ * Before `ids` are deleted, every surviving page the project cascade would take becomes its own project,
+ * keeping its people.
  */
 export async function releaseSurvivors(tx: Executor, ids: readonly string[]): Promise<void> {
   if (ids.length === 0) return
@@ -777,16 +639,8 @@ export async function releaseSurvivors(tx: Executor, ids: readonly string[]): Pr
 }
 
 /**
- * Step 8: each page becomes a project of its own with its sub-pages (ON
- * UPDATE CASCADE carries them and their tasks), and keeps the people who saw
- * it: its old project's members, with their presets, on its new root. With
- * `actorId`, each copied membership is recorded as `member_added` by them;
- * without, the caller's act (a purge) is the record.
- *
- * The assignee foreign key is checked per statement against the task's
- * project, and the new project has no people until the rows are copied onto
- * the new root, which only a root may hold. So the old projects' assignments
- * are held aside for the two statements and put back unchanged.
+ * Each page becomes its own project with its sub-pages and keeps its old project's people.
+ * The assignee FK is checked per statement against the project, so assignments are held aside and restored.
  */
 export async function promoteToProjects(
   tx: Executor,
@@ -807,14 +661,12 @@ export async function promoteToProjects(
           FROM old WHERE t.id = old.id
         RETURNING old.id, old.assignee_ids`,
   )
-  /* Rows 0062 left unread on a page (old presets, people since removed)
-     must not become the new project's people. */
+  /* Rows left unread on a page by migration 0062 must not become the new project's people. */
   await tx.execute(
     sql`DELETE FROM folder_members
          WHERE folder_id IN (${sql.join(pages.map((page) => sql`${page.id}::uuid`), sql`, `)})`,
   )
-  /* 0062's folders_root_takes_project_people would copy the people without
-     history; it stands aside for this write. */
+  /* Disable the folders_root_takes_project_people trigger for this write, which records history itself. */
   await tx.execute(sql`SELECT set_config('dana.promoting', 'on', true)`)
   await tx.execute(
     sql`UPDATE folders

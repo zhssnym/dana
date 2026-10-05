@@ -1,11 +1,5 @@
-/*
-The Consultation domain (issue #320, spec 7.28).
-
-Issue #497 moves Discussion ↔ Task out of `discussions.task_id` and into the
-`discussion_tasks` relation. The relation is a reference, not containment:
-soft Trash preserves it, task moves do not move Discussions, and projections
-show only live endpoints the viewer can currently read.
-*/
+// Discussions (spec 7.28). Links to Tasks are references in discussion_tasks: Trash keeps them,
+// moves do not carry them, and projections show only endpoints the viewer can read.
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
@@ -84,16 +78,7 @@ function arrayValue(value: unknown): unknown[] {
   }
 }
 
-/* ------------------------------------------------------------------ *
- * Reading rows
- * ------------------------------------------------------------------ */
-
-/**
- * Discussion projections are viewer-relative only for `linked_tasks`.
- * Durable relation rows may point to a task in Trash or to a task that moved
- * into a Folder this viewer cannot read; neither endpoint leaks through the
- * other one. The edge itself remains in `discussion_tasks`.
- */
+/** Only `linked_tasks` is viewer-relative: links to unreadable or trashed Tasks are hidden. */
 function discussionColumns(viewerId: string): SQL {
   return sql`
     d.id, d.folder_id, d.title, d.context, d.created_by, d.state,
@@ -327,10 +312,6 @@ async function lockedWithFacts(
   return { discussion, facts }
 }
 
-/* ------------------------------------------------------------------ *
- * The list
- * ------------------------------------------------------------------ */
-
 function cursorInstantIsReal(value: string): boolean {
   const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d{1,6})?Z$/.exec(value)
   if (match === null) return false
@@ -426,10 +407,6 @@ export async function listDiscussions(
     next_cursor: nextCursor,
   })
 }
-
-/* ------------------------------------------------------------------ *
- * Create and read
- * ------------------------------------------------------------------ */
 
 function contextValue(context: string | null | undefined): string | null {
   return context === undefined || context === null || context.trim() === ''
@@ -572,16 +549,7 @@ export async function readOutcome(
   })
 }
 
-/* ------------------------------------------------------------------ *
- * Discussion ↔ Task relation and metadata edits (#497)
- * ------------------------------------------------------------------ */
-
-/**
- * Add one edge while both endpoint rows are stable. The picker is project
- * scoped, so a Discussion on the Discussion tab can link a readable live Task
- * on Work or another page in the same project. The relation is still only a
- * reference: moving either endpoint later does not move the other one.
- */
+/** Add one link. The picker is project-scoped. Moving either end later does not move the other. */
 async function addTaskLink(
   tx: Executor,
   viewerId: string,
@@ -698,8 +666,7 @@ export async function updateDiscussion(
   })
 }
 
-/** Explicit #497 add-link route. Duplicate links are deliberate idempotent
- * success (`created: false`), never a surfaced unique-constraint error. */
+/** Linking twice is success (`created: false`), never a unique-constraint error. */
 export async function linkDiscussionTask(
   db: Db,
   viewerId: string,
@@ -730,10 +697,7 @@ export async function linkDiscussionTask(
   })
 }
 
-/** Explicit #497 unlink. The Task is intentionally not re-resolved: an edge
- * can outlive a move or soft Trash, and a user allowed to edit the Discussion
- * must be able to remove that stale reference without learning anything new
- * about the Task. Missing pairs are idempotent 204 at the route. */
+/** The Task is not re-resolved, so an editor can remove a stale link without learning about the Task. */
 export async function unlinkDiscussionTask(
   db: Db,
   viewerId: string,
@@ -770,12 +734,8 @@ export async function unlinkDiscussionTask(
 }
 
 /**
- * `POST /tasks/:id/discussion` remains the create-new convenience used by the
- * current task UI. `created_via_task` records provenance only so repeated
- * calls can reuse the Discussion this route made in the Task's *current*
- * Folder. Other linked Discussions never suppress creation. After a Task
- * move the old Discussion stays put and a new convenience Discussion may be
- * created in the destination Folder.
+ * The create-new convenience. `created_via_task` lets repeat calls reuse the Discussion made in the
+ * Task's current Folder; after a move a new one may be created there.
  */
 export async function discussTask(
   db: Db,
@@ -855,10 +815,6 @@ export async function discussTask(
     return made === null ? notFound : ok({ created: true, discussion: made, discussionTabId })
   })
 }
-
-/* ------------------------------------------------------------------ *
- * Resolve and reopen
- * ------------------------------------------------------------------ */
 
 export async function resolveDiscussion(
   db: Db,
@@ -980,10 +936,7 @@ export async function reopenDiscussion(
   })
 }
 
-/* ------------------------------------------------------------------ *
- * Trash: soft lifecycle preserves relation rows; permanent purge cascades
- * only the relation rows through 0066's foreign keys.
- * ------------------------------------------------------------------ */
+// Soft Trash keeps link rows; a permanent purge removes them by cascade.
 
 async function isUnshared(
   tx: Executor,

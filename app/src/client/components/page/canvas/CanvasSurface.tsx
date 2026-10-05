@@ -44,8 +44,7 @@ const TASK: ReadonlySet<string> = new Set(['danaTask'])
 const TASK_OR_FOLDER: ReadonlySet<string> = new Set(['danaTask', 'danaFolder', 'danaPage'])
 const LIST_TYPES: ReadonlySet<string> = new Set(['bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem'])
 
-/** A Shelf keeps one heading level: its headings are stored flat and group
- * by position (`ShelfCanvas`). Blocks nest under blocks there as anywhere. */
+/** A shelf keeps one heading level: its headings are stored flat. */
 function flatShelfFailure(blocks: readonly TreeBlock[]): boolean {
   return shelfOutlineFailure(blocks)
 }
@@ -63,7 +62,7 @@ function placeOf(editor: CanvasEditor, block: CanvasBlock): Place {
   const at = siblings.indexOf(block.id)
   return { block, parent: parent?.id, before: siblings.slice(0, at).reverse(), after: siblings.slice(at + 1) }
 }
-/** Puts removed blocks back beside whatever of their neighbours is still there; one already back stays as it is. */
+/** Puts removed blocks back beside surviving neighbours; one already back stays. */
 function restorePlaces(editor: CanvasEditor, places: readonly Place[]): void {
   try {
     editor.transact(() => {
@@ -78,10 +77,10 @@ function restorePlaces(editor: CanvasEditor, places: readonly Place[]): void {
         else { const last = editor.document.at(-1); if (last !== undefined) editor.insertBlocks([block], last, 'after') }
       }
     })
-  } catch { /* the editor has gone (the page was left); the Tasks still come back */ }
+  } catch { /* the editor is gone; the tasks still come back */ }
 }
 
-/** Visual editor host. The caller owns hydration, uploads, Task actions and durable saving. */
+/** The caller owns hydration, uploads, task actions and saving. */
 export function CanvasSurface({
   editor,
   onChange,
@@ -104,7 +103,6 @@ export function CanvasSurface({
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
   readonly onCreateTask?: (block?: CanvasBlock) => void
-  /** A Doc page's `/` Page (step 7). */
   readonly onCreatePage?: () => void
   readonly folderRefs: ReadonlyMap<string, string>
   readonly onUploadFile: (
@@ -114,34 +112,28 @@ export function CanvasSurface({
   readonly headingMode?: HeadingMode
   readonly editable?: boolean
   readonly label?: string
-  /** A Collection's (Shelf's) Remove from collection, offered on its Folder rows (#221). */
   readonly onRemoveFolder?: (folderId: string) => void
-  /** A Shelf stores its headings flat, content belonging by position: one
-   * heading level, and no "out of group" gestures a reload would undo. */
+  /** A shelf stores headings flat, so it offers one level and no ungrouping gestures. */
   readonly flatGroups?: boolean
-  /** What an empty page says (see canvas.css: BlockNote's own placeholder
-   * decoration does not reach Dana's paragraph node view). */
+  /**
+   * What an empty page says. BlockNote's placeholder does not reach Dana's paragraph
+   * node view (see canvas.css).
+   */
   readonly placeholder?: string
-  /** Whose members the `@` menu offers (Wave 2); none offers pages only. */
+  /** Whose members the `@` menu offers; none offers pages only. */
   readonly peopleFolderId?: string
-  /** Where a refused gesture's sentence goes: the page's one save line
-   * (`SaveFailure`), so a canvas never draws a second status line. */
+  /** The page's one save line (`SaveFailure`), so a canvas never draws a second. */
   readonly onNotice: (message: string) => void
-  /** The Results tab: the slash menu offers Result (#213). */
   readonly results?: boolean
-  /** Terminal view-only content after the editor's writing tail. */
   readonly footer?: ReactNode
-  /** Sends the writing now; true once the page holds it (the Tasks named are trashed after it). */
+  /** Sends the writing now; true once the page holds it. Named tasks are trashed after. */
   readonly settle?: (taskIds: readonly string[]) => Promise<boolean>
 }): React.JSX.Element {
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
   const [insertMenu, setInsertMenu] = useState<{ readonly id: string; readonly x: number; readonly y: number } | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light'>(pageTheme)
-  /* #382: a Task row is a Work-page primitive. FolderCanvas still hands the
-     same callback to its generic canvas, but Doc/Results presentation headings
-     must not turn that into a second Task-authoring surface. Keeping the gate
-     here removes every client path together: slash menu, Mod-Enter command,
-     block-menu conversion, last-line affordance and reference conversion. */
+  // Task rows belong to Work pages only. Gating here removes every task path on
+  // Doc and Results canvases at once.
   const taskCreator = headingMode === 'section' && !flatGroups ? onCreateTask : undefined
   const requestTask = useCallback((block?: CanvasBlock): void => {
     const target = block ?? editor.getTextCursorPosition().block
@@ -162,25 +154,18 @@ export function CanvasSurface({
     return () => observer.disconnect()
   }, [])
 
-  /* Facet metadata belongs to the canvas lifetime, not BlockNote's transient
-     gutter menu. Keeping this hook here makes chips present from first paint
-     and lets the side menu consume the same model when it happens to open. */
+  // Facet metadata lives for the canvas lifetime, so chips exist from first paint.
   const automaticFacets = useAutomaticBlockFacets(editor, editable, onNotice)
 
-  // What this canvas's structure admits: the persisted outline's rules, and a
-  // Shelf's flat ones. A refused shape is never offered (menu) or attempted (Tab).
+  // Shapes this canvas can keep. A refused shape is never offered or attempted.
   const admits = useCallback((document: readonly TreeBlock[]): boolean =>
     validateCanvasOutline(document) === null && !(flatGroups && flatShelfFailure(document)) && !referenceHolds(document, folderRefs), [flatGroups, folderRefs])
   const deleteTask = useCanvasTaskDelete()
   // Read at the key, so a new callback each render does not re-arm the keys.
   const settleRef = useRef(settle)
   settleRef.current = settle
-  /* Picked blocks leave together (#505): a sub-page among them goes to Trash
-     with its block (the save sends `trash_page`; Undo puts the block back and
-     restores it), and a picked Task by its own act, to Trash with Undo, once
-     the writing's save has landed so the two never race for the page's
-     revision. A Task the page holds no act for, or one nested in a removed
-     block, is still refused by the guard, and then nothing goes. */
+  // Picked blocks leave together. A sub-page goes to Trash with its block; a task
+  // goes by its own act after the writing's save lands, so they never race.
   const remove = useCallback((ids: readonly string[]): void => {
     const blocks = ids.flatMap((id) => { const block = editor.getBlock(id); return block === undefined ? [] : [block] })
     const tasks = blocks.filter((block) => block.type === 'danaTask')
@@ -193,10 +178,7 @@ export function CanvasSurface({
     if (rest.length > 0) removingPages(pages(rest as unknown as TreeBlock[]), () => { removeCanvasBlocks(editor, rest) })
     if (trash.length === 0 || rest.some((block) => editor.getBlock(block.id) !== undefined)) return
     const settled = (taskIds: readonly string[]): Promise<boolean> => settleRef.current?.(taskIds) ?? Promise.resolve(true)
-    /* The writing's removal stays in the editor's history (the page keeps this
-       editor when only these Tasks leave it, `FolderCanvas`), and the Tasks'
-       Undo puts the writing back too, saved before the Tasks return, so one
-       Undo restores the whole deletion. */
+    // The tasks' Undo also restores the writing, saved first, so one Undo restores all.
     void settled(tasks.map((block) => String(block.props.taskId))).then((saved) => {
       if (!saved) return
       const run = (): void => { for (const go of trash) go?.() }
@@ -204,9 +186,7 @@ export function CanvasSurface({
       foldUndo(run, () => { restorePlaces(editor, places); return settled([]) })
     })
   }, [editor, deleteTask])
-  /* A sub-page's own act: the block leaves (the next save sends its
-     `delete_block` with `trash_page`), and Undo puts the same block back where
-     it was (the save then sends it as a `put_block`, which restores the page). */
+  // Undo puts the same block back, and the save then restores the page.
   const trashPage = useCallback((id: string, folderId: string): void => {
     const own = editor.getBlock(id)
     if (own === undefined) return
@@ -229,7 +209,7 @@ export function CanvasSurface({
   }, [editor])
   const duplicate = useCallback((ids: readonly string[]): void => {
     const blocks = ids.flatMap((id) => { const block = editor.getBlock(id) as TreeBlock | undefined; return block === undefined ? [] : [block] })
-    // A Task or a page is one record; a copy of its row would be a second row for the same one.
+    // A task or a page is one record; a copied row would be a second row for it.
     if (blocks.some((block) => contains(block, TASK))) { onNotice("This selection contains a Task, which can't be duplicated. Select only the writing."); return }
     if (blocks.some((block) => contains(block, TASK_OR_FOLDER))) { onNotice("This selection contains a page, which can't be duplicated. Select only the writing."); return }
     duplicateBlocks(editor, ids)
@@ -245,7 +225,7 @@ export function CanvasSurface({
     insertBefore: taskCreator === undefined || !editable ? undefined : insertBefore,
     targets: (block) => blockMenuTargets(editor, block),
     turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, headingMode === 'none' ? undefined : (block) => headingTogglesFor(editor, block, target)) },
-    // A stored to-do (no longer made anywhere) turns into a Task as text does — Work only (#382).
+    // A stored to-do turns into a task like text does, on Work only.
     extraTarget: (block) => (block.type === 'paragraph' || block.type === 'checkListItem') && taskCreator !== undefined
       ? { title: 'Task', run: () => { requestTask(editor.getBlock(block.id) ?? undefined) } }
       : null,
@@ -253,8 +233,7 @@ export function CanvasSurface({
     duplicate,
     facets: automaticFacets,
     removal: (block, ids) => {
-      /* #221: a Folder row is the Shelf's membership, so it leaves through
-         the membership act and never through generic Delete. */
+      // A folder row is the shelf's membership, so it leaves through that act, never Delete.
       if (block.type === 'danaFolder') {
         const folderId = String(block.props.folderId)
         return onRemoveFolder ? { label: 'Remove from collection', run: () => { onRemoveFolder(folderId) } } : null
@@ -263,7 +242,7 @@ export function CanvasSurface({
         const folderId = String(block.props.folderId)
         return { label: 'Move page to Trash', run: () => { trashPage(block.id, folderId) } }
       }
-      // A Task's Delete is the task's own act: its confirmation, then undo.
+      // A task's Delete is its own act, with confirmation and undo.
       if (block.type === 'danaTask') {
         const run = deleteTask?.(String(block.props.taskId)) ?? null
         return run === null ? null : { label: 'Delete', run }
@@ -278,28 +257,9 @@ export function CanvasSurface({
   const scope = `dana-canvas-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
   const lastLine = taskCreator !== undefined && headingMode === 'section' && !flatGroups && placeholder !== undefined
 
-  // Tab nests any block under the block above it (0038), only where the
-  // result is a shape this canvas can keep; elsewhere it does nothing rather
-  // than refuse out loud. Code keeps its own Tab. Shift-Tab is BlockNote's
-  // own un-nest, which lifts any block a level (the blocks after it in its
-  // parent follow as its children); the canvas guard refuses a shape it
-  // cannot keep.
-  /*
-  Enter on an empty list item nested under a block steps out a level (at the
-  root or directly in a Section, BlockNote's own Enter makes it text).
-  Backspace at the start of a block: such a nested list item steps out; any
-  other kind turns into text, its children kept (text holds them), unless the
-  result is a shape the canvas refuses or the block is a Section holding
-  content (then nothing happens, so a Section never dissolves by accident);
-  text merges (BlockNote's).
-  */
-  /*
-  WCAG 2.1.2: Tab is a writing key only once you are writing. Focus that
-  arrives by Tab (from the view switch, or back by Shift-Tab) is passing
-  through: the next Tab or Shift-Tab moves on as it does anywhere else, and
-  nests nothing. A click or any other key in the text means you are writing,
-  and Tab nests again (Notion). Each arrival in the text decides afresh.
-  */
+  // Tab nests a block under the one above only where the shape is allowed; code keeps
+  // its own Tab. Focus that arrives by Tab passes through until you type or click
+  // (WCAG 2.1.2).
   const writing = useRef(false)
   const tabbed = useRef(false)
   useEffect(() => {
@@ -322,7 +282,7 @@ export function CanvasSurface({
       return
     }
     if (event.key === 'Tab' && !event.metaKey && !event.ctrlKey && !event.altKey && event.target === editor.domElement && !writing.current) {
-      // Passing through: the browser's Tab, with no editor behind it.
+      // Passing through: the browser's Tab.
       event.stopPropagation()
       return
     }
@@ -335,14 +295,13 @@ export function CanvasSurface({
     const parent = editor.getParentBlock(block.id)
     const inList = LIST_TYPES.has(block.type) && parent !== undefined && !isSectionHeading(parent)
     if (event.key === 'Tab' && !event.shiftKey) {
-      // Tab nests only when typed into the text itself. On a link or chip
-      // inside the page (its own focus stop) it is the browser's Tab.
+      // Only in the text itself; on a link or chip it is the browser's Tab.
       if (event.target !== editor.domElement || block.type === 'codeBlock') return
       const next = simulateNest(editor.document as unknown as TreeBlock[], block.id)
       if (next === null || !admits(next)) stop()
     } else if (event.key === 'Enter' && !event.shiftKey) {
       if (inList && Array.isArray(block.content) && block.content.length === 0) { stop(); editor.unnestBlock(); return }
-      // Work: a second Enter on an empty line removes it (M4 §2.5, `dropEmptyLine`).
+      // Work: a second Enter on an empty line removes it.
       const host = event.currentTarget
       const toLast = (): boolean => { const line = host.querySelector<HTMLInputElement>('.dana-add-task-line input'); line?.focus(); return line !== null }
       if (lastLine && dropEmptyLine(editor, toLast)) stop()
@@ -357,10 +316,8 @@ export function CanvasSurface({
     }
   }
 
-  /* Mod+K on selected text is the link field (BlockNote's own handler, on the
-     editor, has already opened it); it goes no further, so the app's search
-     shortcut on the document does not open over it. With no text selected,
-     Mod+K is search, as everywhere. */
+  // Mod+K on selected text is BlockNote's link field; stop it here so app search
+  // does not open over it.
   const linkKey = (event: React.KeyboardEvent): void => {
     if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'k' || event.shiftKey || event.altKey) return
     if (editor.domElement === undefined || !editor.domElement.contains(event.target as Node)) return
@@ -368,14 +325,12 @@ export function CanvasSurface({
     event.stopPropagation()
   }
 
-  // Clicking below the last block writes on: an empty last line is reused,
-  // otherwise a new one is made after everything. When the page ends in a
-  // Section, the line goes inside it, after its last block: what is drawn
-  // under a heading belongs to it, so Freeform and Linear agree.
+  // A click below the last block writes on, inside the final section if the page
+  // ends in one.
   const writeBelow = (event: React.MouseEvent): void => {
     if (!editable || event.button !== 0) return
     event.preventDefault()
-    // Work's thread ends in its one last line: a click below it lands there (M4 §2.5).
+    // Work's thread ends in its one last line: a click below lands there.
     if (lastLine) { event.currentTarget.parentElement?.querySelector<HTMLInputElement>('.dana-add-task-line input')?.focus(); return }
     let last = editor.document.at(-1)
     if (last === undefined) return

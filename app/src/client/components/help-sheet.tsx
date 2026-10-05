@@ -1,35 +1,4 @@
-/*
-Keyboard shortcuts: the ones that exist, and nothing else (AC-242).
-
-`?` opens it when you are not typing, and so does "Keyboard shortcuts" in
-search (`shell/overlays.ts` carries both). It lists shortcuts that are wired
-today, and every line can be pressed. Each line names the module that binds it:
-
-- Ctrl+K and "/" open search, and "?" opens this sheet, `shell/overlays.ts`.
-- N (or C) puts the cursor in the page's "New task" row, `components/quick-add.tsx`.
-- Ctrl+Z takes back the last act inside the undo window, `shell/app-shell.tsx`
-  under 9.1's undo bar.
-- In a task list (Today, Upcoming, Assigned) the
-  arrows move between tasks, Enter opens the focused task and Space completes
-  it (`components/row-keys.ts`, the rows in `task-row.tsx` and
-  `task-board.tsx`). Enter also commits a "New task" row
-  (`components/quick-add.tsx`).
-- Escape closes the open thing: a "New task" row, a dialog through the
-  primitive, and a held drag row through `lib/use-sortable-list.ts`.
-- The arrows move the cursor through search's results,
-  `components/search-overlay.tsx`.
-- The arrows move through the sidebar's pages and fold them, and F2 renames
-  the focused one, `shell/app-sidebar.tsx`.
-- Ctrl+B shows or hides the sidebar when you are not typing,
-  `components/ui/sidebar.tsx`.
-- Ctrl+Shift+J and K step to the next and previous task while one is open,
-  `components/task-surface.tsx`.
-
-The lines are grouped by where they work, so one key (the arrows) can mean
-one thing in a list and another in the sidebar without a line saying both.
-
-A shortcut this client does not bind must not be listed here.
-*/
+// The keyboard shortcuts sheet. List only shortcuts this client actually binds (AC-242).
 import { useEffect, useState } from 'react'
 
 import { onOpenShortcuts } from '../shell/overlays.js'
@@ -41,11 +10,7 @@ import {
   DialogTitle,
 } from './ui/dialog.js'
 
-/*
-The mac and windows split is read from the platform rather than written twice,
-so the sheet says the command glyph on a Mac and Ctrl everywhere else. A
-shortcut list that names the wrong key is worse than none.
-*/
+// The command glyph on a Mac, Ctrl everywhere else.
 function modKey(): string {
   if (typeof navigator === 'undefined') return 'Ctrl'
   return /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl'
@@ -53,21 +18,19 @@ function modKey(): string {
 
 export const KEYBOARD_SHORTCUTS = 'Keyboard shortcuts'
 
-/* `also`: a second chord for the same act, drawn on the same line. */
+// `also`: a second chord for the same act, drawn on the same line.
 type Shortcut = { readonly keys: readonly string[]; readonly also?: readonly string[]; readonly what: string }
 
 const GROUPS: readonly { readonly title: string; readonly rows: readonly Shortcut[] }[] = [
   {
     title: 'Anywhere',
     rows: [
-      /* "/" types a slash in a text field, which says so by itself. */
       { keys: ['MOD', 'K'], also: ['/'], what: 'Search' },
       { keys: ['Esc'], what: 'Close what is open' },
     ],
   },
   {
-    /* In a text field these keys are the field's: Ctrl+Z undoes typing and
-       Ctrl+B is bold. */
+    // In a text field these keys belong to the field: Ctrl+Z undoes typing, Ctrl+B is bold.
     title: 'Outside a text field',
     rows: [
       { keys: ['MOD', 'Z'], what: 'Undo the last thing you did' },
@@ -111,8 +74,7 @@ export function HelpSheet({
   const mod = modKey()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Nothing in the sheet takes focus, so the panel holds it; it draws
-          no ring for that. */}
+      {/* Nothing in the sheet takes focus, so the panel holds it without a ring. */}
       <DialogContent
         data-focus="self"
         className="flex max-h-[calc(100dvh-32px)] w-[min(420px,calc(100vw-32px))] flex-col"
@@ -159,7 +121,6 @@ export function HelpSheet({
   )
 }
 
-/** The sheet, mounted once by the shell and opened through `openShortcuts()`. */
 export function ShortcutsSheet(): React.JSX.Element {
   const [open, setOpen] = useState(false)
   useEffect(() => onOpenShortcuts(() => setOpen(true)), [])

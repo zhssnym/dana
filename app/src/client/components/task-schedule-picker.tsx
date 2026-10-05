@@ -1,16 +1,5 @@
-/*
-The Task Schedule editor for #487.
-
-A Schedule is two independent optional endpoints in chronological order:
-Start -> Due. Due remains the familiar default for an undated task, but the
-surface never reverses the two just to make that default. Each endpoint owns
-its own optional wall-clock time, and the calendar is the same span the Work
-Calendar already teaches: left edge is Start, right edge is Due.
-
-The handles are a direct-manipulation shortcut. The endpoint controls, day
-buttons and time fields remain the complete keyboard/touch path, so resizing is
-never the only way to express a Schedule.
-*/
+// The task schedule editor: optional Start and Due, always in order, each with its own
+// time. The calendar handles are a shortcut; the controls are the full keyboard path.
 
 import {
   useEffect,
@@ -50,7 +39,7 @@ export const START_AFTER_DUE = "The start must be on or before the due date."
 export const START_TIME_AFTER_DUE_TIME =
   "On the same day, Start time must be at or before Due time."
 
-/** Keep a dragged endpoint on its own side of the other endpoint. */
+/** Keep a dragged endpoint on its own side of the other. */
 export function clampScheduleResize(
   edge: ScheduleEndpoint,
   target: string,
@@ -62,7 +51,7 @@ export function clampScheduleResize(
   return target
 }
 
-/** The same two ordering invariants the persisted #487 contract enforces. */
+/** The same two ordering rules the server enforces. */
 export function scheduleOrderError(
   start: string | null,
   due: string | null,
@@ -171,7 +160,7 @@ type DragState = {
   preview: string
 }
 
-/** A compact six-week calendar whose endpoints use Work Calendar's resize language. */
+/** A compact six-week calendar whose ends resize as on the Work calendar. */
 function ScheduleCalendar({
   active,
   start,

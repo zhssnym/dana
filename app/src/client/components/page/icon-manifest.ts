@@ -1,25 +1,5 @@
-/*
-The labelled manifest of 4.3's icon keys: `FOLDER_ICON_KEYS` in `lib/icons.tsx` is the record of the
-set, and this file joins each key to the drawn icon the module exports, for
-the picker and for every mark that renders a stored key. Adding a key there
-without a row here is a type error, which is the point of the satisfies.
-
-The fallback for a null icon is the plain folder, which is also what 4.3 means
-by an unset identity.
-
-**One hundred and five keys in fifteen sections.** A flat grid of a hundred
-and five small drawings is a poor picker, which is why the keys are grouped
-and in sevens: seven columns, whole rows per section, no orphan cell.
-
-**`lamp-desk` is in the library** so that Desk's default mark can be restored
-after it has been changed. It is the second key below.
-
-**An emoji is resolved rather than listed.** `markIcon` answers a drawing for
-`emoji-1f331` the way it answers one for `mountain`, and `emoji-mark.tsx`
-carries the whole of how and why. Nothing here enumerates the ninety-six the
-picker offers, because a person may already be wearing one this build's
-picker no longer shows and the mark must still draw.
-*/
+// The labelled manifest of icon keys. `satisfies` makes a key in `FOLDER_ICON_KEYS`
+// without a row here a type error. Emoji keys resolve through `emoji-mark.tsx`.
 import type { LucideIcon } from '../../lib/icons.js'
 import {
   Activity,
@@ -242,14 +222,7 @@ export const FOLDER_ICONS = {
   blocks: Blocks,
 } as const satisfies Record<FolderIconKey, LucideIcon>
 
-/*
-The picker's reading order, and the one place a section is named.
-
-The keys above are the record of *what* may be stored; this is the record of
-how a person is offered them. Both are here rather than in the picker so that
-a second surface offering identity, a shelf's mark today and whatever asks
-next, cannot invent a different grouping of the same set.
-*/
+// The picker's reading order, kept here so every identity picker groups keys the same.
 export interface IconSection {
   readonly label: string
   readonly keys: readonly (keyof typeof FOLDER_ICONS)[]
@@ -273,12 +246,7 @@ export const ICON_SECTIONS: readonly IconSection[] = [
   { label: 'Animals and play', keys: ['cat', 'dog', 'fish', 'rabbit', 'gamepad', 'swords', 'blocks'] },
 ]
 
-/*
-One word per glyph, which is what makes a hundred and five choosable: the
-picker names what the pointer is over, and the search box below the tabs
-matches on these rather than on the stored key, so "money" finds the wallet
-and the banknote and "post" finds the mailbox.
-*/
+// One word per glyph; the picker's search matches these, not the stored key.
 export const ICON_LABELS: Record<keyof typeof FOLDER_ICONS, string> = {
   folder: 'Folder',
   'lamp-desk': 'Desk',
@@ -387,13 +355,11 @@ export const ICON_LABELS: Record<keyof typeof FOLDER_ICONS, string> = {
   blocks: 'Building',
 }
 
-/** The icon a stored key draws; an unset or unknown key is the folder. */
+/** An unset or unknown key draws the plain page glyph. */
 export function markIcon(key: string | null): LucideIcon {
-  /* No icon of its own: the plain page glyph (a page, never a folder). */
   if (key === null) return FileText
   const drawn = (FOLDER_ICONS as Record<string, LucideIcon>)[key]
   if (drawn !== undefined) return drawn
-  /* An emoji is a key like any other and resolves here rather than at any
-     call site, so every surface that draws identity draws it. */
+  // Emoji resolve here, so every surface that draws identity draws them.
   return emojiMark(key) ?? FileText
 }

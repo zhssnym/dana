@@ -1,17 +1,5 @@
-/*
-The one picker. Every choice-from-a-list in the app is this control: a quiet
-trigger that opens a menu-surfaced listbox, never a native <select> (the
-spec's rule: all dropdowns are custom, searchable when long).
-
-- **Searchable past ten options** (the timezone list): a filter field sits on
-  top of the list and takes focus on open; typing narrows by label, and the
-  arrows move through what is left.
-- **Keyboard**: the trigger is a `combobox`; ArrowDown/ArrowUp/Enter/Space
-  open it; inside, ArrowUp/ArrowDown/Home/End move, Enter picks, Esc closes
-  and gives focus back to the trigger.
-- The value is a string; an empty string is "nothing picked" and shows the
-  placeholder.
-*/
+// The one list picker; never a native <select>. Past ten options it adds a filter field
+// that takes focus on open. An empty value shows the placeholder.
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 
 import { CheckIcon, ChevronDownIcon, Search } from '../../lib/icons.js'
@@ -60,7 +48,7 @@ export function Combobox({
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase()
     if (needle === '') return options
-    /* Spaces and underscores read alike, so "new york" finds New_York. */
+    // Spaces and underscores read alike, so "new york" finds New_York.
     const loose = (text: string) => text.toLowerCase().replace(/[_/]/g, ' ')
     return options.filter((option) => loose(option.label).includes(loose(needle)) || loose(option.value).includes(loose(needle)))
   }, [options, query])
@@ -75,7 +63,6 @@ export function Combobox({
     }
   }
 
-  /* Keep the active row in view as the arrows move it. */
   useEffect(() => {
     if (!open) return
     const row = list.current?.querySelector<HTMLElement>(`[data-index="${String(active)}"]`)

@@ -21,20 +21,13 @@ import { canvasMarkdownShortcuts, legacyCheckList, withoutInputRules } from './m
 import { isSectionHeading } from './outline.js'
 import './file-chip.css'
 
-// The vocabulary only, derived from the one ceiling rather than restated beside it.
-// A Section's level is its depth in the persisted outline, so the editor must be able
-// to hold an H3 to render a three-level page at all; offering one in the slash menu,
-// and the move rules that would keep it valid, are the surface's own (#218).
+// Levels come from the shared depth limit: a three-level page needs H3 in the editor.
 const headingLevels = Array.from({ length: MAX_SECTION_DEPTH }, (_, index) => index + 1)
 const heading = createHeadingBlockSpec({ levels: headingLevels, defaultLevel: 1, allowToggleHeadings: true })
 
-/*
-Toggle state lives under BlockNote's own `toggle-<id>` keys, which it reads as
-open only when the value is 'true'. Dana opens by default, so an open toggle
-needs no key: the key is seeded for upstream's render and removed after it,
-and only closed toggles ('false') stay stored. Storage can be blocked, which
-reads as open.
-*/
+// Toggle state uses BlockNote's `toggle-<id>` keys, read as open only when 'true'. Dana
+// opens by default, so the key is seeded for the render and removed after; only closed
+// toggles ('false') stay stored. Blocked storage reads as open.
 export function toggleClosed(id: string): boolean {
   try { return window.localStorage.getItem(`toggle-${id}`) === 'false' } catch { return false }
 }
@@ -58,13 +51,10 @@ const groupHeading = {
       Enter: ({ editor }) => {
         const { selection } = editor.prosemirrorState
         const block = editor.getTextCursorPosition().block
-        // Let BlockNote handle selections, mid-title splitting and ordinary prose.
-        // Any heading that folds takes this path: a Section, and a toggle
-        // heading (Notion's Enter at the end of an open toggle heading starts
-        // its first child); a flat presentation heading is ordinary prose.
+        // Leave selections, mid-title splits and flat headings to BlockNote. A folding heading
+        // takes this path: Enter at the end starts its first child.
         if (block.type !== 'heading' || block.props.isToggleable === false || !selection.empty || selection.$from.parentOffset !== selection.$from.parent.content.size) return false
-        // Upstream splitting transfers children to the new paragraph. Dana's group
-        // membership must survive, so use its public subtree insertion operation.
+        // Upstream splitting moves children to the new paragraph; Dana's grouping must survive.
         if (!isSectionHeading(block) && toggleClosed(block.id)) {
           editor.transact(() => {
             const [next] = editor.insertBlocks([{ type: 'paragraph' }], block, 'after')
@@ -83,26 +73,19 @@ const groupHeading = {
   })],
   config: {
     ...heading.config,
-    /*
-    A heading is a Work Section unless it says otherwise (`isSectionHeading`):
-    `isToggleable: false` is a flat presentation heading, and
-    `isToggleable: true, presentation: true` a toggle heading, a presentation
-    heading that folds the blocks nested under it (stored heading1-3 with
-    `toggleable`, migration 0038). `presentation` is never stored itself.
-    */
+    // A heading is a Section unless it says otherwise (`isSectionHeading`). `presentation`
+    // is never stored itself.
     propSchema: { ...heading.config.propSchema, isToggleable: { default: true }, presentation: { default: false } },
   },
   implementation: {
     ...heading.implementation,
     render: (function (block, editor) {
-      // A Section is a plain heading on screen (Notion's Heading n): no arrow,
-      // no fold, never hidden. Its `isToggleable` marks it a Section in storage
-      // only, so upstream draws it as a flat heading. Toggle headings fold.
+      // A Section draws as a plain heading: no arrow, no fold. `isToggleable` marks it a
+      // Section in storage only. Toggle headings fold.
       if (isSectionHeading(block)) {
         const plain = heading.implementation.render.call(this, { ...block, props: { ...block.props, isToggleable: false } }, editor)
-        // The Section's own props, not the copy's, travel with it (a copied
-        // Section pastes as a Section): `isToggleable: true` is the default,
-        // which BlockNote writes as no attribute at all.
+        // Keep the Section's own props on the DOM, so a copied Section pastes as one.
+        // BlockNote writes the default `isToggleable: true` as no attribute.
         if (plain.dom instanceof HTMLElement) { plain.dom.setAttribute('data-dana-section', ''); plain.dom.removeAttribute('data-is-toggleable') }
         if (plain.contentDOM !== undefined) plain.contentDOM.setAttribute('aria-level', String(block.props.level + 1))
         return plain
@@ -131,9 +114,8 @@ const groupHeading = {
 }
 
 /**
- * Keep BlockNote's media recognition on the exact same MIME allowlists the
- * server accepts. This makes a dropped unsupported media file fall through to
- * the generic File block instead of drawing a player the server will refuse.
+ * Media recognition uses the server's MIME allowlists, so an unsupported drop falls
+ * through to a File block.
  */
 function mediaSpec<T>(spec: T, accept: readonly string[]): T {
   const typed = spec as unknown as {
@@ -153,13 +135,8 @@ function mediaSpec<T>(spec: T, accept: readonly string[]): T {
   } as unknown as T
 }
 
-/* Issue #267: a media block whose file was reclaimed arrives with no url, which
-   the stock block draws as the same empty frame as one never filled. `reclaimedAt`
-   (hydrated from `file_reclaimed_at`, never saved) swaps that frame for a notice
-   that says what happened, with the two ways out: pick a new file (clearing the
-   notice shows the ordinary upload state) or remove the block. A picture had it
-   first; file, audio and video carry the same notice, and the adapter keeps
-   every reclaimed one in the saved document rather than dropping it. */
+// A media block whose file was reclaimed has no url. `reclaimedAt` (hydrated, never
+// saved) shows a notice with two ways out: choose a new file or remove the block.
 type MediaRender = (this: unknown, block: { id: string; props: { url: string; caption?: string } }, editor: unknown) => { dom: HTMLElement }
 type WithReclaimedAt<T extends { config: { propSchema: object } }> = Omit<T, 'config'> & {
   config: Omit<T['config'], 'propSchema'> & { propSchema: T['config']['propSchema'] & { reclaimedAt: { default: '' } } }
@@ -176,7 +153,7 @@ function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T
         const reclaimedAt = (block.props as { reclaimedAt?: string }).reclaimedAt ?? ''
         if (reclaimedAt === '' || block.props.url !== '') {
           const stock = stockRender.call(this, block, editor)
-          // The empty block's one quiet row (styled in canvas.css); a click opens `CanvasFilePanel`.
+          // The empty block's one quiet row (canvas.css); a click opens `CanvasFilePanel`.
           const text = stock.dom.querySelector('.bn-add-file-button-text')
           if (text && addLabel !== undefined) text.textContent = addLabel
           return stock
@@ -213,9 +190,8 @@ function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T
   } as unknown as WithReclaimedAt<T>
 }
 
-/* File remains BlockNote's stock non-preview block, including its download
-   action. The wrapper adds a type badge from the stored MIME when available,
-   then the filename extension. An unknown type keeps the generic glyph. */
+// File stays BlockNote's stock block, with a type badge from the stored MIME, else the
+// extension.
 const FILE_TYPE_BADGES: Readonly<Record<string, string>> = {
   pdf: 'PDF',
   doc: 'DOC', docx: 'DOCX', odt: 'DOC', rtf: 'DOC', txt: 'TXT', md: 'TXT',
@@ -311,12 +287,11 @@ function withFileTypeIdentity<T>(spec: T): T {
 const audio = withReclaimNotice(mediaSpec(defaultBlockSpecs.audio, AUDIO_MIMES), 'file')
 const video = withReclaimNotice(mediaSpec(defaultBlockSpecs.video, VIDEO_MIMES), 'file')
 const file = withFileTypeIdentity(withReclaimNotice(defaultBlockSpecs.file, 'file', 'Add a file'))
-// An empty image block is the Media command's placeholder (#220, `CanvasFilePanel`).
+// An empty image block is the Media command's placeholder (`CanvasFilePanel`).
 const image = withReclaimNotice(mediaSpec(defaultBlockSpecs.image, RASTER_MIMES), 'picture', 'Add media')
 
-/* A toggle opens by default, like a Section, so what is written under it goes
-   inside: Enter at the end of an open toggle's title starts its first child
-   (upstream starts a sibling toggle, which stays the closed toggle's Enter). */
+// A toggle opens by default, so Enter at the end of an open toggle's title starts its
+// first child.
 const upstreamToggle = defaultBlockSpecs.toggleListItem
 const toggleList = {
   ...upstreamToggle,
@@ -354,14 +329,14 @@ export const canvasSchema = BlockNoteSchema.create({
     heading: groupHeading,
     bulletListItem: defaultBlockSpecs.bulletListItem,
     numberedListItem: defaultBlockSpecs.numberedListItem,
-    // Old documents' to-dos only: nothing makes a new one (`legacyCheckList`).
+    // Stored to-dos only: nothing makes a new one (`legacyCheckList`).
     checkListItem: legacyCheckList(defaultBlockSpecs.checkListItem),
     // `> ` is a toggle (`markdown.ts`); `" ` stays upstream's quote rule.
     quote: { ...defaultBlockSpecs.quote, extensions: withoutInputRules(defaultBlockSpecs.quote.extensions, (find) => find.source === '^>\\s$') },
     toggleListItem: toggleList,
     divider: { ...defaultBlockSpecs.divider, extensions: withoutInputRules(defaultBlockSpecs.divider.extensions, () => true) },
     callout: createCanvasCallout(),
-    // A native Result (#213); only the Results tab's `/result` inserts one.
+    // Only the Results tab's `/result` inserts one.
     result: createCanvasResult(),
     codeBlock: defaultBlockSpecs.codeBlock,
     image,
@@ -369,15 +344,15 @@ export const canvasSchema = BlockNoteSchema.create({
     audio,
     video,
     danaTask: createCanvasTaskSpec(),
-    // A Shelf's native Folder row (#221); only the Shelf canvas inserts one.
+    // A shelf's folder row; only the shelf canvas inserts one.
     danaFolder: createCanvasFolderSpec(),
     diagram: createCanvasDiagramSpec(),
-    // A sub-page of this Folder (Wave 2); only Folder Work's `/page` inserts one.
+    // A sub-page; only Folder Work's `/page` inserts one.
     danaPage: createCanvasPageSpec(),
     // A page of another project (`folder_ref` with no text); never inserted.
     danaPageRef: createCanvasPageRefSpec(),
   },
-  // A Dana Link (#223) is a chip; `adapters.ts` stores it as an href run.
+  // A Dana Link is a chip; `adapters.ts` stores it as an href run.
   inlineContentSpecs: { ...defaultInlineContentSpecs, danaLink: danaLinkInlineSpec, mention: mentionInlineSpec },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },
 })

@@ -8,9 +8,7 @@ import { initialKeys, keyBetween } from './fractional-index.js'
 export interface PositionedItem extends PageItemRef {
   pagePosition: string | null
   sectionBlockId: string | null
-  /** #219's list nesting, null for a Task and for any block that is not a
-   * nested list item. Read here so that a save which only re-nests a list item
-   * still counts as a structure change. */
+  /** Null for a Task and for blocks that are not nested list items. A re-nest alone still counts as a structure change. */
   listParentBlockId: string | null
   blockKind: string | null
 }
@@ -147,9 +145,7 @@ function allowedSectionsAtGap(
   const next = items[index]
   if (previous?.kind === 'block' && previous.blockKind === 'section') {
     const allowed = new Set<string | null>([previous.id])
-    /* An empty Section has one physical gap serving two truthful gestures:
-       expanded inserts its first member, while the approved collapsed-Section
-       seam inserts after the complete (empty) span into No section. */
+    /* An empty Section's one gap serves two gestures: expanded inserts its first member, collapsed inserts into No section. */
     if (next?.sectionBlockId !== previous.id) allowed.add(null)
     return allowed
   }
@@ -157,18 +153,13 @@ function allowedSectionsAtGap(
     if (next?.sectionBlockId === previous.sectionBlockId) {
       return new Set([previous.sectionBlockId])
     }
-    /* The gap after a Section's final member is likewise shared: an expanded
-       seam appends another member, while the collapsed span seam inserts the
-       first loose item after that complete span. */
+    /* The gap after a Section's last member is shared too: expanded appends a member, collapsed inserts after the span. */
     return new Set([previous.sectionBlockId, null])
   }
   return new Set([null])
 }
 
-/** Proves that an anchor interval is one semantic gap. Non-adjacent anchors
- * remain valid only for concurrent inserts that already received this exact
- * fractional key; every possible gap in that tie must accept the same Section.
- */
+/** Proves an anchor interval is one semantic gap. Non-adjacent anchors are valid only when every gap accepts the same Section. */
 export function placementMatchesSection(
   items: readonly PositionedItem[],
   moving: PageItemRef | null,
@@ -196,10 +187,7 @@ export function placementMatchesSection(
   return true
 }
 
-/** The deterministic placement used by legacy task PATCHes that change a
- * folder or Section but cannot name mixed neighbours. A Section receives the
- * task at the end of its contiguous span; No section receives it at page end.
- */
+/** For task PATCHes that change folder or Section without neighbours: end of the Section's span, or page end for No section. */
 export function positionAtSectionEnd(
   items: readonly PositionedItem[],
   moving: PageItemRef | null,
@@ -227,9 +215,7 @@ export function positionAtSectionEnd(
   )
 }
 
-/** Directly after `anchor` in page order (a repeating Task's next occurrence
- * after the one just completed), or null when the anchor is not on the page.
- */
+/** Directly after `anchor` in page order, or null when the anchor is not on the page. */
 export function positionAfter(
   items: readonly PositionedItem[],
   moving: PageItemRef | null,

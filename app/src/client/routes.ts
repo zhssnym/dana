@@ -1,20 +1,7 @@
 /*
-The route table of 9.1, as code, and the navigation model behind it.
-
-`/app` is the installed app's start_url (10.6) and lands on Today, so the
-manifest never needs to change when the landing page does. Desk is the
-account's default folder and has no page of its own: it is a folder like any
-other, at `/app/folders/<id>`.
-
-Three surfaces deliberately have no path: the 9.9 search overlay opens over
-whatever page is beneath it, a page's list, board and calendar modes are a
-client-side choice named by `?mode=`, and the unverified-email page of 9.2 is
-the server's response to one request.
-
-`/privacy` and `/terms` sit outside `/app` because AC-239 sends any
-unauthenticated visit to an `/app` route to `/`, and a privacy policy is read
-by people with no session: Google's OAuth consent screen fetches it with none.
-*/
+ * The route table (spec 9.1). `/app` is the installed start_url and lands on Today. `/privacy` and `/terms` sit
+ * outside `/app`: they must load with no session (AC-239).
+ */
 import { CalendarDays, SunMedium, UserRoundCheck } from './lib/icons.js'
 import type { LucideIcon } from './lib/icons.js'
 import type { NativeView } from '../shared/bundle.js'
@@ -28,30 +15,23 @@ export const paths = {
   today: '/app/today',
   scheduled: '/app/scheduled',
   assignments: '/app/assignments',
-  /** A Focus list the viewer added (round 8): Important, Overdue, No date, All open. */
   focusList: (key: string) => `/app/lists/${key}`,
   folder: (id: string) => `/app/folders/${id}`,
   shelf: (id: string) => `/app/shelves/${id}`,
   task: (id: string) => `/app/tasks/${id}`,
-  /** #320's Dana Link addresses; each redirects into its Folder's Consultation facet. */
   discussion: (id: string) => `/app/discussions/${id}`,
   outcome: (id: string) => `/app/outcomes/${id}`,
   trash: '/app/trash',
   settings: '/app/settings',
   archivedWork: '/app/settings/archived-work',
-  /** The operators' counts; a 404 for everyone else, and not in any menu. */
+  /** A 404 for everyone but operators; not in any menu. */
   stats: '/app/stats',
   people: '/app/people',
 } as const
 
 /**
- * Paths that no longer have a page, and where each lands.
- *
- * A redirect rather than a 404 because bookmarks exist, and a redirect rather
- * than an alias so the address bar carries the surviving path afterwards
- * (AC-215). Finished and abandoned work is a folder's "Show completed", not a
- * page, so Done and Abandoned land on Today like the other retired views.
- * `/app/desk` is not here: it needs the default folder's id, which is data.
+ * Retired paths and where each lands: a redirect so bookmarks work and the bar shows the new path (AC-215).
+ * `/app/desk` is not here: it needs the default folder's id.
  */
 export const retiredPaths = [
   { from: '/app/planned', to: paths.scheduled },
@@ -63,25 +43,16 @@ export const retiredPaths = [
   { from: '/app/abandoned', to: paths.today },
 ] as const
 
-/**
- * The pin keys of 4.19, which are what `pinned_views` holds and what the
- * Settings pin list of 9.7 writes.
- *
- * The shared union still names views this client no longer draws (the server
- * contract is unchanged), so a stored pin for one of them is simply ignored:
- * `pinnedNavPages` filters this file's list, never the stored one.
- */
+/** The stored pin keys. The union still names views no longer drawn; `pinnedNavPages` ignores them. */
 export type NativeViewKey = NativeView
 
-/** The cross-project pages, in the order the sidebar draws them. */
 export interface NavPage {
   readonly key: NativeViewKey
-  /** The fixed string 9.1 names it by, which is what a criterion addresses. */
+  /** The fixed name a criterion addresses. */
   readonly name: string
   readonly path: string
   /** What the page answers; the description under its title. */
   readonly question: string
-  /** The page's own mark, shared by the sidebar and the Settings pin list. */
   readonly icon: LucideIcon
   readonly pinnable: boolean
 }
@@ -113,7 +84,6 @@ export const navPages = [
   },
 ] as const satisfies readonly NavPage[]
 
-/** The pins a fresh account carries, in the sidebar's order. */
 export const DEFAULT_PINNED_KEYS: readonly NativeViewKey[] = [
   'today',
   'scheduled',
@@ -121,12 +91,8 @@ export const DEFAULT_PINNED_KEYS: readonly NativeViewKey[] = [
 ]
 
 /**
- * The pages the sidebar draws, given the viewer's pin list.
- *
- * The order is this file's rather than the pin list's, since a pin list is a
- * set. A missing or failed settings read falls back to the defaults rather
- * than to nothing (AC-095): a sidebar that empties when a read fails strands a
- * person on whatever page they are standing on.
+ * Ordered by this file, not the pin list. A missing or failed settings read falls back to the defaults
+ * (AC-095).
  */
 export function pinnedNavPages(
   pinned: readonly string[] | undefined,

@@ -1,14 +1,5 @@
-/*
-The window bar: the compact strip at the top of the page area. Left is the way
-here (history arrows and the breadcrumb trail, portalled in through
-WindowBarLead); right holds the controls for whatever the page is showing
-(WindowBarActions). Both ends are module-store slots, so a screen renders into
-the chrome without lifting its state into the shell.
-
-The strip is intentionally a stable shell surface. Covers begin below it and
-never paint behind it, leaving this row reliable for directory context, page
-controls and future work-page actions.
-*/
+// The window bar: history and breadcrumb on the left, page controls on the right. Both
+// ends are portal slots, so a screen renders into the chrome without lifting state.
 
 import { useSyncExternalStore, type ReactNode } from "react"
 import { createPortal } from "react-dom"
@@ -39,15 +30,8 @@ function useSlot(end: "lead" | "trail") {
   )
 }
 
-/* Workspace tabs sit above this row on desktop; the tab component removes
-   itself on a phone, where the full strip would compete with Menu and Search.
-   The workspace strip deliberately ignores the collaboration right edge: it
-   spans the window above side panels. Only this lower work-page row yields to
-   the active tab's collaboration presentation (#569).
-
-   The work-page row stays compact at Dana's 32px row height, only 4px taller
-   than its controls. `phone` is a phone's open thread, where the row is the
-   whole 48px bar so its 44px touch targets fit. */
+// Workspace tabs span the window above side panels; only this lower row yields to the
+// collaboration panel. `phone` makes it the 48px bar so 44px touch targets fit.
 export function WindowBar({ phone = false }: { phone?: boolean }) {
   return (
     <>
@@ -75,26 +59,15 @@ export function WindowBar({ phone = false }: { phone?: boolean }) {
   )
 }
 
-/* The window bar's left end. Same portal arrangement as `WindowBarActions`, and
-   the same reason: whatever owns the state renders into the chrome without the
-   chrome having to be told what the state is. */
+// The left end's portal, like `WindowBarActions`.
 export function WindowBarLead({ children }: { children: ReactNode }) {
   const node = useSlot("lead")
   if (!node) return null
   return createPortal(children, node)
 }
 
-/*
-Whatever the active tab wants in the bar's right-hand end.
-
-`order` exists because two things can fill one bar: the shell renders the
-chrome every place-page shares, the filter and Activity, while a screen that
-owns extra state of its own portals its controls in separately. Portals land in
-mount order, which is not an arrangement anybody chose, so each block declares
-where it sits and flex puts it there. Lower is further left, matching the
-folder page's own arrangement: the view switcher, then the filter, then the
-quiet things.
-*/
+// The right end. `order` places each portalled block, because portals land in mount
+// order; lower is further left.
 export function WindowBarActions({
   children,
   order = 0,

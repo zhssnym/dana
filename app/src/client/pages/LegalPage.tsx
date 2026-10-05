@@ -1,33 +1,7 @@
 /*
-Privacy and Terms, the two public pages the landing footer links (AC-240).
-
-**The addresses** are `/`, `/privacy` and `/terms`, which is what the landing
-footer links and what Google's OAuth consent configuration and 8.10's deletion
-text both need to resolve. They are not rows of 9.1's route table: that table is
-the application's, and these pages sit outside `/app` and outside AC-239's
-redirect, like `saved-views.ts`'s route that table does not name.
-
-**The facts stated here are the shipping product's, and must be re-verified
-whenever the product moves**: the default folder is Desk, Google sign-in only
-(11.6), folder sharing (5.3), Resend email (11.8), sanitized Sentry errors and
-30-day Axiom logs (11.12, 10.5), and hard deletion behind a typed DELETE (8.10,
-9.7).
-
-**"Taking your data with you"** (issue #162) sits immediately before "Deleting
-your data" because the two are one pair in the order a person does them, take it
-and then remove it, and because 10.9 records that the Google APIs Terms of
-Service clause this satisfies is about portability rather than about erasure.
-Its sentence names Settings, which is where the control is, rather than the
-endpoint, which is not a thing to hand a person.
-
-9.2's no-capability-claim rule applies to every public page. Every sentence
-below states what Dana stores, uses, or does not do, and claims no feature,
-except the export sentence, which is admissible because that rule forbids copy
-that "promises, implies or previews a capability Dana does not ship", and this
-one ships: `GET /api/v1/me/export` is 7.22 and the Settings row reaches it. **A
-page carrying that sentence with no control behind it would break the rule**, so
-the two are never separated.
-*/
+ * Privacy and Terms, outside `/app`. The facts here must be re-checked when the product changes. The export
+ * sentence must stay paired with the Settings export control (spec 9.2's claim rule).
+ */
 
 
 /** The approved copy, section by section, in its own order. */
@@ -92,7 +66,7 @@ const PAGE_COPY = {
       {
         heading: 'The deal',
         body: [
-          // "an Inbox" in the approved draft; see the header for why it is Desk.
+          // "an Inbox" in the approved draft; the default folder is Desk.
           'Dana is a collaborative to-do product. By signing in with your Google account you get an account, a Desk, and these terms.',
         ],
       },

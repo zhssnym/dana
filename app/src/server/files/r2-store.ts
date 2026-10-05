@@ -1,20 +1,8 @@
 /*
-Cloudflare R2 behind the ObjectStore interface (issue #550).
-
-Render's ordinary filesystem is wiped on every deploy, so production keeps
-uploaded bytes in an R2 bucket instead. The bucket stays private: nothing
-here makes an object public or hands out a URL, and every read still goes
-through `/api/v1/files/:id`, which checks access against the files table
-before it asks this store for bytes.
-
-R2 speaks the S3 API, so each call is one signed HTTP request (AWS Signature
-Version 4, region `auto`). The signer is written out here rather than pulled
-in as an SDK: three verbs on one bucket do not need a dependency, and the
-signing is pinned against AWS's published example in
-`tests/guards/guard-object-store.test.ts`.
-
-Credentials come only from the environment (`resolveObjectStore` in
-`store.ts`) and never reach the client.
+Cloudflare R2 through the S3 API. The bucket stays private: every read goes
+through `/api/v1/files/:id` and its access check. SigV4 is hand-written (three
+verbs need no SDK) and checked against AWS's example in
+tests/guards/guard-persistent-file-storage.test.ts.
 */
 import { createHash, createHmac } from 'node:crypto'
 
@@ -55,8 +43,7 @@ export interface SignInput {
   readonly amzDate: string
 }
 
-/** The headers of a Signature Version 4 request, Authorization included.
- * Exported so the signing can be checked against AWS's own example. */
+/** SigV4 request headers, Authorization included. Exported for the signing test. */
 export function signV4(input: SignInput): Record<string, string> {
   const day = input.amzDate.slice(0, 8)
   const headers: Record<string, string> = {
@@ -96,8 +83,7 @@ function amzDateOf(now: Date): string {
 
 export function createR2Store(config: R2Config, fetchImpl: typeof fetch = fetch): ObjectStore {
   const base = config.endpoint.replace(/\/+$/, '')
-  // The id is a uuid minted by the database, never caller input; it is
-  // encoded anyway, so a key can never reach outside the bucket.
+  // Ids are database uuids; encoded anyway so a key cannot leave the bucket.
   const urlOf = (id: string): URL => new URL(`${base}/${encodeSegment(config.bucket)}/${encodeSegment(id)}`)
 
   const send = async (method: 'PUT' | 'GET' | 'DELETE', id: string, body?: Buffer): Promise<Response> => {
@@ -113,14 +99,13 @@ export function createR2Store(config: R2Config, fetchImpl: typeof fetch = fetch)
       service: SERVICE,
       amzDate: amzDateOf(new Date()),
     })
-    // `host` is the connection's to set; fetch refuses it as a header.
+    // fetch refuses `host` as a header.
     delete headers.host
     return fetchImpl(url, { method, headers, ...(body === undefined ? {} : { body: new Uint8Array(body) }) })
   }
 
-  /* A failure that is not "no such object" (bad credentials, a missing
-     bucket, R2 down) is an operational fault, so it throws and surfaces as a
-     500 with the status in the log, rather than reading as a missing file. */
+  /* Anything but "no such object" is an operational fault: throw (a 500 with
+     the status logged) rather than read as a missing file. */
   const fail = async (verb: string, response: Response): Promise<never> => {
     const detail = (await response.text().catch(() => '')).slice(0, 200)
     throw new Error(`R2 ${verb} failed: ${String(response.status)} ${detail}`)

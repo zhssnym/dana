@@ -1,20 +1,7 @@
 /*
-Structured input rounds (issue #321): "Ask for input" inside a Discussion.
-
-    GET    /discussions/:id/input-rounds     every round, newest first
-    POST   /discussions/:id/input-rounds     open a round            201
-    GET    /input-rounds/:id                 one round
-    POST   /input-rounds/:id/close           close it                200
-    PUT    /input-rounds/:id/response        submit or change one's own
-    DELETE /input-rounds/:id/response        withdraw one's own      204
-
-Handlers parse, delegate and serialize; every decision is in
-`domain/consultation-input.ts`, under the Discussion's row lock, in the
-refusal order 404, 422, 403, 409 (routes/facets.ts sets out why).
-
-Every route takes an id, so every route owes a row in
-`tests/criteria/ac-397-authorization-sweep.test.ts`. Input rounds are not
-Dana Link targets in M1 (#321), so nothing here touches references.ts.
+"Ask for input" rounds inside a Discussion. Decisions are in
+domain/consultation-input.ts under the Discussion's row lock, refusing in the
+order 404, 422, 403, 409. Every route takes a path id, so each needs an ac-397 row.
 */
 import type { Request, Response, Router } from 'express'
 
@@ -104,10 +91,8 @@ export function createConsultationInputRouter(
       if (db === null) return
       const discussionId = parsedId(res, req.params.id)
       if (discussionId === null) return
-      /* The body is parsed before the Discussion is resolved, unlike the
-         facets routes: a malformed body tells a stranger nothing about any
-         row, and the domain's own 422s (which need the row) still come after
-         its 404. */
+      /* The body is parsed first: a malformed body reveals nothing, and the
+         domain's row-dependent 422s still follow its 404. */
       const body = parseBody(openInputRoundBody, req, res, securityLog)
       if (body === null) return
       answer(res, await openInputRound(db, viewer(req), discussionId, body), (round) => {

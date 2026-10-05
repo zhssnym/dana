@@ -1,6 +1,5 @@
 import type { TaskCard } from '../../../shared/tasks.js'
 
-/** A Schedule crossing this row of the calendar, drawn once across its days. */
 export interface WeekRange {
   readonly task: TaskCard
   readonly first: number

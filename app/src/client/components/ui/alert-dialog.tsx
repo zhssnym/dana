@@ -110,8 +110,7 @@ function AlertDialogAction({
 }: AlertDialogPrimitive.Close.Props & { destructive?: boolean }) {
   return (
     <AlertDialogPrimitive.Close
-      /* r5: the one danger style is Button's destructive variant (danger
-         ink on a hairline), never a filled red button. */
+      // The one danger style is Button's destructive variant, never a filled red button.
       render={
         <Button
           type="button"

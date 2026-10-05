@@ -1,29 +1,7 @@
 /*
-9.10's shelf page, at /app/shelves/:id.
-
-**This file is wiring and the markup is `screens/shelf-page.tsx`**, whose header
-names what is worth knowing about it.
-
-What the page supplies is what the screen cannot know. **The membership**:
-folders whose personal label is this shelf's name (4.18, 4.4), read off the
-folder list already in every page's cache, Desk never shelving (9.10). **The
-arrangement**: the Shelf's revisioned document (#221), written by
-`components/page/canvas/ShelfCanvas.tsx` through 7.16's `document_transaction`
-on `/shelves/:id/page/actions`. The legacy whole-page PUT is no longer called:
-once the document route has written a Shelf, that PUT answers 409. **The acts**: Copy link through
-`lib/nav-links.ts`, Duplicate as one call to `POST /shelves/:id/duplicate` and
-no folders (9.10: a folder is on one shelf), which carries the mark, the colour,
-the description and a cover picture of the copy's own and does not carry the
-blocks — see the act's own note — Delete
-unlabelling its folders and keeping them, and Rename as 7.16's PATCH, whose
-transaction rewrites the member labels (4.18's lockstep). **A folder row opens
-the folder**, there being no tab strip to append to. **Delete asks first**, in
-the sidebar's own sentence.
-
-**Pages join a collection by dragging them onto it in the sidebar**, never
-from this page: the page is the title and its writing, with the
-member rows placed in it, and nothing else.
-*/
+ * A shelf (collection) page: wiring; the markup is `screens/shelf-page.tsx`. Members are folders whose personal
+ * label is the shelf's name; Desk never shelves.
+ */
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
@@ -60,8 +38,7 @@ export function ShelfPage(): React.JSX.Element {
   const detail = shelf.data
   const name = detail?.name ?? ''
 
-  /* The membership: folders whose personal label is this shelf's name.
-     Desk never shelves (9.10), and is_default is what Desk is. */
+  /* Desk never shelves; is_default is what Desk is. */
   const onShelf = useMemo(
     () =>
       (folders.data ?? []).filter(
@@ -83,21 +60,15 @@ export function ShelfPage(): React.JSX.Element {
   return (
     <PageBody query={shelf} isEmpty={false} emptyCopy="">
       <PageBody query={page} isEmpty={false} emptyCopy="">
-        {/* Mounted only once the folder list is here: mounted before it, the
-            screen would read an empty membership, drop every folder row from
-            its arrangement, write that, and then write the folders back with
-            evidence the first write had already replaced, so every shelf page
-            would open with a 409 nobody caused. */}
+        {/* Mount only once the folder list is here: an empty membership would rewrite the arrangement and cause a 409. */}
         {page.data === undefined || folders.data === undefined ? null : (
           <ShelfScreen
-            /* Remounted per shelf, the screen holding its arrangement as state. */
+            /* Remounted per shelf; the screen holds its arrangement as state. */
             key={id}
             id={id}
             name={name}
             onRename={(next) => {
-              /* 9.10: renaming rewrites the member labels and re-addresses
-                 the page in one act, and 4.18's lockstep makes that the
-                 server's transaction rather than a client sweep. */
+              /* The server renames the member labels in the same transaction. */
               patch.mutate({ id, body: { name: next } })
             }}
             onCopyLink={() => {
@@ -105,35 +76,18 @@ export function ShelfPage(): React.JSX.Element {
             }}
             onDuplicate={() => {
               /*
-              One act on the server (7.16; issues #117 and #128), and no
-              folders, 9.10's rule that a folder is on one shelf. `POST
-              /shelves` refuses all three cover fields, so a client-side copy
-              could not carry the cover; two calls have a gap in them in which a
-              failure leaves a half-duplicated shelf; and a copy that pointed at
-              the same `cover_file_id` would not be independent, the foreign
-              key's ON DELETE SET NULL blanking both shelves the moment that
-              file went. All three are why this is the server's one transaction.
-
-              **The copy does not carry this shelf's blocks**: 7.16 says the
-              duplicate does not carry the page (4.17), 9.10's "the page, no
-              folders" distinguishing the shelf from its membership rather than
-              promising its prose.
-              */
+               * One server act: POST /shelves refuses cover fields, two calls can leave a half copy, and the
+               * copy needs its own cover file. It does not carry the page's blocks.
+               */
               duplicate.mutate(id, {
                 onSuccess: (made) => {
-                  /* The shelves list refetches through the mutation cache's
-                     own onSuccess (8.3), which invalidates everything after
-                     every successful write, so the sidebar and the Library
-                     hold the copy without this page naming the key a second
-                     time. */
+                  /* The mutation cache's invalidation refreshes the shelves list. */
                   void navigate(paths.shelf(made.id))
                 },
               })
             }}
             onDelete={() => {
-              /* Unlabels its folders and keeps them (9.10), but the shelf's
-                 own writing goes with it, so it asks first, in the sidebar's
-                 own sentence. */
+              /* Folders stay, but the shelf's writing goes, so it asks first. */
               setConfirmingDelete(true)
             }}
           >
@@ -152,7 +106,6 @@ export function ShelfPage(): React.JSX.Element {
                   void navigate(paths.folder(folderId))
                 }}
                 onRemoveFolder={async (folderId) => {
-                  /* Remove from shelf clears the membership; the folder stays. */
                   await move.mutateAsync({ id: folderId, body: { shelf: null } })
                 }}
               />

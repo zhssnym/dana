@@ -1,10 +1,7 @@
-/* The Library's ordered column of collections and pages, and its drag. */
 import { useEffect, useState } from 'react'
 import { SidebarGroupContent, SidebarMenu } from '../../components/ui/sidebar.js'
 import { paths } from '../../routes.js'
 import { heldForTab, sidebarDragOver, sidebarDropAt, TAB_STRIP } from '../tab-drop.js'
-/* The one drag engine, and the Library's answers to the two questions it asks
-   about anything outside the list it is sorting. */
 import { moved, swallowNextClick, useSortableList } from '../../lib/use-sortable-list.js'
 import { DIRECTORY, grip, useLibraryZones } from '../library-drag.js'
 import {
@@ -21,23 +18,13 @@ import { TREE_KEY, usePageTree } from './page-tree-context.js'
 import { FolderGroupBlock } from './FolderGroupBlock.js'
 import { SidebarFolderRow } from './SidebarFolderRow.js'
 
-/**
- * The Library's one ordered column: shelves and loose folders in the viewer's
- * order. Dragging a row reorders it; resting inside a collection files it
- * there. Root-page dragging does not currently reparent nested pages; the
- * canonical parent relationship is shown here and edited through page acts.
- *
- * Holding one folder on another used to propose a new shelf of the two; the
- * middle of a row now means "inside this page", and one gesture cannot mean
- * both. A collection is made from the Library's "+".
- */
-/** Where a Library row opens: its page, or its collection's. A label with
- * no collection behind it has no page, so it cannot become a tab. */
+/** A label with no collection behind it has no page, so it cannot become a tab. */
 function entryPath(entry: DirectoryEntry): string | null {
   if (entry.kind === 'folder') return paths.folder(entry.folder.id)
   return entry.shelf === null ? null : paths.shelf(entry.shelf.id)
 }
 
+/** Dragging a row reorders it; resting inside a collection files it there. */
 export function LibraryColumn({
   entries,
   onOrderChange,
@@ -71,8 +58,7 @@ export function LibraryColumn({
     },
     onOver: (from, point) => {
       const entry = entries[from]
-      /* Out of the sidebar: the row comes loose, and opens as a tab if it is
-         let go on the tab strip (`tab-drop.ts`). */
+      /* Out of the sidebar, the row opens as a tab if dropped on the tab strip. */
       if (sidebarDragOver(point, entry === undefined ? null : entryPath(entry)) !== null) {
         setDrop(null)
         pages.clearMark()

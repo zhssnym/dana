@@ -17,14 +17,12 @@ export interface CanvasRecord {
   ref_folder_id: string | null
   width_pct: number | null
   checked: boolean | null
-  /** True on a toggle heading (a presentation heading that folds its
-   * children), null on every other block (migration 0038). */
+  /** True on a toggle heading, null on every other block. */
   toggleable: boolean | null
 }
 export interface CanvasPlacement { kind: 'block' | 'task'; id: string; section_block_id: string | null; list_parent_block_id: string | null }
 export interface CanvasDocument { blocks: CanvasRecord[]; items: CanvasPlacement[] }
 
-/** A stored page that the canvas cannot safely turn into editable content. */
 export class CanvasHydrationError extends Error {
   override readonly name = 'CanvasHydrationError'
 }
@@ -33,8 +31,7 @@ export function contentOf(text: string | null, rich?: { version: 1; runs: RichRu
   if (!rich) return text ?? ''
   return rich.runs.map((run) => {
     const node = { type: 'text' as const, text: run.text, styles: { ...(run.bold ? { bold: true } : {}), ...(run.italic ? { italic: true } : {}) } }
-    // A run whose href is a Dana Link draws as a live chip (#223); its text
-    // rides along as the label a save writes back.
+    // A Dana Link run draws as a live chip; its text is the label a save writes back.
     if (run.mention) return { type: 'mention' as const, props: { userId: run.mention.user_id, label: run.text } }
     if (run.href && danaLinkOf(run.href) !== null) return { type: 'danaLink' as const, props: { href: run.href, label: run.text } }
     return run.href ? { type: 'link' as const, href: run.href, content: [node] } : node
@@ -42,13 +39,8 @@ export function contentOf(text: string | null, rich?: { version: 1; runs: RichRu
 }
 
 /**
- * Explicit parent IDs alone establish groups; root prose never follows proximity.
- *
- * A Section carries no heading level of its own: its level is its depth in the
- * section_block_id relation, so a root Section is H1, its child H2 and its
- * grandchild H3. The outline lists a parent before its content, so each level is
- * read off the parent's already-recorded one. The clamp is defensive only — the
- * server refuses a deeper Section before it writes.
+ * Explicit parent ids alone make groups. A Section's level is its depth; the clamp
+ * is defensive, since the server refuses deeper sections.
  */
 export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[] {
   const records = new Map(page.blocks.map((block) => [block.id, block]))
@@ -65,8 +57,8 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
     block: PageView['blocks'][number],
   ): Record<string, string | number | boolean | undefined> => ({
     url: block.file_id ? `/api/v1/files/${block.file_id}` : '',
-    // A stored file/audio/video with no file was reclaimed (7.19): keep it as a
-    // notice, never as the empty upload placeholder the save drops.
+    // A stored file with no file was reclaimed: keep it as a notice, never as the
+    // empty placeholder a save drops.
     reclaimedAt: block.file_id ? '' : block.file_reclaimed_at ?? 'earlier',
     name: block.kind === 'file' ? (block.file_name ?? 'File') : '',
     caption: '',
@@ -114,8 +106,7 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
       }
     } else if (isPresentationHeadingKind(block.kind)) {
       const level = Number(block.kind.slice(-1)) as 1 | 2 | 3
-      // A toggle heading folds what is nested under it; `presentation` keeps
-      // it apart from a Section, which folds too (`isSectionHeading`).
+      // `presentation` keeps a toggle heading apart from a Section, which folds too.
       node = {
         id: block.id,
         type: 'heading',
@@ -211,8 +202,8 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
     } else if (block.kind === 'page') {
       node = { id: block.id, type: 'danaPage', props: { folderId: block.ref_folder_id ?? '' }, children: [] }
     } else if (block.kind === 'folder_ref' && block.ref_folder_id !== null && (block.text ?? '') === '') {
-      // A reference with no text of its own is a page row (0062's split
-      // pages): the page's name to a member, "Page you can't open" otherwise.
+      // A reference with no text is a page row: the page's name to a member,
+      // "Page you can't open" otherwise.
       node = { id: block.id, type: 'danaPageRef', props: { folderId: block.ref_folder_id }, children: [] }
     } else if (block.kind === 'folder_ref') {
       node = {
@@ -238,8 +229,7 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
     nodes.set(block.id, node)
   }
 
-  // Any block but a Section may nest (0038): `list_parent_block_id` is the
-  // general block parent, and the parent's stored kind says whether it holds.
+  // Any block but a Section may nest; the parent's stored kind says whether it holds.
   const kinds = new Map(page.blocks.map((block) => [block.id, block.kind]))
   const root: CanvasInput[] = []
   for (const item of page.items) {
@@ -293,66 +283,24 @@ export function richRuns(block: CanvasBlock): RichRun[] {
     }
     if (inline.type === 'text') append(inline.text, inline.styles)
     else if (inline.type === 'link') for (const text of inline.content) append(text.text, text.styles, inline.href)
-    // Its own run, never merged into a neighbour, so two chips stay two.
+    // Its own run, never merged, so two chips stay two.
     else if (inline.type === 'danaLink') runs.push({ text: inline.props.label || 'Link', href: inline.props.href })
-    // A person mention (Wave 2): its own run, like a chip.
+    // A person mention: its own run, like a chip.
     else if (inline.type === 'mention' && inline.props.userId) runs.push({ text: inline.props.label || '@', mention: { user_id: inline.props.userId } })
   }
   return runs
 }
 
 /**
- * Which blocks of a stored page are folder references, as block id to the
- * folder each one names.
- *
- * A `folder_ref` is a typed relation and `canvasSchema` has no block type for
- * it, so `hydrateCanvas` draws it as a paragraph carrying a link and the
- * projection below would otherwise write it back as a paragraph with
- * `ref_folder_id` null — the link surviving as a rich-content run, so the
- * person sees a working link and the relation is gone (issue #255). This map
- * is the page's own answer to "which of these paragraphs is really a
- * reference", and it is the only source: an href in the content is the
- * person's text, and a paragraph that merely contains a folder link must not
- * become a relation, because `page_blocks_ref_folder_id_fkey` is ON DELETE
- * CASCADE and would take that paragraph with the folder.
- *
- * **Which page to read it from is the caller's decision and it is not free.**
- * The page the editor was *hydrated* from is the wrong one: the session
- * outlives many saves, so a map taken there keeps an entry for a block a save
- * has already converted, and the projection below puts the relation back on
- * the person's next keystroke. `FolderCanvas` reads it from the query row the
- * writer writes back after every save, and carries the measurement; AC-663
- * pins it.
- *
- * A reference with no folder is left out. `shelfItemsOf` drops one on read for
- * the same reason, and carrying a null relation would write a `folder_ref`
- * that names nothing.
- *
- * **Why this is its own carry and not a seventh member of
- * `STRUCTURED_BLOCK_KINDS`.** That constant means structured *text*, and every
- * reader of it was read before this was chosen: `DOCUMENT_BLOCK_KINDS` is
- * spread from it, `put_block`'s superRefine is the list it refuses a file and
- * a folder reference on, `pages.ts` re-exports it and nothing imports that
- * re-export, and the `UNEXPRESSED` set below is the fourth. So putting
- * `folder_ref` in it would make the contract refuse the very column this
- * exists to keep, and would say of it the one thing that is not true: that it
- * is text. And the carry below could not reach a `folder_ref` anyway: it reads
- * the kind off `before`, which the writer builds from this projection, so a
- * kind this projection has already dropped is not there to restore. That is
- * issue #250's finding about its own half, and it is why this one is fixed one
- * layer earlier, in the projection rather than in the diff.
+ * Block id to folder for each `folder_ref`. The schema draws one as a paragraph with a
+ * link, so without this map a save would drop the relation. Never infer it from an
+ * href: ON DELETE CASCADE would then delete the paragraph with the folder.
  */
 export function folderRefsOf(page: PageView): ReadonlyMap<string, string> {
   return new Map(page.blocks.flatMap((block) => block.kind === 'folder_ref' && block.ref_folder_id !== null ? [[block.id, block.ref_folder_id] as const] : []))
 }
 
-/**
- * Per-record projection, independent of the editor's JSON serialization.
- *
- * `folderRefs` is required rather than optional on purpose: the defect it
- * exists to stop is a relation dropped in silence, and an optional argument is
- * a call site that drops it in silence again with nothing to read.
- */
+/** `folderRefs` is required on purpose, so no call site can drop relations silently. */
 export function dehydrateCanvas(
   blocks: readonly CanvasBlock[],
   columnWidth: number,
@@ -362,13 +310,8 @@ export function dehydrateCanvas(
   const fileIdOf = (url: string): string | null =>
     /(?:^|\/)api\/v1\/files\/([0-9a-f-]{36})$/i.exec(url)?.[1] ?? null
 
-  /*
-   * `sectionParent` is the Section the children belong to (Work grouping);
-   * `blockParent` the ordinary block they are nested under, if any. A
-   * Section's children get its id as their Section and no block parent; any
-   * other block's children get it as their block parent and keep its Section
-   * (the server's one Section rule).
-   */
+  // A Section's children get it as their Section and no block parent; other blocks'
+  // children get it as their block parent and keep its Section.
   function visit(
     children: readonly CanvasBlock[],
     sectionParent: string | null,
@@ -384,15 +327,8 @@ export function dehydrateCanvas(
         block.props.url === '' &&
         ((block.props as { reclaimedAt?: string }).reclaimedAt ?? '') === ''
 
-      /*
-       * File/audio/video are invalid on the wire without a file id. Their
-       * empty editor block is only the local file-picker placeholder, so do
-       * not put it in the durable outline until a file has actually uploaded.
-       * Image is different by contract: an empty image placeholder is allowed.
-       * A reclaimed one (file deleted, `reclaimedAt` set) is not a placeholder:
-       * it is saved back as the server holds it, file_id null, so it is never
-       * deleted by the next autosave. Either way its children are kept.
-       */
+      // Empty file, audio and video blocks are local placeholders and are not saved; an
+      // empty image is allowed. A reclaimed one is saved back as the server holds it.
       if (unuploadedRequiredMedia) {
         visit(block.children, sectionParent, blockParent)
         continue
@@ -409,8 +345,7 @@ export function dehydrateCanvas(
         const runs = richRuns(block)
         const presentationHeading =
           block.type === 'heading' && !groupHeading
-        // A Shelf's native Folder row (#221) is a `folder_ref` by type; a
-        // paragraph is one only by the page's own map (#255).
+        // A shelf's folder row is a `folder_ref` by type; a paragraph only by the page's map.
         const reference =
           block.type === 'danaFolder' || block.type === 'danaPageRef'
             ? block.props.folderId || null
@@ -489,10 +424,8 @@ export function dehydrateCanvas(
               )
             : null
 
-        // #222: a diagram is its source text; no rich content, file or width.
         if (block.type === 'divider') result.blocks.push({ id: block.id, block_kind: 'divider', text: null, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null })
-        // Wave 2: a sub-page is its reference and nothing else, the same
-        // record `documentOf` reads, so an untouched one is never re-sent.
+        // A sub-page is only its reference, the same record `documentOf` reads.
         else if (block.type === 'danaPage') result.blocks.push({ id: block.id, block_kind: 'page', text: null, rich_content: null, file_id: null, ref_folder_id: block.props.folderId, width_pct: null, checked: null, toggleable: null })
         else if (block.type === 'diagram') result.blocks.push({ id: block.id, block_kind: 'diagram', text: block.props.source, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null })
         else result.blocks.push({
@@ -512,7 +445,7 @@ export function dehydrateCanvas(
       if (groupHeading) {
         visit(block.children, block.id, null)
       } else if (task) {
-        // A Task holds nothing (`validateCanvasOutline`); kept all the same.
+        // A task holds nothing (`validateCanvasOutline`); kept all the same.
         visit(block.children, sectionParent, blockParent)
       } else {
         visit(block.children, sectionParent, block.id)
@@ -534,9 +467,7 @@ export function documentOf(page: PageView): CanvasDocument {
   return { blocks, items: page.items.map((item) => ({ ...item, section_block_id: parents.get(item.id) ?? null, list_parent_block_id: listParents.get(item.id) ?? null })) }
 }
 
-/** The editable window a Work facet opens onto one root Section. The root H1
- * itself is the facet title and stays outside the editor; everything beneath
- * it keeps the same ids and therefore remains Main's document. */
+/** A Work facet's editable window onto one root Section; the root heading stays outside. */
 export function workPageOf(page: PageView, rootId: string): PageView {
   const included = new Set<string>([rootId])
   for (const block of page.blocks) {
@@ -560,9 +491,7 @@ export function workPageOf(page: PageView, rootId: string): PageView {
   }
 }
 
-/** Put an edited Work projection back into the complete Main document before
- * diffing. Siblings outside the linked H1 never enter the editor and are
- * copied byte-for-byte into the proposal. */
+/** Put an edited Work projection back into the full document before diffing. */
 export function mergeWorkDocument(page: PageView, rootId: string, work: CanvasDocument): CanvasDocument {
   const base = documentOf(page)
   const old = workPageOf(page, rootId)
@@ -583,12 +512,7 @@ export function mergeWorkDocument(page: PageView, rootId: string, work: CanvasDo
   }
 }
 
-/**
- * The editor now expresses the accepted authored vocabulary directly. Keep this
- * named seam because CanvasWriter asks the same normalization question when it
- * decides whether the latest document is settled; today the normalized form is
- * simply the projection itself.
- */
+/** Kept as a seam for CanvasWriter; today the normalized form is the projection itself. */
 export function restoreCanvas(
   _before: CanvasDocument,
   after: CanvasDocument,
@@ -597,25 +521,14 @@ export function restoreCanvas(
 }
 
 /**
- * The writer's baseline: what a save of this page, untouched, would send.
- *
- * `documentOf(page)` is the truth and `projected` is what the editor can draw
- * of it, and neither alone is a baseline. The truth cannot be diffed against
- * an editor projection — every plain paragraph would read as changed — and the
- * projection carries none of the kinds, ticks and list parents the restore
- * above needs to read. This is the two of them reconciled, and it is what the
- * writer must hold at mount **and** after every commit: a baseline correct
- * once and stale afterwards loses the same page one save later.
+ * What a save of the untouched page would send. Today `restoreCanvas` returns
+ * `projected` unchanged.
  */
 export function baselineOf(page: PageView, projected: CanvasDocument): CanvasDocument {
   return restoreCanvas(documentOf(page), projected)
 }
 
-/**
- * A `page` block new to the document names a trashed sub-page and restores it
- * in place (`put_block`). A `page` block that leaves the document moves its
- * sub-page to Trash in the same transaction.
- */
+/** A new `page` block restores its trashed sub-page; a removed one trashes it. */
 export function canvasOperations(before: CanvasDocument, after: CanvasDocument) {
   const restored = restoreCanvas(before, after)
   const old = new Map(before.blocks.map((block) => [block.id, block]))

@@ -1,81 +1,25 @@
-/*
-The four 11.8 templates, rendered as HTML with a text/plain alternative.
-
-**The words are designed copy, not this module's to restyle.** Every subject,
-heading, body, context line, action label and destination below is the
-designer's, and this file is where that copy lives.
-
-**Two parts, because 10.7 says two:** HTML with a **required** text/plain
-alternative. The text part must say the same thing and carry the same one
-action link rather than being a stub. "Short" and "one action link each" are
-the halves that do the deliverability work. So every message below is written once, as a
-Composition, and rendered twice; nothing is said in one part that the other
-does not say, because neither part is authored separately.
-
-**11.4 and the values written out a second time.** `app/src/client/styles/tokens.css` is the single tokens file and that
-rule does not move; it governs the client, and an email client reads no
-external stylesheet, so a rendered message must carry every value inline.
-The colours below are that file's graphite ramp transcribed, each named after
-the token it came from so a divergence is findable, and the font stack is the
-token file's fallback run because the self-hosted Inter arrives with a client
-bundle no email loads. `auth/pages.ts` carries the same duplication with the
-same reason in its own header.
-
-**Two glyphs of the treatment are not carried, and that is a medium
-constraint rather than a judgement about the design.** The design draws a
-lucide icon in the purpose tile and a second in the context card. Both are
-inline SVG, which Gmail strips and which the Word rendering engine behind
-Outlook on Windows does not draw, so on most clients the tiles would arrive as
-empty bordered boxes. The purpose badge says the same fact in words
-everywhere, so the badge is kept and the tiles are dropped. The mark is an img
-at the deployment's own origin with alt text, so a client with remote images
-blocked reads the wordmark rather than nothing.
-
-**Everything a person wrote is escaped into the HTML part.** A folder name, a
-display name and a task title are all somebody's own words, and the day one of
-them carries markup must not be the day an email client draws it.
-
-Never rendered into a body: anything 10.5 keeps out of the logs is a
-different question from what an email may carry, and the two must not be
-confused. A reminder email carries its task's title because a reminder
-without one is unusable; the log line for the same send carries only the
-template, which is the notifier's own structural guarantee.
-*/
+// The 11.8 email templates: designed copy, rendered as HTML plus an equivalent text part (10.7).
+// Email clients read no stylesheet, so token values are inlined from tokens.css. Escape everything a person wrote.
 import type { OutboundMessage } from './index.js'
 
 export interface RenderedEmail {
   subject: string
-  /** The HTML part, a whole document: an email client is handed a document
-   * rather than a fragment. */
   html: string
-  /** 10.7's required alternative, saying the same thing and carrying the
-   * same one link. */
+  /** 10.7's required alternative: the same words and the same one link. */
   text: string
 }
 
 export interface TemplateContext {
-  /** This deployment's own origin, scheme included and no trailing slash:
-   * every action link and the mark are built from it. */
+  /** Origin with scheme and no trailing slash. */
   appOrigin: string
 }
 
-/* ------------------------------------------------------------------ *
- * The four compositions
- * ------------------------------------------------------------------ */
-
-/**
- * One message, said once. Both parts render from this and neither adds a
- * sentence of its own, which is how 10.7's "the same thing" is held by
- * construction rather than by two authors agreeing.
- */
+/** One message. Both parts render from it and neither adds a sentence. */
 interface Composition {
   subject: string
-  /** The badge, top right: what kind of message this is, in words. */
   purpose: string
   heading: string
   body: string
-  /** The context card: the thing this message is about, and one line saying
-   * how it relates to the reader. */
   contextTitle: string
   contextMeta: string
   action: string
@@ -83,50 +27,23 @@ interface Composition {
   footer: string
 }
 
-/** The line every message closes with that is not an invitation. */
 const SENT_BY_DANA = 'Sent by Dana'
 
-/*
-The orientation footer, on the two invitations and on neither of the others.
-The discriminator is whether the recipient knows what Dana is: an
-invitation goes to a bare address that may hold no account, so the line is
-orientation the reader needs before deciding to click, and its second clause
-is the single most useful thing to tell them, Google being the only sign-in
-method. A share grant reaches an existing connection and a reminder reaches
-the person who set it, where the same line is filler that makes a functional
-message look promotional.
-
-That boundary is a deliverability rule rather than a matter of taste: the
-transactional exemptions in CAN-SPAM and PECR, and a mailbox provider's own
-promotional classification, turn on whether a message is functional, and
-promotional content can pull in an unsubscribe requirement, which would be a
-second link where 10.7 allows one.
-
-The em dash is the designed copy, quoted rather than restyled.
-*/
+// The orientation footer goes on invitations only: their recipients may not know Dana.
+// On other messages it reads as promotional, which can hurt the transactional classification.
 const ORIENTATION_FOOTER =
   "Dana keeps a project's tasks, notes and people on one page. You'll sign in with Google — there's no password to create."
 
-/** 10.6 fixes /app as the installed application's start URL, and 9.8's
- * invite gate deliberately has no path of its own: it renders in place of the
- * application whenever there are pending invites, over whatever /app route is
- * beneath it. So "the invites view" is this address, while the other two
- * templates address rows of 9.1's table. */
+/** /app is the invites view: the invite gate renders over whatever /app route is open. */
 function startUrl(context: TemplateContext): string {
   return `${context.appOrigin}/app`
 }
 
-/** "Someone" as the fallback rather than as the sentence: 8.10 can scrub an
- * account between the act and the send, and the copy keeps the word for that
- * case alone. It is resolved here so no call site can choose another. */
 function inviterOf(name: string | null): string {
   return name === null || name.trim() === '' ? 'Someone' : name
 }
 
-/** The floating due date and its wall time as the person wrote them (4.4).
- * No zone is named because none applies, and no relative wording is used
- * because a floating time reads as the reader's own local time (8.1) and a
- * server composing "Today" would have to decide whose today that is. */
+/** The floating due date and time as written (4.4). No zone and no "Today": whose today would it be? */
 function dueLine(dueDate: string, dueTime: string | null): string {
   return dueTime === null ? dueDate : `${dueDate} at ${dueTime}`
 }
@@ -175,8 +92,6 @@ function compose(
         body: `${inviter} shared this folder with you. It's in your sidebar now, ready to open.`,
         contextTitle: folderName,
         contextMeta: `Shared folder · Shared by ${inviter}`,
-        // The one action label carrying data, named beside its destination
-        // rather than left as a generic "Open Dana".
         action: `Open ${folderName}`,
         href: `${context.appOrigin}/app/folders/${folderId}`,
         footer: SENT_BY_DANA,
@@ -188,8 +103,6 @@ function compose(
         subject: `Reminder: ${task.title}`,
         purpose: 'Task reminder',
         heading: task.title,
-        // The body names neither the folder nor the due, both of which the
-        // context card carries; saying either would repeat the card's line.
         body: 'You set a reminder for this task.',
         contextTitle: dueLine(task.dueDate, task.dueTime),
         contextMeta: `In ${task.folderName}`,
@@ -201,14 +114,7 @@ function compose(
   }
 }
 
-/* ------------------------------------------------------------------ *
- * The two renderings
- * ------------------------------------------------------------------ */
-
-/*
-tokens.css's graphite ramp, transcribed. Each name is the token it came from,
-so the two files can be compared without guessing which value is which.
-*/
+// tokens.css's graphite ramp, transcribed. Each name is the token it came from.
 const GRAPHITE_25 = '#fafafb'
 const GRAPHITE_50 = '#f4f5f6'
 const GRAPHITE_200 = '#dddee2'
@@ -217,11 +123,10 @@ const GRAPHITE_600 = '#585a60'
 const GRAPHITE_900 = '#1b1c20'
 const GRAPHITE_950 = '#0a0a0a'
 const WHITE = '#ffffff'
-/** The token file's fallback run. Inter itself is self-hosted and arrives
- * with a client bundle, which no email loads. */
+/** The fallback font stack from tokens.css; emails cannot load the self-hosted Inter. */
 const SANS =
   'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-/** --radius-md, which is --radius. */
+/** --radius-md. */
 const RADIUS = '6px'
 
 function escapeHtml(value: string): string {
@@ -233,19 +138,8 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;')
 }
 
-/*
-The HTML part: tables, inline styles, and nothing an email client has to
-fetch but the mark.
-
-Tables rather than flexbox because the Word rendering engine behind Outlook
-on Windows lays out tables and does not lay out flex, so a flexbox
-composition arrives there as a stack of full-width blocks.
-
-The document carries an empty title deliberately. A title is drawn in no mail
-client's message body, and filling it with the subject would put a sentence in
-the HTML part that the text part does not carry, which is what 10.7's amended
-rule forbids.
-*/
+// Tables, not flexbox: Outlook on Windows does not lay out flex.
+// The title stays empty so the HTML part says nothing the text part does not.
 function renderHtml(composition: Composition, context: TemplateContext): string {
   const cell = `font-family:${SANS};-webkit-font-smoothing:antialiased;`
   return `<!doctype html>
@@ -297,8 +191,6 @@ function renderHtml(composition: Composition, context: TemplateContext): string 
 `
 }
 
-/** The same message as text, in the same order, with the one link written out
- * where the button is. */
 function renderText(composition: Composition): string {
   return [
     'Dana',

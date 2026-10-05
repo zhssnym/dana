@@ -1,5 +1,3 @@
-/* The task row: checkbox, title, meta and star. */
-
 import { useEffect } from "react"
 
 import { repeatShort } from "../../tasks/task-model.js"
@@ -11,35 +9,12 @@ import { ExpandShell } from "./ExpandShell.js"
 import type { TaskRowProps } from "./types.js"
 import { useCardWiring } from "./use-card-wiring.js"
 
-/* ------------------------------------------------------ the shipping row, */
-/*
-`TaskRow` is what the screens render: spread the task's fields, pass the
-handlers.
-
-**Where its state lives.** The screens own the facts they model: title,
-completion, importance, My Day, folder, due, assignee, step counts. Those are
-read from props every render, so a change made anywhere still flows down.
-Everything the card can edit that the screen never modelled, notes, a reminder,
-the recurrence rule, the step items themselves, is held here as a layer of local
-edits on top.
-*/
-
-/*
-The row: one line, 32–36px. Checkbox · title · muted meta on the right (date,
-folder where the page spans folders, assignee face, repeat glyph and labels),
-then the star, which shows on hover and whenever it is set. Labels use the same
-compact pills as the task property and filters; no subtask count is drawn here.
-
-Clicking anywhere on the row opens the task; the checkbox and the star are the
-only controls inside it. No chevron, no row "…", no rename in the row: those
-live in the task's own panel (the redesign's control map). Shift/Cmd-click
-selects, see `useRowSelection`.
-*/
+/* Screen-modelled facts are read from props every render; fields the screen
+   never modelled (notes, reminder, steps) are held here as local edits on top. */
 export function TaskRow(props: TaskRowProps) {
   const { task, patch } = useCardWiring(props)
 
-  /* The row tells its list how to open it; the list's drag engine calls back
-     on a tap, so tap-to-open is the row's property rather than each screen's. */
+  /* The list's drag engine calls this back on a tap. */
   const { onRegisterOpen, onOpen } = props
   useEffect(() => {
     if (!onRegisterOpen) return
@@ -53,10 +28,9 @@ export function TaskRow(props: TaskRowProps) {
 
   const row = (
     <div
-      /* r3-peek: the peek steps through rows in the order they are drawn. */
+      /* The peek steps through rows in the order they are drawn. */
       data-task-id={props.id}
-      /* The keyboard path (`row-keys.ts`): a list page makes this row its one
-         Tab stop; Enter opens the task and Space completes it. */
+      /* `row-keys.ts` makes this row the list's Tab stop. */
       data-row-key=""
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return
@@ -69,8 +43,7 @@ export function TaskRow(props: TaskRowProps) {
         }
       }}
       onClick={
-        /* Where no drag engine tracks the row (a board card, say); inside a
-           list the engine resolves the tap. */
+        /* Only where no drag engine tracks the row; in a list the engine resolves the tap. */
         props.onOpen && !props.listProps
           ? (event) => {
               const target = event.target as HTMLElement

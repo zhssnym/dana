@@ -2,7 +2,7 @@ import * as React from "react"
 
 import { cn } from "./utils.js"
 
-/* A field that renders as the text it edits: hover ground, ring only on focus. */
+// A field drawn as the text it edits: hover ground, ring only on focus.
 const inlineFieldClass =
   "-mx-1 w-[calc(100%+0.5rem)] min-w-0 rounded-sm bg-transparent px-1 outline-none transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] placeholder:text-quiet-foreground hover:bg-accent focus:bg-background"
 

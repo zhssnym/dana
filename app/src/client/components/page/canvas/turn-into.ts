@@ -1,17 +1,6 @@
-/*
-"Turn into" for the block menu: one block's kind changes, its text and (where
-the new kind can hold them) its children kept. A kind that cannot hold
-children lifts them out to follow it, in order, so nothing is lost. Which
-targets a surface offers is its own rule (`allowed` + `validate`), checked on a
-simulated document before the item is shown, so a refused conversion is
-never offered rather than offered and then explained.
-
-Since 0038 every writing kind holds nested blocks (text, a heading, a list
-item, a toggle, a quote, a callout), so a conversion between them keeps the
-children where they are; only code lifts them. A Work Section is the one
-exception: its children are Section content, not nested blocks, so a Section
-turned into anything but a Section lifts them out after it.
-*/
+// "Turn into": the block keeps its text, and its children where the new kind holds
+// them, else they follow it. Targets are checked on a simulated document first, so a
+// refused conversion is never offered. A Section's children always lift out.
 import { isSectionHeading, isToggleHeading } from './outline.js'
 
 export type TurnKey = 'text' | 'h1' | 'h2' | 'h3' | 'th1' | 'th2' | 'th3' | 'toggle' | 'bullet' | 'numbered' | 'quote' | 'callout' | 'code' | 'result'
@@ -21,8 +10,7 @@ export interface TurnTarget {
   readonly title: string
   readonly type: string
   readonly level?: 1 | 2 | 3
-  /** A toggle heading: a presentation heading that folds its children
-   * (every surface with headings but a Shelf; see `TOGGLE_HEADING_SURFACES`). */
+  /** A toggle heading: a presentation heading that folds its children. */
   readonly toggle?: true
 }
 
@@ -44,9 +32,7 @@ export const TURN_TARGETS: readonly TurnTarget[] = [
   { key: 'result', title: 'Result', type: 'result' },
 ]
 
-/** Kinds made of one run of text, the only ones that can be turned into another.
- * A to-do is no longer offered anywhere (Task covers it), but one already stored
- * still turns into any of these. */
+/** Kinds made of one run of text. A stored to-do still turns into any of these. */
 export const TEXT_TYPES: ReadonlySet<string> = new Set([...TURN_TARGETS.map((target) => target.type), 'checkListItem'])
 
 export interface TreeBlock {
@@ -62,14 +48,13 @@ export function isCurrent(block: TreeBlock, target: TurnTarget): boolean {
   return target.type !== 'heading' || (target.toggle === true) === isToggleHeading(block)
 }
 
-/** Whether a converted block keeps its children under it. */
 function holdsChildren(block: TreeBlock, target: TurnTarget, headingToggles: boolean): boolean {
   const toSection = target.type === 'heading' && target.toggle !== true && headingToggles
   if (isSectionHeading(block) && !toSection) return false
   return target.type !== 'codeBlock'
 }
 
-/** Text runs, links and chips (a Dana Link's label) flattened, so Code loses no words. */
+/** Text, links and chip labels flattened, so Code loses no words. */
 function plainText(content: unknown): string {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
@@ -90,7 +75,7 @@ export function conversionOf(block: TreeBlock, target: TurnTarget, headingToggle
       ? { level: target.level, isToggleable: true, presentation: true }
       : { level: target.level, ...(headingToggles === undefined ? {} : { isToggleable: headingToggles, presentation: false }) }
     : {}
-  // Code holds plain text only; leaving code, its text is ordinary runs again.
+  // Code holds plain text only; leaving code, its text becomes ordinary runs again.
   const content = target.type === 'codeBlock' || block.type === 'codeBlock'
     ? plainText(block.content)
     : undefined
@@ -100,7 +85,7 @@ export function conversionOf(block: TreeBlock, target: TurnTarget, headingToggle
   }
 }
 
-/** The document as it would be after the conversion (ids, kinds and nesting only). */
+/** The document after the conversion (ids, kinds and nesting only). */
 export function simulate(document: readonly TreeBlock[], id: string, target: TurnTarget, headingToggles: boolean | undefined): TreeBlock[] {
   const walk = (items: readonly TreeBlock[]): TreeBlock[] => items.flatMap((item) => {
     if (item.id !== id) return [{ ...item, children: walk(item.children) }]
@@ -110,7 +95,7 @@ export function simulate(document: readonly TreeBlock[], id: string, target: Tur
   return walk(document)
 }
 
-/** The document after nesting a block under its previous sibling, or null when it has none. */
+/** The document after nesting a block under its previous sibling, or null if it has none. */
 export function simulateNest(document: readonly TreeBlock[], id: string): TreeBlock[] | null {
   let moved = false
   const walk = (items: readonly TreeBlock[]): TreeBlock[] => {
@@ -130,7 +115,7 @@ export function simulateNest(document: readonly TreeBlock[], id: string): TreeBl
   return moved ? next : null
 }
 
-/** A block, its children, and theirs, without ids: a copy BlockNote numbers afresh. */
+/** A copy without ids, so BlockNote assigns fresh ones. */
 export function withoutIds(block: TreeBlock): Record<string, unknown> {
   const { id: _id, children, ...rest } = block
   return { ...rest, children: children.map(withoutIds) }
@@ -140,16 +125,9 @@ export function contains(block: TreeBlock, types: ReadonlySet<string>): boolean 
   return types.has(block.type) || block.children.some((child) => contains(child, types))
 }
 
-/*
-Backspace at the start of a non-text block turns it into text, but only where
-the result is one the canvas can keep. A Section that holds blocks (a Work
-heading; a toggle heading is not one): turning it into text would dissolve the Section and move its Tasks
-and writing out, which no outline rule refuses, so it is never attempted.
-Returns the simulated document, or null when Backspace should do nothing.
-*/
+// Backspace at the start turns a block into text where the canvas can keep it. A
+// Section holding blocks never dissolves. Null means do nothing.
 export function backspaceToText(document: readonly TreeBlock[], block: TreeBlock): TreeBlock[] | null {
-  // A Section holding content never dissolves; a toggle heading turns into
-  // text with its nested blocks kept (text holds them, 0038).
   if (isSectionHeading(block) && block.children.length > 0) return null
   return simulate(document, block.id, TURN_TARGETS[0]!, undefined)
 }

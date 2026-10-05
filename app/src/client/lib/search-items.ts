@@ -1,36 +1,6 @@
-/*
-What search can find, as `components/search-overlay.tsx` reads it:
-`SearchResultItem[]`, answered by 6 Q8 and 7.18.
-
-The overlay owns the typed query and debounces it. The tasks cannot all be in
-hand, so the hook below does the rest: given the debounced query it answers the
-places when nothing is typed (an empty box offers the places rather than
-nothing), and otherwise asks Q8 through `useSearch`, which refuses a query under
-two characters, and shapes the four kinds 7.18 returns into the one item shape.
-
-**A title match ranks above a body match**: somebody typing *venue* means the
-thing called venue before the thing that mentions it. Each result carries a
-`rank`: 0 when its name is what was typed, 1 when its name starts with it, 2
-when a later word in its name does, 3 when its name only contains it, 4 when it
-matched on something else. A passage is always 4: its "title" is the text that
-matched, so reading a rank off it would call every passage a name match. One
-typed character ranks the same way, so the list does not reorder when the
-second character hands the query to Q8. The overlay orders
-by it (`components/search-overlay.tsx`); Q8's status order survives only among
-tasks of one rank.
-
-**A page result's id is a route**, because opening one means going there: a nav
-page's is its path, and a 7.18 page hit's is the path of the folder or shelf
-whose page carries the block, plus `#block-<id>` so the page scrolls to the passage
-(`useBlockAnchor`), with the block's own text as the title and "in" the page's
-trail as the hint, which keeps it from reading like a child page's parent trail. `kind: "page"` covers both: a page is anything you go
-to rather than open.
-
-**The folder chip on a task result is the sidebar's folder list**, looked up by
-id, which is `parts/presenters.ts`'s `folderDisplay` rule: the card carries a
-stub and the identity rides the Folder object. It is not the response's
-`folders`, which is the folders the query matched; do not confuse the two.
-*/
+// What search finds, shaped for the overlay. Empty query: the places. Otherwise the server
+// search (two characters minimum). `rank`: 0 exact name, 1 prefix, 2 a later word, 3
+// contains, 4 other or a passage. A page result's id is a route.
 import { useMemo } from 'react'
 
 import { useBundle, useFolders, useSearch, useShelves } from '../api/queries.js'
@@ -44,14 +14,14 @@ import { focusMark } from '../shell/focus-lists.js'
 import type { SearchResultItem } from '../components/search-overlay.js'
 import { crumbTrail } from '../components/page-head.js'
 
-/* Wave 2: a hit's place in the page tree as one muted line, "Root / … /
-   Parent", already cut by the server where the viewer's access ends. */
+// A hit's place in the page tree as one muted line, already cut by the server where
+// the viewer's access ends.
 function trailHint(crumbs: readonly { readonly name: string }[] | undefined): string | null {
   if (crumbs === undefined || crumbs.length === 0) return null
   return crumbTrail(crumbs).map((crumb) => crumb?.name ?? '…').join(' / ')
 }
 
-/* How well a name answers the query; see the header. */
+// How well a name answers the query; see the header.
 export function nameRank(name: string, normalized: string): number {
   const title = name.toLocaleLowerCase()
   if (title === normalized) return 0
@@ -61,26 +31,25 @@ export function nameRank(name: string, normalized: string): number {
   return 4
 }
 
-/* A passage matched on its text, never its name. */
+// A passage matched on its text, never its name.
 const PASSAGE_RANK = 4
 
-/* Passages come after every name match and are capped, so a word used all
-   over the pages cannot bury the task named it. */
+// Passages come after every name match and are capped, so a common word cannot bury
+// the task named it.
 const PASSAGE_LIMIT = 5
 
-/* A passage's text from a little before the match, so the row shows why it
-   matched rather than the paragraph's opening words. */
+// Start a little before the match, so the row shows why it matched.
 function around(text: string, normalized: string): string {
   const at = text.toLocaleLowerCase().indexOf(normalized)
   if (at <= 24) return text
-  /* Back to the start of a word about three words before the match. */
+  // Back to a word start about three words before the match.
   const space = text.lastIndexOf(' ', at - 16)
   const start = space > at - 32 ? space + 1 : at - 16
   return `…${text.slice(start)}`
 }
 
-/* A page's ancestors in the viewer's own tree, root first, as the server's
-   breadcrumbs name them; used below Q8's floor, where there is no server trail. */
+// A page's ancestors from the viewer's own tree, for one-character queries with no
+// server trail.
 function ancestorsOf(byId: ReadonlyMap<string, Folder>, folder: Folder): Folder[] {
   const trail: Folder[] = []
   const seen = new Set([folder.id])
@@ -95,12 +64,11 @@ function ancestorsOf(byId: ReadonlyMap<string, Folder>, folder: Folder): Folder[
   return trail
 }
 
-/** Q8's floor, which the endpoint refuses below. */
+/** The server refuses shorter queries. */
 export const MIN_QUERY = 2
 
-/* A folder is a page on screen, so one found by search is drawn as a page:
-   the glyph its owner chose, or the plain page glyph when none was chosen
-   (the overlay draws that fallback). Never the generic folder. */
+// A folder is a page on screen: its chosen glyph, or the plain page glyph. Never the
+// generic folder.
 function pageResult(folder: Folder | undefined, id: string, title: string, hint: string): SearchResultItem {
   const mark = folderMark(folder)
   return {
@@ -113,9 +81,7 @@ function pageResult(folder: Folder | undefined, id: string, title: string, hint:
   }
 }
 
-/* One character is too short for Q8, which refuses it, so it filters what is
-   already in hand: the places, and the pages and collections the sidebar
-   holds, by the start of any word in the name. */
+// One character is too short for the server, so filter what is in hand by word start.
 function startsAWord(name: string, char: string): boolean {
   return name
     .toLocaleLowerCase()
@@ -129,9 +95,10 @@ export interface SearchAnswer {
   failed: boolean
 }
 
-/** 9.1's page block as rows to go to. */
-/** The one command search offers besides places: the shortcuts sheet, whose
-    other door is `?`. Its id is not a path; the overlay's opener checks it. */
+/**
+ * The one command search offers: the shortcuts sheet. Its id is not a path; the
+ * overlay's opener checks it.
+ */
 export const SHORTCUTS_RESULT = '#keyboard-shortcuts'
 
 export function placeItems(appearance?: FocusAppearance): SearchResultItem[] {
@@ -227,15 +194,13 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
         id: home === null ? paths.today : `${home.path}#block-${hit.block_id}`,
         title: around(hit.text, normalized),
         hint: where === undefined ? '' : `in ${where}`,
-        /* A passage, not a page called that: it wears the text glyph. */
+        // A passage, not a page called that: it wears the text glyph.
         icon: AlignLeft,
         passage: true,
         rank: PASSAGE_RANK,
       }
     })
-    /* The places are findable by typing too, not only offered before anything
-       is typed: "sched" should reach Scheduled. A page matches on its name or
-       on the question it answers. */
+    // Places are findable by typing too, by name or by the question they answer.
     const places = placeItems(focusAppearance).filter(
       (place) =>
         place.title.toLocaleLowerCase().includes(normalized) ||
@@ -244,7 +209,7 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
     const named = [...tasks, ...found, ...foundShelves, ...places].map(
       (item): SearchResultItem => ({ ...item, rank: nameRank(item.title, normalized) }),
     )
-    /* Stable, so Q8's status order survives among tasks of one rank. */
+    // Stable, so the server's status order survives among tasks of one rank.
     return [...named, ...pages].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
   }, [normalized, data, folderList, shelfList, focusAppearance])
 

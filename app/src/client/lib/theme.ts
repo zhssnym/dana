@@ -1,38 +1,6 @@
-/*
-Light, dark, or whatever the machine says, over 4.19's `theme` column and a
-pre-paint mirror.
-
-The choice is applied to the document, not passed down: one attribute on
-`<html>` the token file answers. It survives a reload without a flash because
-the attribute is set before React mounts. The column is the record and the
-browser copy is a cache that exists to paint one frame.
-
-**Three constraints, each a line below.**
-
-- **The column stays the truth and the mirror is a cache.** `useTheme` answers
-  the bundle when it has landed and the mirror only until then, so a stale or
-  absent mirror costs one frame and never a wrong preference; the inline script
-  in `index.html` reads the mirror and never writes the column.
-- **Write-through and single-direction.** `mirrorTheme` is called from
-  `shell/appearance.ts` whenever the bundle's value is applied and from
-  `setTheme` when a person chooses, and `clearThemeMirror` runs at sign-out so a
-  shared device does not paint the previous person's theme.
-- **`system` mirrors as `system`**, never as what it resolved to, or a person
-  whose choice is to follow their device is silently converted to a fixed theme
-  by the first machine they sign in on. The inline script resolves it the same
-  way `resolvedTheme` does, by asking the media query.
-
-**The exported names are `useTheme`, `setTheme` and `resolvedTheme`**, which
-`settings-page-content.tsx` imports. Applying a stored theme is the inline
-script's job, because a module that runs after the bundle has been parsed is
-already too late for the frame the flash is on; `shell/appearance.ts` keeps
-following the device while the choice is `system`.
-
-**`setTheme` applies before it writes**, so the document changes on the press
-and the column catches up: the same order the pin list takes, and for the same
-reason, a control whose effect waits on a round trip reads as a control that did
-nothing.
-*/
+// Theme choice. The settings column is the truth; localStorage is a pre-paint
+// mirror that the inline script in index.html reads. Mirror `system` as `system`,
+// never as what it resolved to.
 import { useBundle } from '../api/queries.js'
 import { mutateApi } from '../api/http.js'
 import { queryClient, writeFailureMessage } from '../api/queryClient.js'
@@ -40,17 +8,14 @@ import { queryKeys } from '../api/keys.js'
 import { getSettingsResponse } from '../../shared/bundle.js'
 import { showToast } from '../state/toasts.js'
 
-/** The mirror's key, which the inline script in `index.html` reads by the
- *  same spelling. Change both or neither. */
+/** The inline script in `index.html` reads this key. Change both or neither. */
 export const THEME_STORAGE_KEY = 'dana:theme'
 
 export type ThemeChoice = 'system' | 'light' | 'dark'
 
 const DARK_QUERY = '(prefers-color-scheme: dark)'
 
-/** The mirrored choice, which the shell applies while the bundle is in flight
- *  so the frame the inline script painted is not repainted with the default
- *  before the column answers. */
+/** Used while the bundle loads, so the pre-painted frame is not repainted with the default. */
 export function mirroredTheme(): ThemeChoice {
   try {
     const value = window.localStorage.getItem(THEME_STORAGE_KEY)
@@ -60,7 +25,6 @@ export function mirroredTheme(): ThemeChoice {
   }
 }
 
-/** Item 43's write-through: the bundle's value, as chosen, into the browser. */
 export function mirrorTheme(choice: ThemeChoice): void {
   try {
     window.localStorage.setItem(THEME_STORAGE_KEY, choice)
@@ -78,17 +42,12 @@ export function clearThemeMirror(): void {
   }
 }
 
-/* What the choice resolves to right now: "system" asks the machine. */
 export function resolvedTheme(choice: ThemeChoice): 'light' | 'dark' {
   if (choice !== 'system') return choice
   return window.matchMedia?.(DARK_QUERY).matches ? 'dark' : 'light'
 }
 
-/*
-The attribute is always one of `light` or `dark`, which is
-`shell/appearance.ts`'s convention: the stylesheet never has to know that
-`system` exists, and a test can read one value off the document.
-*/
+// Always `light` or `dark`, so the stylesheet never needs to know about `system`.
 export function applyTheme(choice: ThemeChoice): void {
   document.documentElement.setAttribute('data-theme', resolvedTheme(choice))
   paintThemeColor(resolvedTheme(choice))

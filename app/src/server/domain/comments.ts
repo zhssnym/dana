@@ -68,9 +68,6 @@ export function postContentOrNull(value: unknown): PostContent | null {
   return parsed.success ? parsed.data : null
 }
 
-/** Tasks have no separate comment thread since M5. Issue #497 makes the
- * Discussion ↔ Task relation plural, so a Discussion comment can concern the
- * people of several linked Tasks without any Task owning the Discussion. */
 export type CommentThread =
   | { kind: 'discussion'; discussionId: string }
   | { kind: 'folder' }
@@ -181,10 +178,8 @@ export async function createComment(
       discussionId = await openGeneralDiscussion(tx, folderId)
     }
 
-    /* A Discussion comment notifies the people of every live linked Task that
-       still belongs to this Discussion's Folder. Moved Tasks keep their
-       durable edge but do not turn a comment in one Folder into a cross-Folder
-       audience or existence leak. */
+    /* Notify the people of every live linked Task still in this Discussion's Folder.
+    Moved Tasks are skipped, so the audience never crosses Folders. */
     const found = await rowsOf(
       tx,
       sql`SELECT d.title, d.state, d.trashed_at,
@@ -329,9 +324,7 @@ export async function createComment(
   })
 }
 
-/* Reactions live in comment_likes (0068): one row per person per reaction.
-Grouped per reaction, ordered by when each was first left, and `by` earliest
-first. A reaction nobody holds has no row and so no entry. */
+/* One comment_likes row per person per reaction, grouped by reaction in order first left. */
 function commentSelect(): ReturnType<typeof sql> {
   return sql`SELECT c.id, c.folder_id, c.task_id, c.discussion_id,
                c.parent_id, c.author_id,
@@ -605,8 +598,7 @@ export async function deleteComment(
   })
 }
 
-/** Leaves one reaction for the viewer; idempotent, so leaving it twice
- * keeps one row. */
+/** Idempotent: leaving it twice keeps one row. */
 export async function addReaction(
   db: Db,
   viewerId: string,
@@ -624,7 +616,6 @@ export async function addReaction(
   })
 }
 
-/** Takes back one of the viewer's reactions, leaving their others. */
 export async function removeReaction(
   db: Db,
   viewerId: string,

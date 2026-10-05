@@ -1,23 +1,5 @@
-/*
-The full-screen Discussion presentation (#212, #320, #553, #560, #570): a
-Folder's threads, and one open thread at a time.
-
-Which one is open is the URL's (`?discussion=<id>`), so a thread is
-addressable, the browser's Back returns to the list, and `/app/discussions/:id`
-and `/app/outcomes/:id` (ConsultationLinkPage) resolve to this same place. A
-thread just started from the list opens with its composer focused.
-
-The stored Discussion page is deliberately hidden from the horizontal page
-strip. A contextual page header replaces the Work head while focused, gives
-one navigation path back to the exact source route, and keeps the full-screen/
-sidebar presentation switch icon-only. The list and a thread share that parent
-context, with the thread title heading its own conversation.
-
-The presentation/thread/filter/return state is owned by the active workspace
-tab. The URL remains canonical for an addressable full-screen thread; the tab
-state remembers the filter, presentation and exact page/view/query/hash the
-user came from.
-*/
+// The full-screen Discussion: a folder's threads and one open thread. The open
+// thread lives in the URL (`?discussion=<id>`), so Back returns to the list.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 
@@ -78,7 +60,7 @@ export function ConsultationPanel({
   const navigate = useNavigate()
   const discussionId = search.get('discussion')
   const [started, setStarted] = useState<string | null>(null)
-  /* The thread last left, whose row takes focus when the list returns. */
+  // The thread last left, whose row takes focus when the list returns.
   const [left, setLeft] = useState<string | null>(null)
   const page = useFolder(folderId).data
   const projectId = page?.project_id ?? folderId
@@ -88,15 +70,10 @@ export function ConsultationPanel({
     collaboration?.kind === 'discussion' && collaboration.folderId === projectId
       ? collaboration.filter
       : 'open'
-  /* The page's members, so no two of them wear one face here (r7). */
   const members = page?.members ?? []
 
-  /* A direct full-screen URL seeds the active workspace tab; a sidebar-to-full
-     transition updates only presentation/thread and keeps the existing filter
-     and return path. If Team is the tab's active collaboration surface, do not
-     replace it just because the Discussion page remounted after a workspace-
-     tab switch. Once Team closes, the effect runs again and the URL becomes
-     the Discussion presentation state. */
+  // A direct URL seeds the workspace tab. While Team is the tab's active surface,
+  // do not replace it after a remount.
   useEffect(() => {
     if (page === undefined || collaboration?.kind === 'team') return
     openDiscussionFullScreen({ folderId: page.project_id, discussionId })
@@ -107,11 +84,8 @@ export function ConsultationPanel({
     [allPages, projectId],
   )
 
-  /* A direct/deep link has no remembered source. If it is layered onto an
-     ordinary Work/Doc route, stripping only Discussion's own params restores
-     that exact route/view/filter state. A stored Discussion page instead falls
-     back to the project's primary visible Work page, then another visible
-     non-Discussion page, and only then Today for malformed legacy projects. */
+  // A deep link has no remembered source: strip Discussion's own params, or on a
+  // stored Discussion page fall back to the project's main Work page, then Today.
   const withoutDiscussion = new URLSearchParams(location.search)
   withoutDiscussion.delete('discussion')
   withoutDiscussion.delete('conversation')

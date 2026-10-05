@@ -1,4 +1,4 @@
-// The folder header's "…" menu: the project's acts, or the page's on a sub-page.
+// The header's "…" menu: the project's acts, or the page's on a sub-page.
 import type { NavigateFunction } from 'react-router'
 
 import type { useDuplicateFolder } from '../../api/mutations.js'
@@ -46,21 +46,17 @@ export function FolderMoreMenu({
           copyLink(folderLink(id))
         },
         duplicate: () => {
-          /* Duplicated server-side; the copy is the duplicator's own private
-             folder, and the page goes to it: arriving there is the feedback. */
+          /* Arriving at the copy is the feedback. */
           duplicate.mutate(headId, {
             onSuccess: (made) => {
               navigate(paths.folder(made.id))
             },
           })
         },
-        /* The project as a Dana file; its one home now (it left Share). */
         export: atProject && !isDefault ? () => void saveAsWorkflow() : undefined,
         archive: gates?.trash === true ? doArchive : undefined,
-        /* Any member's, refused to the owner until they transfer and to the
-           last Full-control member; `folderGates` reads both off the roster. */
         leave: gates?.leave === true ? askLeave : undefined,
-        /* Full control's, which custody does not confer (AC-015). */
+        /* Full control's; ownership alone does not grant it. */
         delete: gates?.trash === true ? doDelete : undefined,
       }}
     />

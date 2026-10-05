@@ -1,99 +1,8 @@
 /*
-The M1 Label surface (issue #226, parent #208): thirteen routes across four
-groups — the definition listing, Personal definition CRUD, Folder definition
-CRUD, and the two idempotent assignment pairs.
-
-Handlers validate with the shared schemas, resolve access through the domain
-modules, delegate every decision that touches rows, and serialize. No business
-logic lives here, which is this directory's convention.
-
-## Why one router rather than lines in three existing ones
-
-Three of the four groups hang off paths another router already owns —
-`/folders/:folderId/...` is `routes/folders.ts`'s prefix and
-`/tasks/:taskId/...` is `routes/tasks.ts`'s. They are here anyway, because
-what these thirteen share is a model rather than a prefix: one table, one set
-of caps, one status grammar, one set of scope rules. Splitting them across
-three files by the first segment of their path would put the Folder-Label
-create three hundred lines from the Folder-Label patch.
-
-**Nothing is shadowed by that choice and it is worth saying why.** Express
-gives every mounted router the whole path and each matches its own registered
-routes, so a request for `/folders/:id/labels` walks past `routes/folders.ts`
-— which has no route of that shape — and reaches this one. The mount in
-`index.ts` sits after both, before the `/api` catch-all, and the block there
-records it.
-
-## The status grammar, and the one decision #208 left open
-
-Uniform across all thirteen, and it is the surface's (5.4, 7.0, 10.2):
-
-- no session, 401, which `requireSession` answers and AC-236 sweeps;
-- a Label, Task or Folder the viewer cannot see, **404** and never 403, so
-  existence never leaks. A foreign Personal Label is not found rather than
-  forbidden, and so is a Folder Label of a Folder the caller does not belong
-  to;
-- a visible thing with an invalid field value, **422**, the field named;
-- a cap, **422**, naming the collection that is full;
-- a state conflict, **409**.
-
-**#208 leaves the uniqueness conflict open — "a controlled 409 or a
-field-addressed 422, choose one convention and pin it with tests" — and this
-file chooses 409.** A name that already exists in a catalog is not a bad
-value: the same string is perfectly valid in the next Folder along and in the
-viewer's Personal catalog, and it will be valid here the moment the Label
-holding it is renamed. What refuses it is the state of the catalog, which is
-what 409 means everywhere else on this surface — `Already a member of this
-folder` is the closest existing neighbour and is the same shape of fact. It is
-answered identically by the create and by the rename in both scopes, which is
-the consistency #208 asks for.
-
-The other 409 on this surface is applying an archived Label, which #208 fixes
-directly. Both are state conflicts and both leave the row untouched.
-
-**The listing is capped and the body says so.** `GET /labels` answers
-`{ rows, truncated }` rather than a bare array, which is 10.3's standing rule
-for a list response and the shape `getPlannedResponse` already uses. Its worst
-case is 500 Personal definitions plus 250 for every Folder the viewer belongs
-to, so it is one of the lists that rule is about.
-
-## The gates, including the one no sweep can see
-
-Every route below whose **path** carries an id resolves access before it acts,
-and each has a row in AC-397's table saying what a signed-in stranger gets.
-That sweep is path-only, and this surface has exactly one gate outside its
-reach: **`GET /labels` takes `folder_id` from the query string**, so no
-structural test drives it with a stranger's id. The gate is
-`listLabels`'s own membership probe, and it answers 404 rather than 403 for
-the reason above.
-
-## Folder Access, not membership, is the gate (issue #274)
-
-Folder Labels are not private annotations: they are shared vocabulary that
-drives everybody's filters and views, so a read-only member relabelling other
-people's work is a write wearing a read's clothes. Membership alone is
-therefore not the bar; the Access ladder is.
-
-So each route below names the action it performs and asks
-`shared/folder-actions.ts` for the answer. **Nothing in this file states a
-bar**, which is the same arrangement `routes/folders.ts` has. Three shapes,
-and the third is the interesting one:
-
-- the four **vocabulary** writes ask `label.vocabulary.manage`, whose answer is
-  the preset alone, so `gate` below resolves it beside its own `accessOf`;
-- the two **Folder assignment** routes ask `personal.label`, which is a
-  Personal Label on a Folder and therefore outside Folder Access at every
-  preset (#228's personal-actions rule). They go through the same `gate` for
-  uniformity and refuse nobody a membership check had not refused already;
-- the two **Task assignment** routes ask nothing here. `label.apply` carries
-  `whenAssignedToActor`, so its answer depends on the Task's current assignee,
-  and #228 requires that fact be read in the mutation's own transaction and
-  snapshot. `domain/labels.ts` takes the row lock, reads it, and answers
-  `forbidden` with the rule's sentence; this file turns that into a 403.
-
-The four Personal-vocabulary routes name no Folder and are untouched: a
-Personal Label is one person's own, and account ownership rather than Folder
-Access governs it.
+Label routes. Unseen things are 404, never 403; a duplicate name or applying an
+archived Label is 409. Task assignment is authorized inside the domain
+transaction (`label.apply` depends on the current assignee). GET /labels reads
+`folder_id` from the query, a gate the ac-397 sweep cannot see.
 */
 import type { Request, Response, Router } from 'express'
 
@@ -147,7 +56,6 @@ export interface LabelsRouterOptions {
   securityLog?: SecurityLogger
 }
 
-/** 10.2's one answer for "you cannot see this", whatever the reason. */
 function notFound(res: Response): void {
   sendError(res, 404, 'not_found', 'Not found.')
 }
@@ -157,8 +65,7 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
   const securityLog = options.securityLog ?? createSecurityLogger()
 
-  /** The two refusals every definition write shares, so the create and the
-   * rename cannot answer a name collision differently. */
+  /** Shared so create and rename answer a name collision the same way. */
   const sendDefinitionRefusal = (
     res: Response,
     outcome: CreateLabelResult | PatchLabelResult | ArchiveLabelResult,
@@ -190,18 +97,10 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
     }
   }
 
-  /* ---------------------------------------------------------------- *
-   * GET /labels — every definition the viewer may read, to 10.3's cap
-   * ---------------------------------------------------------------- */
-
   router.get('/labels', requireSession, async (req: Request, res: Response) => {
     const db = database(res)
     if (db === null) return
-    /* The query rather than the body, so this is not one of `parseBody`'s
-       call sites; the unknown-key rule is about a body and there is none
-       here. What the schema does carry is the two defaults —
-       every scope, active only — so that an empty query has one meaning
-       rather than one per reader. */
+    /* Query, not body, so parseBody does not apply. */
     const parsed = getLabelsQuery.safeParse(req.query)
     if (!parsed.success) {
       sendError(
@@ -215,23 +114,14 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
       return
     }
     const outcome = await listLabels(db, viewer(req), parsed.data)
-    /* The gate AC-397 cannot see: the id is in the query string, so the
-       sweep never drives this route with a stranger's Folder. 404 rather than
-       403, because a 403 would confirm the Folder exists (10.2). */
+    /* The query-string gate ac-397 cannot see: 404, so the Folder's existence never leaks. */
     if (outcome.kind === 'folder_not_found') {
       notFound(res)
       return
     }
-    /* 10.3's capped-list body, `{ rows, truncated }`, which is the spelling
-       every other capped response on this API already uses. The cap is
-       applied in the domain, where the LIMIT can be part of the one statement
-       rather than a slice of a list already read. */
+    /* The cap is applied in the domain statement's LIMIT. */
     res.status(200).json({ rows: outcome.labels, truncated: outcome.truncated })
   })
-
-  /* ---------------------------------------------------------------- *
-   * Personal definitions
-   * ---------------------------------------------------------------- */
 
   router.post(
     '/labels/personal',
@@ -261,10 +151,8 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
     },
   )
 
-  /* The three routes below carry an id in the path and every one of them is
-     gated by `writableLabel`'s `owner_user_id = <viewer>` inside the
-     statement, so a Label belonging to somebody else is not found rather than
-     refused. AC-397 drives all three. */
+  /* Gated inside the statement by `owner_user_id = viewer`, so someone else's
+     Label is 404. */
   router.patch(
     '/labels/personal/:labelId',
     requireSession,
@@ -327,27 +215,9 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
     personalArchive(false),
   )
 
-  /* ---------------------------------------------------------------- *
-   * Folder definitions
-   *
-   * Can edit and above create, rename, recolor, describe, archive and
-   * restore, with no owner exception: a Folder's shared vocabulary belongs to
-   * Can edit, and custody is irrelevant to it (#274; see the header).
-   * ---------------------------------------------------------------- */
+  /* Folder definitions: Can edit and above, no owner exception (#274). */
 
-  /**
-   * The folder id this act names, or null after this call has answered.
-   *
-   * Two steps, and the order is 10.2's, exactly as `routes/folders.ts`'s own
-   * `gate` has it: resolve the Folder first, which answers 404 to anybody
-   * outside it and so never confirms that it exists, and then ask the
-   * resolver whether the *action* is permitted, which answers 403 to somebody
-   * who demonstrably sees the Folder already.
-   *
-   * This is the `accessOf` gate AC-397 enumerates, plus the action check.
-   * Nothing here decides anything: the whole
-   * answer is `mayPerform`'s.
-   */
+  /** Resolve the Folder (404 to outsiders), then ask mayPerform (403). Returns the id or null. */
   const gate = async (
     req: Request,
     res: Response,
@@ -414,9 +284,7 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
       if (labelId === null) return
       const parsed = parseBody(patchFolderLabelBody, req, res, securityLog)
       if (parsed === null) return
-      /* A Label that is not this Folder's is 404: `writableLabel` puts the
-         path Folder in the predicate, so a Folder-B Label patched through
-         Folder A resolves to nothing at all. */
+      /* The path Folder is in the predicate, so another Folder's Label is 404. */
       const outcome = await patchLabel(
         db,
         viewer(req),
@@ -475,18 +343,9 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
     folderArchive(false),
   )
 
-  /* ---------------------------------------------------------------- *
-   * Assignment: Task
-   *
-   * Per-Label PUT and DELETE rather than a full-set PATCH, which #208 asks
-   * for in those words: two members labelling the same Task at the same
-   * moment must not erase each other, and a replacement body cannot carry the
-   * Personal assignments of the member who did not send it without showing
-   * them to the one who did.
-   * ---------------------------------------------------------------- */
+  /* Per-Label PUT and DELETE, not a full-set PATCH, so two members labelling at
+     once cannot erase each other's assignments. */
 
-  /** The refusals both assignment pairs share, so a Task and a Folder answer
-   * the same shape of mistake the same way. */
   const sendAttachRefusal = (
     res: Response,
     outcome: AttachResult | DetachResult,
@@ -498,10 +357,7 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
         notFound(res)
         return
       case 'forbidden':
-        /* Issue #274. The caller sees the Task and the Label — membership was
-           resolved before this — so 10.2 permits a 403 and the sentence is the
-           rule's own `why` from `shared/folder-actions.ts`, which is product
-           copy a person reads rather than a comment. */
+        /* The caller sees the Task and Label, so 403 is safe; the reason is the rule's `why`. */
         sendError(res, 403, 'forbidden', outcome.reason)
         return
       case 'wrong_target':
@@ -545,31 +401,17 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
       if (taskId === null) return
       const labelId = parsedId(res, req.params.labelId)
       if (labelId === null) return
-      /* The Task gate: `accessibleTask` writes the membership join into its
-         FROM clause, so an inaccessible Task is null rather than a row this
-         handler has to remember to refuse.
-
-         It answers the 404 and nothing else. The *authority* question is
-         `attachTaskLabel`'s, because `label.apply`'s answer depends on the
-         Task's current assignee and #228 requires that fact to be read inside
-         the mutation's own transaction — this read is outside it, so an
-         assignment that changed in between would be decided against a row
-         that no longer exists. No test exercises the concurrent case for
-         this action, so nothing would notice the lock's loss. */
+      /* 404 only. Authority is decided inside attachTaskLabel's transaction,
+         because `label.apply` depends on the current assignee. No test covers
+         the concurrent case. */
       if ((await accessibleTask(db, viewer(req), taskId)) === null) {
         notFound(res)
         return
       }
       const outcome = await attachTaskLabel(db, viewer(req), taskId, labelId)
       if (outcome.kind !== 'attached') {
-        /* Both Task caps are the same number, and the domain does not report
-           which of the two refused, because nothing a caller can do depends
-           on knowing: either way this task carries as many labels of that
-           kind as it may. The number is read from a constant rather than
-           written into the sentence, so a cap that moves moves the message
-           with it, and the two are asserted equal here so that a future
-           change to one of them fails at the type level rather than
-           producing a message about the wrong limit. */
+        /* The domain does not say which Task cap refused; `satisfies` keeps the
+           two equal so the message is right. */
         sendAttachRefusal(
           res,
           outcome,
@@ -600,8 +442,7 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
       }
       const outcome = await detachTaskLabel(db, viewer(req), taskId, labelId)
       if (outcome.kind === 'forbidden') {
-        /* R8 names application and removal in one clause, so removal is
-           refused at the same bar and with the same sentence (#274). */
+        /* Removal is refused at the same bar as application (#274). */
         sendError(res, 403, 'forbidden', outcome.reason)
         return
       }
@@ -612,10 +453,6 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
       res.status(200).json(await taskView(db, viewer(req), taskId))
     },
   )
-
-  /* ---------------------------------------------------------------- *
-   * Assignment: Folder, Personal Labels only
-   * ---------------------------------------------------------------- */
 
   router.put(
     '/folders/:folderId/labels/:labelId',
@@ -667,10 +504,7 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
         labelId,
       )
       if (outcome.kind === 'forbidden') {
-        /* Unreachable today: `personal.label` admits every member and the
-           gate above has already answered. It is mapped rather than folded
-           into the 404 below so that a refusal added inside the domain
-           cannot silently become a not-found. */
+        /* Unreachable today; mapped so a future domain refusal cannot become a 404. */
         sendError(res, 403, 'forbidden', outcome.reason)
         return
       }

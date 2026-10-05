@@ -1,28 +1,6 @@
-/*
-Whether a time reads as 17:30 or 5:30 PM, as a preference rather than a guess.
-
-The format is the person's to choose, and the picker offers both regardless of which they chose, the setting decides how a
-time is written, never which times can be reached.
-
-12-hour is the default. The setting can move it to 24-hour
-and the picker reaches every hour and minute either way.
-
-The store is deliberately not a React context. Times are written in the row,
-in the card's chips, inside two pickers and in a settings control, and a
-provider would have to wrap all of them; a module store with
-`useSyncExternalStore` reaches every one without anybody threading anything.
-**It follows the person between devices.** The column is 4.19's `clock`, the
-endpoint is `GET` and `PATCH /settings`, and 9.7 names the control.
-
-**The account is the record and `localStorage` is a cache of it.** That
-ordering is the whole design. `adoptClock` writes the bundle's value into this
-store when the read arrives, which is what makes a fresh browser show the
-person's own choice rather than the default; the local copy exists only so the
-frame before the bundle answers shows the value they last saw rather than a
-flash of 12-hour. The settings control writes the column and nothing else
-writes it, so at no moment are two records authoritative for one reader, the
-same property the pin list keeps.
-*/
+// The 12/24-hour preference, 12 by default. The account's `clock` setting is the record;
+// localStorage caches it for the first frame. A module store, not a context, so every
+// place that writes a time can read it.
 
 import { useSyncExternalStore } from "react"
 
@@ -40,8 +18,7 @@ function read(): TimeFormat {
   try {
     return localStorage.getItem(KEY) === "24" ? "24" : "12"
   } catch {
-    /* Private modes and sandboxed frames throw rather than return null. A
-       display preference is not worth failing a render over. */
+    // Private modes and sandboxed frames throw rather than return null.
     return "12"
   }
 }
@@ -55,35 +32,20 @@ export function setTimeFormat(next: TimeFormat) {
   try {
     localStorage.setItem(KEY, next)
   } catch {
-    /* Remembered for this session only, which is the honest fallback. */
+    // Remembered for this session only.
   }
   listeners.forEach((notify) => notify())
 }
 
 /**
- * Takes the account's value (4.19's `clock`) as the truth.
- *
- * Called by the shell whenever the bundle settles. It is deliberately the same
- * write as a person pressing the control: the store does not care which of the
- * two moved it, and `setTimeFormat` already refuses a write that changes
- * nothing, so an arriving bundle that agrees with the cache notifies nobody.
- *
- * `'24h'` and `'12h'` are 4.19's spelling and `'24'` and `'12'` are this
- * module's, and the two are translated here rather than either side moving.
- * The column's is the wire's and cannot change without a migration; this
- * module's is what is already in every person's `localStorage`, and rewriting
- * it would silently reset the preference of everyone who has set one.
+ * Adopt the account's value; a no-op when it matches. The column spells `12h`/`24h` and
+ * this store `12`/`24`: never change the stored spelling, or everyone's setting resets.
  */
 export function adoptClock(clock: "12h" | "24h"): void {
   setTimeFormat(clock === "24h" ? "24" : "12")
 }
 
-/**
- * The control's write: 4.19's column first, and the store adopts the
- * answer, which is the same path an arriving bundle takes. Added when
- * `components/settings-page-content.tsx` crossed and 9.7's two extra rows were drawn
- * in its idiom; the settings page's own mutation used to be the writer.
- */
+/** The control's write: the column first, then the store adopts the answer. */
 export function setClock(clock: "12h" | "24h"): void {
   const client = queryClient()
   void mutateApi(getSettingsResponse, {
@@ -112,13 +74,7 @@ export function useTimeFormat(): TimeFormat {
   )
 }
 
-/* ------------------------------------------------------------ the value -- */
-/*
-Times are stored as "HH:MM" on the 24-hour clock whatever the person has
-chosen, and converted only when they are drawn. Storing what is displayed is
-how a preference change quietly rewrites data, and 12-hour text cannot even
-represent midnight without a convention nobody agreed to.
-*/
+// Times are stored as 24-hour "HH:MM" and converted only when drawn.
 
 export interface Clock {
   hour: number
@@ -139,8 +95,7 @@ export function toValue({ hour, minute }: Clock) {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`
 }
 
-/* 0 and 12 both read as 12 on a 12-hour clock, which is the one case a
-   remainder gets wrong and the one people notice. */
+// 0 and 12 both read as 12 on a 12-hour clock.
 export function to12Hour(hour: number) {
   return hour % 12 === 0 ? 12 : hour % 12
 }
@@ -149,9 +104,7 @@ export function periodOf(hour: number): "AM" | "PM" {
   return hour < 12 ? "AM" : "PM"
 }
 
-/* The one place a time becomes words. Everything that draws a time goes
-   through here, so the preference cannot be honoured in one place and
-   forgotten in another. */
+// The one place a time becomes words.
 export function formatTime(value: string | null | undefined, format: TimeFormat) {
   const clock = parseTime(value)
   if (!clock) return null
@@ -159,12 +112,7 @@ export function formatTime(value: string | null | undefined, format: TimeFormat)
   return `${to12Hour(clock.hour)}:${String(clock.minute).padStart(2, "0")} ${periodOf(clock.hour)}`
 }
 
-/*
-A time as a person types it, in either notation whatever the setting is:
-"14:30", "2:30 pm", "2pm", "930", "9.30". The stored "HH:MM", or null where the
-text is not a time. The setting decides how a time is written back, never which
-spellings are understood.
-*/
+// A typed time in either notation ("14:30", "2pm", "930") as stored "HH:MM", or null.
 export function parseTypedTime(text: string): string | null {
   const found = text
     .trim()

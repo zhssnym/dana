@@ -12,7 +12,7 @@ type TaskCard = Parameters<typeof TaskRows>[0]['tasks'][number]
 type Context = Parameters<typeof TaskRows>[0]['context']
 type Position = { top: number; left: number; width: number }
 
-/** Group by the live document's exact Section parent; Task records stay put. */
+/** Group by the live document's Section parent; task records stay put. */
 export function completedGroups(blocks: readonly CanvasBlock[], completed: ReadonlyMap<string, TaskCard>): Map<string | null, TaskCard[]> {
   const groups = new Map<string | null, TaskCard[]>()
   const visit = (items: readonly CanvasBlock[], section: string | null): void => {
