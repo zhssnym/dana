@@ -96,10 +96,10 @@ These pass every test when they are wrong. Look for them in your diff.
 
 ## Docs
 
-- `docs/spec/` is reference for product rules. Update it when a product rule changes. You
-  do not have to update it for each change.
+- `docs/` holds the product specification. It is reference for product rules. Update it
+  when a product rule changes. You do not have to update it for each change.
 - An acceptance criterion number (`AC-NNN`) is optional. If you add one, take the next
-  number from `docs/spec/12-acceptance-criteria/README.md`.
+  number from `docs/12-acceptance-criteria/README.md`.
 - Add new traps to `docs/troubleshooting.md`: symptom, cause, fix.
 - Do not add other documents. Notes and open questions go in the issue or the PR.
 
