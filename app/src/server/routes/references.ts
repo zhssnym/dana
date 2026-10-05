@@ -1,16 +1,7 @@
 /*
-Dana Link references (issue #223, M1-C1). Reads only, no table.
-
-    GET /api/v1/references/:kind/:id          one target, as a chip summary
-    GET /api/v1/references/search             the picker's list, as it is typed
-    GET /api/v1/results/:id                   where a native Result lives (#213)
-    GET /api/v1/link-previews/google-maps     resolve a Google Maps short share link (#529)
-
-#488 adds one rule to the picker when it is used inside a Work/project: facet
-references are project-local. Generic Dana Links to Tasks/Folders/etc retain
-their ordinary reach; only `kind: facet` rows are cut to the composing
-project. An exact pasted URL can still resolve as navigation, but Connected
-work likewise refuses to treat a cross-project facet href as a relationship.
+Dana Link reads, no table: a target's chip summary, the picker search, a
+Result's location, and Google Maps short-link resolution. Inside a project the
+picker limits `facet` rows to that project.
 */
 import type { Request, Response, Router } from 'express'
 import { z } from 'zod'
@@ -64,8 +55,7 @@ function shortGoogleMapsUrl(value: string): URL | null {
 function redirectableGoogleMapsShortUrl(value: string): URL | null {
   const url = shortGoogleMapsUrl(value)
   if (url === null) return null
-  // Google's shortener can serve a JS interstitial to server/CLI requests.
-  // `_imcp=1` selects its ordinary desktop redirect path instead.
+  // `_imcp=1` avoids the JS interstitial Google serves to non-browser clients.
   url.searchParams.set('_imcp', '1')
   return url
 }
@@ -78,10 +68,8 @@ function longGoogleMapsUrl(url: URL): boolean {
 }
 
 /**
- * Follow only Google's opaque Maps shortener, one redirect at a time. Every
- * hop is validated before the next network request, so a caller cannot turn
- * this read into an open redirect follower/SSRF primitive. The function stops
- * as soon as Google exposes a normal Maps URL; no map page body is downloaded.
+ * Follows only Google's Maps shortener, one validated hop at a time, so this
+ * cannot become an open redirect or SSRF. No page body is downloaded.
  */
 export async function resolveGoogleMapsShortLink(
   value: string,

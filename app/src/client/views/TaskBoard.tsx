@@ -1,22 +1,7 @@
 /*
-The board of 9.1, as the place pages consume it: `components/task-board.tsx`
-with this client's meaning attached.
-
-**Geometry there, meaning here.** The board owns the columns' rectangles and
-reports which one a card was released over; what landing there *means* is the
-page's, and on these pages it is `actions.onMoveToColumn`, the same value the
-column's quick-add writes through `place.capture`. One `ColumnValue` answers
-both, so a drop and a capture in one column can never come to mean different
-things.
-
-**Two kinds of column refuse a drop rather than pretending**: Overdue is a
-relation to today rather than a value, and a week or a month rung names a range
-with no day in it. `grouping.ts` decides which by handing a group a `capture` of
-null, and a column with nothing to write takes no drop and offers no quick-add.
-
-The board runs its drag through `TaskList`, which hands each row its state
-directly.
-*/
+ * The board with this client's meaning: a drop writes the same `ColumnValue` the column's quick-add does. A
+ * column with a null `capture` (Overdue, a week or month rung) takes no drop and no quick-add.
+ */
 import { BoardQuickAdd, TaskBoard as PrototypeBoard } from '../components/task-board.js'
 import type { BoardColumn, BoardTask } from '../components/task-board.js'
 import type { TaskRowProps } from '../components/task-row.js'
@@ -37,8 +22,7 @@ const GIVEN_BY_AXIS: Record<GroupBy, BoardGiven> = {
   folder: { folder: true },
   person: { assignee: true },
   date: { due: true },
-  /* A section says nothing about a task's folder, its person or its date, so
-     a card in a section column keeps every chip it would carry in a list. */
+  /* A section says nothing about folder, person or date, so a card keeps every chip. */
   section: undefined,
 }
 
@@ -54,16 +38,9 @@ export function TaskBoard({
   readonly actions: RowActions
 }): React.JSX.Element {
   /*
-  A card in a folder column does not repeat the folder, which is Q2's own rule
-  applied one surface further on ("Q2 gives a row no folder label, the group
-  heading above it being the folder"): a row says what its page does not. It is
-  also what makes the card fit: a column is a fraction of a page's width, and
-  the title is what gives way when a folder chip is drawn under a heading
-  already saying the same word.
-
-  The board spells the same idea as `given`, so both are set from one condition
-  rather than left to agree by hand.
-  */
+   * A card in a folder column omits the folder, which the heading already says; set with `given` from one
+   * condition.
+   */
   const columnContext: RowContext =
     place.groupBy === 'folder' ? { ...context, showFolder: false } : context
 
@@ -71,16 +48,12 @@ export function TaskBoard({
 
   const mapped: BoardColumn[] = columns.map((column) => ({
     key: column.key,
-    /* 9.1's regions rule: a column is named by its value, and the board writes
-       that name into its `aria-label`. */
+    /* A column is named by its value, written into its `aria-label`. */
     label: column.name,
     mark: groupHeadingMedia(column.mark, context.folders),
-    /* Finished columns strike through and drop their details, the board's own
-       contract for its `done` flag. */
+    /* Finished columns strike through and drop details. */
     ...(column.done === true ? { done: true, quiet: true } : {}),
-    /* The same question `onDropIn` below answers, asked one moment earlier
-       (AC-228), so a column with nothing to write — Overdue, a relation to
-       today rather than a value — never promises a landing it will then refuse. */
+    /* Asked before the drop (AC-228), so a column with nothing to write never shows a landing. */
     takes: column.done === true || (column.capture !== undefined && column.capture !== null),
     tasks: column.rows.map(
       (task: TaskCard): BoardTask => ({
@@ -93,12 +66,7 @@ export function TaskBoard({
   return (
     <PrototypeBoard
       columns={mapped}
-      /*
-      The `given` contract: what the column already says, the card does not
-      repeat. The three axes `grouping.ts` produces map one to one, and a card
-      in a date column drops its due chip for the same reason a card in a folder
-      column drops its folder.
-      */
+      /* What the column already says, the card does not repeat. */
       given={GIVEN_BY_AXIS[place.groupBy]}
       onOpenTask={(taskId) => {
         const task = taskOf(columns, taskId)
@@ -107,8 +75,7 @@ export function TaskBoard({
       onToggleComplete={(taskId) => {
         const task = taskOf(columns, taskId)
         if (task === undefined) return
-        /* An abandoned card's control restores it, which is 9.5's rule and
-           the same reading `pages/task-rows.tsx` gives the row's own box. */
+        /* An abandoned card's control restores it, as the row's box does. */
         if (task.status === 'abandoned') actions.onRestore(task)
         else actions.onToggleComplete(task)
       }}
@@ -120,12 +87,7 @@ export function TaskBoard({
         const task = taskOf(columns, taskId)
         const column = byKey.get(columnKey)
         if (task === undefined || column === undefined) return false
-        /*
-        The Done column is a status rather than a place: dropping on Done
-        completes, and carrying a card back out reopens it and files it wherever
-        it landed. Completion is the page's act so that 9.5's series confirm and
-        the undo bar reach it exactly as they reach the row's box.
-        */
+        /* Done is a status: dropping completes, and dragging back out reopens and files it where it lands. */
         if (column.done === true) {
           if (task.status === 'completed') return false
           actions.onToggleComplete(task)
@@ -134,15 +96,9 @@ export function TaskBoard({
         const landing = column.capture
         if (landing === undefined || landing === null) return false
         /*
-        A date column's value is a day, and which field of the row expresses
-        "this task is on that day" is the row's to say (issue #216): Q3C's
-        sentence, "dragging moves a Due-only task's Due Date, a Start-only
-        task's Start Date, and a Start+Due range whole". The column writes
-        `due_date` because a task *captured* in it is new and has no Schedule to
-        keep; a task *dropped* into it has one, and writing the due date onto a
-        Start-only card would convert it into a Start+Due task with nothing
-        saying so. A pair moves whole, as on the calendar.
-        */
+         * A dropped task keeps its Schedule shape: Due-only moves due, Start-only moves start, a pair moves
+         * whole. The column writes `due_date` only for a new capture.
+         */
         const moved = scheduleLanding(task, landing)
         if (moved === null) return false
         if (task.status === 'completed') actions.onToggleComplete(task)
@@ -167,7 +123,6 @@ export function TaskBoard({
   )
 }
 
-/** The row behind a card's id, which is all the board reports. */
 function taskOf(columns: readonly TaskGroup[], taskId: string): TaskCard | undefined {
   for (const column of columns) {
     const found = column.rows.find((task) => task.id === taskId)

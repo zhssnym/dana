@@ -1,15 +1,5 @@
-/*
-The block gutter every Dana canvas shares (Folder Work, Purpose, Results, the
-Shelf, a Task's body): ⋮⋮ on hover, level with the block's first line
-of text; clicking ⋮⋮ selects the block and opens its menu. Moving is by
-dragging the handle, or Tab / Shift-Tab. Work also offers a small + to insert
-a line before the hovered block.
-
-#488 adds one relationship action without adding a button to the canvas:
-Connect to facet. It changes metadata owned by this exact block; it never
-inserts a neighboring reference block and therefore never depends on visual
-proximity.
-*/
+// The block gutter every canvas shares: ⋮⋮ selects the block and opens its menu;
+// drag it or use Tab / Shift-Tab to move. Work adds a + to insert before.
 import { createContext, useContext } from 'react'
 import { offset } from '@floating-ui/react'
 import type { BlockNoteEditor } from '@blocknote/core'
@@ -197,9 +187,8 @@ function BlockSideMenuRoot({ model }: { readonly model: BlockMenuModel }): React
 }
 
 /**
- * The canvas owns facet scope and relations for its whole lifetime. The side
- * menu is transient hover UI and must never create a second facet controller:
- * doing so lets its unmount lifecycle erase persistent relationship chips.
+ * The side menu is transient and must not create a second facet controller: its
+ * unmount would erase the chips.
  */
 export function BlockSideMenu(): React.JSX.Element {
   const inherited = useContext(BlockMenuContext)!

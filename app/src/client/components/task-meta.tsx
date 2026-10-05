@@ -1,16 +1,5 @@
-/*
-The one task meta line (round 4). Every view draws a task's right side through
-here so a task looks the same everywhere, in fixed positions:
-
-  date (or start – due) · [extras] · subtasks n/m · repeat glyph · star
-
-- The date is the label `dueDisplay` made on the viewer's clock (12/24h), in
-  the day/month order of the viewer's locale (`lib/dates.ts`, the one formatter).
-- Overdue is the destructive ink, and said to screen readers.
-- The star is a lighter tone than the title, even when set, so it never
-  competes with it; unset, it shows on hover or focus of the enclosing
-  `group/row`.
-*/
+// The one task meta line, in fixed positions:
+// date · [extras] · subtasks n/m · repeat glyph · star.
 import type { ReactNode } from "react"
 
 import { Repeat2, Star } from "../lib/icons.js"
@@ -21,9 +10,9 @@ import { cn } from "./ui/utils.js"
 
 export interface TaskMetaProps {
   readonly due?: { readonly label: string; readonly overdue?: boolean }
-  /** The Schedule's start where it is not the due day: "24 Sep – Fri" with a due date; alone, the whole phrase ("Started yesterday", "Starts Mon"). */
+  /** The schedule's start where it is not the due day; alone, the whole phrase ("Starts Mon"). */
   readonly starts?: string
-  /** Late is not coloured where the list already says every row is late. */
+  /** Not coloured where the list already says every row is late. */
   readonly overdueGiven?: boolean
   readonly steps?: { readonly done: number; readonly total: number }
   /** The repeat's short wording, for its tooltip; absent when it does not repeat. */
@@ -34,7 +23,7 @@ export interface TaskMetaProps {
     readonly important: boolean
     readonly tooltip?: string
     readonly onToggle: () => void
-    /** Work rows/cards keep the action reachable on touch instead of deferring to the Task page. */
+    /** Keep the star tappable on touch (Work rows and cards). */
     readonly touchReachable?: boolean
   }
   readonly className?: string
@@ -47,7 +36,7 @@ export function TaskMeta({ due, starts, overdueGiven, steps, recurrence, extras,
       <span className="flex min-w-0 items-center gap-3 overflow-hidden">
         {due ? (
           <span className="shrink-0 whitespace-nowrap tabular-nums">
-            {/* A phone keeps the title's room and says the deadline alone. */}
+            {/* A phone keeps the title's room and shows the deadline alone. */}
             {starts === undefined ? null : <span className="max-sm:hidden">{`${starts} – `}</span>}
             <span className={cn(late && "text-destructive")}>
               {late ? <span className="sr-only">Overdue, </span> : null}
@@ -74,7 +63,6 @@ export function TaskMeta({ due, starts, overdueGiven, steps, recurrence, extras,
   )
 }
 
-/** "Repeats weekly"; "Repeats" where the rule is not known. */
 function repeatTitle(recurrence: string): string {
   return recurrence === "" || recurrence === "Repeats" ? "Repeats" : `Repeats ${recurrence.toLowerCase()}`
 }
@@ -92,7 +80,7 @@ export interface RowMetaSource {
   readonly finished?: boolean
   readonly important?: boolean
   readonly importantTooltip?: string
-  /** The task's Labels (#208), drawn before the folder. */
+  /** Drawn before the folder. */
   readonly labels?: readonly LabelLook[]
 }
 
@@ -104,10 +92,7 @@ export interface RowMetaGiven {
   readonly overdue?: boolean
 }
 
-/**
- * The meta line built from a task's display, the same on a list row, a board
- * card and a Linear step: date · folder · Blocked · face · n/m · repeat · star.
- */
+/** The meta line from a task's display, the same on a row, a board card and a step. */
 export function RowMeta({
   source,
   given = {},
@@ -123,8 +108,7 @@ export function RowMeta({
 }) {
   const folderName = given.folder ? undefined : source.folder?.name.trim()
   const extras: ReactNode[] = []
-  /* Two or more other things on the line leave a narrow card no room for a
-     long label name beside them. */
+  // With two or more other items on the line, a narrow card has no room for long label names.
   const crowded =
     [
       (source.due !== undefined || source.starts !== undefined) && !given.due,
@@ -180,11 +164,8 @@ export function RowMeta({
   )
 }
 
-/*
-Reserved space and opacity only, so hovering or focusing never shifts the meta.
-Most lists keep the old phone rule (the Task page owns starring there); Work can
-opt into a visible, tappable star because its rows/cards are direct work surfaces.
-*/
+// Reserved space and opacity only, so hover never shifts the meta. On phones the star is
+// hidden unless `touchReachable`.
 export function TaskStar({ important, tooltip, onToggle, touchReachable }: NonNullable<TaskMetaProps["star"]>) {
   const label = important ? "Important" : "Mark as important"
   return (

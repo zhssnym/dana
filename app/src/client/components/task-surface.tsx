@@ -1,16 +1,11 @@
-/*
-A task's one page (M4): /app/tasks/:id, in the app's shell, on every screen.
-There is no peek. One column: the title with its state mark and the task's
-one "…", then `TaskCard` (properties and the task's document). History lives
-behind that same "…" rather than taking a row at the end of the page.
-*/
+// A task's page: title with its state mark and "…" menu, then `TaskCard`. History opens
+// from the menu.
 
 import { InlineTextarea } from "./ui/inline-field.js"
 import { useEffect, useRef, useState } from "react"
 
 import { MessagesSquare, X } from "../lib/icons.js"
 import { TITLE_REQUIRED, tooLong } from "./task-copy.js"
-/* 10.3's number for the field, from the shared contract rather than restated. */
 import { TASK_TITLE_LIMIT } from "../../shared/tasks.js"
 import { TaskCard, stateOf } from "./task-card.js"
 import { useCardWiring, type TaskRowProps } from "./task-row.js"
@@ -26,9 +21,7 @@ import { useDiscussTask } from "../api/consultation.js"
 import { closeChatDock, openChatDock, useChatDock } from "../state/chat-dock.js"
 import { useQueryClient } from "@tanstack/react-query"
 
-/* The title, big, renaming in place. Required, 1 to 300, refused with a
-   reason where the person is looking (9.3, AC-161); the server enforces the
-   same bounds. Enter commits, Escape puts it back. */
+// The title, renamed in place. Required, 1 to 300, refused inline (AC-161).
 function Title({
   value,
   done,
@@ -41,9 +34,7 @@ function Title({
   const [draft, setDraft] = useState(value)
   const [editing, setEditing] = useState(false)
   const [refusal, setRefusal] = useState<string | null>(null)
-  /* Enter and Escape settle the field themselves and then blur it; the blur
-     that follows must not commit again (a second PATCH on Enter, and on
-     Escape the stale draft, which put back the very edit Escape refused). */
+  // Enter and Escape settle the field and then blur it; the blur must not commit again.
   const settled = useRef(false)
 
   function commit(next: string): void {
@@ -63,13 +54,12 @@ function Title({
 
   return (
     <div className="flex flex-col gap-1">
-      {/* The page's heading and the tab's name (app-shell reads data-page-title);
-          the field below is where it is read and renamed. */}
+      {/* The page heading and tab name (app-shell reads data-page-title). */}
       <h1 data-page-title="" className="sr-only">{value}</h1>
       <InlineTextarea
         rows={1}
         value={editing ? draft : value}
-        /* 9.3's field name; tests address the title as a field. */
+        // Tests address the title as a field by this name.
         aria-label="title"
         aria-invalid={refusal !== null}
         onFocus={() => {
@@ -119,8 +109,7 @@ function Title({
   )
 }
 
-/* The task's one "…": history, copy link, duplicate, delete. Status carries
-   Drop and Restore, so those are not repeated here. */
+// Status carries Drop and Restore, so the menu does not repeat them.
 function TaskMenu({
   id,
   title,
@@ -147,14 +136,8 @@ function TaskMenu({
   )
 }
 
-/*
-The task's way into its Discussion (#546): the same thread, in the sidebar
-beside the task, so the task stays on screen and editable. A linked thread
-opens as it is; a task with none gets its own made (or found) by POST
-/tasks/:id/discussion first. It shows once the task's project has a
-teammate, or the task already has a thread, so a conversation that happened
-never becomes unreachable. A task outside a project draws nothing.
-*/
+// Opens the task's discussion in the sidebar, creating one if needed. Shown once the
+// project has a teammate or the task already has a thread.
 function OpenDiscussion({ taskId }: { taskId: string }) {
   const detail = useTask(taskId)
   const discuss = useDiscussTask()
@@ -212,9 +195,8 @@ export function TaskView({
 }) {
   const { task, patch, cardHandlers } = useCardWiring(props)
   const state = stateOf(task)
-  /* Tie the dialog to the task that opened it. Task routes can replace this
-     view in place (including from a dependency inside History), and a plain
-     boolean would otherwise leave the next task's History open. */
+  // Keyed to the task id: task routes can replace this view in place, and a boolean
+  // would leave the next task's History open.
   const [historyFor, setHistoryFor] = useState<string | null>(null)
 
   return (
@@ -239,7 +221,7 @@ export function TaskView({
         </span>
         <div className="min-w-0 flex-1">
           <Title
-            /* A different task is a fresh draft. */
+            // A different task is a fresh draft.
             key={props.id}
             value={task.title}
             done={state !== "open"}
@@ -273,11 +255,7 @@ export function TaskView({
   )
 }
 
-/*
-Opening a task waits for its read. Start it when a row is pressed, or hovered
-for a moment, so by the click's end the data is usually here and the page
-draws at once. Mounted once, by the host.
-*/
+// Prefetch a task when its row is pressed or hovered briefly, so the page draws at once.
 const HOVER_INTENT_MS = 120
 
 export function usePrefetchTaskOnIntent(): void {

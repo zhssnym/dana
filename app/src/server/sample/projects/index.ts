@@ -1,7 +1,4 @@
-/*
-The sample's projects, one file each, in the order the sidebar shows them.
-Each file exports its top-level project page followed by its sub-pages.
-*/
+// The sample projects, in sidebar order.
 import type { SampleFolder, SampleTask } from '../content.js'
 import { WEATHER_STATION } from './weather-station.js'
 import { BUDGET_APP } from './budget-app.js'

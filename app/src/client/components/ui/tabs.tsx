@@ -2,23 +2,9 @@ import * as React from "react"
 
 import { cn } from "./utils.js"
 
-/*
-r5-primitives: the one tab strip, for moving between panels (page tabs,
-task Work/Discussion, Discussion Open/Closed). 28px (--control-height),
-14px, weight 500; the active tab is ink with a 2px underline on the
-strip's one hairline, the rest are muted. Roving tabindex: only the active
-tab is a Tab stop, ←/→/Home/End move focus along the strip.
-
-Two ways in:
-  <Tabs label="Page tabs" value={id} onValueChange={setId}
-        items={[{ value: "work", label: "Work" }, ...]} />
-or, when a tab needs its own handlers (drag, rename, a count):
-  <TabList label="Page tabs">
-    <Tab selected={id === "work"} onClick={...}>Work</Tab>
-  </TabList>
-A Tab's own onKeyDown runs first; call event.preventDefault() in it to
-take over the arrow keys.
-*/
+// The one tab strip. Roving tabindex: only the active tab is a Tab stop; arrows,
+// Home and End move along the strip. A Tab's own onKeyDown runs first and may call
+// preventDefault to take over the arrows.
 
 function tabsOf(list: HTMLElement): HTMLElement[] {
   return Array.from(list.querySelectorAll<HTMLElement>('[role="tab"]:not([disabled])')).filter(

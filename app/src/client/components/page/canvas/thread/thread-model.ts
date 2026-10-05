@@ -1,17 +1,6 @@
-/*
-The Work thread's derived state (M4 design §2.4, §2.9): which stretch of the
-rail is solid and which is dashed, the one ringed "next" task, and the long
-leading runs of closed tasks that are elided behind an "Earlier work" break.
-A section heading is a numbered stop and never folds.
-
-**Nothing here is stored.** Everything is computed from the Work document and
-the page's open-task list. A `danaTask` block whose task is not in the open
-list is closed for the line's purpose, so drawing the thread needs no per-task
-read. A `toggle-<id>` key stored for a section by an older build is ignored.
-
-Pure: no DOM and no React. `FolderCanvas` feeds this module and
-turns its answer into one style element (`threadStyle`).
-*/
+// The Work thread's derived state: solid and dashed rail, the one ringed "next"
+// task, and long closed runs elided behind "Earlier work". Pure and never stored;
+// a task not on the open list counts as closed.
 import { isSectionHeading } from '../outline.js'
 
 export interface ThreadBlock {
@@ -21,55 +10,48 @@ export interface ThreadBlock {
   readonly children?: readonly ThreadBlock[]
 }
 
-/** What the thread reads off an open task's card. */
 export interface ThreadTask {
   readonly blocked_by_count?: number | undefined
   readonly start_date: string | null
   readonly assignee: { readonly id: string } | null
   readonly assignees?: readonly { readonly id: string }[]
-  /** The page's open list also carries dropped tasks; they are closed work. */
+  /** The open list also carries dropped tasks; they are closed work. */
   readonly status?: string | undefined
 }
 
 /**
- * 'covered' is solid on an opaque ground: a block after the done stretch's
- * end, inside a section the stretch runs through, hides that section's green.
+ * 'covered' is solid on an opaque ground: it hides a section's green after the
+ * done stretch ends.
  */
 export type LineStyle = 'solid' | 'frontier' | 'dashed' | 'covered'
 
 /**
- * The done stretch of the rail (AC-1514): drawn in the done colour from the
- * first completed task's badge ('done-start') to the global frontier's badge
- * ('done-frontier'), every item between them 'done'.
+ * The done stretch (AC-1514), from the first completed task's badge ('done-start')
+ * to the frontier's ('done-frontier').
  */
 export type ProgressState = 'done' | 'done-start' | 'done-frontier'
 
 export interface ThreadInput {
   readonly blocks: readonly ThreadBlock[]
-  /** The page's open tasks by task id. Anything else, and a dropped one, is closed. */
+  /** The page's open tasks by id. Anything else, and a dropped one, is closed. */
   readonly open: ReadonlyMap<string, ThreadTask>
-  /** The civil today, `YYYY-MM-DD`. */
   readonly today: string
   readonly viewerId: string | null
-  /** The page has more than one member. */
   readonly shared: boolean
-  /** Blocks hidden behind an "Earlier work" break right now → that break's id. */
+  /** Blocks hidden behind an "Earlier work" break → that break's id. */
   readonly elided?: ReadonlyMap<string, string>
 }
 
 export interface ThreadModel {
   /** Blocks whose rail is not plain solid. Absent means solid. */
   readonly line: ReadonlyMap<string, Exclude<LineStyle, 'solid'>>
-  /** The task id of the one ringed task, or null. */
+  /** The one ringed task, or null. */
   readonly next: string | null
-  /** The document holds at least one task. */
   readonly hasTasks: boolean
-  /** At least one task is open. */
   readonly anyOpen: boolean
   /**
-   * The done stretch, by block id; absent means not on it. Nothing is on it
-   * before a task is done. It belongs to the project, not to the viewer: it
-   * stops at the first open task in document order, whoever's it is.
+   * Absent means not on it. It belongs to the project, not the viewer: it stops at the
+   * first open task, whoever's it is.
    */
   readonly progress: ReadonlyMap<string, ProgressState>
 }
@@ -87,7 +69,7 @@ function isTask(block: ThreadBlock): boolean {
   return taskIdOf(block) !== null
 }
 
-/** An open task's card: on the open list and not dropped. */
+/** On the open list and not dropped. */
 function openCard(open: ReadonlyMap<string, ThreadTask>, id: string | null): ThreadTask | undefined {
   const task = id === null ? undefined : open.get(id)
   return task === undefined || task.status === 'abandoned' ? undefined : task
@@ -123,23 +105,14 @@ function holdsTask(block: ThreadBlock): boolean {
   return ownList(block).some(holdsTask)
 }
 
-/**
- * Waiting: it has an open blocker, or its start is still ahead. The ring
- * skips it, and it shows the hourglass.
- */
+/** Waiting: an open blocker, or a start still ahead. The ring skips it. */
 export function isWaiting(task: ThreadTask, today: string): boolean {
   return (task.blocked_by_count ?? 0) > 0 || (task.start_date !== null && task.start_date > today)
 }
 
 /**
- * The line shows the frontier, once for the whole document (the walk goes
- * in document order through every section's own list, one `seen` for all).
- * Blocks before the first one that holds an open task are solid; that block
- * is solid down to its badge and dashed after ("frontier"); every later
- * block, at any depth, is dashed. A thread with nothing open is solid
- * throughout. A section that holds the frontier stays solid itself while it
- * is open: its own list carries the switch, so the line is solid from the
- * heading down to the first open task (its children overdraw it).
+ * One document-order walk: solid before the first block holding an open task, that
+ * block "frontier", everything after dashed. A section holding the frontier stays solid.
  */
 function drawLine(list: readonly ThreadBlock[], input: ThreadInput, line: Map<string, Exclude<LineStyle, 'solid'>>, state: { seen: boolean }): void {
   for (const block of list) {
@@ -153,17 +126,12 @@ function drawLine(list: readonly ThreadBlock[], input: ThreadInput, line: Map<st
 }
 
 /**
- * The done stretch, in one document-order walk of the thread's items. It
- * starts at the first completed task (a dropped one never starts it, but the
- * stretch runs through one) and stops at the first open task; with nothing
- * open, at the last task. A section holding the frontier is 'done' (its own
- * list carries the stop). When
- * the start is hidden behind "Earlier work", the break block starts it
- * instead, green over its whole length.
+ * The done stretch runs from the first completed task to the first open one (or the
+ * last task). If its start is elided, the break block starts it instead.
  */
 function drawProgress(input: ThreadInput): { progress: Map<string, ProgressState>; covered: Set<string> } {
   type Kind = 'open' | 'done' | 'closed' | 'other'
-  /* `within`: the sections the item sits in, outermost first. */
+  // `within`: the sections the item sits in, outermost first.
   const items: { readonly id: string; readonly kind: Kind; readonly within: readonly string[] }[] = []
   const kindOf = (block: ThreadBlock): Kind => {
     if (!isTask(block)) return 'other'
@@ -187,10 +155,7 @@ function drawProgress(input: ThreadInput): { progress: Map<string, ProgressState
   for (let at = items.length - 1; end === -1 && at >= 0; at -= 1) if (items[at]!.kind !== 'other') end = at
   if (end <= start) return none
   for (let at = start; at <= end; at += 1) progress.set(items[at]!.id, at === start ? 'done-start' : at === end ? 'done-frontier' : 'done')
-  /* With nothing open the stretch ends on the last task, and a section it
-     runs through is green over its whole height: the end's own line below its
-     badge, and every item after it in that section, cover it. (With an open
-     task they are dashed, which already does.) */
+  // With nothing open, a section the stretch ends in is green over its whole height.
   if (frontier === -1) {
     for (let at = end; at < items.length; at += 1) if (items[at]!.within.some((id) => progress.has(id))) covered.add(items[at]!.id)
   }
@@ -202,7 +167,7 @@ function drawProgress(input: ThreadInput): { progress: Map<string, ProgressState
   return { progress, covered }
 }
 
-/** The next ring: the first task, in document order through every section, the viewer can do now. */
+/** The next ring: the first task, through every section, the viewer can do now. */
 function findNext(list: readonly ThreadBlock[], input: ThreadInput): string | null {
   for (const block of list) {
     if (isSection(block)) {
@@ -241,18 +206,13 @@ export function threadModel(input: ThreadInput): ThreadModel {
 export const KEEP_VISIBLE = 3
 
 export interface Elision {
-  /** Hidden block id → the id of the break block that reveals it. */
+  /** Hidden block id → the break block that reveals it. */
   readonly elided: ReadonlyMap<string, string>
   /** The first visible block after each elided run: it carries the break. */
   readonly breaks: ReadonlySet<string>
 }
 
-/**
- * A long leading done stretch: five or more closed tasks before the first
- * open one in a list show only their last three. Everything from the first
- * closed task up to the third-last one is elided (notes between them too);
- * what sits above the first closed task (a section's intro) stays.
- */
+/** Five or more closed tasks before the first open one show only the last three. */
 export function elision(blocks: readonly ThreadBlock[], open: ReadonlyMap<string, ThreadTask>): Elision {
   const elided = new Map<string, string>()
   const breaks = new Set<string>()
@@ -277,29 +237,25 @@ export function elision(blocks: readonly ThreadBlock[], open: ReadonlyMap<string
 const quoteId = (id: string): string => id.replace(/["\\]/g, '')
 const outer = (id: string): string => `.dana-thread .bn-block-outer[data-id="${quoteId(id)}"]`
 
-/** How far the done colour reaches down a block in `state`; `now` says where a block new to the stretch grows from. */
+/**
+ * How far the done colour reaches down a block; `now` says where a newly added block
+ * grows from.
+ */
 function fillOf(state: ProgressState | undefined, now: ProgressState): string {
   if (state === undefined) return now === 'done-start' ? 'var(--dana-thread-knee)' : '0px'
   return state === 'done-frontier' ? 'var(--dana-thread-knee)' : '100%'
 }
 
 /**
- * The model as one style element's text: per-block rules by `data-id`, so
- * nothing is written into ProseMirror's DOM. Elided blocks are not drawn, a break block makes room above it
- * for the "Earlier work" button ThreadLayer places there.
- *
- * `grownFrom` is the done stretch before this viewer's tick, while the one
- * motion plays (AC-1514): each block whose fill changed grows from where it
- * was. An animation, not a transition, so it plays on blocks the editor has
- * only just drawn (a repeating task's tick remounts it).
+ * The model as one style element keyed by `data-id`. `grownFrom` plays the tick
+ * motion as an animation, not a transition, so it runs on freshly drawn blocks too.
  */
 export function threadStyle(model: ThreadModel, elided: ReadonlySet<string>, breaks: ReadonlySet<string>, grownFrom: ReadonlyMap<string, ProgressState> | null = null): string {
   const rules: string[] = []
   const grow: string[] = []
   for (const [id, style] of model.line) if (!model.progress.has(id)) rules.push(`${outer(id)}{--dana-thread-line:var(--dana-thread-${style})}`)
   if (model.progress.size > 0) rules.push(`${[...model.progress.keys()].map(outer).join(',')}{--dana-thread-width:var(--dana-thread-weight)}`)
-  /* The done stretch: the done colour down to the badge ('done-start' from
-     it, 'done-frontier' to it), over the block's own grey line. */
+  // The done colour down to the badge, over the block's own grey line.
   const growing: string[] = []
   for (const [id, state] of model.progress) {
     const fill = fillOf(state, state)
@@ -307,9 +263,7 @@ export function threadStyle(model: ThreadModel, elided: ReadonlySet<string>, bre
     const from = grownFrom === null ? fill : fillOf(grownFrom.get(id), state)
     if (from !== fill) growing.push(id)
   }
-  /* One line growing down, not pieces growing at once: the time is shared
-     out in document order, each block taking its turn (linear, so the pieces
-     meet), the last easing to its stop. */
+  // One line growing down: time shared out in document order, linear so the pieces meet.
   const turns = growing.length
   growing.forEach((id, at) => {
     const ease = at === turns - 1 ? 'var(--ease-standard)' : 'linear'
@@ -318,9 +272,7 @@ export function threadStyle(model: ThreadModel, elided: ReadonlySet<string>, bre
   })
   if (grow.length > 0) rules.push(`@media (prefers-reduced-motion: no-preference){${grow.join('')}}`)
   if (elided.size > 0) rules.push(`${[...elided].map(outer).join(',')}{display:none}`)
-  /* The break's line is cut where its label sits, unless the done stretch
-     runs through it: then the green runs past the label, as it does through
-     what the label hides. */
+  // A break's line is cut at its label unless the done stretch runs through it.
   for (const id of breaks) {
     const cut = model.progress.has(id) ? '' : ';--dana-thread-line-top:var(--row-height)'
     rules.push(`${outer(id)}{padding-block-start:var(--row-height);--dana-thread-knee:calc(var(--row-height) + var(--dana-thread-center))${cut}}`)
@@ -330,7 +282,7 @@ export function threadStyle(model: ThreadModel, elided: ReadonlySet<string>, bre
 
 export interface FrozenElision { readonly elision: Elision }
 
-/** Elision is taken once per opening, so a tick never moves the page (ticks linger). */
+/** Taken once per opening, so a tick never moves the page. */
 export function freezeElision(frozen: { current: FrozenElision | null }, blocks: readonly ThreadBlock[], open: ReadonlyMap<string, ThreadTask>): FrozenElision {
   frozen.current ??= { elision: elision(blocks, open) }
   return frozen.current

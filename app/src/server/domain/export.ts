@@ -1,65 +1,6 @@
-/*
-The 7.22 data export: one person's own Dana data assembled into the single
-JSON document `src/shared/export.ts` describes.
-
-**Every statement here is scoped to the viewer in its own FROM clause**,
-which is 10.2's structural half and is the whole of this module's
-authorization. The request carries no id — no path parameter, no query
-string, no body — so there is nothing for a caller to substitute and no
-`accessOf(...)` gate to write: the only identifier that reaches SQL is the
-session's user id. That is a deliberate property of the endpoint rather than
-an accident of its shape, and it is why a read this wide can be safe. **A
-statement added here must keep it.** The test to apply is 10.2's own: if the
-join that scopes it were deleted, would it return somebody else's rows, or
-none?
-
-**The document is built whole in memory and sent whole.** 10.3's 1000-row cap
-is applied per collection: in SQL where the collection is nested, as a window
-function per parent, and as a LIMIT where it is flat. **And every child
-statement is handed the ids of the parents that survived their own cap**, so
-what is fetched is what is sent. That last clause is the correction of
-2026-09-04: the first version of this module scoped each child by repeating
-its parent's predicate, which is sound but reads every task in every owned
-folder and every step of every one of them, then discards whatever the caps
-cut. A collection that hit a cap is named in `truncated`, unchanged.
-
-**The honest ceiling, because "bounded" above is per collection and not per
-document.** Nothing here bounds the whole answer: the caps multiply, and an
-account sitting at all of them at once — 10.3's 200 custom folders, a thousand
-tasks in each, ten thousand characters of notes on every task — would build
-something on the order of a gigabyte of JSON inside the single production
-process (11.1), where it is the memory every other request is also using. No
-real account is anywhere near that, and the caps make it a ceiling rather than
-a surprise, but a ceiling is not a bound. **If an account ever approaches it
-the answer is a streamed or paged export**, which is a format change and a
-`version` bump rather than an adjustment here. 7.22 carries the same sentence,
-so the decision is not buried in a source file.
-
-**No statement below reads an email address but the viewer's own.** Other
-people enter the document as `display_name` and nothing else: members of a
-folder, a task's creator, a task's assignee. `invites` and `connections` are
-not read at all, which is the same rule stated as an absence.
-
-**No statement is per row.** Tasks, steps, reminders, blocks, members and
-comment attachments each arrive as one statement across every parent, grouped
-in memory afterwards, rather than as one statement per folder or per comment.
-The parent ids ride as **one** bind parameter, a jsonb array unnested in the
-statement, rather than as an IN list: a list would put up to two hundred
-thousand parameters on the wire for an account at 10.3's folder cap, which is
-past what the protocol carries at all. `idSet` in `server/database.ts` is that
-spelling, and it
-was measured on both legs rather than assumed — drizzle expands a JavaScript
-array into `($1, $2, …)` rather than binding one array, so `= ANY(${ids})`
-does not do what it reads as and fails on both backends with "cannot cast type
-record to uuid[]".
-
-**The ids are handed over and the scope predicate stays anyway.** Every child
-statement below still carries the join or the WHERE clause that scopes it to
-the viewer, even though the ids it is given already came from a scoped read.
-That is 10.2's rule applied to a statement whose caller happens to be
-trustworthy: delete the id list and the statement returns the viewer's rows,
-delete the scope and it returns nothing. Neither alone is the authorization.
-*/
+// The 7.22 data export of one person's data. The request has no id: every statement is scoped to the viewer
+// in its own FROM clause, and new statements must keep that. Child reads take the ids of capped parents AND keep
+// the scope. Ids bind as one jsonb array, not an IN list (drizzle expands arrays). Only the viewer's email is read.
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
@@ -90,10 +31,6 @@ import { postContentOrNull } from './comments.js'
 import { listPlaceCovers } from './covers.js'
 import { listPlaceDescriptions } from './place-descriptions.js'
 
-/* ------------------------------------------------------------------ *
- * Serialization, the conventions the rest of this directory keeps
- * ------------------------------------------------------------------ */
-
 function toIso(value: unknown): string {
   return value instanceof Date
     ? value.toISOString()
@@ -116,53 +53,31 @@ function present(value: unknown): boolean {
   return value !== null && value !== undefined
 }
 
-/*
-Floating dates and times ride to_char, never the driver, for the reason
-`domain/tasks.ts` records at its own copy: node-postgres parses OID 1082 into
-a JS Date while PGlite hands back a string, so only a SQL cast makes the two
-legs put the same bytes on the wire. 4.11 fixes both formats.
-*/
+// to_char, because node-postgres parses DATE into a JS Date while PGlite returns a string.
 const START_DATE = sql`to_char(t.start_date, 'YYYY-MM-DD')`
 const START_TIME = sql`to_char(t.start_time, 'HH24:MI')`
 const DUE_DATE = sql`to_char(t.due_date, 'YYYY-MM-DD')`
 const DUE_TIME = sql`to_char(t.due_time, 'HH24:MI')`
 
-/* ------------------------------------------------------------------ *
- * The cap (10.3), applied rather than announced
- * ------------------------------------------------------------------ */
-
-/**
- * One more row than the cap, so a list that reached it is distinguishable
- * from one that exactly filled it. The extra row is dropped and the
- * collection is named in `truncated`.
- */
+/** One more row than the cap, so a full list is distinguishable from a cut one. */
 const FETCH = EXPORT_ROW_CAP + 1
 
-/** Collects the collections that were cut, so the document can say so. */
 class Truncation {
   private readonly cut = new Set<ExportCollection>()
 
-  /** Cuts one list to the cap, recording the collection if it had to. */
   apply<T>(collection: ExportCollection, list: T[]): T[] {
     if (list.length <= EXPORT_ROW_CAP) return list
     this.cut.add(collection)
     return list.slice(0, EXPORT_ROW_CAP)
   }
 
-  /** In `EXPORT_COLLECTIONS` order would be prettier and would cost a second
-   * list to keep in step; insertion order is stable enough for a field whose
-   * only job is to name what was cut. */
+  /** Insertion order is enough for naming what was cut. */
   names(): ExportCollection[] {
     return [...this.cut]
   }
 }
 
-/**
- * A per-parent cap in SQL: at most `FETCH` children of any one parent are
- * materialized, whatever the account holds. `columns` is the select list,
- * `source` is the FROM clause and its joins, and the scope lives in `source`
- * like every other statement here.
- */
+/** A per-parent cap in SQL: at most `FETCH` children per parent. The scope lives in `source`. */
 function cappedPerParent(
   columns: SQL,
   source: SQL,
@@ -177,7 +92,6 @@ function cappedPerParent(
   ) capped WHERE capped.export_rn <= ${FETCH}`
 }
 
-/** Groups rows under the value of one column, preserving row order. */
 function groupBy(
   rows: Record<string, unknown>[],
   key: string,
@@ -192,11 +106,6 @@ function groupBy(
   return grouped
 }
 
-/* ------------------------------------------------------------------ *
- * Row shapes
- * ------------------------------------------------------------------ */
-
-/** 7.15's authenticated serving path, the only way to read bytes in Dana. */
 function fileUrl(id: string): string {
   return `/api/v1/files/${id}`
 }
@@ -268,14 +177,10 @@ function labelFrom(row: Record<string, unknown>): ExportLabel {
   }
 }
 
-/** The definition columns every Label statement below selects, so the three
- * of them cannot drift into three different documents. */
 const LABEL_COLUMNS = sql`l.id, l.scope, l.name, l.color, l.description,
   l.archived_at, l.folder_id`
 
-/** Active before archived, then lower(name), then id — the order #208 fixes
- * for every Label list in the product, applied here so that two exports of an
- * unchanged account are the same bytes. */
+/** Active before archived, then lower(name), then id, so two exports of an unchanged account match. */
 const LABEL_ORDER = sql`(l.archived_at IS NOT NULL) ASC, lower(l.name) ASC,
   l.id ASC`
 
@@ -299,9 +204,7 @@ function taskFrom(
     due_time: nullableString(row.due_time),
     recurrence_rule: nullableString(row.recurrence_rule),
     series_id: nullableString(row.series_id),
-    /* Null where the creator's account was deleted: 8.10 scrubs the name and
-       every card reads null. The column still points at the
-       scrubbed row, which is not this document's business. */
+    /* Null when the creator's account was deleted (8.10). */
     created_by: nullableString(row.creator_display_name),
     assignee: nullableString(row.assignee_display_name),
     assignees: Array.isArray(row.assignee_names)
@@ -318,13 +221,7 @@ function taskFrom(
   }
 }
 
-/*
-The columns every exported task carries, in both places tasks appear. The
-reminder is a LEFT JOIN of 4.8's one row per task, projected as both its
-columns with exactly one non-null (7.0's TaskDetail rule); `state` and
-`time_of_day` are aliased because a reader of `taskFrom` should not have to
-work out which table a bare name came from.
-*/
+// Exported task columns. The reminder is a LEFT JOIN with exactly one mode column non-null.
 const TASK_COLUMNS = sql`t.id, t.section_block_id, t.page_position, t.title, t.notes, t.status, t.important,
   ${START_DATE} AS start_date, ${START_TIME} AS start_time,
   ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
@@ -338,23 +235,13 @@ const TASK_COLUMNS = sql`t.id, t.section_block_id, t.page_position, t.title, t.n
   r.offset_minutes, to_char(r.time_of_day, 'HH24:MI') AS reminder_time_of_day,
   r.fire_at, r.state AS reminder_state, r.fired_at`
 
-/** The creator join carries `deleted_at IS NULL` rather than the projection
- * carrying a case, which is `taskView`'s own arrangement: 4.5 makes
- * `created_by` NOT NULL, so the LEFT is for the scrub and nothing else. */
+/** The LEFT JOIN exists only for scrubbed creators: created_by is NOT NULL (4.5). */
 const TASK_JOINS = sql`LEFT JOIN users cb
     ON cb.id = t.created_by AND cb.deleted_at IS NULL
   LEFT JOIN users asg ON asg.id = t.assignee_id
   LEFT JOIN reminders r ON r.task_id = t.id`
 
-/* ------------------------------------------------------------------ *
- * The document
- * ------------------------------------------------------------------ */
-
-/**
- * Assembles the whole export for one viewer, or null when no live account
- * holds that id — which the route answers 401, a session having outlived the
- * person it spoke for.
- */
+/** The whole export for one viewer, or null when no live account holds that id (the route answers 401). */
 export async function exportForViewer(
   db: Db,
   viewerId: string,
@@ -604,11 +491,7 @@ export async function exportForViewer(
   ): ExportStep[] =>
     truncation.apply(collection, stepsByTask.get(taskId) ?? []).map(stepFrom)
 
-  /* Discussion links are many-to-many (#497), so a Discussion comment has no
-     singular Task to infer. The legacy comments.task_id field is exported only
-     when the comment itself carries one; discussion_id is the durable thread
-     reference and relation edges remain relationship data rather than a fake
-     one-task attribution. */
+  /* A Discussion comment has no single Task: Discussion links are many-to-many. */
   const commentRows = await rowsOf(
     db,
     sql`SELECT c.id, c.folder_id, c.task_id, c.discussion_id, c.parent_id,

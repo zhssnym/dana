@@ -1,9 +1,5 @@
 import { createReactBlockSpec } from '@blocknote/react'
 
-/**
- * One neutral authored callout. It carries rich inline content only: no
- * severity/type taxonomy and no operational meaning.
- */
 export const createCanvasCallout = createReactBlockSpec(
   {
     type: 'callout',

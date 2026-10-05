@@ -13,7 +13,7 @@ export const projectBlockFacetRow = z.object({
 })
 export type ProjectBlockFacetRow = z.infer<typeof projectBlockFacetRow>
 
-/** GET /block-facets?folder=:pageId -- `folder` may be any page of the project. */
+/** GET /block-facets?folder=:pageId; `folder` may be any page of the project. */
 export const getProjectBlockFacetsQuery = z.object({ folder: z.uuid() })
 export type GetProjectBlockFacetsQuery = z.infer<typeof getProjectBlockFacetsQuery>
 
@@ -23,7 +23,7 @@ export const getProjectBlockFacetsResponse = z.object({
 })
 export type GetProjectBlockFacetsResponse = z.infer<typeof getProjectBlockFacetsResponse>
 
-/** PUT /block-facets. Atomic replacement avoids separate link/unlink races. */
+/** PUT /block-facets: replaces the whole set atomically, so link and unlink cannot race. */
 export const putBlockFacetsBody = z.object({
   block_id: z.uuid(),
   facet_ids: z.array(z.uuid()).max(50).refine(

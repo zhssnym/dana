@@ -1,14 +1,7 @@
 /*
-The 11.3 middleware order, the first two links of it: session resolution, then
-CSRF verification on mutations. Rate limiting follows and the handler last.
-
-The order is not a style preference. An unauthenticated mutation answers 401
-and not 403 (AC-111), because answering 403 would tell a caller
-with no session at all that a CSRF token was the only thing they were missing.
-
-Session context rides in a WeakMap rather than on the request object, so no
-route can read it without importing the accessor, and no ambient type
-declaration has to widen Express's Request for the whole codebase.
+Session resolution, then CSRF on mutations (11.3). The order matters: a
+mutation with no session is 401, not 403 (AC-111). Session context lives in a
+WeakMap, so it is read only through sessionOf.
 */
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
 
@@ -20,7 +13,7 @@ import { csrfTokenFor, safeEqual } from './tokens.js'
 
 export interface SessionContext {
   userId: string
-  /** The raw cookie token, needed to derive the CSRF token and to sign out. */
+  /** The raw cookie token, for the CSRF token and for sign-out. */
   token: string
 }
 
@@ -31,9 +24,8 @@ export function sessionOf(req: Request): SessionContext | undefined {
 }
 
 /**
- * Resolves the cookie into a session and rolls its expiry (10.1). An absent,
- * unknown, or expired identifier is simply no session: this middleware never
- * answers, so public routes stay public and requireSession decides.
+ * Resolves the cookie and rolls its expiry. Never answers: no session is just
+ * no session, and requireSession decides.
  */
 export function attachSession(db: Db): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -46,11 +38,8 @@ export function attachSession(db: Db): RequestHandler {
       .then((session) => {
         if (session !== null) {
           contexts.set(req, { userId: session.userId, token })
-          // 10.1's expiry is rolling on both sides or it is not rolling: the
-          // row moved to 30 days out just now, and the cookie has to move
-          // with it or the browser drops a session the server still honors,
-          // 30 days after sign-in however active the person has been. Same
-          // values, new lifetime.
+          // Roll the cookie too, or the browser drops it 30 days after sign-in
+          // while the server still honours the session.
           setSessionCookies(res, token, csrfTokenFor(token))
         }
         next()
@@ -70,11 +59,8 @@ export function requireSession(req: Request, res: Response, next: NextFunction):
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 /**
- * The double-submit check of 11.6. The expected value is derived from this
- * session's own token, so a token issued to another session, or a well-formed
- * token belonging to nobody, fails: the comparison is against what this
- * session's token implies rather than against the cookie the same request
- * carried, which an attacker who can set cookies also controls.
+ * Double-submit CSRF (11.6). The expected value is derived from this session's
+ * own token, not compared with a cookie an attacker might also set.
  */
 export function requireCsrf(req: Request, res: Response, next: NextFunction): void {
   if (SAFE_METHODS.has(req.method)) {
@@ -83,8 +69,7 @@ export function requireCsrf(req: Request, res: Response, next: NextFunction): vo
   }
   const session = contexts.get(req)
   if (session === undefined) {
-    // Unreachable behind requireSession, and kept because the 401-before-403
-    // order is a security property rather than an accident of composition.
+    // Unreachable behind requireSession; kept so 401 always precedes 403.
     sendError(res, 401, 'unauthenticated', 'Sign in to continue.')
     return
   }

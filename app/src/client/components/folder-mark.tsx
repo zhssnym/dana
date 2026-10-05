@@ -1,41 +1,5 @@
-/*
-A folder's mark, wherever a folder is named.
-
-The fault it exists to fix: the sidebar shows the glyph a person picked for a
-folder, a house for Home, a car for Travel, and every other surface used to
-draw the generic one. Identity has to reach every surface that names a folder,
-including every task row. An identity that only some surfaces honour is not an
-identity; it is a decoration on one screen.
-
-**A folder with no chosen glyph still answers the plain folder**, which is why
-this can replace a literal safely: the default is the thing it is replacing.
-
-**Where identity comes from.** Dana's identity is 4.3's own `icon` and `color` columns,
-answered by `GET /folders`, which the chrome already holds; `parts/presenters.
-ts` is the one resolver over it and owns the glyph table and the default
-colour, so this asks that module rather than writing a second answer. A second
-resolver here would be the same fault, one level down.
-
-**The key stays the name, and that is the seam's cost stated plainly.** Every
-surface calls `FolderMark` and `useFolderMark` with a folder's name,
-because `ConceptTask['folder']` is a name and a colour, and rewriting those
-call sites is out of scope. So this looks the name up in
-the table rather than the id, and two folders that share a name resolve to the
-first. That is narrower than it sounds and is not a defect this file can fix:
-`tasks/task-concept.ts` already carries the id on the concept folder for exactly
-the calls that need one, and 7.4's list is per person rather than global. The
-alternative is threading an id through six files.
-
-**And a second, smaller seam: `folderPageMark` does not cross**, being
-`nav-model.ts`'s, which is the navigation adapter's. `folderMarkFor` is the
-same answer without a hook, for the call sites that cannot have one, an icon
-passed as a prop, or a mark resolved inside a `.map`. It reads the store
-directly, so it does not re-render when the identity changes; every current
-caller is inside a menu that is mounted fresh each time it opens, which is why
-that is acceptable here and would not be on a row. The
-store it reads here is `lib/folder-library.ts`'s published snapshot of
-`useFolders()`, which is the same query entry the hook above subscribes to.
-*/
+// A folder's mark wherever a folder is named. It looks folders up by name, so two
+// folders with one name resolve to the first.
 
 import { useFolders } from '../api/queries.js'
 import { publishedFolders } from '../lib/folder-library.js'
@@ -43,42 +7,21 @@ import { folderMark } from '../parts/presenters.js'
 import type { IconProps, LucideIcon } from '../lib/icons.js'
 import type { Folder } from '../../shared/folders.js'
 
-/*
-**A task with no folder is in Desk**, and that fact is resolved here rather
-than at each call site.
-
-It was not, and the seam showed: the card's folder chip read its *label* as
-`task.folder?.name ?? "Desk"` and its *icon* from the mark resolver, so an
-unfiled task said "Desk" beside a generic folder mark. One fallback written
-twice, once correctly. Every call site that asks either question now gets the
-same answer, because there is only one place the question is answered.
-
-The name is the default folder's, which 9.3's entry-default table gives as the
-destination of every capture and 9.1 pins first in the sidebar.
-*/
+// A task with no folder is in Desk; resolved here so every call site agrees.
 export const DEFAULT_FOLDER_NAME = 'Desk'
 
 export function folderNameOf(name: string | undefined): string {
   return name?.trim() ? name : DEFAULT_FOLDER_NAME
 }
 
-/**
- * The folder the person actually has by that name, or nothing.
- *
- * Desk is the case the fallback is for. 4.3 makes the default folder a row
- * like any other, so a viewer who has one has it in this list under whatever
- * they renamed it to; a viewer whose list has not arrived yet has none, and
- * gets the plain glyph rather than a flash of the wrong one.
- */
+/** A viewer whose list has not arrived gets the plain glyph rather than a wrong one. */
 function folderNamed(name: string, folders: readonly Folder[]): Folder | undefined {
   return folders.find((candidate) => candidate.name === name)
 }
 
 export function useFolderMark(
   name: string | undefined,
-  /* What the row already believed the colour was. A folder the person has
-     never dressed keeps it, so nothing changes colour just because this
-     started being asked. */
+  // A folder the person never styled keeps the colour the row already had.
   fallbackColor?: string,
 ): { Icon: LucideIcon; color: string | undefined } {
   const folders = useFolders()
@@ -91,16 +34,13 @@ export function useFolderMark(
   }
 }
 
-/*
-The same answer without a hook, for the call sites that cannot have one: an
-icon passed as a prop, or a mark resolved inside a `.map`.
-*/
+// Without a hook, for icon props and `.map` callers. It reads the store directly,
+// so it does not re-render when the identity changes.
 export function folderMarkFor(name: string | undefined): LucideIcon {
   const resolved = folderNameOf(name)
   return folderMark(folderNamed(resolved, publishedFolders())).icon
 }
 
-/* The whole mark, for the call sites that just want to draw it. */
 export function FolderMark({
   name,
   color,

@@ -1,31 +1,5 @@
-/*
-9.3's "Invite by email", kept alive across the form's retirement.
-
-The section's assignee row: the choices are "the target folder's members plus
-'Invite by email', and, new in v2, 'Unassigned',
-offered last after a separator". The v1 form carried all three; the lifted
-card carries none of them.
-
-**Why this is a module rather than a few lines in the card.** 7.5's invite is
-a folder act, and the folder is the task's, so the write needs the id and the
-name the card holds and nothing else; but it also needs its own small piece of
-state, an address being typed, and the card is a lifted file. Keeping it here
-is the same arrangement `components/task-move-guard.tsx` takes for the same
-reason.
-
-**The invite is the folder's and the assignment is 8.7's**, which is the one
-thing worth being precise about. 7.5 takes an email and a folder, so accepting
-grants membership; the task is not sent with it, and the v1 form's comment
-says why in terms this file keeps: "a create has no task yet, and an
-assignment invite against a task the person has not saved would name a row
-that does not exist." So this offers the person the folder, and assigning them
-is a second act once they are in it, which is what the roster refreshing under
-the chip means.
-
-**Nothing here validates.** 10.3 bounds the address and 7.5 refuses a
-duplicate with the 409 that 9.8 words; an empty box simply does not send,
-which is not a rule but the absence of a request.
-*/
+// "Invite by email" in the assignee menu. The invite grants folder membership only;
+// assigning the person is a second act once they are in.
 
 import { useState } from 'react'
 
@@ -59,8 +33,8 @@ export function TaskAssigneeInvite({
   }
 
   return (
-    /* It lives inside the Assignee menu: the menu keeps Escape (which closes
-       both) and nothing else, so its typeahead never eats the address. */
+    // Inside the assignee menu: let only Escape reach the menu, so its typeahead never
+    // eats the address.
     <div
       className="flex items-center gap-1 px-1.5 py-1"
       onKeyDown={(event) => {

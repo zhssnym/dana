@@ -1,40 +1,9 @@
 /*
-The preamble every router in this directory used to begin with, in one place
-(issue #36). Thirteen files carried a byte-identical copy of it, and it is
-where `attachSession` runs, so a file that copied it wrongly — or a new file
-that forgot it — would have been an authentication defect rather than an
-untidy one.
-
-**The router is created here rather than handed in, and that is the point.**
-Express runs a router's layers in registration order, so a `router.use` added
-after a route does not run for that route. A preamble that took an existing
-router could therefore be called too late and look right; a preamble that
-*returns* the router cannot be, because there is no router to register a
-route on until the session middleware is already on it.
-
-## What the session block actually does, measured rather than assumed
-
-**In the mounted application it does nothing, and it is still worth keeping.**
-`createApp` mounts `createAuthRouter` first at `/api/v1`, and that router's
-own `router.use(attachSession(db))` matches every path under the mount, so
-every request has its session resolved before any router in this directory
-sees it: deleting the block from a route file leaves AC-236 green, which is
-what a no-op looks like.
-
-So what this block buys is **order tolerance**: a router that attaches its own session
-can be mounted before the auth router, or without it, and still authenticate.
-Deleting it would make the mount order in `index.ts` load-bearing for
-authentication as well as for path shadowing, which is the hazard the comment
-above that mount block exists to prevent. It stays.
-
-**And AC-236 cannot see its absence**, for the same reason it is a no-op: the
-sweep drives the mounted application, where the auth router has already
-attached the session, so a route file with no preamble at all answers 401 bare
-and 403 tokenless exactly as one with it. What AC-236 does catch, on every
-method since issue #33, is a route that forgets `requireSession`, and its two
-counts are pinned to equality so a route cannot join the application without
-that number moving in the same change. Authorization is covered by neither and
-is still hand-written at every call site (issue #74).
+The shared start of every router here. It creates the router itself so the
+session middleware is always registered before any route (Express runs layers
+in registration order). In the mounted app the auth router already attached
+the session, so this is a no-op there; it keeps each router correct whatever
+the mount order. AC-236 cannot see its absence. Authorization is still per route.
 */
 import { Router } from 'express'
 import type { NextFunction, Request, Response } from 'express'
@@ -44,39 +13,21 @@ import type { Db, DbClient } from '../../../db/client.js'
 import { attachSession, sessionOf } from '../auth/index.js'
 import { sendError } from '../http/errors.js'
 
-/** The one field of a router's options this module reads. Every router's own
- * options interface satisfies it structurally, extra fields and all. */
+/** The one option this module reads; every router's options satisfy it. */
 export interface PreambleOptions {
   dbClient?: DbClient
 }
 
 export interface RouterPreamble {
-  /** The router, with the session middleware already registered on it. */
   router: Router
-  /**
-   * The database, or null after this call has answered 11.10's 500. A route
-   * that touches data begins `const db = database(res); if (db === null)
-   * return`, which is what lets a route-presence probe construct the whole
-   * application with no database at all.
-   */
+  /** The database, or null after answering 500 (so an app can be built without one). */
   database: (res: Response) => Db | null
   /**
-   * The authenticated viewer, V in the spec's language. Empty behind a route
-   * with no `requireSession`, which is a bug in that route rather than a case
-   * to handle: an empty id is a member of nothing, so a query written the way
-   * this codebase writes them returns no rows.
+   * The viewer's id. Empty without `requireSession`, which is a route bug; an
+   * empty id is a member of nothing, so queries return no rows.
    */
   viewer: (req: Request) => string
-  /**
-   * A uuid path parameter, or null after this call has answered 7.0's 404.
-   *
-   * A path id that is not a uuid names nothing that exists, and letting it
-   * reach a query would surface as a cast error: a 500 wearing a taxonomy the
-   * contract does not have. This was written three ways across seven files
-   * before issue #38 — a module-level function in four, a closure constant in
-   * three, and open-coded `safeParse` beside them — all with identical
-   * behaviour. One way now.
-   */
+  /** A uuid path parameter, or null after answering 404: a non-uuid would be a cast error (500). */
   parsedId: (res: Response, raw: unknown) => string | null
 }
 
@@ -88,8 +39,7 @@ export function routerWithPreamble(options: PreambleOptions): RouterPreamble {
   if (options.dbClient !== undefined) {
     const attach = attachSession(options.dbClient.db)
     router.use((req: Request, res: Response, next: NextFunction) => {
-      // Already attached by whichever router ran first, so the session is
-      // resolved once per request however these are ordered.
+      // Already attached by an earlier router: resolve the session once per request.
       if (sessionOf(req) !== undefined) {
         next()
         return

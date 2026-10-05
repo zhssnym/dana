@@ -1,17 +1,5 @@
-/*
-A native Result (#213): one block of a Folder's Results tab that has its own
-identity (the block id), an authored statement, and nothing else. It is not a
-Task: no assignee, no dates, no status. Its Dana Link is `/app/results/:id`.
-
-Below the statement, "Referenced from" (#214) lists the places that link to
-it — a Task, Purpose, a Discussion — so the connection reads from both ends
-without a relationship editor. Absent while nothing links here.
-
-Opened by its link (`?result=<id>` on the Folder, `ResultLinkPage`), the block
-scrolls itself into view once and is tinted for a moment, so the eye lands on
-the one it was sent to. The arrival is then taken out of the address, so a
-later tab switch or reload does not play it again.
-*/
+// A Result block: an authored statement with its own id and Dana Link. Opened via
+// `?result=<id>`, it scrolls into view, tints briefly, then clears the param.
 import { createExtension } from '@blocknote/core'
 import { createReactBlockSpec } from '@blocknote/react'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
@@ -20,9 +8,10 @@ import { useSearchParams } from 'react-router'
 import { Flag } from '../../../lib/icons.js'
 import { ReferencedFrom } from '../../links/referenced-from.js'
 
-/** The ids of the Results the page's last save stored (`FolderCanvas`).
- * One written since cannot be linked to yet, and asking for its
- * "Referenced from" would only be a 404. Null (no provider): ask for every one. */
+/**
+ * Ids stored by the last save. A newer Result cannot be linked yet, so asking for
+ * its backlinks would 404. Null means ask for every one.
+ */
 export const SavedResults = createContext<ReadonlySet<string> | null>(null)
 
 function ResultBody({ id, contentRef }: { readonly id: string; readonly contentRef: (node: HTMLElement | null) => void }): React.JSX.Element {
@@ -40,8 +29,8 @@ function ResultBody({ id, contentRef }: { readonly id: string; readonly contentR
       return next
     }, { replace: true })
   }, [id, setSearch])
-  // Its own effect: dropping `result` from the address changes setSearch,
-  // which re-runs the effect above and would cancel a timer kept there.
+  // A separate effect: clearing `result` changes setSearch, which would cancel a
+  // timer kept in the effect above.
   useEffect(() => {
     if (!arrived) return
     const done = window.setTimeout(() => { setArrived(false) }, 1600)
@@ -77,8 +66,7 @@ export const createCanvasResult = createReactBlockSpec(
       </p>
     ),
   },
-  /* Results continue as a list does: Enter at the end of one starts the next
-     Result, and Enter on an empty one turns it back into Text. */
+  // Enter at the end starts the next Result; Enter on an empty one turns it into text.
   [createExtension({
     key: 'canvas-result-enter',
     keyboardShortcuts: {

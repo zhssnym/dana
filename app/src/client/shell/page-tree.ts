@@ -1,25 +1,11 @@
 /*
-The sidebar's page tree, built on the client from the flat `GET /folders` list.
-
-The server answers every page the viewer is a member of, each carrying the
-parent *as this viewer may see it*: `parent_folder_id` is null for a root and
-also for a page whose parent the viewer cannot see. So a page is a root here
-when its parent is null **or absent from the list**, and nothing about a
-hidden parent reaches the drawing.
-
-Siblings sort by `child_position`, then `id`, in byte order (the column is
-`COLLATE "C"`), so the comparison is `<` on strings and never `localeCompare`,
-which would disagree with the server about where an uppercase key goes. Roots
-are not ordered here: their order is the viewer's own Library order
-(`library-order.ts`), and this file hands them back in the order they arrived.
-
-Everything here is pure, so the arithmetic a drop depends on is measured by
-`page-tree.test.ts` rather than by nobody.
-*/
+ * The sidebar's page tree from the flat `GET /folders` list. A page is a root when its parent is null or not in
+ * the list. Siblings sort by `child_position` then id in byte order (the column is `COLLATE "C"`), never
+ * `localeCompare`. Roots keep their arrival order; the Library order is applied elsewhere.
+ */
 import type { Folder } from '../../shared/folders.js'
 
 export interface PageTree {
-  /** Pages with no parent this viewer can see, in the order they arrived. */
   readonly roots: readonly Folder[]
   /** Each page's children, sibling-sorted. A page with none is absent. */
   readonly children: ReadonlyMap<string, readonly Folder[]>
@@ -64,9 +50,7 @@ export function buildTree(folders: readonly Folder[]): PageTree {
   }
   for (const bucket of children.values()) bucket.sort(compareSiblings)
 
-  /* A cycle the server should never produce (it refuses them with 422) would
-     leave its members reachable from no root and so drawn nowhere. Break it by
-     making the first member met a root, so every page is always drawn once. */
+  /* A cycle (the server refuses them) would hide its members, so make the first member met a root. */
   const reached = new Set<string>()
   const walk = (id: string): void => {
     if (reached.has(id)) return
@@ -116,10 +100,7 @@ export interface TreeRow {
   readonly hasChildren: boolean
 }
 
-/**
- * The rows a set of pages draws, depth first, skipping everything under a
- * folded page. `depth` starts at `startDepth` for the pages given.
- */
+/** Depth first, skipping everything under a folded page. */
 export function visibleRows(
   tree: PageTree,
   pages: readonly Folder[],
@@ -140,7 +121,7 @@ export function visibleRows(
   return rows
 }
 
-/** Where on a row the pointer is: its top quarter, middle half, or bottom quarter. */
+/** Top quarter, middle half or bottom quarter of a row. */
 export type DropZone = 'before' | 'inside' | 'after'
 
 export function zoneAt(top: number, bottom: number, y: number): DropZone {
@@ -151,12 +132,8 @@ export function zoneAt(top: number, bottom: number, y: number): DropZone {
 }
 
 /**
- * What a drop would do, in the terms of PATCH /folders/:id/location.
- *
- * `afterId` undefined means "last under that parent", null means "first".
- * A drop at the root level (`parent` null) is placed in the viewer's own
- * Library order instead, so it carries the root it lands beside as `anchor`.
- * `mark` is what the sidebar draws: the row to highlight or draw a line on.
+ * In PATCH /folders/:id/location terms. `afterId` undefined is last, null is first. A root-level drop goes into
+ * the Library order instead, carrying the root it lands beside as `anchor`.
  */
 export interface TreeDrop {
   readonly parent: string | null
@@ -168,11 +145,7 @@ export interface TreeDrop {
   }
 }
 
-/**
- * The drop a pointer over `rowId`'s `zone` proposes for `carriedId`, or null
- * when there is none: onto itself or anything under it (a cycle), or onto a
- * page `mayParent` says the viewer cannot put pages in.
- */
+/** Null for a drop onto itself or a descendant (a cycle), or onto a page `mayParent` refuses. */
 export function resolveDrop(
   tree: PageTree,
   folded: ReadonlySet<string>,
@@ -191,8 +164,7 @@ export function resolveDrop(
 
   const kids = childrenOf(tree, rowId).filter((kid) => kid.id !== carriedId)
   if (zone === 'after' && kids.length > 0 && !folded.has(rowId)) {
-    /* Below an open page with children, the line sits above its first child,
-       so that is where the page lands. */
+    /* Below an open page with children, the line sits above its first child, so the page lands there. */
     if (!mayParent(rowId)) return null
     return { parent: rowId, afterId: null, mark: { rowId, kind: 'first-child' } }
   }
@@ -213,7 +185,6 @@ export function resolveDrop(
   return { parent, afterId: previous?.id ?? null, mark: { rowId, kind: 'before' } }
 }
 
-/** Whether a drop would leave the page exactly where it already is. */
 export function isNoop(tree: PageTree, carriedId: string, drop: TreeDrop): boolean {
   const current = tree.parent.get(carriedId) ?? null
   if (drop.parent === null || current !== drop.parent) return false
@@ -225,10 +196,7 @@ export function isNoop(tree: PageTree, carriedId: string, drop: TreeDrop): boole
   return siblings[at - 1]?.id === drop.afterId
 }
 
-/**
- * The Library order with `id` moved beside `anchorId`, for a page that becomes
- * a root. An anchor the order does not name puts it last.
- */
+/** An anchor the order does not name puts it last. */
 export function placeInOrder(
   order: readonly string[],
   id: string,

@@ -1,25 +1,8 @@
 /*
-The workspace tab strip is session working state, not account data.
-
-The router remains the source of truth for the address on screen. Ordinary
-navigation retargets the active tab; choosing a place from the strip's +
-control is the one action that adds a tab. Nothing is persisted to the server
-or local storage: the strip answers "what am I working with right now?", not
-"what should every device remember?".
-
-A tab is keyed by its page pathname for de-duplication. Query/hash state still
-travels with the tab, so a Folder can remember the facet or open task it was
-showing without turning Purpose / Work / Results / Discussion into another
-set of application tabs.
-
-Collaboration presentation state belongs to the workspace tab for the same
-reason. Discussion or Team can be open in one tab and absent in another; only
-the active tab's state is visible. Switching tabs therefore hides a panel
-without destroying it, and switching back restores the exact panel state that
-tab owned. Discussion's full-screen return path is part of that same state so
-one workspace tab can never overwrite another tab's source context. Sidebar
-width remains a separate viewer/window preference.
-*/
+ * The workspace tab strip: session working state, never persisted. The router owns the address on screen;
+ * navigation retargets the active tab, and only the strip's + adds one. Tabs are keyed by pathname. Each tab
+ * owns its Discussion and Team presentation state, so switching tabs hides a panel without destroying it.
+ */
 import { useSyncExternalStore } from 'react'
 
 import { paths } from '../routes.js'
@@ -33,7 +16,7 @@ export interface DiscussionCollaborationState {
   readonly discussionId: string | null
   readonly filter: DiscussionFilter
   readonly presentation: CollaborationPresentation
-  /** Exact page/view/query/hash Discussion should return beside or back to. */
+  /** The exact route Discussion returns beside or back to. */
   readonly returnTo: string | null
 }
 
@@ -67,7 +50,7 @@ function nextId(): string {
   return `workspace-tab-${String(counter)}`
 }
 
-/** The application-level place represented by a URL, excluding page-local state. */
+/** The app-level place for a URL, without page-local state. */
 export function tabKey(path: string): string {
   const query = path.indexOf('?')
   const hash = path.indexOf('#')
@@ -82,11 +65,8 @@ function newTab(path: string): Tab {
 const first: Tab = newTab(paths.today)
 let state: TabState = { tabs: [first], activeId: first.id }
 /*
- * Selecting a workspace tab and React Router drawing that tab are two separate
- * synchronous/async steps. Keep the destination between them so a passive
- * effect left from the previous route cannot write its old address into the
- * newly selected tab. The same handoff protects explicit Discussion
- * full/sidebar transitions that commit a source route before navigation.
+ * Selecting a tab and the router drawing it are separate steps. Hold the destination between them, so a passive
+ * effect from the previous route cannot write its old address into the new tab.
  */
 let pendingRoute: PendingRoute | null = null
 
@@ -106,23 +86,20 @@ export function useTabs(): TabState {
   )
 }
 
-/** The collaboration state owned by the workspace tab currently on screen. */
 export function useActiveCollaboration(): CollaborationState | null {
   const current = useTabs()
   return current.tabs.find((tab) => tab.id === current.activeId)?.collaboration ?? null
 }
 
-/** Non-hook read for event handlers that must preserve the latest active state. */
+/** Non-hook read for event handlers that need the latest state. */
 export function activeCollaboration(): CollaborationState | null {
   return state.tabs.find((tab) => tab.id === state.activeId)?.collaboration ?? null
 }
 
-/** The active tab id, used only for tab-local focus bookkeeping. */
 export function activeWorkspaceTabId(): string {
   return state.activeId
 }
 
-/** Replace the active workspace tab's collaboration presentation state. */
 export function setActiveCollaboration(next: CollaborationState | null): void {
   const at = state.tabs.findIndex((tab) => tab.id === state.activeId)
   if (at < 0) return
@@ -134,7 +111,7 @@ export function setActiveCollaboration(next: CollaborationState | null): void {
   publish()
 }
 
-/** Update the active tab without racing a render-captured collaboration value. */
+/** Updates the active tab without racing a render-captured value. */
 export function updateActiveCollaboration(
   update: (current: CollaborationState | null) => CollaborationState | null,
 ): void {
@@ -176,12 +153,8 @@ function applyRoute(path: string): void {
 }
 
 /**
- * Commit a known destination to the active workspace tab immediately.
- *
- * Presentation transitions use this before router navigation because the
- * TabStrip's ordinary route reconciliation is intentionally passive. The
- * destination remains pending until the router reports that exact address,
- * so an older passive effect cannot undo the commit in the gap between them.
+ * Used before navigation because the strip's route reconciliation is passive. The destination stays pending
+ * until the router shows that exact address.
  */
 export function commitActiveTabRoute(path: string): void {
   applyRoute(path)
@@ -189,17 +162,8 @@ export function commitActiveTabRoute(path: string): void {
 }
 
 /**
- * Reconcile ordinary router navigation with the working set.
- *
- * A tab selection or explicit presentation transition may already have chosen
- * the next address while React Router still displays the previous one. Until
- * the router reaches that pending destination, ignore every older route
- * effect. The visible-path check covers the inverse race, where the browser
- * has already advanced past an older passive effect.
- *
- * If the current router destination is already represented by another tab,
- * that tab becomes current and takes the exact URL the navigation requested.
- * Otherwise the active tab is retargeted in place, like an address bar.
+ * Until the router reaches a pending destination, ignore older route effects. A destination already open in
+ * another tab makes that tab current; otherwise the active tab is retargeted.
  */
 export function retarget(path: string): void {
   if (pendingRoute !== null) {
@@ -214,7 +178,6 @@ export function retarget(path: string): void {
   applyRoute(path)
 }
 
-/** Add a place beside the active tab, or switch to its existing tab. */
 export function openInNewTab(path: string): string {
   const key = tabKey(path)
   const open = state.tabs.find((tab) => tabKey(tab.path) === key)
@@ -235,18 +198,14 @@ export function openInNewTab(path: string): string {
   return path
 }
 
-/**
- * Open a place as a tab at one slot among the open ones, and make it current:
- * a sidebar row dropped on the tab strip (`tab-drop.ts`). A place that already
- * has a tab moves to that slot rather than opening twice.
- */
+/** A sidebar row dropped on the strip. A place already open moves to that slot. */
 export function openTabAt(path: string, index: number): string {
   const key = tabKey(path)
   const tabs = [...state.tabs]
   const from = tabs.findIndex((tab) => tabKey(tab.path) === key)
   const tab = from < 0 ? newTab(path) : tabs.splice(from, 1)[0]
   if (tab === undefined) return path
-  /* Taking the tab out first shifts every slot after it left by one. */
+  /* Taking the tab out first shifts every later slot left by one. */
   const at = Math.max(0, Math.min(tabs.length, from >= 0 && from < index ? index - 1 : index))
   tabs.splice(at, 0, tab)
   state = { tabs, activeId: tab.id }
@@ -255,7 +214,6 @@ export function openTabAt(path: string, index: number): string {
   return tab.path
 }
 
-/** Make a tab current and return the URL the router should show. */
 export function selectTab(id: string): string {
   const tab = state.tabs.find((candidate) => candidate.id === id)
   if (tab === undefined) return state.tabs[0]?.path ?? paths.today
@@ -265,7 +223,7 @@ export function selectTab(id: string): string {
   return tab.path
 }
 
-/** Close one tab; closing the active tab selects its nearest neighbour. */
+/** Closing the active tab selects its nearest neighbour. */
 export function closeTab(id: string, emptyPath: string): string | null {
   const at = state.tabs.findIndex((tab) => tab.id === id)
   if (at < 0) return null
@@ -293,7 +251,6 @@ export function closeTab(id: string, emptyPath: string): string | null {
   return neighbour.path
 }
 
-/** Commit a pointer or keyboard reorder. */
 export function reorderTabs(from: number, to: number): void {
   if (from === to || from < 0 || to < 0 || from >= state.tabs.length || to >= state.tabs.length) return
   const tabs = [...state.tabs]

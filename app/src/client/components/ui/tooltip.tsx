@@ -4,8 +4,8 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip"
 
 import { cn } from "./utils.js"
 
-/* The first tooltip waits, so sweeping the pointer across icons does not
-   flicker; once one is open, neighbours open at once (Base UI `timeout`). */
+// The first tooltip waits so sweeping across icons does not flicker; neighbours then open
+// at once.
 function TooltipProvider({
   delay = 500,
   ...props
@@ -47,9 +47,8 @@ function TooltipContent({
         alignOffset={alignOffset}
         side={side}
         sideOffset={sideOffset}
-        /* Above every layer, popovers (z-70) and dialogs (z-100) included:
-           a tooltip is only ever shown for the thing under the pointer, so
-           nothing may cover it. */
+        // Above every layer, popovers and dialogs included: a tooltip belongs to what is under
+        // the pointer.
         className="isolate z-[200]"
       >
         <TooltipPrimitive.Popup

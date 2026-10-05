@@ -1,31 +1,9 @@
 /*
-Q8: GET /search.
-
-Three rules of this query are easy to get subtly wrong, and each is written
-here rather than assembled at a call site.
-
-**The pattern.** "'%' q '%'", so a match anywhere in the text counts and a
-prefix-anchored LIKE finds none of what this is for. ILIKE, so case is not a
-filter. title OR notes, so a needle that lives only in the body is found.
-
-**The escaping**: a
-backslash, percent or underscore inside q is escaped before it is
-interpolated, so a search for "50%" matches text containing those three
-characters rather than everything containing "50". Without it the pattern
-syntax leaks into the search box, where nothing tells a user it is there. The
-backslash is the sharp one: unescaped, Postgres reads it as LIKE's own escape
-character, so a query for "a\b" quietly means "ab" and misses the row the
-user typed while finding one they did not. The escape costs nothing at the
-index, which sees trigrams either way.
-
-**The keyset.** "status_rank over all three ranks the preamble defines,
-updated_at descending, id descending. Keyset pagination, page size 20." The
-leading key ascends while the other two descend, so the resumption cannot be
-one row-wise comparison the way Q6's is: it is the rank strictly past the
-cursor's, or the same rank and a position strictly past it. The cursor
-carries the row's own status rather than its rank, so the mapping from status
-to rank stays in this query's ORDER BY where section 6 put it, and no client
-holds a number the specification has already revised once.
+Q8, GET /search: '%q%' ILIKE over title, notes and checklist text. Backslash,
+% and _ in q are escaped, so "50%" is literal and "a\b" is not read as "ab".
+Keyset order: status_rank ascending, then updated_at and id descending, so
+resuming is "a later rank, or the same rank and an earlier position". The
+cursor holds the status, not the rank.
 */
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
@@ -46,15 +24,11 @@ import {
 } from './cards.js'
 import type { TaskStatus } from '../../shared/tasks.js'
 
-/** Q8's order. */
 const Q8_ORDER = sql`${STATUS_RANK} ASC, t.updated_at DESC, t.id DESC`
 
 /**
- * The literal reading of what the user typed, as a LIKE pattern.
- *
- * The backslash goes first, and it has to: escaping the wildcards first
- * would then escape the backslashes this step just added, turning every
- * wildcard back into a literal backslash followed by a live wildcard.
+ * What the user typed, as a literal LIKE pattern. Escape the backslash first,
+ * or the wildcard escapes would themselves be escaped.
  */
 export function searchPattern(q: string): string {
   return `%${q.replace(/[\\%_]/g, (character) => `\\${character}`)}%`
@@ -77,10 +51,7 @@ export async function searchView(
 
   const rows = await readCards(executor, {
     viewerId,
-    // All three statuses: a task being completed or abandoned is a reason to
-    // draw a chip, never a reason to make it unfindable. A checklist item
-    // (a subtask) reaches its task (7.18): the item is not a result of its
-    // own, the task it belongs to is. Notes leave checklist text out.
+    // All statuses are searchable. A checklist item matches its task, not itself.
     where: sql`(t.title ILIKE ${pattern} OR t.notes ILIKE ${pattern}
                 OR EXISTS (SELECT 1 FROM page_blocks s
                             WHERE s.task_id = t.id AND s.kind = 'checklist'
@@ -91,12 +62,8 @@ export async function searchView(
   })
 
   /*
-  7.18's additive kinds, each its own scoped query under the same pattern:
-  folders and shelves on name and description, pages on block text. The
-  page read joins the block's home both ways, a folder page being its
-  members' and a shelf page its owner's, and the section 6 trash guard
-  rides each join. Capped at the page size apiece; the 1000-row list cap of
-  10.3 is nowhere near.
+  Folder, shelf and page hits, each scoped (folder members, shelf owner) and
+  capped at the page size.
   */
   const folderHits = await rowsOf(
     executor,
@@ -139,11 +106,8 @@ export async function searchView(
         LIMIT ${SEARCH_PAGE_SIZE}`,
   )
 
-  /* Wave 2: each folder hit's and page hit's place in the page tree, as
-     this viewer may see it -- one depth-capped upward walk for the whole
-     batch, cut at the first ancestor the viewer is not a member of or that
-     is trashed, so a hidden parent's name never reaches the results. Every
-     starting folder here is already one the viewer is a member of. */
+  /* Breadcrumbs in one walk, cut at the first ancestor the viewer cannot see,
+     so a hidden parent's name never appears. */
   const trail = await visibleAncestors(executor, viewerId, [
     ...folderHits.map((row) => String(row.id)),
     ...pageHits.flatMap((row) =>
@@ -181,8 +145,7 @@ export async function searchView(
       folder_id: row.folder_id === null ? null : String(row.folder_id),
       shelf_id: row.shelf_id === null ? null : String(row.shelf_id),
       text: String(row.text ?? ''),
-      /* The page's folder's ancestors, then the folder itself (which the
-         membership join above already admitted). A shelf page has none. */
+      /* The folder's ancestors, then the folder itself. A shelf page has none. */
       breadcrumbs:
         row.folder_id === null
           ? []

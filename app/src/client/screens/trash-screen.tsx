@@ -1,8 +1,4 @@
-/*
-The Trash screen (9.11), bound through `lib/trash.ts`. Each row carries
-`purgeable` from the adapter, so "Delete forever" and "Empty trash" are drawn
-only where the server would answer 204 (AC-262, AC-284, AC-285).
-*/
+/* The Trash screen (spec 9.11). "Delete forever" and "Empty trash" draw only for `purgeable` rows. */
 
 import { useState } from "react"
 
@@ -113,9 +109,7 @@ function TrashRow({
 
   const days = `${left} day${left === 1 ? "" : "s"} left`
 
-  /* One line: the name, where it came from, and the days left. On hover or
-     focus the actions take the days' place, in the same slot, so the right
-     edge never moves; a touch screen shows the actions. */
+  /* On hover or focus the actions take the days' slot, so the right edge never moves; touch shows the actions. */
   return (
     <Row
       role="listitem"

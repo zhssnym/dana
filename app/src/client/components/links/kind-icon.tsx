@@ -1,6 +1,6 @@
 import { CheckCircle2, FileText, Flag, Folder, Layers3, Link2, MessageCircle } from '../../lib/icons.js'
 
-/** A reference kind's glyph; an unknown kind draws as a plain link. */
+/** An unknown kind draws as a plain link. */
 export function DanaLinkKindIcon({ kind }: { readonly kind: string }): React.JSX.Element {
   const Icon = kind === 'task' ? CheckCircle2
     : kind === 'folder' ? Folder

@@ -1,4 +1,3 @@
-/* The page tree's state and acts, built once for the whole Library. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import {
@@ -79,9 +78,7 @@ export function usePageTreeValue({
     setMark(null)
   }, [])
 
-  /* The page on screen is never hidden under a folded parent: a page made
-     from its parent's own "…" opens with its row showing. Once per page
-     opened, so folding the parent afterwards stays folded. */
+  /* Unfold the open page's parents, once per page, so a later fold sticks. */
   const revealed = useRef<string | null>(null)
   useEffect(() => {
     if (activeId === null || revealed.current === activeId || !tree.byId.has(activeId)) return
@@ -91,8 +88,7 @@ export function usePageTreeValue({
     }
   }, [activeId, tree, setFold])
 
-  /* Only when the page on screen, or one under it, goes: to Today, replacing
-     the entry so Back does not land on a page that is gone. */
+  /* Replace, so Back does not land on a page that is gone. */
   const leaveIfShowing = (id: string): void => {
     if (activeId !== null && (activeId === id || isDescendant(tree, id, activeId))) {
       void navigate(paths.today, { replace: true })
@@ -109,12 +105,9 @@ export function usePageTreeValue({
             const parent = tree.byId.get(id)
             return parent !== undefined && !parent.is_default && mayEditPage(parent)
           })
-    /* The Desk page is pinned first, so nothing lands beside it, and it is
-       never a parent (the server's 422), so nothing lands inside it either. */
+    /* The Desk is pinned first and never a parent (the server answers 422). */
     if (drop?.anchor !== undefined && (!allowRoot || onto?.is_default === true)) drop = null
-    /* Tree drops are currently only used to resolve root placement. Nested
-       pages are displayed here, but reparenting remains a separate act until
-       nested rows themselves participate in the drag engine. */
+    /* Tree drops only place roots: nested rows are not in the drag engine yet. */
     if (drop !== null && drop.parent !== null) drop = null
     if (drop !== null && isNoop(tree, carried.id, drop)) drop = null
     const next = drop?.mark ?? null
@@ -125,7 +118,7 @@ export function usePageTreeValue({
   const commit = (carried: Folder, drop: TreeDrop): void => {
     setMark(null)
     if (drop.parent !== null) {
-      /* Nested into a folded page: open it, so the page is seen landing. */
+      /* Unfold the parent, so the page is seen landing. */
       setFold(drop.parent, false)
       move.mutate({
         id: carried.id,
@@ -138,12 +131,11 @@ export function usePageTreeValue({
     }
     const anchor = drop.anchor
     if (anchor === undefined) return
-    /* Already a root here: only its place in the order changes. */
+    /* A nested page becomes a root first. */
     if ((tree.parent.get(carried.id) ?? null) !== null) {
       move.mutate({ id: carried.id, body: { parent_folder_id: null } })
     }
-    /* A root's place is the viewer's own Library order, and its collection
-       is the one the root it lands beside is in. */
+    /* The root joins the collection of the root it lands beside. */
     onOrderChange(placeInOrder(encodeColumn(entries), carried.id, anchor.id, anchor.side))
     const beside = tree.byId.get(anchor.id)
     if (beside !== undefined && beside.my_shelf !== carried.my_shelf) {
@@ -173,15 +165,14 @@ export function usePageTreeValue({
       setRenaming(null)
       if (name !== null) renameFolder.mutate({ id: folder.id, body: { name } })
       /* The field unmounts with focus in it: hand focus back to the row,
-         unless the rename ended because focus went somewhere else. */
+         unless focus went somewhere else. */
       requestAnimationFrame(() => {
         const at = document.activeElement
         if (at === null || at === document.body) pageRowLink(document, folder.id)?.focus()
       })
     },
     trash: (folder) => {
-      /* An owner with other members is asked whether to hand it on first;
-         that question lives on the page. */
+      /* A shared page an owner deletes goes through the page's own delete. */
       if (folder.is_owner && folder.member_count > 1) {
         void navigate(folderActionPath(folder.id, 'delete'))
         return

@@ -1,29 +1,11 @@
 /*
-The 7.19 place-cover contract: the cover a person has chosen for one of Dana's own place pages.
-
-**Why this is a contract at all**, since folders and shelves have carried a
-cover since 4.3 and 4.18: a place page has no row anywhere to hang one on,
-which is why the table exists. It is
-per viewer, so nothing here names anybody: every route reads and writes the
-caller's own and there is no path to another person's.
-
-**Exactly one source.** A cover is a stored file or a built-in, never both
-and never neither, which is 4.20's CHECK. The schema below refuses both
-shapes with 422 naming the pair, rather than letting the database answer a
-constraint violation as a 500.
-
-**The preset is checked for shape and not against a list**, here as in the
-column. The built-in covers are the design system's gradients and ribbon
-marks; a value list in a shared schema would be a design vocabulary fixed
-in the contract, which 11.13 puts in the design record instead.
+The 7.19 place covers: per viewer, for Dana's own place pages, which have no
+row of their own. Exactly one source (file or preset), refused as 422 rather
+than the CHECK's 500. Presets are shape-checked only, not listed.
 */
 import { z } from 'zod'
 
-/**
- * 4.20's native place-page set. Desk is absent because it is a folder and
- * carries 4.3's own cover column. `overdue` joined this set in issue #353 so
- * every Focus destination can use the same durable cover path.
- */
+/** The place-page set. Desk is a folder and has its own cover column. */
 export const PLACE_COVER_PLACES = [
   'today',
   'scheduled',

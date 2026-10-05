@@ -1,5 +1,3 @@
-/* Chains a row's selection and drag pointer handlers. */
-
 import type { PointerEvent as ReactPointerEvent } from "react"
 
 import type { useRowSelection } from "./use-row-selection.js"

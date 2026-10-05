@@ -1,21 +1,5 @@
-/*
-The one body writer for a flat page: a facet's page, a Task's page and a
-Shelf's page (the approved project model, step 4).
-
-Those three appliers carried the same loop three times: merge the operations,
-check the outline and the nesting, audit what the transaction writes, refuse
-an id that lives anywhere else, then delete, upsert and re-key. That loop is
-here once. Each home keeps what is its own: the gate, the receipt, the
-revision, the refusal class, which references it may hold and what happens
-after the write (mentions, the Task `notes` projection).
-
-A Folder's Main page is not flat. It holds Tasks, Sections and sub-pages, so
-`applyDocument` keeps its own loop and asks the same registry which kinds it
-stores.
-
-Every refusal precedes the first write, and every statement that writes
-carries the home's scope column, as each of the three did before.
-*/
+// The shared body writer for flat pages (Task and Shelf pages). Each home keeps its own gate,
+// receipt, revision and refusals. Every refusal precedes the first write; every write carries the scope column.
 import { sql } from 'drizzle-orm'
 
 import { allowedIn } from '../../shared/block-kinds.js'
@@ -29,7 +13,6 @@ import { initialKeys } from './fractional-index.js'
 export type BlockOp = Extract<DocumentOperation, { op: 'put_block' }>
 export type FlatHome = Exclude<BlockHome, 'work'>
 
-/** Which rows a flat body is: the column that names its home, and the id. */
 export interface FlatScope {
   column: 'task_id' | 'shelf_id'
   id: string
@@ -39,12 +22,9 @@ export interface FlatScope {
 export type Refuse = (outcome: 'not_found' | 'invalid', message: string, field?: string) => Error
 
 export interface FlatBody {
-  /** The stored rows, locked, as `id`, `kind` and `ref_folder_id`. */
   stored: Record<string, unknown>[]
-  /** The ids the home held before, and the ids it holds after. */
   original: Set<string>
   blocks: Set<string>
-  /** The blocks this transaction writes, normalized, keyed by id. */
   writes: Map<string, BlockOp>
   outline: { id: string; listParent: string | null }[]
 }
@@ -53,11 +33,9 @@ export interface FlatBodyHome {
   home: FlatHome
   scope: FlatScope
   refuse: Refuse
-  /** Why this home holds no Tasks (the `create_task` refusal). */
   noTasks: string
-  /** The refusal for an id that exists outside this home. */
   foreignId: string
-  /** The home's reference rules, asked of the writes before anything is written. */
+  /** The home's reference rules, checked before anything is written. */
   audit: (body: FlatBody) => Promise<void>
   /** Runs after the blocks are written and before they are re-keyed. */
   afterWrite?: (writes: Map<string, BlockOp>) => Promise<unknown>
@@ -65,7 +43,6 @@ export interface FlatBodyHome {
 
 const PAGE_HERE = "A page block lives only on a folder's page."
 
-/** Why `kind` is refused on `home`, in the words each applier used. */
 export function refusedKindMessage(kind: string, home: BlockHome): string {
   if (kind === 'page') return PAGE_HERE
   if (kind === 'result') return 'A Result lives on the Results tab.'
@@ -90,11 +67,7 @@ export function folderFileAudit(tx: Executor, folderId: string, refuse: Refuse) 
   }
 }
 
-/**
- * Applies the operations to a flat home's blocks, inside the caller's
- * transaction, after the caller has gated, checked the receipt and the
- * revision. Returns the blocks it wrote.
- */
+/** Applies the operations inside the caller's transaction, after the caller gated and checked receipt and revision. */
 export async function applyFlatBody(
   tx: Executor,
   home: FlatBodyHome,
@@ -110,9 +83,7 @@ export async function applyFlatBody(
   const storedKinds = new Map(stored.map((row) => [String(row.id), String(row.kind)]))
   const blocks = new Set(original)
   const writes = new Map<string, BlockOp>()
-  /* Every id the operations mention, audited against the rest of Dana below
-     whether or not it survives the merge (the adversarial review of 16ce81b:
-     put, then delete, a block of somebody else's). */
+  /* Audit every id the operations mention, even ones the merge drops: a put then delete of someone else's block. */
   const named = new Set<string>()
   let items: { id: string; kind: 'block' | 'task'; section: string | null; listParent: string | null }[] = []
 
@@ -123,7 +94,6 @@ export async function applyFlatBody(
       if (!allowedIn(op.block_kind, home.home)) {
         throw refuse('invalid', refusedKindMessage(op.block_kind, home.home), 'operations')
       }
-      // A checklist item always records a tick; no other kind carries one.
       writes.set(op.id, {
         ...op,
         checked: op.block_kind === 'checklist' ? (op.checked ?? false) : null,
@@ -135,8 +105,7 @@ export async function applyFlatBody(
     }
     if (op.op === 'delete_block') {
       if (!blocks.delete(op.id)) throw refuse('not_found', 'Block not found.')
-      // A block put and then deleted is written by nothing and audited by
-      // nothing but the identity check below.
+      // A block put then deleted is checked only by the identity check below.
       writes.delete(op.id)
       named.add(op.id)
       continue
@@ -149,8 +118,7 @@ export async function applyFlatBody(
     }))
   }
 
-  // Only growth past the cap is refused: a body already over it (0060 can
-  // append a task's steps past 500) stays tickable and can shrink.
+  // Only growth past the cap is refused, so a body already over it can still shrink.
   if (blocks.size > 500 && blocks.size > original.size) {
     throw refuse('invalid', 'A page holds at most 500 blocks.', 'operations')
   }
@@ -160,8 +128,7 @@ export async function applyFlatBody(
     if (item.kind !== 'block' || !blocks.has(item.id) || seen.has(item.id)) {
       throw refuse('invalid', 'The outline has unknown or repeated identities.', 'operations')
     }
-    // A shelf-homed row may carry no Section membership
-    // (`page_blocks_section_membership_check`); a facet and a Task ignore it.
+    // A shelf-homed row may carry no Section (`page_blocks_section_membership_check`).
     if (home.home === 'shelf' && item.section !== null) {
       throw refuse('invalid', 'a Shelf document has no Section membership', 'section_block_id')
     }
@@ -170,7 +137,6 @@ export async function applyFlatBody(
   if (seen.size !== blocks.size) {
     throw refuse('invalid', 'The outline must retain every undeleted block.', 'operations')
   }
-  // Block nesting (0038), the rule every document home shares.
   const nesting = nestingProblem(
     items.map((item) => ({
       kind: item.kind,
@@ -185,8 +151,7 @@ export async function applyFlatBody(
   const outline = items.map((item) => ({ id: item.id, listParent: item.listParent }))
   await home.audit({ stored, original, blocks, writes, outline })
 
-  // Ids are one space across page_blocks and tasks: an id this home does not
-  // hold that exists anywhere else is not this home's to write.
+  // Ids share one space across page_blocks and tasks: an id held elsewhere is not this home's to write.
   const foreign = [...named].filter((id) => !original.has(id))
   if (foreign.length > 0) {
     const ids = sql.join(foreign.map((id) => sql`${id}::uuid`), sql`, `)
@@ -199,16 +164,13 @@ export async function applyFlatBody(
     if (clashes.length > 0) throw refuse('invalid', home.foreignId, 'operations')
   }
 
-  // Writes. Deletions are this home's own rows less the final set, never a
-  // set the operations built, and every statement carries the scope column.
+  // Deletions are this home's own rows minus the final set, never a set the operations built.
   for (const id of original) {
     if (!blocks.has(id)) {
       await tx.execute(sql`DELETE FROM page_blocks WHERE id = ${id}::uuid AND ${column} = ${scope.id}::uuid`)
     }
   }
-  /* A home that holds no folder reference never writes the column: a new row
-     gets none, and a stored row keeps whatever it had, as the facet and Task
-     appliers did by leaving it out of their statements. */
+  /* A home without folder references never writes the column, so stored rows keep their value. */
   const holdsRefs = allowedIn('folder_ref', home.home)
   const refOnUpdate = holdsRefs ? sql`EXCLUDED.ref_folder_id` : sql`page_blocks.ref_folder_id`
   for (const write of writes.values()) {
@@ -236,8 +198,7 @@ export async function applyFlatBody(
     )
   }
   if (home.afterWrite !== undefined) await home.afterWrite(writes)
-  // `position` is rewritten with the key so the legacy reader, which orders
-  // by it, keeps agreeing with the document.
+  // `position` is rewritten too, because the legacy reader orders by it.
   const keys = initialKeys(outline.length)
   for (const [index, item] of outline.entries()) {
     await tx.execute(

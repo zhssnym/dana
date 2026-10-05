@@ -1,24 +1,5 @@
-/*
-The domain module for the settings bundle and the saved views (4.19), keyed by the session's user like everything at 7.2's address.
-
-The pin fold: pinned_views null
-means never chosen, and the pins derive from the three v1 flags, so a v1
-account's show_done arrives as Done pinned with no data migration at all;
-once written, the column is the record and the flags stop mattering to this
-surface.
-
-**The derivation is the whole of what those three columns now do (issue
-#113).** Nothing writes them any more, and this read is their only consumer
-besides the `settings` key of 7.1's GET /me. They
-are not dropped: a v1 account that never chose pins still gets the sidebar
-its flags describe, which is exactly what this function is for, and dropping
-the columns is a later contract migration. At no moment are two records
-authoritative for one reader.
-
-Desk is locked pinned (9.7): whatever a write carries, the stored list
-keeps 'desk', because the place a task goes when you have not said where
-has to stay reachable.
-*/
+// The settings bundle and saved views (4.19). pinned_views null means never chosen: pins derive from the
+// three v1 flags, which nothing writes any more. Desk always stays pinned (9.7).
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
@@ -72,24 +53,7 @@ function derivePins(row: Record<string, unknown>): string[] {
   return pins
 }
 
-/*
-The calendar's zoom, read defensively (issues #140, #142).
-
-The column's CHECK admits exactly `CALENDAR_ZOOMS`, so a stored value outside
-them cannot exist today and this branch is unreachable through the schema.
-It is written anyway because of what the alternative costs on the day a zoom
-is retired: the client parses every response through `settingsBundle`, whose
-`calendar_zoom` is that same enum, so a row left carrying a dropped value
-would fail the parse and the person would meet an error on the whole settings
-bundle rather than a calendar drawn at the default. Reading a retired value as
-`DEFAULT_CALENDAR_ZOOM` is what #140 asks for — "invalid/retired values
-should fall back safely to the product default" — and it costs one comparison.
-
-This is deliberately not done for `theme`, `clock` and the rest: their values
-have never moved, nobody has asked, and a defensive read added everywhere on
-the strength of one requirement is four more places for a real wrong value to
-hide.
-*/
+// Read a retired zoom as the default, so one bad value cannot break the whole settings bundle parse.
 function zoomFrom(value: unknown): CalendarZoom {
   const stored = String(value)
   return (CALENDAR_ZOOMS as readonly string[]).includes(stored)
@@ -100,14 +64,7 @@ function zoomFrom(value: unknown): CalendarZoom {
 const ICON_KEY = /^[a-z0-9-]{1,40}$/
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
 
-/**
- * Issue #353's sparse Focus identity map. The request schema guards every new
- * write; this read is defensive because the column is JSONB rather than a set
- * of scalar CHECKed columns. A malformed nested value must not make the whole
- * settings bundle unreadable. Invalid fields fall back independently, and an
- * entry with neither valid field disappears — exactly the native-default
- * state.
- */
+/** Defensive read of the JSONB Focus map: invalid fields fall back one by one, so the bundle stays readable. */
 function focusAppearanceFrom(value: unknown): FocusAppearance {
   const stored = jsonOf(value)
   if (stored === null || typeof stored !== 'object' || Array.isArray(stored)) {
@@ -135,9 +92,7 @@ function focusAppearanceFrom(value: unknown): FocusAppearance {
   return result
 }
 
-/** Merge one sparse PATCH into the stored map. Null is whole-key reset; an
- * omitted nested field is left alone; and the all-null state is canonicalized
- * away so there is only one spelling of "use the native identity". */
+/** Merge one sparse PATCH. Null resets a key, omitted fields stay, and all-null entries are removed. */
 function mergeFocusAppearance(
   current: FocusAppearance,
   patch: PatchFocusAppearance,
@@ -183,7 +138,7 @@ function bundleFrom(row: Record<string, unknown>): SettingsBundle {
   }
 }
 
-/** The stored Focus keys, unknown and repeated keys dropped, order kept. */
+/** Unknown and repeated keys dropped, order kept. */
 function focusFrom(value: unknown): FocusListKey[] {
   const stored = jsonOf(value)
   if (!Array.isArray(stored)) return [...DEFAULT_FOCUS_LISTS]
@@ -228,10 +183,6 @@ export async function writeBundle(
     if (patch.task_open !== undefined) {
       sets.push(sql`task_open = ${patch.task_open}`)
     }
-    /* The reader above and this writer landed with the field itself (issues
-       #140, #142). A declared request field with no writer is the four-package
-       reminder loss `shared/tasks.ts` records: it parses, it is dropped, and
-       the caller is answered 200. */
     if (patch.calendar_zoom !== undefined) {
       sets.push(sql`calendar_zoom = ${patch.calendar_zoom}`)
     }
@@ -252,9 +203,7 @@ export async function writeBundle(
       sets.push(sql`focus_lists = ${JSON.stringify(unique)}::jsonb`)
     }
     if (patch.focus_appearance !== undefined) {
-      /* A row lock makes nested partial updates composable: an icon write and
-         a colour write cannot both read the same stale map and overwrite one
-         another. The outer settings UPDATE stays in this transaction too. */
+      /* The row lock stops two partial updates from overwriting each other's map. */
       const stored = await rowsOf(
         tx,
         sql`SELECT focus_appearance FROM user_settings
@@ -285,10 +234,6 @@ export async function writeBundle(
     return bundleFrom(row)
   })
 }
-
-/* ------------------------------------------------------------------ *
- * Saved views (4.19): the viewer's own, 50 per account (10.3)
- * ------------------------------------------------------------------ */
 
 const VIEW_COLUMNS = sql`id, name, definition, pinned, created_at`
 

@@ -2,20 +2,15 @@ import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox"
 
 import { cn } from "./utils.js"
 
-/*
-The one checkbox drawing (round 5): a --checkbox-size square, the one hairline border,
-accent fill with a drawn tick when checked. The form control below, the task
-row's box, a board card's box and a Linear subtask all draw this, so a box
-looks the same wherever it is ticked.
-*/
+// The one checkbox drawing, used by the form control, task rows, board cards and subtasks.
 const BOX =
   "flex size-[var(--checkbox-size)] shrink-0 items-center justify-center rounded-xs border transition-[background-color,border-color] duration-[var(--duration-fast)] ease-[var(--ease-standard)] motion-reduce:transition-none"
-/* The box edge is quiet grey rather than the hairline: at the hairline an
-   empty box measured 1.2:1 and was hard to find (WCAG 1.4.11 asks 3:1). */
+// The edge is quiet grey, not the hairline: the hairline measured 1.2:1 and WCAG 1.4.11
+// asks 3:1.
 const UNCHECKED = "border-quiet-foreground bg-background"
 const CHECKED = "border-primary bg-primary"
 
-/** The tick: a 20-unit stroke retracting to nothing over --duration-base. */
+/** The tick: a 20-unit stroke that retracts over --duration-base. */
 function Tick({ checked }: { checked: boolean }) {
   return (
     <svg viewBox="0 0 20 20" className="size-3" aria-hidden="true">

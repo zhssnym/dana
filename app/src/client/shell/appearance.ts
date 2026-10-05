@@ -1,36 +1,7 @@
 /*
-9.7's Appearance preferences reaching the pixels they describe.
-
-4.19 carries `theme`, `row_density`, `clock` and `task_open`, and 9.7's
-controls write them. This is the other half, because a control that writes a
-column and changes nothing is a defect.
-
-**Two of the four are applied here and two are read where they are used**, and
-which is which follows from what each preference is about.
-
-- **Theme and row density describe how the whole document draws**, so they land
-  on the document element as `data-theme` and `data-density` and every surface
-  follows through CSS. `styles/tokens.css` has carried a complete dark colourway
-  under `[data-theme="dark"]` (DES-205), and this is the code that adds that
-  attribute.
-- **The clock and where a task opens are read at their call sites**, because
-  each is a question asked at one moment by one surface rather than a fact about
-  the page. `lib/time-format.ts` is the one place a time becomes words, and the
-  task-open preference is asked when something opens a task.
-
-**`system` is resolved here rather than left to the stylesheet**, and that is a
-choice with a reason. A CSS `prefers-color-scheme` query would follow the device
-without any of this, and it cannot express the other two states: a person who
-has chosen Light wants Light at night, and a media query has no way to be
-overridden by a value that lives in a database. So the resolution is one
-function, the attribute is always one of `light` or `dark`, and the stylesheet
-never has to know that `system` exists.
-
-**The device is watched while `system` is in force**, because a preference that
-follows the device and then stops following it at sunset is worse than one that
-never followed it: the person chose *following*, not the value it had when they
-chose.
-*/
+ * Applies theme and density to the document as `data-theme` and `data-density`; clock and task-open are read
+ * where used. `system` is resolved here (and the device watched) so the stylesheet only sees `light` or `dark`.
+ */
 
 import { useEffect } from 'react'
 
@@ -55,30 +26,20 @@ interface View {
   }
 }
 
-/* Through `globalThis` rather than the ambient `document`, which is this
-   client's own idiom where a DOM global is reached from a module the server
-   tsconfig also compiles. The nesting matters and cost a red run: the root
-   element hangs off `document`, not off the window, and a shape that put
-   `documentElement` at the top level typechecked perfectly and threw
-   "Cannot read properties of undefined" on the first paint. */
+/*
+ * The root element hangs off `document`, not the window; a flat shape typechecked and threw on first paint.
+ * Reached through `globalThis` because the server tsconfig also compiles this module.
+ */
 function view(): View {
   return globalThis as unknown as View
 }
 
-/** What `system` means right now, or the chosen value where one was chosen. */
 function resolve(theme: Theme, prefersDark: boolean): 'light' | 'dark' {
   if (theme === 'system') return prefersDark ? 'dark' : 'light'
   return theme
 }
 
-/**
- * Puts the viewer's theme and density on the document, and keeps them there.
- *
- * Mounted once, by the shell. The bundle is absent while its read is in
- * flight, and the caller passes 4.19's own defaults rather than nothing, so
- * the first paint is the light comfortable one every account starts on rather
- * than an unstyled one that corrects itself.
- */
+/** Mounted once, by the shell. The caller passes defaults while the bundle loads. */
 export function useAppearance(theme: Theme, density: Density, settled = true): void {
   useEffect(() => {
     const win = view()
@@ -90,16 +51,13 @@ export function useAppearance(theme: Theme, density: Density, settled = true): v
       paintThemeColor(resolved)
     }
     apply()
-    /* The bundle's value is mirrored into
-       the browser every time it is applied, so the inline script in
-       `index.html` can paint the first frame from it. Only once the bundle
-       has landed, or the default standing in for it would overwrite the
-       mirror with `system` for the length of one read. `system` mirrors as
-       `system`, never as what it resolved to. */
+    /*
+     * Mirror the value for `index.html`'s inline first-paint script, only once the bundle has landed. `system`
+     * mirrors as `system`.
+     */
     if (settled) mirrorTheme(theme)
 
-    /* Watched only while the choice is to follow: a person on Light has said
-       what they want and the device's opinion is not an input any more. */
+    /* Watched only while following the device. */
     if (theme !== 'system' || media?.addEventListener === undefined) return undefined
     media.addEventListener('change', apply)
     return () => {

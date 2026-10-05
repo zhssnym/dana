@@ -1,4 +1,3 @@
-// The writes the folder page makes.
 import {
   useCreateTab,
   useDeleteFolder,

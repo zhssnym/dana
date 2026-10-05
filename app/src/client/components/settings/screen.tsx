@@ -1,10 +1,4 @@
-/*
-The frame the account's own screens share: Settings and Trash.
-
-One column at the page measure, left-aligned under a plain title, so moving
-between them changes the content and nothing else. No mark, no cover, no
-card: the title says where you are.
-*/
+// The shared frame for Settings and Trash: one column under a plain title.
 import type { ComponentProps, ReactNode } from 'react'
 
 import { ScreenHead } from '../../views/usePlace.js'
@@ -20,11 +14,10 @@ export function Screen({
 }: {
   readonly title: string
   readonly description?: ReactNode
-  /* At most one quiet control on the title's line. */
+  // At most one quiet control on the title's line.
   readonly actions?: ReactNode
-  /* Clickable rows bleed their padding into the gutter, so a row's label and
-     the title share one left edge while the hover tint has room. Settings'
-     rows are not clickable and sit on the edges themselves. */
+  // Clickable rows bleed their padding into the gutter so labels align with the title.
+  // Settings' rows are not clickable and sit on the edges.
   readonly bleed?: boolean
   readonly children: ReactNode
 }): React.JSX.Element {
@@ -42,12 +35,8 @@ export function Screen({
   )
 }
 
-/*
-Settings follows the same flat row-group language as the rest of Dana. A
-section heading and whitespace do the grouping; ordinary settings do not need
-a rounded box around them or a hairline between every row. The one untitled
-section is the destructive tail, so it earns the group's single divider.
-*/
+// Headings and whitespace group settings; only the untitled destructive tail gets
+// a divider.
 export function SettingsSection({
   title,
   className,
@@ -67,10 +56,8 @@ export function SettingsSection({
   )
 }
 
-/* Settings' row stays compact and aligned with the section heading. On a phone
-   too the control stays on the label's line; a description wraps instead.
-   With no card edge to compensate for, the system Row's quiet 8px inset is the
-   only horizontal padding. */
+// Compact, aligned with the section heading. On a phone the control stays on the
+// label's line and the description wraps.
 export function StackingRow({ className, label, ...props }: ComponentProps<typeof Row>): React.JSX.Element {
   return (
     <Row

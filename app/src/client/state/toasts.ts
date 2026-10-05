@@ -1,28 +1,17 @@
 /*
-The toast bus of 9.1.
-
-A store rather than a React context, and that is the whole design decision
-here. Section 9 gives failed requests one global toast and offline writes
-another, and 8.3 gives this client one invalidation strategy; both are
-properties of the query layer, and the query layer is constructed once, above
-React, in `api/queryClient.ts`. A context would put the only thing that can
-raise a toast inside the tree that the thing raising it is not in.
-
-So this module is plain and subscribable, `ToastRegion` renders whatever it
-holds, and no page ever calls it: a page that catches its own request error
-and shows its own message is exactly the per-page treatment the shared states
-exist to prevent.
-*/
+ * The toast bus: a plain subscribable store, because the query client that raises toasts lives outside React.
+ * Pages never call it directly.
+ */
 
 export interface Toast {
   readonly id: number
   readonly message: string
 }
 
-/** 9.1, the global error toast for failed requests. Copy is normative. */
+/** Spec 9.1 copy, normative. */
 export const ERROR_TOAST = 'Something went wrong. Nothing was saved. Try again.'
 
-/** 9.1, what a write attempted offline shows. Copy is normative. */
+/** Spec 9.1 copy, normative. */
 export const OFFLINE_WRITE_TOAST = "Couldn't save. You're offline."
 
 type Listener = (toasts: readonly Toast[]) => void
@@ -47,9 +36,7 @@ export function toastSnapshot(): readonly Toast[] {
 }
 
 export function showToast(message: string): void {
-  // Deduplicated on message rather than counted. Two identical failures are
-  // one thing a person needs to know, and 8.3's refetch-on-focus can raise
-  // the same failure again the moment the tab comes back.
+  // Deduplicated by message: refetch on focus can raise the same failure again.
   if (toasts.some((toast) => toast.message === message)) return
   toasts = [...toasts, { id: nextId++, message }]
   publish()

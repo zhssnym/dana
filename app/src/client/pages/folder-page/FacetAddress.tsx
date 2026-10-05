@@ -1,12 +1,10 @@
-// The redirect for an old `?facet=` address on the folder page.
 import { Navigate, useLocation, useSearchParams } from 'react-router'
 
 import { useAllPages } from '../../api/queries.js'
 import { paths } from '../../routes.js'
 
-/* Where an old `?facet=` address goes: the tab's own page when the viewer has
-   one by that id, otherwise this page without the parameter (Work had no
-   address of its own, and a Work facet over a heading became no page). */
+/* An old `?facet=` address goes to the tab with that id, if the viewer has one,
+   or else to this page without the parameter. */
 export function FacetAddress({ facetId }: { readonly facetId: string }): React.JSX.Element | null {
   const pages = useAllPages()
   const { pathname } = useLocation()

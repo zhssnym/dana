@@ -1,10 +1,7 @@
 /*
-Finished work under a list, read from Q6 (`/views/done`) only while "Show
-completed" is on, and narrowed by the page to what belongs to it (Upcoming
-keeps what has a date). Q6 pages by 50 over everything the viewer finished,
-so "Show more" reaches older rows. Abandoned rows need no group of their own:
-they come with the page's open rows and stay in place, struck.
-*/
+ * Finished work under a list, from `/views/done` while "Show completed" is on, filtered by the page. Abandoned
+ * rows stay with the open rows, struck.
+ */
 import type { TaskCard } from '../../shared/tasks.js'
 import { mergeCompletedDays, useDoneView } from '../api/queries.js'
 import { MorePages } from '../components/page/PageStates.js'

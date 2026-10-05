@@ -6,9 +6,8 @@ import { isSectionHeading } from './outline.js'
 const internalFile = /^\/api\/v1\/files\/[0-9a-f-]{36}$/i
 
 /**
- * Normalize the pasted fragment only. Existing surrounding content is never
- * adopted. Purpose uses presentation headings, so pasted headings stay flat;
- * Main keeps the explicit Work-heading parentage it already used.
+ * Normalize the pasted fragment only; surrounding content is never adopted. Purpose
+ * keeps pasted headings flat.
  */
 export function normalizeCanvasPaste(
   blocks: readonly CanvasBlock[],
@@ -113,7 +112,7 @@ export function normalizeCanvasPaste(
         children: [],
       }
     }
-    // Text holds nested blocks (0038), so a pasted paragraph keeps its own.
+    // Text holds nested blocks, so a pasted paragraph keeps its own.
     return {
       id,
       type: 'paragraph',

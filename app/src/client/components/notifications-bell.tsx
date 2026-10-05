@@ -1,23 +1,5 @@
-/*
-The notifications bell of 9.12.
-
-The accessible name is the record: "Notifications", suffixed ", N unread"
-while any are (9.1, AC-218). The trigger shows only a dot; no count is drawn.
-
-A row is a pointer (9.12): pressing it marks it read and opens its subject. A
-post opens its thread at the post: a Discussion by id, otherwise the folder. Posts in one
-thread and one read state fold into one row (`notifications-grouping.ts`);
-mentions never fold. "Mark all read" is the only other verb.
-
-Actors resolve through the connections roster already cached, by id; one this
-client cannot resolve reads "Someone".
-
-Live while the app is open (r7): the list re-reads every twenty seconds while
-the tab is visible (TanStack pauses the interval in a hidden tab), on focus as
-every read does, and at once when the bell is opened, so it never opens on
-stale rows. A row is two lines: who and what ("Bilal posted · 2 new"), then
-where and the words ("in "Launch" · “Bakery yes…”").
-*/
+// The notifications bell. Its accessible name carries the unread count (AC-218);
+// the trigger shows only a dot. Pressing a row marks it read and opens its subject.
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 
@@ -42,12 +24,10 @@ import type { NotificationLine } from '../../shared/events.js'
 import { paths } from '../routes.js'
 import { actorsPhrase, groupNotifications, isPost, placeOf, type BellGroup } from './notifications-grouping.js'
 
-/** 9.1's names table: the fixed string, and the suffix while any are unread. */
 function bellName(unread: number): string {
   return unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'
 }
 
-/** 4.13's verbs as the lowercase act a sentence reads. */
 const VERB_SENTENCE: Record<string, string> = {
   created: 'created',
   renamed: 'renamed',
@@ -64,11 +44,7 @@ const VERB_SENTENCE: Record<string, string> = {
   mentioned: 'mentioned',
 }
 
-/**
- * The subject's address (9.12): a task via /app/tasks/:id, a folder or shelf
- * at its page, a post at its thread with `#post-<id>` bringing it into view.
- * A comment with no folder cannot happen (4.15), but Today beats a dead control.
- */
+/** A comment always has a folder, but Today beats a dead control. */
 function subjectPath(row: NotificationLine): string {
   const event = row.event
   switch (event.subject_kind) {
@@ -87,7 +63,6 @@ function subjectPath(row: NotificationLine): string {
   }
 }
 
-/** "in "X"", from either stored form of a post's or a mention's detail. */
 function placeLine(row: NotificationLine): string | null {
   const detail = row.event.detail ?? ''
   const mentioned = /^mentioned you in\s+(.+)$/.exec(detail.trim())?.[1]
@@ -95,18 +70,13 @@ function placeLine(row: NotificationLine): string | null {
   return place === null ? null : `in ${place}`
 }
 
-/** The second line: where, then the words, either of which may be absent. */
 function whereAndWords(place: string | null, quote: string | null): string | null {
   const words = quote === null || quote === '' ? null : `“${quote}”`
   if (place === null) return words
   return words === null ? place : `${place} · ${words}`
 }
 
-/**
- * A single row's sentence (9.12: actor, act, thing). An assignment reaches
- * only its assignee, so it reads "assigned you"; a post or a mention in a
- * thread quotes the post on its own line.
- */
+/** An assignment reaches only its assignee, so it reads "assigned you". */
 function sentenceOf(row: NotificationLine): { readonly act: string; readonly quote: string | null } {
   const event = row.event
   const detail = event.detail ?? ''
@@ -132,15 +102,13 @@ export function NotificationsBell({
   side = 'top',
   className,
 }: {
-  /** Where the list opens: above the sidebar's foot row. */
   readonly side?: 'right' | 'bottom' | 'top'
-  /** Extra classes for the square trigger. */
   readonly className?: string
 } = {}): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const notifications = useNotifications(true)
-  /* Opening the bell always shows the truth, never the last poll's rows. */
+  // Opening the bell always refetches, never shows the last poll's rows.
   const { refetch } = notifications
   useEffect(() => {
     if (open) void refetch()
@@ -169,9 +137,7 @@ export function NotificationsBell({
     return people.get(actorId)?.name ?? 'Someone'
   }
 
-  /* Reads every unread row in the group and opens it. One post opens at
-     that post; several open the thread with no `#post-`, so the thread lands
-     on its own first unread post (and draws "New" there), not the newest. */
+  // Several posts open the thread without `#post-`, so it lands on the first unread post.
   function openGroup(group: BellGroup): void {
     for (const row of group.rows) if (row.read_at === null) markRead.mutate(row.id)
     setOpen(false)
@@ -181,7 +147,6 @@ export function NotificationsBell({
     void navigate(group.rows.length > 1 && isPost(newest) ? path.replace(/#post-.*$/, '') : path)
   }
 
-  /* One person or several, "posted in" the place, and how many are new. */
   function lineOf(group: BellGroup): { readonly actor: string; readonly act: string; readonly quote: string | null } {
     const newest = group.rows[0] as NotificationLine
     if (group.rows.length === 1 || !isPost(newest)) {
@@ -244,7 +209,7 @@ export function NotificationsBell({
           ) : null}
         </div>
         {rows.length === 0 ? (
-          /* 9.12's empty state, word for word. */
+          // The empty-state copy is fixed by spec 9.12.
           <p className="px-2 pt-1 pb-3 text-sm text-muted-foreground">
             Nothing new. When someone assigns you a task or answers you, it
             lands here.

@@ -1,30 +1,6 @@
-/*
-The Shelf's composer (#221, Shelf half): the Folder canvas's BlockNote surface
-and `CanvasWriter`, posting 7.16's `document_transaction` to
-`/shelves/:id/page/actions` (`domain/shelf-document.ts`).
-
-What a Shelf document is, and so what this adapter does on top of the shared one:
-
-- **Headings group by position; blocks nest by parent.** The Shelf route
-  refuses `section_block_id`, and the legacy Shelf editor always meant "a block
-  under a heading folds with it". So a read groups each root block under the
-  section before it (content before the first section stays at the root), and
-  a write sends the editor's order with no Section. One heading level; the
-  surface hides the gestures a reload would undo. Since 0038 a Shelf stores
-  `list_parent_block_id` like every home: any block but a heading nests under
-  a writing block (Tab), and a nested block is read back under its parent,
-  never regrouped under a heading.
-- **Folders join a Shelf elsewhere, never here**: the sidebar drag and "Move to
-  shelf" write the membership, and the arrival is placed after the content.
-  The page offers no picker of its own — one home per action.
-- **A Folder row is a `danaFolder` block** over a `folder_ref` row. Presence is
-  the membership (`folder_members.shelf_name`), position is the document: a
-  stored row whose folder has left the Shelf is not drawn and is deleted by the
-  next save; a member with no row is drawn after the content and written by the
-  next save. A row leaves only through Remove from collection — the guard below
-  refuses a generic delete, a paste that places a folder twice, and an undo
-  that would place a folder that is no longer on the Shelf.
-*/
+// The shelf (collection) composer. Headings group by position, not Section
+// membership. Folder rows are present by membership, placed by the document, and
+// leave only through Remove from collection.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCreateBlockNote } from '@blocknote/react'
 import { fragmentToBlocks } from '@blocknote/core'
@@ -53,24 +29,22 @@ import { pasteIntoCanvas } from './paste.js'
 interface Props {
   readonly shelfId: string
   readonly page: PageView
-  /** The Shelf's members, in the folder list's order. */
   readonly folders: readonly CanvasFolderRow[]
   readonly folderHref: (folderId: string) => string
   readonly onOpenFolder: (folderId: string) => void
   readonly onRemoveFolder: (folderId: string) => Promise<void>
-  /** False while the shelf or its folders refetch. A rename relabels both, and
-      between the two answers the membership reads empty. */
+  /**
+   * False while the shelf or its folders refetch: between the two answers the membership
+   * reads empty.
+   */
   readonly settled: boolean
 }
 
 const NO_REFS: ReadonlyMap<string, string> = new Map()
 
-/** The one error "Load latest" answers besides a failed save. */
 const CHANGED_ELSEWHERE = 'This collection changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
-/** The page as the shared hydrator reads it: stale Folder rows dropped, each
- * root block grouped under the section before it, and each nested block left
- * under its own parent (the hydrator places it by `list_parent_block_id`). */
+/** Stale folder rows dropped; root blocks grouped under the section before them. */
 function positionalPage(page: PageView, members: ReadonlySet<string>): PageView {
   const byId = new Map(page.blocks.map((block) => [block.id, block]))
   const kept = new Set<string>()
@@ -94,8 +68,7 @@ function folderIdsOf(blocks: readonly OutlineBlock[]): string[] {
   ])
 }
 
-/** What a Shelf stores: no Section membership (headings group by position),
- * and each nested block's parent. */
+/** A shelf stores no Section membership. */
 function flat(document: CanvasDocument): CanvasDocument {
   return { blocks: document.blocks, items: document.items.map((item) => ({ ...item, section_block_id: null })) }
 }
@@ -127,8 +100,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
   const memberIds = useMemo(() => new Set(folders.map((folder) => folder.id)), [folders])
   const members = useRef(memberIds)
   members.current = memberIds
-  /* Folder ids whose arrival or departure is this page's own act, which the
-     guard lets through for the one transaction that makes it. */
+  // Folder ids whose arrival or departure is this page's own act; the guard lets them through.
   const sanctioned = useRef(new Set<string>())
 
   const initial = useMemo((): CanvasInput[] => {
@@ -143,14 +115,12 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
     const placed = new Set(refs.values())
     const missing = [...members.current].filter((id) => !placed.has(id))
       .map((folderId): CanvasInput => ({ id: crypto.randomUUID(), type: 'danaFolder', props: { folderId } }))
-    /* A line to write on after the last Folder row: with only rows on the
-       page there would be nowhere to put the cursor. It is stored only once
-       something is written. */
+    // A line to write on after the last folder row; stored only once something is written.
     const all = [...drawn, ...missing]
     return all.at(-1)?.type === 'danaFolder' ? [...all, { id: crypto.randomUUID(), type: 'paragraph' } as CanvasInput] : all
   }, [initialPage, width])
 
-  // A Shelf is nobody's Folder: its media is the person's own (7.15, #220).
+  // A shelf belongs to no folder, so its media is the person's own.
   async function uploadCanvasFile(kind: CanvasMediaKind, file: File): Promise<CanvasUploadedFile> {
     try {
       const uploaded = await uploadFile(kind, null, file)
@@ -169,15 +139,13 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
       const kind: CanvasMediaKind = (RASTER_MIMES as readonly string[]).includes(mime) ? 'image'
         : (AUDIO_MIMES as readonly string[]).includes(mime) ? 'audio'
           : (VIDEO_MIMES as readonly string[]).includes(mime) ? 'video' : 'file'
-      // BlockNote applies an object result as an updateBlock partial, so the
-      // url and name go under `props` or a dropped file leaves the block empty.
+      // BlockNote applies the result as an updateBlock partial, so the file goes under `props`.
       return { props: await uploadCanvasFile(kind, file) }
     },
   })
   const projection = (current: readonly CanvasBlock[]): CanvasDocument => flat(dehydrateCanvas(current, width, NO_REFS))
-  /* The baseline is the stored page, each row the editor also draws replaced by
-     its drawing: so an unchanged row writes nothing, a stale Folder row the
-     editor dropped is deleted, and a member drawn without a stored row is put. */
+  // The baseline is the stored page with drawn rows swapped in: unchanged rows write
+  // nothing, dropped stale rows are deleted, unstored members are put.
   const [writer] = useState(() => {
     const drawn = projection(editor.document)
     const byId = new Map(drawn.blocks.map((block) => [block.id, block]))
@@ -198,9 +166,8 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
     return created
   })
   const draftKey = `dana-canvas-draft:shelf:${shelfId}`
-  /* A draft left by an earlier visit (or by Load latest) moves to its own key on
-     mount, so this visit's first keystroke cannot overwrite it; it is offered
-     until dismissed. Two unsaved drafts are both kept. */
+  // Move an earlier draft to its own key on mount, so this visit's first keystroke
+  // cannot overwrite it.
   const recoveredKey = `dana-canvas-recovered:shelf:${shelfId}`
   useEffect(() => {
     try {
@@ -231,7 +198,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
     const timer = window.setTimeout(() => { void writer.flush() }, 450)
     return () => window.clearTimeout(timer)
   }, [writer, writer.state, writer.latest])
-  // Leaving inside the autosave delay (a folder row, another tab), or mid-save, still saves.
+  // Leaving inside the autosave delay, or mid-save, still saves.
   useEffect(() => () => { void writer.drain() }, [writer])
   useEffect(() => {
     if (!page.revision || page.revision === writer.revision || writer.state === 'saving') return
@@ -239,7 +206,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
     else setError(CHANGED_ELSEWHERE)
   }, [page, writer, onCheckpoint])
 
-  // The Folder-row guard. Runs beside the canvas's own (`installCanvasGuard`).
+  // The folder-row guard, beside the canvas's own (`installCanvasGuard`).
   useEffect(() => editor.onBeforeChange(({ tr }) => {
     if (!tr.docChanged) return
     const before = folderIdsOf(fragmentToBlocks<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>(tr.before.content))
@@ -282,14 +249,13 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
     if (blockOf(folderId) !== undefined) return
     const row = { id: crypto.randomUUID(), type: 'danaFolder' as const, props: { folderId } }
     const last = editor.document.at(-1)!
-    // Before the trailing empty line, so the line to write on stays last.
+    // Before the trailing empty line, so the writing line stays last.
     const beforeLine = editor.document.length > 1 && last.type === 'paragraph' && richText(last) === ''
     withSanction(folderId, () => {
       if (beforeLine) editor.insertBlocks([row], last, 'before')
       else editor.insertBlocks([row, { type: 'paragraph' }], last, 'after')
-      /* An insert the person did not make leaves ProseMirror's selection on
-         the first Folder row, drawn as a box around it: park it on the
-         writing line instead, without taking focus. */
+      // A programmatic insert leaves the selection boxed on the first folder row; park it
+      // on the writing line without taking focus.
       if (!editor.isFocused()) editor.setTextCursorPosition(editor.document.at(-1)!, 'end')
     })
   }
@@ -301,9 +267,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
       editor.removeBlocks([block])
     })
   }
-  /* Membership that changed outside this composer (Move to shelf elsewhere,
-     New folder…, the sidebar drag): an arrival is placed at the root after the
-     content, a departure's row goes. */
+  // Membership changed elsewhere: place arrivals after the content, remove departures.
   useEffect(() => {
     if (!settled) return
     for (const folderId of memberIds) place(folderId)
@@ -339,7 +303,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
   }
 
   const bridge = useMemo(() => ({ byId: new Map(folders.map((folder) => [folder.id, folder])), href: folderHref, open: onOpenFolder }), [folders, folderHref, onOpenFolder])
-  // The folder page's line: a failure only; a refused gesture's notice when nothing failed.
+  // A failure only; a refused gesture's notice shows when nothing failed.
   const failure = error || (writer.state === 'failed' ? NOT_SAVED : '')
   return <>
     {previousDraft !== null ? <RecoveryNotice

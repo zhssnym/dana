@@ -7,10 +7,8 @@ import { cn } from "./utils.js"
 const buttonVariants = cva(
   "group/button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md text-sm font-medium whitespace-nowrap select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
-    /* r4-system: one shape (control height, radius, 14px/500); only the
-       colour varies. Neutral is the button; ghost drops the hairline for
-       toolbars; destructive is the one danger style; commit (accent) is
-       for the single action on a screen that really matters. */
+    // One shape for every button; only the colour varies. Commit (accent) is for the single
+    // action on a screen that matters most.
     variants: {
       variant: {
         default:
@@ -48,7 +46,7 @@ function Button({
   size = "default",
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
-  // A Button rendered as a non-<button> tells Base UI so itself.
+  // Tell Base UI when the Button renders as something other than a <button>.
   const rendersNativeButton =
     props.render === undefined ||
     (isValidElement(props.render) && props.render.type === "button")

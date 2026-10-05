@@ -1,8 +1,4 @@
-/*
-The Label reads and writes (#208), over the twelve routes #226, #227 and #274
-put on the server. A request and a shape each, like `mutations.ts`: the query
-client invalidates on every success and raises the toasts.
-*/
+/* Label reads and writes. The query client invalidates on success and raises the toasts. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query'
 
@@ -22,10 +18,7 @@ import type { TaskDetail } from '../../shared/tasks.js'
 import { getPlain, mutateApi } from './http.js'
 import { queryKeys } from './keys.js'
 
-/**
- * The viewer's Personal Labels and, where a page is named, that page's Labels.
- * `all` includes archived ones, which only the edit dialog asks for.
- */
+/** `all` includes archived labels, which only the edit dialog asks for. */
 export function useLabels(
   folderId: string | null,
   state: 'active' | 'all' = 'active',
@@ -37,7 +30,7 @@ export function useLabels(
     queryFn: () =>
       getPlain(getLabelsResponse, '/labels', {
         state,
-        /* No page: the Personal half alone, never every page's vocabulary. */
+        /* No page: only Personal labels, never every page's. */
         scope: folderId === null ? 'personal' : 'all',
         ...(folderId === null ? {} : { folder_id: folderId }),
       }),
@@ -112,11 +105,8 @@ export function useSetTaskLabel(): UseMutationResult<TaskDetail, Error, TaskLabe
 }
 
 /**
- * Gives a task just made under a Label filter that label, so it does not
- * vanish the moment it is made. Only a label still active in `folderId`'s
- * scope (the viewer's own, and that page's) is put on: the filter can still
- * name one archived since, which the server would refuse with a toast about a
- * label nobody chose in this act.
+ * Puts the active filter label on a task just made, so the task does not vanish from the filtered list. Only a
+ * label still active in scope: the filter can name one archived since.
  */
 export function useWearFilterLabel(folderId: string | null): (taskId: string, labelId: string | null) => void {
   const client = useQueryClient()

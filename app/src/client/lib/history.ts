@@ -1,37 +1,5 @@
-/*
-A thing's own past, as the surfaces read one.
-
-The verbs are a distinct thing that happened to the object, in a person's words
-rather than the mutation's, and "Edited" covers every change to a thing's
-contents deliberately: a history that logged every keystroke as its own line
-would be a diff, and nobody reads a diff to find out what happened.
-
-**This module reads and writes nothing.** Dana's history is 4.13's `events`
-table, written server-side inside each mutation's own transaction and served by
-7.12's `GET /events?subject=kind:id`, read here through `api/queries.ts`. Undo
-is a short-lived client affordance about the act just taken, and an audit log is
-a permanent server record about what happened to the data; a client-side
-recorder here would couple the two.
-
-**The wording lives here**, `sentenceFor`, `verbFor`, `lineFor`, `agoFor` and
-`whenFor` with their `VERB_LABEL` table, because those turn an event into the
-words a control says. `verbFor` names the act that actually happened rather than
-saying Edited over everything, because a fixed word would make the control lie
-in the common case: tick one thing off a folder and the bar would say the folder
-had been edited, while the line one press below it said Completed.
-
-**Two field seams, and each is a shape rather than a value.** 4.13 stores an
-`actor_id`, so an actor is resolved against the rosters this client can already
-read (AC-178): an id none of them carries renders "Deleted user", which is 4.1's
-own note and is unresolvable by construction because 8.10 removes the
-memberships and 7.3 excludes the account. And `created_at` is an ISO instant, so
-it is parsed once here rather than at each of `agoFor`'s and `whenFor`'s call
-sites.
-
-**The verb set is declared rather than restated.** `HistoryVerb` is `EventVerb`,
-4.13's CHECK constraint's list, so the two cannot drift. 4.13 also has the
-`comment` subject kind, which is not a thing a history sheet is opened on.
-*/
+// A subject's history as the surfaces read it, from `GET /events`. This module only
+// words events; the server writes them. An actor no roster knows reads "Deleted user".
 
 import { useMemo } from 'react'
 
@@ -39,30 +7,22 @@ import { useConnections, useFolderEvents, useMe, useSubjectEvents } from '../api
 import type { EventLine, EventVerb } from '../../shared/events.js'
 import { personDisplay } from '../parts/presenters.js'
 
-/** The things a history can be about: 4.13's subject kinds a surface opens. */
+/** The things a history can be about. */
 export type HistorySubjectKind = 'task' | 'folder' | 'shelf'
 
-/** 4.13's verb set. */
 export type HistoryVerb = EventVerb
 
 export interface HistoryEvent {
   id: string
   kind: HistorySubjectKind
-  /** The object's own key. 4.13's `subject_id`, which is a uuid here. */
+  /** The object's own id. */
   subject: string
-  /**
-   * What it was called when this happened, so a line still reads after a
-   * rename: "Travel renamed to Trip" must not become "Trip renamed to Trip"
-   * the moment you look at it.
-   */
+  /** Its name when this happened, so a line still reads after a rename. */
   name: string
   verb: HistoryVerb
   actor: string
   at: number
-  /**
-   * The half a verb cannot carry: what it was renamed to, which shelf it
-   * moved to.
-   */
+  /** What a verb cannot carry: the new name, the shelf it moved to. */
   detail?: string
 }
 
@@ -82,15 +42,7 @@ const VERB_LABEL: Record<HistoryVerb, string> = {
   mentioned: 'Mentioned',
 }
 
-/**
- * The sentence, from the event.
- *
- * One wording for the undo bar and one for the history line, both built from
- * the same fact rather than written twice. The bar names the thing, because it
- * appears over a page where you have just done something to one of many; the
- * history line does not, because you are looking at that thing's own past and
- * repeating its name on every row is noise.
- */
+/** The undo bar's wording names the thing; the history line does not. */
 export function sentenceFor(
   event: Pick<HistoryEvent, 'name' | 'verb' | 'detail'>,
 ): string {
@@ -98,36 +50,18 @@ export function sentenceFor(
   return `${VERB_LABEL[event.verb]} “${event.name}”${tail}`
 }
 
-/**
- * Just the verb: the resting line of the Activity control, which has a time
- * beside it already.
- */
+/** Just the verb: the Activity control's resting line, beside a time. */
 export function verbFor(event: Pick<HistoryEvent, 'verb'>): string {
   return VERB_LABEL[event.verb]
 }
 
-/**
- * The same act with the subject left out, for a panel already about one
- * object.
- */
+/** The act without its subject, for a panel already about one object. */
 export function lineFor(event: Pick<HistoryEvent, 'verb' | 'detail'>): string {
   return `${VERB_LABEL[event.verb]}${event.detail ? ` ${tabWords(event.detail)}` : ''}`
 }
 
-/*
-One sentence with the person first: "Hassan added a step 'Plates'", "Hassan
-completed it", "Hassan renamed it", rather than the verb's label and the
-server's detail each a sentence on its own. An edit that carries a detail says
-the detail, which is the act; one that carries none says "edited it".
-*/
-
-/*
-4.13 writes `detail` as a lowercase predicate ("edited the page", "changed the
-look", "added Sara", "moved to Trash for 30 days") or as a trailing phrase
-("from a step of X", "to Work"), and the actor is always known, so a sentence is
-the actor followed by one of those, never the verb's label and then the
-predicate.
-*/
+// The server's detail is a lowercase predicate ("edited the page") or a trailing phrase
+// ("to Work"); a sentence is the actor followed by it.
 const VERB_PAST: Record<HistoryVerb, string> = {
   created: 'created',
   renamed: 'renamed',
@@ -141,7 +75,7 @@ const VERB_PAST: Record<HistoryVerb, string> = {
   removed: 'removed',
   deleted: 'deleted',
   left: 'left',
-  // Never listed (the history reads leave it out); here for the Record's sake.
+  // Never listed; here for the Record's sake.
   mentioned: 'mentioned',
 }
 
@@ -151,11 +85,8 @@ const THING: Record<HistorySubjectKind, string> = {
   shelf: 'the collection',
 }
 
-/*
-4.13's details are stored in the server's own words, and a few of those are not
-the screen's: a facet is a tab and a Folder is a page. The sample workspace's
-creation line is a bare phrase, so it is given a verb here.
-*/
+// The server's words differ from the screen's in places: a facet is a tab and a Folder
+// is a page.
 function screenWords(detail: string): string {
   if (detail === 'part of the sample workspace') {
     return 'created the page as part of the sample workspace'
@@ -169,13 +100,8 @@ function tabWords(detail: string): string {
 }
 
 /**
- * "Hassan edited the page", "Hassan invited sara@example.com", "Hassan added
- * “Book the van”": one event as the sentence a person would say.
- *
- * `about` is the thing whose history is being read. An event on it names it
- * by kind ("the folder"); an event on something inside it, a task in a
- * folder's history, names that thing by its name, and "created" reads as
- * "added" there because that is what making a task in a folder is.
+ * One event as a sentence. An event on `about` itself names it by kind; one on something
+ * inside it names that thing, and "created" reads "added".
  */
 export function sentenceOf(
   event: Pick<HistoryEvent, 'kind' | 'subject' | 'name' | 'verb' | 'actor' | 'detail'>,
@@ -195,13 +121,7 @@ export function sentenceOf(
   return trailing ? `${base} ${detail}` : base
 }
 
-/**
- * The same moment, worded to follow a verb.
- *
- * "Completed just now", "Renamed 4 minutes ago", "Created 5 Aug", so the
- * relative forms lower-case and the date does not, because a month is a proper
- * noun and "5 aug" is a typo rather than a style.
- */
+/** "Completed just now", "Created 5 Aug": relative forms lower-case, a date does not. */
 export function agoFor(at: number, now = Date.now()): string {
   const said = whenFor(at, now)
   return /^[0-9]+ [A-Z]/.test(said) ? said : said.toLocaleLowerCase()
@@ -222,13 +142,7 @@ const MONTHS = [
   'Dec',
 ]
 
-/**
- * "Just now", "4 minutes ago", "Yesterday", "6 Aug".
- *
- * A history is read by scanning, so the near past is relative, that being the
- * part a person is placing against their own memory, and anything older than a
- * week takes a date, because "23 days ago" is arithmetic nobody wants to do.
- */
+/** Relative within a week, then a date. */
 export function whenFor(at: number, now = Date.now()): string {
   const seconds = Math.max(0, Math.round((now - at) / 1000))
   if (seconds < 45) return 'Just now'
@@ -243,7 +157,7 @@ export function whenFor(at: number, now = Date.now()): string {
   return `${date.getDate()} ${MONTHS[date.getMonth()] ?? ''}`
 }
 
-/** 4.1's own note, and 8.10's: an actor no roster carries has been scrubbed. */
+/** An actor no roster carries has been deleted. */
 const DELETED_USER = 'Deleted user'
 
 function toHistoryEvent(
@@ -262,40 +176,22 @@ function toHistoryEvent(
   }
 }
 
-/* Stable identity, because a fresh `[]` on every render is an infinite one. */
+// A stable empty array: a fresh `[]` each render would loop.
 const EMPTY: HistoryEvent[] = []
 
-/**
- * Whether a subject is one 7.12 will answer about.
- *
- * 4.13's subject reference is `kind:uuid` and `shared/events.ts` refuses
- * anything else with a 422. Two callers can hold something that is not one: a
- * capture, whose surface exists before its task does, and a card drawn while a
- * detail is in flight. Both are asking about a thing with no history rather
- * than asking wrongly, so the read is disabled instead of sent and refused.
- */
+/** The server refuses a subject that is not `kind:uuid` (422), so such reads are skipped. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /**
- * One thing's history, newest first, which is the order 7.12 answers in.
- *
- * **`enabled` is not an optimisation.** `components/task-row.tsx` mounts a
- * `HistorySheet` per row, closed, and the sheet reads its subject at the top of
- * its body, so without it every row of a page would cost one `GET /events` for
- * a panel nobody has opened. So the caller says when it is looking, and the
- * sheet passes its own open state.
- *
- * Default `true`, because the other caller is the card's footer line, which is
- * drawn only inside an open card and is showing the answer rather than waiting
- * to be asked.
+ * Newest first, as the server answers. Pass `enabled` false while a sheet is closed, so
+ * closed sheets cost no request.
  */
 export function useHistory(
   kind: HistorySubjectKind,
   subject: string,
   enabled = true,
-  /* A folder's history is everything that happened in it, tasks added and
-     people invited included, which is 7.12's folder read rather than the
-     subject read; 'subject' is the default every other caller keeps. */
+  // A folder's history includes everything in it (the folder read); every other caller
+  // keeps the subject read.
   scope: 'subject' | 'folder' = 'subject',
 ): HistoryEvent[] {
   const wanted = enabled && UUID.test(subject)

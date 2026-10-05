@@ -40,15 +40,7 @@ export function resolveAxiomConfiguration(
   return { dataset, token }
 }
 
-/**
- * Build Dana's process logger.
- *
- * Stdout remains the first destination so Render's own log explorer and
- * deploy diagnostics keep working. When both private Axiom settings exist,
- * the exact same privacy-approved Pino records are mirrored to Axiom over
- * HTTPS by Axiom's official transport. No Axiom setting means no worker and
- * no network request, which keeps local development and CI self-contained.
- */
+/** Logs to stdout, and mirrors to Axiom only when both Axiom settings exist. */
 export function createApplicationLogger(
   env: AxiomLogEnvironment = process.env,
 ): ApplicationLogger {

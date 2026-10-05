@@ -31,10 +31,8 @@ function routedId(segment: 'folders' | 'facets' | 'tasks'): string | undefined {
 }
 
 /**
- * Resolve the project scope from the current canvas route. This hook belongs
- * to the always-mounted canvas, not the transient BlockNote side menu: facet
- * relationships are durable metadata and their chips must exist before the
- * user ever hovers a gutter handle.
+ * Lives on the always-mounted canvas, not the hover side menu, so facet chips exist
+ * before anyone hovers a handle.
  */
 export function useAutomaticBlockFacets(
   editor: AnyEditor,
@@ -47,11 +45,7 @@ export function useAutomaticBlockFacets(
   return useBlockFacets(editor, folderId, editable, onNotice)
 }
 
-/**
- * One controller for the gutter action and the quiet exact-block chips.
- * Reading the relation is independent of editing it: Can-view members still
- * see what is connected; `editable` only decides whether the menu may mutate.
- */
+/** Can-view members still see connections; `editable` only gates changes. */
 export function useBlockFacets(
   editor: AnyEditor,
   folderId: string | undefined,
@@ -61,10 +55,7 @@ export function useBlockFacets(
   const pages = useAllPages(folderId !== undefined)
   const client = useQueryClient()
 
-  /* #526: Connected work is mounted after BlockNote, but placing one belongs
-     to this exact editor so it can use the normal document insertion/order
-     path. Register the already-existing editor instead of plumbing another
-     editor prop through every CanvasSurface caller. */
+  // Register the editor so Connected work can insert through its normal document path.
   useEffect(() => registerCanvasEditor(editor), [editor])
 
   const relations = useQuery({
@@ -87,9 +78,7 @@ export function useBlockFacets(
         key(folderId),
         (old) => replaceRow(old, answer.block_id, answer.facets),
       )
-      /* A facet relation immediately changes that facet's unplaced/inline
-         connected-work projection. Refresh both removed and newly added
-         targets so the document never waits for a focus refetch. */
+      // Refresh connected work for both removed and added facets.
       const changed = new Set([...before.map((facet) => facet.id), ...answer.facets.map((facet) => facet.id)])
       for (const facetId of changed) {
         void client.invalidateQueries({ queryKey: queryKeys.connectedWork(facetId) })
@@ -168,8 +157,7 @@ function prepareHost(content: HTMLElement): void {
   content.dataset.danaFacetPaddingInlineEnd = content.style.paddingInlineEnd
   content.style.position = 'relative'
   content.style.overflow = 'visible'
-  /* Keep metadata beside the first line instead of creating a detached second
-     row. The gutter exists only while this block has a relationship. */
+  // Keep the chips beside the first line; the gutter exists only while the block has one.
   content.style.paddingInlineEnd = FACET_GUTTER
 }
 
@@ -184,8 +172,7 @@ function releaseHost(content: HTMLElement): void {
   delete content.dataset.danaFacetPaddingInlineEnd
 }
 
-/** A relationship is durable metadata, not a hover action. Keep the rail itself
- * visible regardless of whichever BlockNote hover rules surround its host. */
+/** Override BlockNote's hover rules: relationships are always visible. */
 function keepFacetRailVisible(rail: HTMLElement): void {
   rail.style.setProperty('display', rail.dataset.inline === 'true' ? 'inline-flex' : 'flex', 'important')
   rail.style.setProperty('visibility', 'visible', 'important')
@@ -193,12 +180,8 @@ function keepFacetRailVisible(rail: HTMLElement): void {
 }
 
 /**
- * Sync exact-block facet metadata without changing BlockNote's structural DOM.
- *
- * File blocks already have a compact identity row, so their chips live in that
- * row. Other block kinds use a reserved right-side metadata gutter aligned to
- * the first line. A long prose/list block therefore never gains an awkward
- * second metadata line underneath it.
+ * Sync facet chips without changing BlockNote's structural DOM. File blocks put them
+ * in their identity row; others use a right gutter on the first line.
  */
 export function syncFacetDecorations(
   host: HTMLElement,
@@ -263,11 +246,7 @@ export function syncFacetDecorations(
   }
 }
 
-/**
- * Own the relationship decorations for the entire canvas lifetime. BlockNote's
- * DOM can become available after the React effect has already run, so wait for
- * it instead of silently giving up and depending on a later hover mount.
- */
+/** BlockNote's DOM can appear after the effect runs, so wait for it. */
 export function installFacetDecorations(editor: AnyEditor, model: BlockFacetMenuModel): () => void {
   let frame = 0
   let host: HTMLElement | null = null
@@ -309,22 +288,14 @@ export function installFacetDecorations(editor: AnyEditor, model: BlockFacetMenu
     window.removeEventListener('dana:canvas-editor-ready', ready)
     observer?.disconnect()
     if (frame !== 0) window.cancelAnimationFrame(frame)
-    /* Decorations live with BlockNote's DOM and disappear when that DOM does.
-       Do not actively clear them here: another still-mounted controller may
-       own the same rails, and hover-menu teardown must never erase durable
-       relationship metadata. */
+    // Do not clear decorations here: another mounted controller may own the same rails.
   }
 }
 
-/**
- * BlockNote owns the block DOM, so relationship chips stay outside its
- * document schema. They move with the exact block but never become authored
- * text or a neighboring reference block.
- */
+/** Chips stay outside BlockNote's schema, so they never become authored text. */
 function useFacetDecorations(editor: AnyEditor, model: BlockFacetMenuModel | undefined): void {
   useEffect(() => {
-    /* An unresolved relation model must never clear decorations owned by the
-       always-mounted canvas. */
+    // An unresolved model must never clear the canvas's decorations.
     if (model === undefined) return
     return installFacetDecorations(editor, model)
   }, [editor, model])

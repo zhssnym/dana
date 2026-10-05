@@ -1,4 +1,3 @@
-// Who a comment's author is on the folder page, off the roster and connections.
 import { useCallback, useMemo } from 'react'
 
 import type { PersonResolver } from '../../lib/thread.js'
@@ -9,14 +8,7 @@ export function useAuthorPeople(
   members: readonly FolderMember[],
   connections: GetConnectionsResponse | undefined,
 ): PersonResolver {
-  /**
-   * Who a comment's author is, off the members already read; a face the roster
-   * cannot resolve says "Someone" rather than leaking an id.
-   *
-   * The picture rides with the name. 7.14 carries an author's id alone, so this
-   * directory is the only route an avatar has onto the thread, and both reads
-   * behind it — 7.4's members and 7.3's connections — carry `avatar_url`.
-   */
+  /* Threads carry only an author's id, so this is the only way an avatar reaches them. */
   const authorPeople = useMemo(() => {
     const people = new Map<string, { name: string; image?: string }>()
     for (const member of members) {
@@ -34,11 +26,7 @@ export function useAuthorPeople(
     return people
   }, [members, connections])
 
-  /*
-  Who a comment's author is, for the lifted thread, and stable so the mapping
-  memoises. A face the roster cannot resolve says "Someone" rather than leaking
-  an id, which is the rule the history sheet and the bell both keep.
-  */
+  /* Stable so the mapping memoises. An unknown author is "Someone", never an id. */
   const personOf = useCallback(
     (authorId: string) => authorPeople.get(authorId) ?? { name: 'Someone' },
     [authorPeople],

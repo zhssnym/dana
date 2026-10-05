@@ -1,21 +1,6 @@
-/*
-The task page's one timeline as data (M4, copied from the retired Linear
-issue page): the task's history events and its dependency edges, oldest
-first, drawn by `TaskHistory`. Each history
-line becomes one act ("Maya marked this done", "Maya added the subtask
-Plates"), matched on the event's verb and the server's detail wording.
-
-- `created` is the first row ("Maya created this"); an "assigned to" riding
-  on it becomes the row right after.
-- `edited the description` is the body's "edited" mark, not a row: GitHub
-  keeps description edits out of the timeline. An undetailed `edited` is a
-  PATCH the server does not describe, and shows nothing.
-- Reordering steps and permanent deletion are left out: noise, and a task
-  nobody can open.
-- A run of the same step act by one person within ten minutes is one row.
-- Labels are no longer drawn anywhere (their data is kept), so a label
-  event shows nothing.
-*/
+// A task's timeline as data: history events and dependency edges, oldest first, each
+// history line matched to one act by verb and the server's detail wording. Description
+// edits, step reorders, permanent deletion and label events draw no row.
 import type { EventLine } from '../../../../shared/events.js'
 import type { TaskDependencyEdge } from '../../../../shared/task-dependencies.js'
 import type { TaskState } from './state.js'
@@ -120,8 +105,7 @@ function actsOf(line: EventLine, previousName: string | null, actorName: string)
   }
 }
 
-/** Whether the body was edited after it was opened, and when last: only the
- * server's document write says so, never an undescribed PATCH. */
+/** When the body was last edited: only the server's document write says so. */
 export function bodyEditedAt(events: readonly EventLine[]): number | null {
   let latest: number | null = null
   for (const line of events) {
@@ -164,7 +148,7 @@ export function buildTimeline(input: {
 }): Entry[] {
   const entries: Entry[] = []
 
-  /* History, oldest first; the title before each line is the line before's name. */
+  // The title before each line is the previous line's name.
   const history = input.events
     .filter((line) => line.subject_kind === 'task')
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -180,8 +164,8 @@ export function buildTimeline(input: {
   entries.push(...dependencyEntries(input.dependsOn, 'blocked-by'), ...dependencyEntries(input.blocks, 'blocking'))
   entries.sort((a, b) => a.at - b.at)
 
-  /* Collapse: the same line twice in a row is one, at its latest time; a
-     person's run of one step act is one line naming every step. */
+  // Collapse repeats into one line at the latest time, and a person's run of one step
+  // act into one line naming every step.
   const merged: Entry[] = []
   for (const entry of entries) {
     const last = merged.at(-1)

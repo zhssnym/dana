@@ -1,39 +1,5 @@
-/*
-The Shelf document (issue #221, Shelf half): 7.16's `document_transaction`
-over a Shelf's own `page_blocks`, so the BlockNote composer writes a Shelf
-through the same wire contract, revision token and conflict answer as the
-Folder canvas and a facet page.
-
-**Nothing moved to get here.** A Shelf's content has always been
-`page_blocks` rows keyed by `shelf_id`, ordered by `page_position` (0016), and
-its Folder rows are `folder_ref` blocks in that same list. So the document is
-those rows read in place: existing content and its order are the first
-revision, and no row is converted, copied or re-keyed.
-
-A **sibling** of `page-document.ts`'s `applyDocument` rather than a third home
-threaded through it, on the argument `domain/facets.ts` makes for the facet
-applier: the folder applier carries Tasks, Sections and a folder file scope a
-Shelf has none of. What is here is the subset a Shelf admits, with the
-refusals named:
-
-- `create_task` is refused: a Shelf holds no Task rows.
-- An outline item with a `section_block_id` is refused: a shelf-homed row may
-  not carry one (`page_blocks_section_membership_check`). A `section` block is
-  admitted, flat, which is exactly what the legacy Shelf editor has always
-  stored.
-- Since migration 0038 an outline item may carry a `list_parent_block_id`:
-  blocks nest on a Shelf like on every other home (`document-outline.ts`).
-
-**A Folder row is a `folder_ref` block naming the folder**, which is how the
-legacy Shelf editor stored it. The Folder's
-membership of the Shelf stays where it has always lived,
-`folder_members.shelf_name`; the block is placement only. So a written
-`folder_ref` must name a live folder the viewer is a member of **and has on
-this Shelf**, and at most one block may place any one folder. A stored
-`folder_ref` whose folder has since left the Shelf is not audited (the rule
-`page-document.ts` settled for #220: a write audits what it writes), and a
-reader drops it exactly as the legacy screen does.
-*/
+// The Shelf document: 7.16's document_transaction over a Shelf's page_blocks. Refuses tasks and Section membership.
+// A Folder row is a `folder_ref` block, placement only: it must name a live folder the viewer has on this Shelf, once.
 import { sql } from 'drizzle-orm'
 
 import type { DocumentTransaction } from '../../shared/pages.js'
@@ -46,8 +12,7 @@ import type { Refuse } from './document-body.js'
 import { readableFileScope } from './files.js'
 import { resolveScoped } from './folder-access.js'
 
-/** Why a Shelf document transaction was refused. `stale` is 7.16's 409,
- * `not_found` its 404, `invalid` the 422 the route addresses at `field`. */
+/** `stale` is 7.16's 409, `not_found` its 404, `invalid` the 422 at `field`. */
 export class ShelfDocumentRefusal extends Error {
   constructor(
     readonly outcome: 'stale' | 'not_found' | 'invalid',
@@ -58,8 +23,7 @@ export class ShelfDocumentRefusal extends Error {
   }
 }
 
-/** The Shelf's revision. The Shelf id is inside the hash so that two Shelves
- * with identical content never share a token. */
+/** The Shelf's revision. The Shelf id is hashed in, so identical Shelves never share a token. */
 export async function shelfDocumentMetadata(
   tx: Executor,
   shelfId: string,
@@ -70,8 +34,7 @@ export async function shelfDocumentMetadata(
                checked, page_position, position, list_parent_block_id, toggleable
           FROM page_blocks WHERE shelf_id = ${shelfId}::uuid ORDER BY id`,
   )
-  // Both columns are dropped where null, so every Shelf revision stored before
-  // 0038 reads the same after it.
+  // Dropped where null, so revisions stored before these columns existed still match.
   return {
     revision: documentHash({ shelf: shelfId, blocks: hashableBlocks(blocks, ['list_parent_block_id', 'toggleable']) }),
     task_placements: [],
@@ -88,9 +51,8 @@ export interface ShelfMutation {
 }
 
 /**
- * Applies one transaction to a Shelf the caller has already resolved as the
- * viewer's own, inside the caller's transaction and after the caller has
- * locked the `shelves` row. Every refusal precedes the first write.
+ * Applies one transaction to the viewer's own Shelf, inside the caller's transaction,
+ * after the caller locked the `shelves` row. Every refusal precedes the first write.
  */
 export async function applyShelfDocument(
   tx: Executor,
@@ -135,7 +97,6 @@ export async function applyShelfDocument(
       noTasks: 'a Shelf holds no Tasks; create it in a Folder instead',
       foreignId: 'An inserted identity already exists.',
       audit: async ({ stored, blocks, writes }) => {
-        // One placement per Folder row, asked of the final document.
         const storedRef = new Map(
           stored.map((row) => [String(row.id), row.ref_folder_id == null ? null : String(row.ref_folder_id)]),
         )
@@ -147,9 +108,7 @@ export async function applyShelfDocument(
           if (ref != null) placed.set(ref, (placed.get(ref) ?? 0) + 1)
         }
         for (const write of writes.values()) {
-          /* A file: the scope a shelf page has always used (`fileScopeCondition`'s
-             shelf clause, 7.15's serving predicate), then #220's treatment rule. A
-             file elsewhere and a file that does not exist answer alike (10.2). */
+          /* A file must be in the shelf file scope. A file elsewhere and a missing file answer alike (10.2). */
           if (write.file_id !== null) {
             const files = await rowsOf(
               tx,

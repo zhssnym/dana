@@ -1,30 +1,6 @@
-/*
-@mentions (Wave 2, unit W-D; migration 0041).
-
-A person mention is a rich-text run carrying `mention: { user_id }`
-(`shared/rich-content.ts`). This module is the one place that turns those runs
-into notices, and every document applier calls it **once, after its writes,
-inside its own transaction**, so a mention and its notice commit or vanish
-together.
-
-The rules, in the order the code applies them:
-
-1. **The id must be a person who exists**, or the save is refused through the
-   caller's own refusal (its 422). Existence is the only thing checked, and it
-   answers the same for a member and a non-member, so the refusal says nothing
-   about who is on the page.
-2. **Only the page's members are told.** A non-member mentioned in writing
-   they cannot read gets no row and no notification -- a notice would name a
-   page they cannot open. A private facet and a Shelf tell nobody: there is no
-   one else who can read them.
-3. **Once per (source, person).** `mention_notices` is inserted ON CONFLICT DO
-   NOTHING RETURNING, and only the rows that came back are new; a re-save of
-   the same paragraph returns nothing and notifies nobody. A mention removed
-   and added back is not news either, which is the quiet answer.
-4. **One `mentioned` event per save**, fanned to the people newly told, the
-   actor never among them (`recordEvent`'s own rule, restated in the filter so
-   the actor never gets a ledger row either).
-*/
+// @mentions. Appliers call syncMentions once, after their writes, in their own transaction.
+// Unknown ids are refused alike for members and strangers. Only members are told, once per (source, person),
+// with one `mentioned` event per save that never includes the actor.
 import { sql } from 'drizzle-orm'
 
 import { rowsOf } from '../database.js'
@@ -32,24 +8,20 @@ import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 
 export interface MentionSource {
-  /** The Folder whose members may be told (a Task's, a facet's, the page's). */
   pageFolderId: string
   actorId: string
   /** The blocks this save wrote. Ignored when `commentId` is given. */
   blockIds?: Iterable<string>
-  /** A post's comment (phase 2): its `content` is read instead of blocks. */
+  /** A post's comment: its `content` is read instead of blocks. */
   commentId?: string
-  /** The caller's refusal, so an unknown person leaves by the caller's own
-   * door (its 422) and nothing here knows about HTTP. Default: `MentionRefusal`. */
+  /** The caller's refusal for an unknown person, so this module knows nothing about HTTP. */
   refuse?: (message: string) => Error
 }
 
-/** An unknown person in a post; the comment paths turn it into their 422. */
 export class MentionRefusal extends Error {}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** The person ids a stored rich-content value (or a post's block tree) names. */
 export function mentionedUserIds(value: unknown): string[] {
   const found = new Set<string>()
   const visit = (node: unknown): void => {
@@ -86,10 +58,7 @@ interface Source {
   users: string[]
 }
 
-/**
- * Record and notify this save's new mentions. Returns the people newly told,
- * so a caller that also fans a `commented` event can leave them out of it.
- */
+/** Record and notify new mentions. Returns the people told, so a `commented` fan-out can skip them. */
 export async function syncMentions(tx: Executor, input: MentionSource): Promise<string[]> {
   const sources: Source[] = []
   let subject: { kind: 'folder' | 'task' | 'comment'; id: string; name: string } | null = null
@@ -110,7 +79,6 @@ export async function syncMentions(tx: Executor, input: MentionSource): Promise<
       sources.push({ blockId: null, commentId: String(row.id), users: mentionedUserIds(row.content) })
       const words = String(row.body ?? '')
       subject = { kind: 'comment', id: String(row.id), name: words.length > 120 ? `${words.slice(0, 119)}…` : words }
-      // The thread's name, as the `commented` event's detail names it.
       const place = String(row.discussion_title ?? row.folder_name ?? '')
       detail = `mentioned you in "${place}"`.slice(0, 200)
     }
@@ -127,9 +95,7 @@ export async function syncMentions(tx: Executor, input: MentionSource): Promise<
     for (const row of rows) {
       const users = mentionedUserIds(row.rich_content)
       if (users.length === 0) continue
-      // Validated below even where nobody is told, so a bad id never lands.
-      // A Shelf tells nobody. (A private tab, since step 7, is a project whose
-      // only member is its owner, so nobody else could be told anyway.)
+      // Validated even when nobody is told, so a bad id never lands. A Shelf tells nobody.
       const silent = row.shelf_id !== null
       sources.push({ blockId: String(row.id), commentId: null, users: silent ? [] : users })
       if (silent) sources.push({ blockId: null, commentId: null, users })

@@ -1,37 +1,18 @@
 /*
-The 7.16 shelf contract (4.18): a shelf is a stable id wearing a changeable
-name. Membership of a shelf is folder_members.shelf_name (4.4); these shapes
-carry only what the shelves table owns.
-
-The message convention is `folders.ts`'s. A per-field message is phrased
-**without** the field name, because `sendValidationError` hands the issue to
-`sendFieldValidationError`, which builds every sentence as
-`${path}: ${message}` (10.3). A message carrying its own prefix doubles it in
-a real 422, "color: color: must be ...".
+The 7.16 shelf contract (4.18): a stable id with a changeable name. Messages
+omit the field name because sendFieldValidationError prefixes the path.
 */
 import { z } from 'zod'
 
 import { hexColor } from './folders.js'
 
-/*
-7.16's name bound, kept as its own primitive rather than folded into
-`folders.ts`'s `shelfName`, which happens to share the 1-to-40 range: a
-shelf's name (4.18) and a member's own Shelf membership on a folder (4.4) are
-two contract facts, and one moving should not drag the other. That one was
-called `personalLabel` until issue #226 renamed it; the two now read as near
-neighbours, which they are, and they are still separate for the reason above.
-
-The colour is **not** its own primitive, and that is the #39 fix. It was a
-second copy of `folders.ts`'s `hexColor` regex, already diverged in its
-message, over a value 4.3 and 4.18 CHECK with the same six-hex-digit rule.
-One definition, imported.
-*/
+/* Separate from folders.ts's `shelfName` (a member's Shelf on a folder), though
+   both are 1 to 40: two contract facts that may change independently. */
 const shelfName = z
   .string()
   .min(1, 'must be 1 to 40 characters')
   .max(40, 'must be 1 to 40 characters')
 
-/** The four fields both write shapes have always shared. */
 const shelfIdentity = z.object({
   name: shelfName,
   icon: z
@@ -44,36 +25,16 @@ const shelfIdentity = z.object({
 })
 
 /*
-The cover, added 2026-09-03 for issues #20 and #100.
-
-**#100 is the defect these three fields close and it is a silent one.**
-`shelves.cover_file_id` has existed since 0003 and no route had ever written
-it, while `client/lib/page-identity.ts` sends it to this endpoint whenever
-somebody sets or clears a shelf cover. Nothing in this folder is `.strict()`,
-so the field was parsed away and answered 200 — measured on the wire as
-`PATCH /shelves/:id { cover_file_id: … }` → 200 with `cover_file_id: null`,
-and a later GET still null. Declaring the field is therefore only half a fix
-and the issue says so itself; `domain/shelves.ts` writes it in the same
-change, and AC-368 is what proves the write rather than the declaration.
-
-The shapes are 4.3's, because the rules are: `cover_preset` takes 4.20's key
-alphabet, `cover_focal_y` is a percentage down the picture, and a body naming
-both a file and a preset is refused here rather than left to migration 0012's
-`shelves_cover_one_source_check` to answer as a 500.
+Cover fields: a body naming both a file and a preset is refused here, before
+`shelves_cover_one_source_check` would answer 500. domain/shelves.ts must write
+them; a declared but unread field is dropped with a 200 (AC-368).
 */
 const coverPreset = z
   .string()
   .regex(/^[a-z0-9-]{1,40}$/, 'must be a preset key')
 
-/*
-**Creation does not take a cover, and refuses one out loud rather than
-dropping it.** A shelf is made and then dressed, which is what the client
-does; offering the cover on both shapes would mean two gates over one rule for
-a call nobody makes. `z.never().optional()` is the house way an endpoint
-declines a field it does not honour (#40, 11.14), and it exists precisely so this file's one real hazard, a field accepted and
-thrown away, cannot be reintroduced by the next person who tries the obvious
-thing.
-*/
+/* Create refuses cover fields by name (z.never) instead of dropping them; the
+   cover is set with PATCH. */
 const declinedHere = (where: string) =>
   z.never({ error: `is not set when a shelf is made; ${where}` }).optional()
 
@@ -113,22 +74,13 @@ export interface Shelf {
   created_at: string
 }
 
-/*
-The read half: `api/http.ts` parses every response through a zod schema, so
-a client cannot call GET /shelves without this. It lives here rather than as a
-private schema in `src/client`, which would put the contract in two places and
-let them drift.
-*/
+/* The zod read half the client parses. */
 export const shelf = z.object({
   id: z.uuid(),
   name: shelfName,
   icon: z.string().nullable(),
   color: z.string().nullable(),
   cover_file_id: z.uuid().nullable(),
-  /* Issues #20 and #100, migration 0012: the read half of the two columns a
-     folder has carried since 0006. A response schema is the safe kind to
-     widen — the compiler catches both sides — which is the whole reason the
-     write half above needed the paragraph it has. */
   cover_preset: z.string().nullable(),
   cover_focal_y: z.int().min(0).max(100),
   description: z.string().nullable(),

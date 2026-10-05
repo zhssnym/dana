@@ -1,5 +1,3 @@
-/* The naming panel both folder gestures land in. */
-
 import { useState } from "react"
 
 import { InlineInput } from "../ui/inline-field.js"
@@ -10,29 +8,15 @@ import { T_BASE, T_FAST } from "./motion.js"
 export type PendingAction =
   | { kind: "merge"; ids: string[]; titles: string[] }
   | { kind: "promote"; id: string; title: string; steps: number }
-  /* Every list of folders ends in "New folder…", so wanting one never means
-     leaving what you were doing to go and make it first. All three arrive
-     here, at the same naming panel, so a new folder is created one way rather
-     than three. */
   | { kind: "folder-for"; ids: string[] }
   | { kind: "steps-to-folder"; taskId: string; indices: number[] }
 
-/* The panel both gestures land in. Deliberately not a dialog: the point of
-   these two ideas is that you never leave the list.
-
-   The folder is drawn, what goes into it is shown as the things themselves
-   rather than described in a sentence, and there is always a name in the field.
-   The suggestion is a real name, the two titles have a shared word often enough
-   to be worth trying, and it is selected on open, so Enter accepts and typing
-   replaces. Nothing starts disabled. */
 export function suggestFolderName(pending: PendingAction) {
   if (pending.kind === "promote") return pending.title
   if (pending.kind !== "merge") return "New page"
 
-  /* The longest word both titles share, if there is one. "Book the venue" and
-     "Pay the venue deposit" are obviously a venue folder, and a person who is
-     handed that guess spends no time at all on the part they did not come
-     here to do. */
+  /* The longest word both titles share: "Book the venue" and "Pay the venue
+     deposit" suggest "Venue". */
   const words = (title: string) =>
     title
       .toLowerCase()
@@ -77,8 +61,7 @@ export function PendingPanel({
       )}
     >
       <div className="flex items-start gap-3 px-3 pt-3">
-        {/* The folder mark, the same one the dwell badge closes its ring
-            around, so the gesture and its panel are visibly one thing. */}
+        {/* The same mark the dwell badge rings, so gesture and panel read as one. */}
         <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
           <FolderPlus
             className="size-4 text-primary"
@@ -114,9 +97,7 @@ export function PendingPanel({
             )}
           />
 
-          {/* What goes in, shown rather than counted. A person checking they
-              grabbed the right two tasks should be able to read the two
-              titles, which a sentence saying "2 tasks" cannot do. */}
+          {/* Titles, not a count, so a person can check they grabbed the right tasks. */}
           <ul className="mt-2 flex flex-col gap-1">
             {going.map((line, index) => (
               <li

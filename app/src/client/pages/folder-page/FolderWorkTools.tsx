@@ -1,4 +1,4 @@
-// A Work tab's tools at the end of the tab row: the Task filter and Board's grouping.
+// A Work tab's tools at the end of the tab row.
 import { TaskFilterControl } from '../../views/TaskFilterControl.js'
 import type { TaskFilterLabel, TaskFilterPerson } from '../../views/TaskFilterControl.js'
 import type { TaskFilter } from '../../views/filter.js'

@@ -1,88 +1,12 @@
-/*
-Dana's mark, drawn rather than fetched, and animated like the icon family.
-
-**Why this is a component and not an `<img>`.** An `<img>` is a file the page
-has to ask the network for, and it is opaque to the document, so the inner mark
-inside it is unreachable: no mask, no stroke, nothing to move. A build flattened
-into one self-contained file for sharing refuses every external request, so an
-`<img>` logo is a missing logo there.
-
-`public/dana-mark.svg` stays where it is; it is still the file a favicon, a
-manifest icon or a real transactional email would point at. The geometry below
-is copied from it verbatim and the two must be changed together.
-
-**The animation, and why the pen is a mask.** The icon family's animation
-vocabulary is drawing, wiggling and popping a 24px glyph. The mark is not a
-glyph: it is a filled spiral, and the two obvious translations of "draw it" both
-fail. Tracing its outline puts a hairline pen around a shape whose contour runs
-inward and back out, invisible at the 28px the sidebar renders it. Stroking a
-centreline means authoring a centreline that does not exist in the file.
-
-So the pen is the mask. `SWEEP_PATH` is a wide stroke running along the ribbon's
-own centreline, drawn from the tail's inner tip outward, and the mark appears
-wherever that stroke has reached. It reads at 28px because the moving edge is as
-wide as the ribbon it is uncovering, and it holds up at the 520px watermark size
-because it is tracing real geometry rather than an effect laid over the top.
-
-**Where the centreline came from, since it is in no file.** The mark was
-rasterised and sampled along rays from its centre, every two degrees, and the
-white bands on each ray were followed from one to the next: the band nearest the
-last one is the same ribbon, one step on. That walk reports what the drawing
-actually is, a spiral of just under two turns, starting as a sliver at r
-approximately 218 pointing down-and-left, widening to about 105 units, and
-ending as another sliver at r approximately 516 in the same direction, which is
-the D's opening. The 368 measured midpoints were reduced to 80 by
-Douglas-Peucker at a tolerance of 2 units, which is invisible under a stroke 150
-wide.
-
-**Why 150 wide, and butt-capped.** The ribbon is about 105 units across and the
-turns sit about 200 apart, so 150 clears the ribbon at every point while leaving
-about 25 units of gap to the neighbouring turn: the animation must never uncover
-a stretch the pen has not reached yet. A round cap would push the leading edge
-75 units past the pen; a butt cap keeps the edge square across the ribbon, which
-is what a stroke looks like.
-
-**Three details that are load-bearing:**
-
-- **The mask id must be unique per instance.** Two marks on one page, and the
-  landing page has three, sharing an id means the second one silently steals the
-  first one's mask. Hence `useId`.
-- **The rest state is fully drawn.** `strokeDashoffset` sits at 0 and the
-  animation runs 1 to 0, so a mark that never animates, or animates with
-  scripting off, is simply the logo.
-- **The sweep must finish at exactly the whole mark.** Anything the pen misses
-  is a piece of the logo that never arrives. Checked by rasterising at full
-  reveal and counting: 100.00% of the mark's 62,385 pixels, and the path is
-  extended eight degrees past each tapered tip so neither sliver is clipped.
-
-**What plays it.** Hovering the enclosing link, button or menu item, the same
-walk-up `lib/icons.tsx` does and for the same reason, or the mark itself where
-there is no such ancestor, which a 28px logo is a big enough target for in a way
-a 14px icon in a row is not. The decorative watermarks are `pointer-events-none`
-and have no interactive ancestor, so they stay still without being told to. It
-finishes once started rather than snapping back on mouse-out: a half-drawn logo
-vanishing is worse than a whole one arriving late. And `prefers-reduced-motion`
-turns it off entirely.
-
-**Also worth knowing.**
-
-- **`cn` comes from `./ui/utils.js`**, for the reason `ui/utils.ts` records in
-  its own header.
-- **The root carries `data-dana-mark`**, so a test can address a mark (AC-265):
-  an `<svg>` addressed by what is inside it is indistinguishable from the
-  several dozen the icon family draws on any page. This is the addressing
-  contract of 9.1 one level down.
-- **The two colours live in `styles/tokens.css`**, under `--dana-mark-plate` and
-  `--dana-mark-glyph` with the two `[data-dana-mark-surface]` blocks.
-*/
+// Dana's mark, drawn inline so it works without network requests and can animate.
+// A wide stroke along the ribbon's centreline is the reveal mask. The mask id must
+// be unique per instance, and the rest state is fully drawn.
 
 import { useEffect, useId, useRef, type SVGProps } from 'react'
 
 import { cn } from './ui/utils.js'
 
-/* Copied verbatim from `public/dana-mark.svg`. The plate is the rounded
-   square; the mark is the white D-like spiral inside it, and it is the only
-   part that moves. */
+// Copied from `public/dana-mark.svg`; change both together.
 const PLATE_PATH =
   'M347.22 0l694.44 0c190.97,0 347.22,156.25 347.22,347.22l0 694.44c0,190.97 -156.25,347.22 -347.22,347.22l-694.44 0c-190.98,0 -347.22,-156.25 -347.22,-347.22l0 -694.44c0,-190.98 156.25,-347.22 347.22,-347.22z'
 
@@ -91,32 +15,19 @@ const MARK_PATH =
 
 const VIEW_BOX_SIZE = 1388.89
 
-/* The ribbon's centreline, measured off the drawing rather than authored: 80
-   points from the tail's inner tip, round just under two turns, out to the D's
-   opening. Same viewBox as the mark. See the header for how it was derived. */
+// The ribbon's centreline, measured off the drawing. Same viewBox as the mark.
 const SWEEP_PATH =
   'M659.5 898.4L598.4 889.4L552.3 872.4L523.4 854.7L486.1 818.5L454.9 764.9L446.4 739.3L435.6 685.4L439.0 629.7L451.5 584.5L482.3 525.9L512.7 489.1L533.9 469.6L565.5 447.4L591.4 434.1L627.5 419.5L675.5 410.3L714.7 408.9L763.5 415.1L801.1 426.6L836.8 443.3L877.1 471.3L905.3 498.5L930.0 529.0L952.6 572.2L968.3 628.1L973.6 675.7L965.0 741.5L938.1 811.3L909.2 859.4L872.0 902.4L836.1 935.6L785.9 970.8L727.3 1002.1L670.9 1022.4L633.6 1031.5L535.8 1042.2L452.2 1043.9L371.2 1042.6L333.0 1032.3L301.6 1012.6L288.4 1000.2L278.4 985.2L263.4 952.3L259.5 914.4L259.7 358.2L266.5 313.2L273.5 292.2L284.2 274.2L314.3 246.3L333.0 236.7L353.5 230.2L399.3 227.0L740.5 227.2L805.0 235.4L883.1 258.6L941.7 287.7L983.2 314.1L1021.4 345.3L1077.5 405.5L1096.4 432.6L1127.8 490.5L1152.0 551.8L1164.7 599.7L1172.7 665.2L1172.9 731.4L1167.3 780.8L1138.2 876.0L1107.5 934.8L1080.2 976.5L1036.2 1026.2L986.1 1069.7L930.5 1105.8L900.9 1120.9L855.4 1141.4L791.7 1162.0L691.4 1180.9L639.3 1184.7L530.2 1183.1L472.7 1177.4'
 
-/* Wide enough to clear the ~105-unit ribbon, narrow enough to leave ~25 units
-   of gap to the neighbouring turn. */
+// Wide enough to clear the ~105-unit ribbon, narrow enough to miss the next turn.
 const SWEEP_WIDTH = 150
 
 const SWEEP_DURATION_MS = 850
-/* Linear, which for once is the considered answer rather than the unconsidered
-   one. The dash runs along a real centreline, so constant progress along it is
-   constant pen speed, exactly what drawing looks like. Every curve tried
-   instead broke on the same rock: the inner turn is short and the outer turn
-   is long, so any easing that is slow at one end wastes its slowness on the
-   part with nothing to see. Measured at 25/50/75% of the duration, an
-   ease-in-out drew 7/50/93%, a quarter of a second of apparently nothing
-   while the pen inched off the tail's tip, and every ease-out drew 55/87/98%,
-   whipping through the tail to crawl around the bowl. Linear draws 25/50/75%.
-   The one place it costs anything is the finish, which stops rather than
-   settles, and at the last sliver of a 28px mark that is not visible. */
+// Linear: the dash runs along the real centreline, so constant progress is constant
+// pen speed. Easing curves stalled on the short inner turn.
 const SWEEP_EASING = 'linear'
 
-/* The same scopes `lib/icons.tsx` plays from, so the logo answers to whatever
-   it is sitting in rather than only to itself. */
+// The same hover scopes `lib/icons.tsx` plays from.
 const HOVER_SCOPE = [
   'button',
   'a',
@@ -126,18 +37,10 @@ const HOVER_SCOPE = [
 ].join(', ')
 
 export interface DanaMarkProps extends Omit<SVGProps<SVGSVGElement>, 'ref'> {
-  /* Off for a mark that is standing in for one somewhere motion cannot
-     follow, which today means the transactional email mock-up. */
   animated?: boolean
-  /* What the mark is sitting on, not what colour it is. Left alone it follows
-     the document; say it where the surface disagrees with the document, which
-     today is the three graphite-950 panels on the public screens. */
+  // What the mark sits on, where the surface disagrees with the document.
   surface?: 'auto' | 'light' | 'dark'
-  /* The glyph without its tile. One use: the oversized watermarks, which are
-     drawn at 14% on a dark panel and want to read as a soft D rather than a
-     soft square. They got that by accident while the plate happened to be the
-     same colour as the panel behind them; this is the same picture, asked for
-     on purpose, and it survives the plate changing colour. */
+  // The glyph without its tile, for the oversized watermarks.
   plate?: boolean
 }
 
@@ -168,14 +71,8 @@ export function DanaMark({
       })
     }
 
-    /* The control the mark belongs to, or the mark itself if it belongs to
-       nothing: a lockup that is only a heading, like the sign-in panel's,
-       has no such ancestor and plays from the logo instead.
-
-       Deliberately one target and not both. `mouseenter` fires on every
-       element being entered, so a mark listening alongside its own link
-       restarts the sweep the moment the pointer crosses from the wordmark
-       onto the glyph, a redraw from nothing halfway through the first. */
+    // One target only: `mouseenter` on both the link and the mark would restart the
+    // sweep when the pointer crosses onto the glyph.
     const target = root.closest(HOVER_SCOPE) ?? root
     target.addEventListener('mouseenter', play)
 
@@ -193,7 +90,7 @@ export function DanaMark({
       aria-hidden="true"
       focusable="false"
       className={cn('shrink-0', className)}
-      /* Seam 2 of the header: how AC-265 finds a mark. */
+      // How AC-265 finds a mark.
       data-dana-mark=""
       data-dana-mark-surface={surface === 'auto' ? undefined : surface}
       {...rest}
@@ -214,9 +111,7 @@ export function DanaMark({
           strokeWidth={SWEEP_WIDTH}
           strokeLinecap="butt"
           strokeLinejoin="round"
-          /* Normalising the path to a length of 1 makes the dash pattern read
-             as a fraction, so the animation is 1 to 0 rather than a number
-             nobody can check against the geometry. */
+          // A path length of 1 makes the dash read as a fraction.
           pathLength={1}
           strokeDasharray="1 1"
           strokeDashoffset={0}
@@ -224,10 +119,7 @@ export function DanaMark({
       </mask>
 
       {plate ? <path fill="var(--dana-mark-plate)" d={PLATE_PATH} /> : null}
-      {/* With no tile the glyph inherits the tile's job, it becomes the shape
-          that has to stand off the surface, so it takes the tile's colour.
-          The glyph colour is the one that reads *against* the tile, and with
-          the tile gone that is the colour of the surface itself. */}
+      {/* With no tile, the glyph takes the tile's colour to stand off the surface. */}
       <path
         fill={plate ? 'var(--dana-mark-glyph)' : 'var(--dana-mark-plate)'}
         mask={`url(#${maskId})`}

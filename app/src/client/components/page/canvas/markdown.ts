@@ -5,12 +5,8 @@ import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 import { isSectionHeading } from './outline.js'
 
 /**
- * Which canvas an editor is, for the rules that differ by what its server
- * stores. `work` is a Folder's Main page (headings are Sections), `document` a
- * Purpose/Results facet (flat headings), `plain` a facet without headings,
- * `shelf` a Shelf (one heading level, stored flat), `task` a Task body and
- * `post` a discussion post (a document whose contract has no toggle heading).
- * The slash menu binds it (`CanvasSlashMenu`); an unbound editor is `work`.
+ * Which canvas an editor is, for rules that differ by what its server stores. The
+ * slash menu binds it; an unbound editor is `work`.
  */
 export type CanvasSurfaceKind = 'work' | 'document' | 'plain' | 'shelf' | 'task' | 'post'
 
@@ -23,7 +19,7 @@ export function surfaceOf(editor: object): CanvasSurfaceKind {
   return surfaces.get(editor) ?? 'work'
 }
 
-/** The Results tab's editor: the one canvas where a block may become a Result (#213). */
+/** The Results tab's editor: the one canvas where a block may become a Result. */
 const resultCanvases = new WeakSet<object>()
 export function bindResultCanvas(editor: object): () => void {
   resultCanvases.add(editor)
@@ -33,22 +29,20 @@ export function offersResults(editor: object): boolean {
   return resultCanvases.has(editor)
 }
 
-/** Where a toggle list is offered. Every surface nests since 0038; a Shelf
- * does not offer the toggle list (its `>` stays a quote) and the Task
- * composer's schema has none. */
+/** A shelf keeps `>` as a quote, and the task composer has no toggle list. */
 export const TOGGLE_SURFACES: ReadonlySet<CanvasSurfaceKind> = new Set(['work', 'document', 'plain', 'post'])
 
-/** Where a presentation heading may fold (a toggle heading): Purpose, Results,
- * a Task body, and Work, where a toggle heading is writing beside the Sections
- * (it groups no Tasks; the server stores it as on a facet). */
+/**
+ * Where a presentation heading may fold. On Work it is writing beside the sections
+ * and groups no tasks.
+ */
 export const TOGGLE_HEADING_SURFACES: ReadonlySet<CanvasSurfaceKind> = new Set(['document', 'task', 'work'])
 
 const isSection = (block: CanvasBlock): boolean => isSectionHeading(block)
 
 /**
- * The one Section a Work block may become where it stands: a Section's level
- * is its depth, so only an H2 stands under an H1. Null where no Section can
- * stand (nested under a block, or below an H3).
+ * A section's level is its depth, so only an H2 stands under an H1. Null where no
+ * section can stand.
  */
 export function workHeadingLevel(editor: CanvasEditor, block: CanvasBlock): 1 | 2 | 3 | null {
   const ancestors = ancestorsOf(editor.document, block.id) ?? []
@@ -57,35 +51,27 @@ export function workHeadingLevel(editor: CanvasEditor, block: CanvasBlock): 1 | 
   return depth >= MAX_SECTION_DEPTH ? null : (depth + 1) as 1 | 2 | 3
 }
 
-/** The heading a surface stores for "Heading n"; null where it has none. */
 export function headingFor(editor: CanvasEditor, block: CanvasBlock, level: 1 | 2 | 3): { level: 1 | 2 | 3; isToggleable: boolean; presentation: boolean } | null {
   const surface = surfaceOf(editor)
   // A flat presentation heading; `presentation: false` clears a toggle heading's.
   if (surface === 'document' || surface === 'task' || surface === 'post') return { level, isToggleable: false, presentation: false }
   if (surface === 'shelf') return { level: 1, isToggleable: true, presentation: false }
   if (surface === 'plain') return null
-  // Work: a Section where one of this level stands, otherwise a presentation
-  // heading of the level asked for (writing; it groups nothing). One that
-  // must step out of a Section first is `placeSection`'s (the `#` rule below).
+  // Work: a section where one of this level stands, else a presentation heading.
+  // Stepping out of a section first is `placeSection`'s job.
   return workHeadingLevel(editor, block) === level
     ? { level, isToggleable: true, presentation: false }
     : { level, isToggleable: false, presentation: false }
 }
 
-/** Work's `#` where the Section must step out of the one it is typed in (a
- * Heading 1 typed inside a Section): the same Section `/heading 1` makes. */
+/** Work's `#` where the new section must step out of the one it is typed in. */
 function stepsOut(editor: CanvasEditor, block: CanvasBlock, level: 1 | 2 | 3): boolean {
   if (surfaceOf(editor) !== 'work') return false
   const place = sectionPlace(editor.document, block, level)
   return place !== null && level <= place.length
 }
 
-/**
- * `#`, `##` or `###` typed into Work's last line: the empty line just opened
- * there becomes the heading the same keys make in the page (the rule below),
- * a Section where one of that level stands, stepping out of the one it is in
- * when it must. The caret goes into it.
- */
+/** `#`, `##` or `###` typed into Work's last line: the new line becomes that heading. */
 export function headingLine(editor: CanvasEditor, blockId: string, level: 1 | 2 | 3): boolean {
   const block = editor.getBlock(blockId)
   if (block === undefined) return false
@@ -99,17 +85,14 @@ export function headingLine(editor: CanvasEditor, blockId: string, level: 1 | 2 
 }
 
 /**
- * Notion's markdown shortcuts, by surface: `#`/`##`/`###` + space headings,
- * `>` + space a toggle (a quote where no toggle list is offered), `"` + space a quote
- * (upstream's rule, kept), `---` a divider, ``` a code block. `-`/`*`/`+`,
- * `1.` are upstream's own rules; `[]` makes a Task (below). Upstream's `#`, `>` and `---` rules
- * are stripped from their specs (`schema.ts`) so these are the only ones.
+ * Markdown shortcuts by surface. Upstream's `#`, `>` and `---` rules are stripped
+ * from their specs (`schema.ts`), so these are the only ones.
  */
 export const canvasMarkdownShortcuts = createExtension({
   key: 'dana-markdown-shortcuts',
   keyboardShortcuts: {
-    // The `#` that steps out of a Section, at once where the key is known (a
-    // hardware keyboard); the input rule below is the fallback.
+    // Handle `#` that steps out of a section at once where the key is known; the input
+    // rule below is the fallback.
     ' ': ({ editor }): boolean => {
       const canvas = editor as CanvasEditor
       const { selection } = canvas.prosemirrorState
@@ -131,9 +114,8 @@ export const canvasMarkdownShortcuts = createExtension({
         const canvas = editor as CanvasEditor
         const block = canvas.getTextCursorPosition().block
         if (stepsOut(canvas, block, level)) {
-          // A rule changes only its own block, and the guard refuses a
-          // Section nested out of order, so the move runs once the typed
-          // space has landed: the `#`s and the space are dropped from the text.
+          // A rule changes only its own block and the guard refuses an out-of-order section,
+          // so the move runs after the typed space lands.
           window.setTimeout(() => {
             const typed = canvas.getBlock(block.id)
             const [first, ...rest] = Array.isArray(typed?.content) ? typed.content : []
@@ -157,8 +139,7 @@ export const canvasMarkdownShortcuts = createExtension({
       },
     },
     {
-      // Upstream's rule leaves the cursor on the rule itself, so what is typed next
-      // is lost; here the line after it takes the cursor, as in Notion.
+      // Upstream leaves the cursor on the rule, so the next typing is lost; move it to a new line.
       find: /^---$/,
       replace({ editor }: { editor: unknown }) {
         const canvas = editor as CanvasEditor
@@ -173,9 +154,7 @@ export const canvasMarkdownShortcuts = createExtension({
       },
     },
     {
-      // `[] ` or `[ ] ` makes a Task where Tasks are made (Work): the line
-      // becomes the Task being titled, or, with words after the caret, that
-      // Task at once. Elsewhere the brackets stay text.
+      // `[] ` makes a task where tasks are made (Work); elsewhere the brackets stay text.
       find: /^\[ ?\]\s$/,
       replace({ editor }: { editor: unknown }) {
         const canvas = editor as CanvasEditor
@@ -194,10 +173,8 @@ export const canvasMarkdownShortcuts = createExtension({
 })
 
 /**
- * The to-do block, kept only so documents that hold one still render, check
- * and save: nothing makes a new one. Task covers it, and people took one for
- * the other. Upstream's `[]` / `[x]` rules and its Mod-Shift-9 go; its Enter
- * (a to-do continues the list) stays.
+ * The to-do block exists only so stored ones still render, check and save; nothing
+ * creates one. Its Enter (continue the list) stays.
  */
 export function legacyCheckList<T extends { extensions?: readonly unknown[] }>(spec: T): T {
   const extensions = withoutInputRules(spec.extensions, () => true).map((factory) => ((context: unknown) => {

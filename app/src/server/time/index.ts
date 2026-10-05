@@ -1,20 +1,4 @@
-/*
-The date helper surface the view queries import.
-
-One entry point rather than three so the seam has one import path: the read
-path embeds these predicates in Q1 and Q3C and treats the module as a black
-box. Re-exporting here leaves the files behind it free to move without moving
-that contract.
-
-The recurrence half: the task transitions call generation and the G-SERIES
-guard inside their own transactions, and the calendar calls the projection.
-Both are black boxes to their callers.
-
-The reminder half, on the same terms: the task routes call the recompute at
-four of 8.6's five triggers and the auth module at the fifth, each inside its
-own transaction; the reminder arm of 8.5's generation is closed inside
-generation.ts and is nobody else's to call.
-*/
+// The date, recurrence and reminder helpers, behind one import path.
 export {
   addDays,
   assertCalendarDate,
@@ -42,8 +26,6 @@ export {
 } from './predicates.js'
 export type { CalendarRangeCheck, DueRelation, MyDayGroup } from './predicates.js'
 
-/* The recurrence engine: 4.11's iterator, 8.5's generation and
- * projection, and 5.1's G-SERIES guard. */
 export { instancesInRange, nextInstance, parseStoredRule } from './recurrence.js'
 
 export { generateSuccessor } from './generation.js'
@@ -55,9 +37,7 @@ export type { SeriesGuardOutcome } from './series-guard.js'
 export { virtualInstances } from './projection.js'
 export type { ProjectionSource } from './projection.js'
 
-/* The reminder half: 8.6's fire-instant computation and its five recompute
- * triggers. copyReminderToSuccessor is deliberately not re-exported; 8.5's
- * arm has exactly one caller and it is generation.ts, one directory in. */
+// copyReminderToSuccessor is not re-exported: generation.ts is its only caller.
 export { computeFireAt, resolveFireAt, resolveLocalTime } from './reminder-time.js'
 export type { FireAtInput, LocalResolution, LocalTimeKind } from './reminder-time.js'
 

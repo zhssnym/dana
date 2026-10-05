@@ -19,9 +19,7 @@ export interface CanvasUploadedFile {
 
 const MEDIA_ACCEPT = [...RASTER_MIMES, ...AUDIO_MIMES, ...VIDEO_MIMES].join(',')
 
-/** Which preview a chosen file gets, from the same allowlists the server
- * holds; anything off them is a generic File (the server would refuse it as
- * media, and a File is always offered for download). */
+/** Uses the server's allowlists; anything else is a generic File. */
 export function mediaKindOf(mime: string): CanvasMediaKind {
   if ((RASTER_MIMES as readonly string[]).includes(mime)) return 'image'
   if ((AUDIO_MIMES as readonly string[]).includes(mime)) return 'audio'
@@ -30,21 +28,8 @@ export function mediaKindOf(mime: string): CanvasMediaKind {
 }
 
 /**
- * The upload panel for Dana's two file commands (#220).
- *
- * People see two: **Media** and **File**. Media is an image, audio or video
- * block (an empty one is always an image block, the Media placeholder); the
- * file chosen decides which, by its MIME against the server's allowlists, and
- * a file off them falls back to a File block. File is the generic attachment
- * and stays one whatever the bytes are: a JPG chosen through File is a File,
- * served for download. Replacing keeps that line: a media block re-detects
- * among media, a File block stays a File.
- *
- * It opens from the block's quiet "Add media" / "Add a file" row (see
- * `schema.ts`) and draws its own popover surface (`ui/popover.tsx`'s classes):
- * BlockNote's floating wrapper has none. Upload only, no "Embed link": the
- * adapter refuses external media URLs, and the page's connect-src cannot fetch
- * one to upload it instead.
+ * Upload panel for the Media and File commands. Media detects image, audio or
+ * video by MIME; File always stays a File. No embed link: the CSP cannot fetch one.
  */
 export function CanvasFilePanel({
   blockId,

@@ -1,46 +1,8 @@
 /*
-9.1's folder groups: the four operations, their dialogs, and the writes behind
-them, held in one place because they are one subject.
-
-"A group is the label of 7.4's my-membership and nothing else, so creating one
-is naming it on a folder, and deleting one clears that label from every folder
-carrying it." A client that reached for DELETE /folders on "Delete group" would
-destroy tasks for every member of every folder in it, and AC-180 names the
-survival of the folders and their tasks for exactly that reason.
-
-**A group is a shelf as well.** 9.1 names one thing, "the Library holds the
-viewer's shelves and folders as one ordered list", and 4.18 is what lets them be
-one: a shelf's membership *is* that label, and the server holds the shelf's name
-and its folders' labels in step inside one transaction. So the operations run
-through 7.16 where a shelf exists, and the shape of each follows from which side
-of 4.18 owns the write:
-
-- **Creating** writes the shelf row first and the labels after it, because the
-  name has to exist as a shelf before it means anything as a label. A name
-  already taken is not an error here: the shelf is already there and the labels
-  are all that is owed.
-- **Renaming and deleting are one request each, not one per folder.** `PATCH
-  /shelves/:id { name }` rewrites every matching label itself, and `DELETE
-  /shelves/:id` clears them, both in the transaction that moves the shelf.
-- **A label no shelf row names** renames and deletes through the membership
-  writes, once per folder.
-
-**Where each control lives is 9.1's, not this file's.** The move is on the
-folder's own menu ("a folder is moved between groups from its own menu");
-renaming and deleting act on the group, so they sit in the group's own menu,
-which is reached inside the region that names it. That is what AC-180 addresses.
-
-**Where a bare label is renamed or deleted, the write is once per folder**,
-which is what "every folder carrying it" means, and each write is the ordinary
-hook from `api/mutations.ts`. They are fired together rather than chained: 8.3
-invalidates after each own mutation, so a chain would refetch the whole chrome
-once per folder, and no ordering between them exists to preserve.
-
-**The delete confirm is 9.1's sentence and the shared `ConfirmDialog`**, which
-carries that section's uniform "Continue" and "Cancel". It is a single run
-rather than a title and a description: what a person is owed is the consequence
-in the words the specification chose.
-*/
+ * Folder groups (spec 9.1): a group is a personal label and also a shelf. Deleting one clears labels; it never
+ * deletes folders (AC-180). With a shelf, rename and delete are one request; a bare label is written once per
+ * folder, in parallel.
+ */
 import { useMemo, useState } from 'react'
 
 import {
@@ -61,38 +23,26 @@ import type { Shelf } from '../../shared/shelves.js'
 
 /** 9.1, normative: the confirm a group deletion carries. */
 export function deleteGroupConfirm(folderCount: number): string {
-  /* A shelf is a "collection" on screen and a folder is a page, and what
-     "pages keep their tasks" means to a person is that they leave the
-     collection and stay. The sentence names the shelf rather than leaning on a
-     pronoun, and it agrees with a shelf holding one page. */
+  /* Name the collection rather than a pronoun, and agree with a shelf holding one page. */
   return folderCount === 1
     ? 'Delete collection? 1 page keeps its tasks and leaves the collection.'
     : `Delete collection? ${String(folderCount)} pages keep their tasks and leave the collection.`
 }
 
-/** What the sidebar needs to offer 9.1's four operations on its rows. */
 export interface FolderGroupActions {
-  /** Every label in use, which is what the move submenu offers. */
   readonly labels: readonly string[]
-  /** "Move to group", null being the ungrouped list rather than a group. */
+  /** "Move to group"; null is the ungrouped list. */
   readonly onMoveToGroup: (folder: Folder, label: string | null) => void
   readonly onRenameGroup: (label: string) => void
   readonly onDeleteGroup: (label: string) => void
 }
 
-/** Which dialog the sidebar has asked for, and about what. */
 type GroupDialog = { readonly mode: 'rename'; readonly label: string }
 
-/**
- * The four operations plus the surfaces they open.
- *
- * Returned as a pair rather than rendered here, because the actions belong to
- * rows the sidebar draws and the dialogs belong to the shell: a dialog mounted
- * inside a row would be unmounted by the refetch its own write causes.
- */
+/** Returned as a pair, because a dialog mounted inside a row would unmount on its own write's refetch. */
 export function useFolderGroupActions(
   folders: readonly Folder[],
-  /** The viewer's shelves (7.16); a label these do not name is a bare one. */
+  /** A label these do not name is a bare one. */
   shelves: readonly Shelf[] = [],
 ): {
   readonly actions: FolderGroupActions
@@ -110,11 +60,7 @@ export function useFolderGroupActions(
     return folders.filter((folder) => folder.my_shelf === label)
   }
 
-  /* 4.18 holds a shelf's name and its folders' memberships in step, so the
-     name is the join key. Undefined for a membership written before 7.16
-     existed. The wire field is `shelf` since issue #226; the local variables
-     here still read `label` because they are this component's own word for
-     the string a person typed. */
+  /* A shelf's name and its folders' memberships are kept in step, so the name is the join key. */
   function shelfNamed(label: string): Shelf | undefined {
     return shelves.find((shelf) => shelf.name === label)
   }
@@ -128,8 +74,7 @@ export function useFolderGroupActions(
   const actions: FolderGroupActions = {
     labels,
     onMoveToGroup: (folder, label) => {
-      /* The sidebar's move has the undo bar like the folder page's: a way back
-         that is not three presses in reverse. */
+      /* The sidebar's move has the undo bar, like the folder page's. */
       const previous = folder.my_shelf
       if (previous === label) return
       relabel.mutate(
@@ -155,11 +100,10 @@ export function useFolderGroupActions(
       const targets = inGroup(label)
       const shelf = shelfNamed(label)
       confirm.ask(deleteGroupConfirm(targets.length), () => {
-        /* One request where a shelf exists: 7.16's delete drops the row, its
-           page, and the viewer's matching labels in one transaction, so the
-           folders survive by the server's rule rather than by this client
-           remembering to null each one. The membership loop is what a bare
-           label still takes, and 9.1's confirm is unchanged either way. */
+        /*
+         * With a shelf, one request: the server drops it and clears the matching labels. A bare label takes the
+         * loop.
+         */
         if (shelf !== undefined) removeShelf.mutate(shelf.id)
         else
           writeLabel(
@@ -170,8 +114,7 @@ export function useFolderGroupActions(
     },
   }
 
-  /* Memoised: the dialog resets its fields whenever these change identity, so a
-     fresh array on every shell render would clear a half-typed name. */
+  /* Memoised: the dialog resets its fields when these change identity. */
   const subject = useMemo(
     () => (dialog === null ? [] : folders.filter((folder) => folder.my_shelf === dialog.label)),
     [dialog, folders],
@@ -189,15 +132,12 @@ export function useFolderGroupActions(
           if (!open) setDialog(null)
         }}
         onSubmit={(label, folderNames) => {
-          // Names to ids through the presenter, which is the one place this
-          // client knows that the dialog is keyed by a display name and 7.4 is
-          // keyed by an id, and that folder names are not unique.
+          // Names to ids: the dialog is keyed by display name, and names are not unique.
           const ids = folderIdsForNames(folderNames, subject)
 
           if (dialog === null) return
           const shelf = shelfNamed(dialog.label)
-          /* One request where a shelf exists: 7.16's patch rewrites every
-             matching label in the transaction that renames the row. */
+          /* With a shelf, one request: the patch rewrites every matching label. */
           if (shelf !== undefined) patchShelf.mutate({ id: shelf.id, body: { name: label } })
           else writeLabel(ids, label)
         }}

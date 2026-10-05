@@ -3,22 +3,18 @@ import { fragmentToBlocks } from '@blocknote/core'
 import { removedCanvasPages, removedCanvasTasks, validateCanvasOutline } from './outline.js'
 import type { canvasSchema, CanvasEditor } from './schema.js'
 
-/*
-A sub-page leaves the document only by its own act, "Move page to Trash" in
-the ⋮⋮ menu, which runs its removal inside `removingPages`; every other
-gesture that would drop one (a selection delete, cut, a Backspace merge) is
-refused like a Task's.
-*/
+// A sub-page leaves the document only by "Move page to Trash", which runs inside
+// `removingPages`; every other gesture that would drop one is refused.
 let removable: ReadonlySet<string> = new Set()
 export function removingPages(folderIds: readonly string[], run: () => void): void {
   removable = new Set(folderIds)
   try { run() } finally { removable = new Set() }
 }
 
-/** Transaction meta: the page already holds this change (a Task trashed by its own act), so no gesture is judged. */
+/** Transaction meta: the page already holds this change, so no gesture is judged. */
 export const RECONCILED = 'danaReconciled'
 
-/** One supported transaction hook refuses the whole gesture, before onChange/save. */
+/** Refuses the whole gesture in one transaction hook, before onChange and save. */
 export function installCanvasGuard(editor: CanvasEditor, explain: (message: string) => void): () => void {
   return editor.onBeforeChange(({ tr }) => {
     if (!tr.docChanged || tr.getMeta(RECONCILED) === true) return
@@ -32,13 +28,7 @@ export function installCanvasGuard(editor: CanvasEditor, explain: (message: stri
       typeof canvasSchema.inlineContentSchema,
       typeof canvasSchema.styleSchema
     >(tr.before.content)
-    /*
-    The guard reads the document, not the screen, so the refusal also points
-    at what it refused for: each Task block the gesture would have removed is
-    outlined for a moment (#314). A finished Task draws its own row, checked and
-    muted (`CanvasTask.tsx`), so the outline has something to land on unless
-    "Show completed" has hidden it.
-    */
+    // Outline each task block the refused gesture would have removed.
     const removed = removedCanvasTasks(before, after)
     const pages = removedCanvasPages(before, after).filter((id) => !removable.has(id))
     const failure = removed.length > 0

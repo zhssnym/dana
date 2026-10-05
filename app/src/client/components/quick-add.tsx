@@ -1,12 +1,5 @@
-/*
-The inline "New task" row at the end of a list: the one way to create a task
-from a list (the redesign's control map).
-
-Always an input, drawn as a row in the checkbox column so it lines up with the
-rows above it. Enter creates and keeps focus for the next; Escape leaves.
-Pressing N or C anywhere on the page, when not typing, focuses the first one
-on screen (`useNewTaskShortcut`, installed once however many are mounted).
-*/
+// The inline "New task" row at the end of a list. Enter creates and keeps focus;
+// N or C anywhere outside a field focuses the first one on screen.
 import { useEffect, useState } from 'react'
 import { Plus } from '../lib/icons.js'
 
@@ -14,8 +7,7 @@ import { cn } from './ui/utils.js'
 
 export const NEW_TASK = 'New task'
 
-/** On a phone there is no `N`, so a list's row stays pinned to the bottom of
-    the screen while the list scrolls: always one thumb away, never hunted for. */
+/** A phone has no `N`, so the row stays pinned to the bottom while the list scrolls. */
 export const NEW_TASK_ROW_PHONE = 'max-md:sticky max-md:bottom-0 max-md:z-10 max-md:bg-background'
 
 export function QuickAdd({
@@ -98,13 +90,12 @@ function onKey(event: KeyboardEvent): void {
   const key = event.key.toLowerCase()
   if (key !== 'n' && key !== 'c') return
   if (isTyping(event.target)) return
-  /* An open dialog or menu owns the keyboard. */
+  // An open dialog or menu owns the keyboard.
   if (document.querySelector('[aria-modal="true"], [role="alertdialog"], [role="menu"], [role="listbox"]') !== null) return
   if (focusNewTaskRow()) event.preventDefault()
 }
 
-/** Focuses the first "New task" row on screen; false when the page has none.
-    The N / C shortcut lands here. */
+/** Focuses the first "New task" row on screen; false when the page has none. */
 export function focusNewTaskRow(): boolean {
   const field = [...document.querySelectorAll<HTMLInputElement>('input[data-new-task]')].find(
     (candidate) => candidate.offsetParent !== null,
@@ -115,7 +106,7 @@ export function focusNewTaskRow(): boolean {
   return true
 }
 
-/** The page-wide N / C shortcut, live while at least one new-task row is mounted. */
+/** The page-wide N / C shortcut, live while at least one row is mounted. */
 export function useNewTaskShortcut(): void {
   useEffect(() => {
     if (installed === 0) window.addEventListener('keydown', onKey)

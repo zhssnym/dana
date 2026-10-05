@@ -103,7 +103,6 @@ const base = defaultBlockSpecs.paragraph
 type InlineText = { type: 'text'; text: string }
 type Inline = InlineText | { type: 'link'; href: string; content: InlineText[] } | { type: 'danaLink' }
 
-/** Supported inline custom block; all text/selection/history remain BlockNote's. */
 export const createCanvasParagraph = createReactBlockSpec(base.config, {
   meta: base.implementation.meta,
   parse: base.implementation.parse,
@@ -117,10 +116,8 @@ export const createCanvasParagraph = createReactBlockSpec(base.config, {
 }, base.extensions)
 
 /**
- * TaskComposer still takes BlockNote's paragraph slot while sharing the rest
- * of the canvas vocabulary. schema.ts imports this module before TaskComposer
- * constructs its schema, so install the same renderer in that slot once. This
- * keeps page and Task link previews one treatment rather than two copies.
+ * Install the same paragraph in BlockNote's default slot, so TaskComposer's schema
+ * shares the link previews. schema.ts imports this before TaskComposer builds.
  */
 export const sharedCanvasParagraph = createCanvasParagraph()
 Object.assign(defaultBlockSpecs, { paragraph: sharedCanvasParagraph })

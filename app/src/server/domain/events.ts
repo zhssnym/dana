@@ -1,27 +1,6 @@
-/*
-The domain module for the event record and its fan-out (4.13, 4.14), written
-at the 10.2 chokepoint and read by the 7.12 surfaces.
-
-**One mutation, one event, one transaction.** recordEvent is called by the
-mutation that passed the chokepoint, inside the mutation's own transaction,
-so an act and its record commit or vanish together and a retried request can
-never record an act that did not happen. Fan-out lives here rather than in
-the tick for the same reason: the notification rows ride the same
-transaction, atomic with the event, and are readable in the same breath as
-the mutation. The 4.14 uniqueness stands behind this as
-the constraint-level backstop against any path double-fanning an event.
-
-**Recipients are the caller's to name.** The chokepoint knows who an act
-concerns (the assignee it just wrote, the members it just orphaned); this
-module only enforces the one rule 4.14 states for everyone: an actor is
-never notified of their own act.
-
-**Who wires what.** Folders, tasks, shelves, pages, duplicates and comments
-all record through this same function. The verb for an act with no verb of its own (a step toggled,
-a reminder set, a member added) is 'edited' with the half a verb cannot
-carry in detail, because 4.13's verb list is a CHECK constraint and not a
-suggestion box.
-*/
+// Events and their fan-out (4.13, 4.14). recordEvent runs inside the mutation's own transaction,
+// so an act and its record commit together. Callers name recipients; the actor is never notified.
+// Acts without their own verb record 'edited': the verb list is a CHECK constraint.
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
@@ -48,10 +27,6 @@ function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
 }
 
-/* ------------------------------------------------------------------ *
- * The chokepoint write
- * ------------------------------------------------------------------ */
-
 export interface EventInput {
   actorId: string
   verb: EventVerb
@@ -62,7 +37,7 @@ export interface EventInput {
   /** The visibility scope; null only for acts with no folder. */
   folderId: string | null
   detail?: string
-  /** Who the act concerns (4.14). The actor is filtered here, always. */
+  /** Who the act concerns (4.14). The actor is always filtered out. */
   recipients?: readonly string[]
 }
 
@@ -88,8 +63,7 @@ export async function recordEvent(
     ),
   ]
   for (const userId of recipients) {
-    // ON CONFLICT alongside the 4.14 unique: a fresh event id makes a
-    // conflict impossible today, and keeps a future replayer harmless.
+    // A fresh event id cannot conflict; ON CONFLICT keeps a future replay harmless.
     await tx.execute(
       sql`INSERT INTO notifications (user_id, event_id)
           VALUES (${userId}::uuid, ${eventId}::uuid)
@@ -99,9 +73,7 @@ export async function recordEvent(
   return eventId
 }
 
-/* ------------------------------------------------------------------ *
- * The 7.12 reads (access resolved by the route before the call)
- * ------------------------------------------------------------------ */
+// The 7.12 reads. The route resolves access before calling.
 
 const EVENT_COLUMNS = sql`e.id, e.actor_id, e.verb, e.subject_kind,
   e.subject_id, e.subject_name, e.folder_id, e.detail, e.created_at`
@@ -125,11 +97,7 @@ export interface EventList {
   truncated: boolean
 }
 
-/** 10.3's list cap, shared by the three list reads below.
- *
- * The two history reads leave `mentioned` out (Wave 2, W-D): its sentence is
- * "mentioned you", true only for the person it notified, and the edit that
- * carried the mention is already in the history as its own event. */
+/** 10.3's list cap. History reads skip `mentioned`: it only makes sense to the person it notified. */
 const LIST_CAP = 1000
 
 export async function listFolderEvents(
@@ -169,10 +137,6 @@ export async function listSubjectEvents(
   }
 }
 
-/* ------------------------------------------------------------------ *
- * Notifications: the recipient's list and read state (7.12)
- * ------------------------------------------------------------------ */
-
 export interface NotificationList {
   notifications: NotificationLine[]
   truncated: boolean
@@ -201,11 +165,8 @@ export async function listNotifications(
       id: String(row.notification_id),
       read_at: nullableIso(row.read_at),
       created_at: toIso(row.notified_at),
-      /* Always null since M5 (migration 0059): a task has no thread of its
-         own, and a post about a task lives in its Discussion. */
+      /* A task has no thread of its own; posts about a task live in its Discussion. */
       task_id: null,
-      /* Issue #320: the Discussion a Folder-level comment sits in, so the
-         bell can open that conversation. Null otherwise. */
       discussion_id: nullableString(row.comment_discussion_id),
       event: eventFromRow(row),
     })),
@@ -213,9 +174,7 @@ export async function listNotifications(
   }
 }
 
-/** 200 on the viewer's row whether or not it was already read (an idempotent
- * transition through its no-op, 7.0's discipline); null is 10.2's not-found,
- * another person's notification being nonexistent to this viewer. */
+/** Idempotent. Null means not found, including another person's notification (10.2). */
 export async function markNotificationRead(
   db: Db,
   viewerId: string,

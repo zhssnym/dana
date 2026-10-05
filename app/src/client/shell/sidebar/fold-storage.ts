@@ -1,5 +1,4 @@
-/* The folds a viewer leaves in the Library, remembered per browser. */
-/* Each shelf's fold, remembered per browser. The key is never renamed. */
+/* Never rename these keys. */
 const SHELF_FOLD_KEY = 'dana.sidebar.shelf-collapsed:'
 export function readShelfOpen(label: string): boolean {
   try {
@@ -16,9 +15,7 @@ export function writeShelfOpen(label: string, open: boolean): void {
   }
 }
 
-/* The pages whose sub-pages are folded away, remembered per browser as one
-   JSON array of ids. A page is open until somebody folds it, so a sub-page
-   just made is visible. The key is never renamed. */
+/* Stores folded ids, so a new sub-page starts open. */
 const PAGE_FOLD_KEY = 'dana.sidebar.page-folded'
 export function readPageFolds(): ReadonlySet<string> {
   try {

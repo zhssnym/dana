@@ -1,14 +1,4 @@
-/*
-The 7.3 surface: the roster and its one removal. Two endpoints, no request
-body, and no business logic here: the
-domain module answers both questions and this file maps them onto 7.0's
-statuses.
-
-Mounted under /api/v1 by the boot file. The router carries
-its own session attachment so it composes whichever order routers mount in,
-the folders router's arrangement exactly; that block, and the two helpers
-beside it, are `preamble.ts` since issue #36.
-*/
+/* The 7.3 roster: list and remove. */
 import type { Request, Response, Router } from 'express'
 
 import type { DbClient } from '../../../db/client.js'
@@ -36,8 +26,6 @@ export function createConnectionsRouter(
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      // 7.3 names the elements and their order and no wrapper, so the array
-      // answers bare, the same literal reading GET /folders takes.
       res.status(200).json(await listConnections(db, viewer(req)))
     },
   )
@@ -50,14 +38,10 @@ export function createConnectionsRouter(
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      // A path id that is not a uuid names no connection, and 7.3 answers
-      // 404 when there is no such connection, which is what parsedId sends.
+      // A non-uuid names no connection: parsedId's 404 is the right answer.
       const userId = parsedId(res, req.params.userId)
       if (userId === null) return
-      // Either side may call, which the canonical pair makes structural, so
-      // there is no actor branch here at all. The memberships the pair once
-      // sponsored are untouched: 7.3 says so, and the statement names one
-      // table.
+      // Either side may remove; memberships the pair sponsored are untouched (7.3).
       if (!(await removeConnection(db, viewer(req), userId))) {
         sendError(res, 404, 'not_found', 'Not found.')
         return

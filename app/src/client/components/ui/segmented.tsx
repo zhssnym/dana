@@ -2,16 +2,8 @@ import * as React from "react"
 
 import { cn } from "./utils.js"
 
-/*
-r5-primitives: the one segmented control, for choosing one of a few values
-in place (view switcher, Theme, Clock). A muted track, the chosen value on
-a page-coloured pill; 28px (--control-height) overall, 14px, weight 500.
-It is a radiogroup: one Tab stop (the chosen value), ←/→ (and ↑/↓) move
-the choice, as a native radio group does.
-
-  <Segmented label="View" value={mode} onValueChange={setMode}
-             options={[{ value: "linear", label: "Linear" }, ...]} />
-*/
+// The one segmented control. A radiogroup: one Tab stop on the chosen value, arrow keys
+// move the choice.
 
 type SegmentedOption<T extends string> = {
   value: T

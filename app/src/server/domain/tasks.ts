@@ -75,10 +75,7 @@ function arrayValue(value: unknown): unknown[] {
   }
 }
 
-/** A blank Discussion made through POST /tasks/:id/discussion remains hidden
- * from the Discussion list and TaskDetail until somebody actually uses it.
- * `created_via_task` is provenance only; it does not make the relationship
- * singular and is never used as a source of truth for linked items. */
+/** A blank Discussion made from a task stays hidden until used. `created_via_task` is provenance only. */
 export const UNSTARTED_TASK_THREAD = sql`(
   EXISTS (SELECT 1 FROM discussion_tasks udt
            WHERE udt.discussion_id = d.id AND udt.created_via_task)
@@ -215,12 +212,7 @@ async function inboxOf(executor: Executor, viewerId: string): Promise<string> {
   return String(row.id)
 }
 
-/**
- * One TaskDetail read for all Task endpoints. Issue #497 projects every live,
- * readable linked Discussion. The relation can survive a Task move, a Task
- * soft-delete, or a Discussion soft-delete; projection never leaks an endpoint
- * the viewer cannot currently open.
- */
+/** One TaskDetail read for all Task endpoints. Linked Discussions show only when the viewer can open them. */
 export async function taskView(
   executor: Executor,
   viewerId: string,
@@ -848,9 +840,7 @@ async function patchTaskIn(
       sets.push(sql`updated_at = now()`)
       if (moving) {
         await dropFolderLabelsOnMove(tx, taskId)
-        /* Issue #497: only the Task's own document files follow a Task move.
-         * Linked Discussions, their comments, and their uploads remain in
-         * their own Folders; the durable relation edge itself is untouched. */
+        /* Only the Task's own document files follow a move; linked Discussions stay put. */
         const carried = await carryTaskFilesOnMove(
           tx,
           store,

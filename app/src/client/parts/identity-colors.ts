@@ -1,29 +1,8 @@
 /*
-The colours a page's mark can wear, as the hex 4.3's colour column stores.
-
-Hex rather than tokens, and here rather than in `components/`, for recorded
-reasons. The wire stores `#RRGGBB` (4.3's CHECK, `shared/folders.ts`'s
-`hexColor`: any hex) and the identity is shared, one value read by every
-member in every theme, so the write must be a stable literal and never a
-`var()` whose meaning flips with the viewer's colourway. Literal colours are
-forbidden inside `components/**`, so the palette lives here, beside
-`presenters.ts`'s `DEFAULT_FOLDER_COLOR`.
-
-**One value has to read in both themes.** The stored hex cannot flip with
-the colourway, so every colour here is a mid-tone whose glyph holds at least
-3:1 (the non-text contrast bar) against both the light page (#ffffff) and the
-dark one (#191919). That is why yellow is a mustard and grey a middle grey: a
-true yellow vanishes on white and a graphite on black.
-
-**The row is eight famous colours, one line of the picker.** The ninth cell
-is Shuffle, which draws from `SHUFFLE_COLORS`: sixteen hand-picked hues that
-sit between the row's, each held to the same two-theme bar, so a press lands
-on something distinctive rather than arbitrary RGB.
-
-Colours a folder already stores that are in neither list (the old ten-swatch
-palette, anything written over the API) still draw exactly as stored; the
-picker shows them in the Shuffle cell as the current colour.
-*/
+ * Mark colours as stored hex. The value is shared across members and themes, so it cannot be a `var()`. Each is
+ * a mid-tone at 3:1 or better against both #ffffff and #191919. Literal colours are banned in `components/`.
+ * Stored colours in neither list still draw as stored.
+ */
 export const IDENTITY_COLORS: readonly [name: string, hex: string][] = [
   ['Grey', '#8a8a8a'],
   ['Red', '#e03e3e'],
@@ -35,7 +14,7 @@ export const IDENTITY_COLORS: readonly [name: string, hex: string][] = [
   ['Pink', '#e0459a'],
 ]
 
-/** Shuffle's pool: distinctive hues between the row's, never the row's own. */
+/** Shuffle's pool: distinct hues between the row's, never the row's own. */
 export const SHUFFLE_COLORS: readonly string[] = [
   '#12a594', // teal
   '#5b5bd6', // indigo
