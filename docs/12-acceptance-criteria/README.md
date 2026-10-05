@@ -10,7 +10,7 @@ small core has tests, and `app/tests/README.md` says which.
 - Numbers are never reused. A new criterion takes the number named below, and the same
   commit moves that line on by one past the highest number it spent.
 - Retiring a criterion is deleting its bullet; its number stays spent.
-- History is git's: `git log -S 'AC-NNN' -- docs/spec/` finds every commit that touched one.
+- History is git's: `git log -S 'AC-NNN' -- docs/` finds every commit that touched one.
 
 ## The next number
 
