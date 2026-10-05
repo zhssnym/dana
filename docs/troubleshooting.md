@@ -131,7 +131,7 @@ All commands run from `app/`. From the repository root there is no `package.json
   `CREATEDB`. A count that climbs across tests on this leg is a real defect, not a flake.
 - **Text sorts differently on Postgres and PGlite.** The base database must be created with the
   builtin `C.UTF-8` locale, using the exact statement in
-  `docs/spec/11-architecture/11.10-testing-infrastructure.md`. Never point the variable at a
+  `docs/11-architecture/11.10-testing-infrastructure.md`. Never point the variable at a
   database that inherited the cluster default.
 - **A test asserts a server error message and fails on another machine.** Postgres error text
   is translated (it's French on Hassan's PC). Assert the SQLSTATE, the constraint name, or the
@@ -322,7 +322,7 @@ run, and a record from a dirty tree describes something that isn't the commit.
 - **Library code from memory doesn't work.** Recalled APIs for the installed versions are wrong
   in specific ways: Tailwind 4 CSS-first configuration, React Router library mode, zod 4,
   Express 5, Luxon DST handling, and PGlite's single connection. Read
-  `docs/spec/11-architecture/11.15-known-hazards-for-implementers.md` before touching those
+  `docs/11-architecture/11.15-known-hazards-for-implementers.md` before touching those
   libraries. FullCalendar is no longer a dependency; ignore anything that mentions it.
 - **Cutting tests barely sped up typecheck.** `tsconfig.server.json` includes `tests/**`, and
   the colocated tests are most of what it compiles.
