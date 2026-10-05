@@ -60,7 +60,7 @@ export interface ConnectionLostEvent {
 
 // The .sql files are not compiled into dist/, so the folder is resolved from
 // the working directory, which every npm script and the production start
-// command set to the repository root. Same contract as the version read in routes/health.ts.
+// command set to the repository root.
 const migrationsFolder = path.resolve(process.cwd(), 'db', 'migrations')
 
 function lost(error: Error): ConnectionLostEvent {
