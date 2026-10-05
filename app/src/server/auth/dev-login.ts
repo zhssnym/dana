@@ -1,22 +1,8 @@
 /*
-The development-only login of 11.6, and the one module in this codebase that
-must not exist in a production build.
-
-Three things keep that true, and all three are needed:
-
-- tsconfig.build.json excludes src/server/auth/dev-login*, so tsc does not
-  compile it.
-- router.ts loads it through a specifier assembled at runtime, so no
-  resolvable import names it. 11.15 records why that matters: tsc emits an
-  excluded file anyway whenever any import can be resolved to it, a literal
-  dynamic import() included, and the exclusion would then be decorative.
-- The loader treats a failed load as the route not existing and answers 404,
-  which is what a production build produces regardless of DANA_DEV_LOGIN.
-
-It provisions through the same transaction as the callback, so a session made
-here is indistinguishable from a real one, and it takes an optional timezone
-with the 7.1 tz parameter's semantics: absent means UTC, invalid is treated as
-absent rather than answered 422.
+The development-only login (11.6). It must never exist in a production build:
+tsconfig.build.json excludes it, router.ts loads it by a runtime-built
+specifier (any resolvable import would make tsc emit it), and a failed load is
+a 404. It provisions through the real transaction; an invalid tz is ignored.
 */
 import { randomUUID } from 'node:crypto'
 
@@ -32,10 +18,7 @@ interface DevLoginBody {
   sub?: unknown
   name?: unknown
   timezone?: unknown
-  /** 7.20: `false` opts a brand-new account out of the sample workspace
-   * and `true` opts it in, whatever the application's default; the browser
-   * harness sends false so a fresh account is the empty one its criteria
-   * count on. Honoured here and nowhere else. */
+  /** 7.20: `false` or `true` overrides the app's sample-workspace default. */
   sample?: unknown
 }
 
@@ -46,13 +29,10 @@ export async function handleDevLogin(
   establish: (res: Response, userId: string) => Promise<void>,
   sampleDefault = true,
 ): Promise<void> {
-  // The query string is read beside the body so a plain HTML form, which
-  // cannot post JSON, can still name the account: POST .../dev-login?sub=x.
+  // Query params too, so a plain HTML form can name the account.
   const body = { ...(req.query as object), ...((req.body ?? {}) as object) } as DevLoginBody
 
-  // Every field is optional so that a bare POST signs in as a fresh account,
-  // which is what the Playwright seeding path wants; naming an email or sub
-  // signs in as that account, creating it the first time.
+  // All optional: a bare POST signs in as a fresh account.
   const sub = typeof body.sub === 'string' && body.sub !== ''
     ? body.sub
     : `dev-login-${randomUUID()}`
@@ -82,13 +62,8 @@ export async function handleDevLogin(
     )
   } catch (error) {
     /*
-    Issue #17's collision reaches this route too, and it reaches it as a
-    mistake in a seed rather than as a product event: a harness that names an
-    email already held by a different sub. Answered as a refusal a person can
-    read, because the alternative is a 500 in a Playwright log with nothing in
-    it about which of the two names collided. The callback's own answer is the
-    9.2 page; this route serves no browser and answers JSON like the rest of
-    the API.
+    A seed naming an email held by a different sub: answer a readable 409
+    instead of a 500 in a test log.
     */
     if (error instanceof EmailAlreadyClaimedError) {
       sendError(

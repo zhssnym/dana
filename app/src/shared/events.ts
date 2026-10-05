@@ -1,13 +1,7 @@
-/*
-The 7.12 contract: events and notifications. Events are read-only
-on the wire, written only by the 10.2 chokepoint, so the request side here is
-two query shapes and two read-state posts; the response side is the event
-line every history surface renders.
-*/
+/* The 7.12 events and notifications contract. Events are read-only on the wire. */
 import { z } from 'zod'
 
-/** 4.13's verb set, the CHECK constraint restated for the client's benefit;
- * the server never validates an inbound verb because no client sends one. */
+/** 4.13's verb CHECK, for the client; no client ever sends a verb. */
 export const EVENT_VERBS = [
   'created',
   'renamed',
@@ -21,7 +15,6 @@ export const EVENT_VERBS = [
   'removed',
   'deleted',
   'left',
-  // Wave 2 (W-D): an @mention, told only to the person named (0041).
   'mentioned',
 ] as const
 export type EventVerb = (typeof EVENT_VERBS)[number]
@@ -50,10 +43,9 @@ export interface NotificationLine {
   id: string
   read_at: string | null
   created_at: string
-  /** The task a comment subject sits on, null otherwise (polish, search F3). */
+  /** The task a comment subject sits on, else null. */
   task_id: string | null
-  /** The Discussion a comment subject sits in, null otherwise (issue #320).
-   * Optional in the type so older fixtures compile; the server answers it. */
+  /** The Discussion a comment subject sits in, else null. Optional only for old fixtures. */
   discussion_id?: string | null
   event: EventLine
 }
@@ -65,9 +57,7 @@ const subjectRef = z
     'must be kind:id, where kind is task, folder, shelf or comment and id is a uuid',
   )
 
-/** GET /events takes exactly one of the two scopes (7.12): a folder's
- * activity or one subject's history. Both at once is a malformed ask, and
- * neither is a request for everything, which no viewer is owed. */
+/** Exactly one scope: a folder's activity or one subject's history, never everything. */
 export const eventsQuery = z
   .object({
     folder: z.uuid().optional(),
@@ -90,11 +80,7 @@ export function parseSubjectRef(ref: string): {
   }
 }
 
-/*
-The read half: `api/http.ts` parses every response through a zod schema, so
-each read needs one beside the query shapes and interfaces, as in
-`shelves.ts`, `bundle.ts` and `trash.ts`.
-*/
+/* Zod read halves, which the client parses every response through. */
 export const eventLine = z.object({
   id: z.uuid(),
   actor_id: z.uuid(),
@@ -107,24 +93,13 @@ export const eventLine = z.object({
   created_at: z.string(),
 })
 
-/*
-The envelope, not a bare array: the three list reads all carry 10.3's
-list cap and report whether they hit it, so a client can render section
-6's truncation line rather than silently showing the first thousand of
-something longer. Written from `domain/events.ts` rather than guessed: a
-wrong guess fails the parse silently in the window bar.
-*/
+/* Wrapped with `truncated`, since these lists carry 10.3's cap. */
 export const getEventsResponse = z.object({
   events: z.array(eventLine),
   truncated: z.boolean(),
 })
 export type GetEventsResponse = z.infer<typeof getEventsResponse>
 
-/*
-The notifications read (7.12), for the reason the read half above records.
-Written from `domain/events.ts`'s `listNotifications`, the same discipline as
-`getEventsResponse` beside it.
-*/
 export const notificationLine = z.object({
   id: z.uuid(),
   read_at: z.string().nullable(),
@@ -140,8 +115,7 @@ export const getNotificationsResponse = z.object({
 })
 export type GetNotificationsResponse = z.infer<typeof getNotificationsResponse>
 
-/** POST /notifications/:id/read answers { read: true }; read-all answers
- * { read: N }, N the rows the pass flipped. Both from `routes/events.ts`. */
+/** `{ read: true }` for one; read-all answers the number of rows changed. */
 export const postNotificationReadResponse = z.object({ read: z.literal(true) })
 export const postNotificationsReadAllResponse = z.object({
   read: z.number().int(),

@@ -5,9 +5,8 @@ import { Router } from 'express'
 
 import { secondsSinceLastPass } from '../observability/scheduler-pass.js'
 
-// The npm scripts (dev, start) always launch from app/, so the package
-// manifest is reachable from the working directory in both the tsx and the
-// compiled dist layout, which place this module at different depths.
+// npm scripts always run from app/, so package.json is found from cwd in both
+// the tsx and the compiled layout.
 const pkg = JSON.parse(
   readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf8'),
 ) as { version: string }
@@ -15,15 +14,8 @@ const pkg = JSON.parse(
 let databaseKind: 'postgres' | 'pglite' | null = null
 
 /*
-Which engine the seam chose, reported here so that a production instance
-running on the embedded database can be seen from outside without reaching for
-Render's logs (issue #80). The boot calls this after `createDbClient`, exactly
-as the scheduler calls `recordSchedulerPass` after a pass: health reports what
-the process has told it rather than holding a database handle of its own.
-
-Null means nothing has declared one, which is every app constructed without a
-client — this file's own tests included. A production boot always declares, so
-a null here in production would itself be the finding.
+The database engine the boot chose, so production on embedded PGlite is visible
+from outside. Null means never declared (apps built without a client).
 */
 export function recordDatabaseKind(kind: 'postgres' | 'pglite'): void {
   databaseKind = kind
@@ -33,13 +25,7 @@ export function reportedDatabaseKind(): 'postgres' | 'pglite' | null {
   return databaseKind
 }
 
-/**
- * Where `index.ts` mounts this router, named rather than spelled twice because
- * a second file now needs the same literal. The canonical-host redirect of
- * issue #6 exempts exactly this path: Render's own health check reaches the
- * service by its Render hostname, which is by definition not the canonical
- * one, so a 301 here would fail the check and with it every deploy.
- */
+/** Exempt from the canonical-host redirect: Render probes its own hostname. */
 export const HEALTH_PATH = '/api/health'
 
 export const healthRouter: Router = Router()

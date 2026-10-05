@@ -1,37 +1,8 @@
 /*
-The EXPLAIN record for section 6's queries, as the tool that produces it
-rather than as a paragraph claiming it was produced.
-
-It cannot be a test: at the row counts a test database holds, a planner
-sequentially scans whatever indexes exist, so the record is a committed
-artifact produced against seeded volume or with seqscan disabled, and a green
-suite is evidence for it in neither direction. So this seeds volume, runs every statement the eight
-queries of section 6 actually issue, and writes EXPLAIN.md beside itself.
-
-Run it with:
-
-    npx tsx src/server/views/explain.ts
-
-The statements are not restated here. A spy Executor is handed to the same
-view functions the router calls, and it EXPLAINs whatever SQL reaches it
-before passing it through, so the recorded plan is provably the plan of the
-statement the code runs rather than of a transcription that could drift from
-it. That is the whole reason this file is thirty lines of seeding and no SQL
-of its own.
-
-Two passes are recorded for every statement. The first is the planner's own
-choice at the seeded volume. The second is the same statement with
-enable_seqscan off, which answers a different
-question: not what the planner does at this size, but which index it would
-reach for when it has to choose one. Both are useful, and neither is
-evidence about production, where the row counts and the statistics are not
-these.
-
-One wart, named rather than hidden: tsconfig.build.json excludes only tests
-and the dev-login module, so this development tool is compiled into dist
-along with the runtime. It imports nothing the server does not already load
-and runs nothing on import, so the cost is a few unreachable kilobytes. The
-tidy fix is one more entry in that file's exclude list.
+Writes EXPLAIN.md for the section 6 queries: `npx tsx src/server/views/explain.ts`.
+Not a test, because at test volume the planner seq-scans everything. It seeds
+volume and hands a spy Executor to the real view functions, so the plans are of
+the statements the code actually runs, each with and without enable_seqscan.
 */
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -66,19 +37,13 @@ interface Recorded {
 
 const dialect = new PgDialect()
 
-/*
-Costs off and no ANALYZE: what this record is for is which relation each
-statement reaches and by which index, and a committed artifact that changed
-on every run because a timing moved by a microsecond would be a file nobody
-reads twice.
-*/
+/* No costs or ANALYZE, so the file changes only when a plan does. */
 async function explain(db: Db, statement: SQL): Promise<string[]> {
   const plan = await rowsOf(db, sql`EXPLAIN (COSTS OFF) ${statement}`)
   return plan.map((row) => String(row['QUERY PLAN']))
 }
 
-/** The spy: every statement a view function issues is explained twice and
- * then run, so the record is of the statement rather than of a copy. */
+/** Explains each statement twice, then runs it. */
 function recording(db: Db, label: string, into: Recorded[]): Executor {
   let index = 0
   return {
@@ -129,11 +94,7 @@ async function seed(db: Db): Promise<{ viewer: string; folder: string }> {
     )
     const id = String(inserted[0]?.id)
     for (const member of members) {
-      // Explicit since issue #228: this diagnostic builds a synthetic corpus
-      // to read query plans over, and the preset it writes is the one
-      // migration 0023 initializes a real folder to -- Full control for the
-      // owner, Can edit for everybody else -- so the plans it measures are
-      // the plans production has.
+      // Owner Full control, others Can edit: what migration 0023 gives real folders.
       await db.execute(
         sql`INSERT INTO folder_members (folder_id, user_id, access)
             VALUES (${id}::uuid, ${member}::uuid,
@@ -156,17 +117,9 @@ async function seed(db: Db): Promise<{ viewer: string; folder: string }> {
   }
 
   /*
-  Every folder gets the same mix: a third completed, a sixth abandoned, half
-  dated, a scattering of stars, and titles carrying a needle that matches one
-  row in forty so search has something selective to find. The hidden half is
-  the same size as the visible one, so a query that forgot ACCESSIBLE(V)
-  would show up in the plan as twice the rows rather than as nothing.
-
-  One row in ten carries a 4.11 rule, which lands on the dated rows because
-  i % 10 = 0 is even and 4.11's CHECK admits no rule without a date, and each
-  gets its own series_id because INV-7 allows one pending row per series.
-  Q3C's projection fetch would otherwise plan against an empty predicate and
-  the record would say nothing about the recurrence projection's statement.
+  Every folder gets the same mix of statuses, dates, stars, rules and a search
+  needle. The hidden half is the same size, so a query missing ACCESSIBLE(V)
+  would show twice the rows in its plan.
   */
   const fill = async (folderId: string, owner: string): Promise<void> => {
     await db.execute(sql`
@@ -198,8 +151,7 @@ async function seed(db: Db): Promise<{ viewer: string; folder: string }> {
   for (const folderId of folders) await fill(folderId, viewer)
   for (const folderId of hidden) await fill(folderId, stranger)
 
-  // A My Day population for Q1's entry arm, and checklist items so the
-  // card's counts have rows to count.
+  // My Day entries and checklist items, so those parts of the card have rows.
   await db.execute(sql`
     INSERT INTO my_day_entries (task_id, user_id, added_on)
     SELECT t.id, ${viewer}::uuid, CURRENT_DATE
@@ -222,15 +174,8 @@ async function seed(db: Db): Promise<{ viewer: string; folder: string }> {
 }
 
 /*
-The predicates of section 6, each on its own, with enable_seqscan off.
-
-These are the only statements in this file written by hand rather than taken
-from the module, and they are here because a whole-statement plan answers a
-different question than this one. A view statement joins six relations, so
-the planner is free to drive from folder_members and reach tasks by the
-folder scope, which is a good plan and says nothing about whether the
-query's own predicate can ride the index 4.12 names for it. These probes
-strip the joins away and ask exactly that.
+Each section 6 predicate alone, with seqscan off: the full statements join
+six relations, so these probes ask whether each predicate can use its 4.12 index.
 */
 function predicateProbes(
   viewer: string,

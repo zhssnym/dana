@@ -1,10 +1,6 @@
 /*
-The sample workspace surface (7.20): GET, DELETE
-and POST /api/v1/sample, every one the caller's own account and no other.
-The two writes go through the 10.2 chokepoint the way every mutation does,
-CSRF and the general mutation limit; the 204 says what it left standing in
-one header, because a shared sample folder is the one thing removal will
-not take and the strip should be able to say so.
+The 7.20 sample workspace routes, on the caller's own account only. The DELETE's
+204 lists, in headers, the shared sample folders it kept or trashed.
 */
 import type { Request, Response, Router } from 'express'
 
@@ -48,7 +44,7 @@ export function createSampleRouter(options: SampleRouterOptions = {}): Router {
       const db = database(res)
       if (db === null) return
       const removal = await removeSampleWorkspace(db, viewer(req))
-      // 7.15's order: the rows are committed, so the bytes go now.
+      // Rows are committed, so the bytes go now.
       await removeObjects(options.fileStore, removal.fileIds)
       if (removal.keptFolders.length > 0) {
         res.setHeader(SAMPLE_KEPT_HEADER, encodeURIComponent(removal.keptFolders.join('\n')))

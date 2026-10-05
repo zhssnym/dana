@@ -1,14 +1,7 @@
 /*
-The 7.16 surface: pages, shelves, and the object acts. One
-router because 7.16 is one section: the folder page, the shelf family with
-its own page, duplicate for tasks and folders, the workflow import, and the
-direct ownership transfer. Handlers validate with the shared schemas,
-resolve access, delegate, and serialize.
-
-Status grammar (7.0, 10.2): scope failures 404, never 403, except where the
-viewer demonstrably sees the thing and lacks the role, which is 403 by the
-DES-225 matrix (a member asking to transfer ownership); stale page evidence
-409 with 5.1's copy; shape and cap failures 422 naming the field.
+The 7.16 routes: folder and shelf pages, shelves, duplicate, workflow import,
+and ownership transfer. Scope failures are 404, never 403, unless the viewer
+can see the thing and lacks the role.
 */
 import type { Request, Response, Router } from 'express'
 import { z } from 'zod'
@@ -66,28 +59,15 @@ import { routerWithPreamble } from './preamble.js'
 export interface WorkshopRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
-  /** The object store: a shelf cover and a
-   * duplicate both copy the picture they carry (issues #116 and #128, spec
-   * 7.16). Optional beside the other two for `routes/files.ts`'s reason, and
-   * guarded the same way. */
+  /** Shelf covers and duplicates copy the picture's bytes. */
   fileStore?: ObjectStore
   securityLog?: SecurityLogger
 }
 
 /*
-`?tz` for the two duplicates, on 7.6's precedent, which
-7.16's import already follows a few handlers below (issue #76).
-
-Three states rather than two, which is why this answers a sentinel rather than
-null: a zone that was named and is valid resolves to today(V); a zone that was
-named and is not is 422 here and now, always, whether or not a date would have
-been evaluated; and no zone at all is null, which the domain refuses only when
-a date would in fact be re-anchored. That last decision belongs to the domain
-because only it knows what dates the copy will carry, and it is the same seam
-`needsImportAnchor` gives the import.
-
-Until this date both endpoints took no zone at all and re-anchored on the
-database session's `current_date`, which 8.1 forbids by name.
+`?tz` for the duplicates. Three states: valid resolves to today; present but
+invalid is always 422; absent is null, which the domain refuses only when a
+date would be re-anchored.
 */
 const REFUSED = Symbol('tz refused')
 
@@ -116,12 +96,7 @@ export function createWorkshopRouter(
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
 
-  /** `routes/folders.ts`'s gate, one router over (issue #228): resolve the
-   * folder first so an outsider gets 10.2's 404, then ask the resolver
-   * whether the act is this member's and answer 403 with its own sentence.
-   * Duplicated as four lines rather than shared, because a router in this
-   * directory takes its own `database`/`viewer` closures from the preamble
-   * and a shared helper would have to be handed both. */
+  /** Resolve the folder first (404 to outsiders), then ask mayPerform (403). */
   const gate = async (
     req: Request,
     res: Response,
@@ -144,9 +119,7 @@ export function createWorkshopRouter(
   }
   const securityLog = options.securityLog ?? createSecurityLogger()
 
-  /** `routes/files.ts`'s guard, one router over: an application constructed
-   * without a store cannot copy a cover's bytes, and saying so is better than
-   * storing a row whose picture was never written. */
+  /** Without a store a cover's bytes cannot be copied; refuse rather than store a broken row. */
   const storeOf = (res: Response): ObjectStore | null => {
     if (options.fileStore === undefined) {
       sendError(
@@ -160,8 +133,6 @@ export function createWorkshopRouter(
     return options.fileStore
   }
 
-  /** 10.3's one limit that is not a 422, with section 9's copy. Written once
-   * because three routes here can now spend the quota through a copy. */
   const overQuota = (res: Response): void => {
     sendError(
       res,
@@ -170,10 +141,6 @@ export function createWorkshopRouter(
       "You've used your 1 GB of storage. Delete some files to add more.",
     )
   }
-
-  /* ---------------------------------------------------------------- *
-   * The folder page (4.17): any member reads, any member edits (D1)
-   * ---------------------------------------------------------------- */
 
   router.get(
     '/folders/:id/page',
@@ -193,10 +160,8 @@ export function createWorkshopRouter(
     },
   )
 
-  /* The retired 7.27 facet reads, served from the tab rows for one release so
-     an installed PWA on the bundle from before step 7 still draws a project's
-     tabs and opens an old /app/facets/:id link. Reads only: its facet writes
-     answer 404. The contract migration deletes them with their ac-397 rows. */
+  /* Retired facet reads, served from tab rows so old installed bundles still
+     work. Remove with their ac-397 rows at the contract migration. */
   router.get(
     '/folders/:id/facets',
     requireSession,
@@ -225,8 +190,7 @@ export function createWorkshopRouter(
       if (folderId === null) return
       const tabId = parsedId(res, req.params.facetId)
       if (tabId === null) return
-      // The facet is a tab now: the viewer's gate is on the tab itself, and
-      // the tab must be one of `:id`'s project.
+      // The facet is a tab now: gate on the tab and require it to be in `:id`'s project.
       if (
         (await accessOf(db, viewer(req), folderId)) === null ||
         (await accessOf(db, viewer(req), tabId)) === null ||
@@ -274,10 +238,6 @@ export function createWorkshopRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      /* #228's Can-edit list: the Folder page and composer are ordinary
-         shared Work, so Can edit and above write them. The header above this block said
-         "any member edits (D1)"; that was the rule before #209 and it is the
-         one R8A narrows. */
       if (!(await gate(req, res, folderId, 'folder.page.edit'))) return
       const parsed = parseBody(putPageBody, req, res, securityLog)
       if (parsed === null) return
@@ -288,20 +248,13 @@ export function createWorkshopRouter(
         parsed.blocks,
       )
       if (outcome.kind === 'not_found') {
-        // Unreachable behind the accessOf above, and kept because the module
-        // refuses a home the viewer cannot see rather than trusting its
-        // caller (issue #35).
+        // Unreachable behind the gate; the domain still refuses on its own (#35).
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
       if (outcome.kind === 'file_not_here') {
-        /* Issue #107: the block named a file the page cannot reach. The
-           field is addressed the way a schema failure on the same block
-           would address it, so a client reads one shape of 422 whichever
-           validator refused it, and every offending block is named in one
-           answer (10.3). A file that does not exist and one the caller
-           cannot reach get this same sentence, as 7.16's cover does, because
-           telling them apart is the disclosure (10.2). */
+        /* Same 422 shape as a schema failure. A missing file and an unreachable
+           one get the same sentence, so existence does not leak (10.2). */
         sendFieldValidationError(
           res,
           outcome.blockIndexes.map((index) => ({
@@ -312,7 +265,6 @@ export function createWorkshopRouter(
         return
       }
       if (outcome.kind === 'stale') {
-        // 5.1's copy for the lost half of a last-write-wins race.
         sendError(
           res,
           409,
@@ -322,10 +274,8 @@ export function createWorkshopRouter(
         return
       }
       if (outcome.kind === 'forbidden') {
-        /* Unreachable behind the route gate above and kept for its reason:
-           the domain refuses a caller it was handed rather than trusting
-           one (issue #35), and a result arm with no mapping would answer
-           this 403 as an unhandled shape. */
+        /* Unreachable behind the gate; mapped so the domain's own refusal is not
+           an unhandled shape. */
         sendError(res, 403, 'forbidden', outcome.reason)
         return
       }
@@ -343,15 +293,9 @@ export function createWorkshopRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      /* AC-397's explicit route gate, now carrying the Access answer too.
-         A page action creates, deletes and reorders Sections and moves Tasks
-         between them, which R8 keeps away from Can contribute in terms: they
-         may place their own Task among *existing* Sections and may not
-         rewrite the Folder's structure. `folder.section.manage` is the
-         stricter of the two readings and is deliberately the one asked here,
-         because this endpoint's body can carry either kind of action and
-         telling them apart would put an authorization decision inside a
-         batch. Said out loud in the pull request's refusals list. */
+      /* Asks the stricter `folder.section.manage` for every action, since the
+         body can carry structural actions and splitting the batch would put an
+         authorization decision inside it. */
       if (!(await gate(req, res, folderId, 'folder.section.manage'))) return
       const parsed = parseBody(pageActionBody, req, res, securityLog)
       if (parsed === null) return
@@ -391,14 +335,7 @@ export function createWorkshopRouter(
         return
       }
       if (outcome.kind === 'file_kind_mismatch') {
-        /* #220: a block whose kind and whose file's kind disagree. It is a
-           separate answer from the one above rather than folded into it,
-           because the two say different things and only one of them is a
-           scope failure. `file_not_here` must tell a caller nothing about a
-           row they cannot reach; here they can reach it, the server has
-           already said so, and what is wrong is the treatment they declared —
-           so the sentence names the block kind and the kind the bytes were
-           actually uploaded as, which is the only pair a caller can act on. */
+        /* The caller can reach the file, so naming the kind mismatch leaks nothing. */
         sendError(res, 422, 'validation_failed', outcome.message)
         return
       }
@@ -407,10 +344,8 @@ export function createWorkshopRouter(
         return
       }
       if (outcome.kind === 'forbidden') {
-        /* Unreachable behind the route gate above and kept for its reason:
-           the domain refuses a caller it was handed rather than trusting
-           one (issue #35), and a result arm with no mapping would answer
-           this 403 as an unhandled shape. */
+        /* Unreachable behind the gate; mapped so the domain's own refusal is not
+           an unhandled shape. */
         sendError(res, 403, 'forbidden', outcome.reason)
         return
       }
@@ -418,9 +353,7 @@ export function createWorkshopRouter(
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * Shelves (4.18): private by construction, every path viewer-scoped
-   * ---------------------------------------------------------------- */
+  /* Shelves are private: every path is viewer-scoped. */
 
   router.get('/shelves', requireSession, async (req: Request, res: Response) => {
     const db = database(res)
@@ -498,10 +431,8 @@ export function createWorkshopRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      /* 422 rather than 404, matching 7.4's answer for the same field on a
-         folder, because the shelf itself was found and the fault is in one
-         value of the body. It leaks nothing: a file that does not exist and a
-         file the caller cannot reach get this same sentence (10.2). */
+      /* 422: the shelf was found and one body value is wrong. Missing and
+         unreachable files get the same sentence (10.2). */
       if (outcome.kind === 'cover_not_readable') {
         sendError(
           res,
@@ -543,21 +474,8 @@ export function createWorkshopRouter(
   )
 
   /*
-  POST /shelves/:id/duplicate (7.16 as amended 2026-09-04; issues #117, #128).
-
-  **Mounted after `/shelves/:id` and before `/shelves/:id/page`, and the order
-  is not free.** Express matches in mount order and `/shelves/:id` is one
-  segment, so it can never swallow this two-segment path; what would swallow
-  it is a `/shelves/:id/:something` added above. The rule for this file is
-  `bundle.ts`'s `/views/:id` note: literal segments below parameterised ones
-  are safe, the reverse is not.
-
-  **The gate is the domain's and it is a scope, not a check.** `duplicateShelf`
-  selects `WHERE id = $1 AND user_id = $viewer`, so a shelf belonging to
-  somebody else is `not_found` rather than forbidden — a shelf is private by
-  construction (4.18) and 10.2 says ownership is invisible to those without
-  it. There is no `accessOf` here because a shelf has no membership to
-  resolve.
+  Keep this after `/shelves/:id` and never add a `/shelves/:id/:something`
+  above it. The domain scopes by owner, so someone else's shelf is not_found.
   */
   router.post(
     '/shelves/:id/duplicate',
@@ -635,14 +553,12 @@ export function createWorkshopRouter(
         parsed.blocks,
       )
       if (outcome.kind === 'not_found') {
-        // Unreachable behind the shelfView above, for the same reason.
+        // Unreachable behind the shelfView above.
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
       if (outcome.kind === 'file_not_here') {
-        // The shelf half of issue #107, and the clause behind it is the
-        // other one: a shelf page has no folder to scope to, so the file is
-        // gated by 7.15's own serving predicate. The answer is identical.
+        // Shelf pages have no folder, so 7.15's serving predicate gates the file.
         sendFieldValidationError(
           res,
           outcome.blockIndexes.map((index) => ({
@@ -662,10 +578,8 @@ export function createWorkshopRouter(
         return
       }
       if (outcome.kind === 'forbidden') {
-        /* Unreachable behind the route gate above and kept for its reason:
-           the domain refuses a caller it was handed rather than trusting
-           one (issue #35), and a result arm with no mapping would answer
-           this 403 as an unhandled shape. */
+        /* Unreachable behind the gate; mapped so the domain's own refusal is not
+           an unhandled shape. */
         sendError(res, 403, 'forbidden', outcome.reason)
         return
       }
@@ -673,13 +587,8 @@ export function createWorkshopRouter(
     },
   )
 
-  /* #221: the Shelf's `document_transaction`, 7.16's wire contract exactly as
-     `/folders/:id/page/actions` and the facet page take it -- the same body,
-     the same `base_revision` from `GET /shelves/:id/page`, the same 409. It
-     takes `documentTransaction` alone: the pre-canvas page actions are the
-     Folder page's legacy vocabulary and a Shelf never had them. The owner
-     check runs inside the writing transaction under the Shelf row's lock, so
-     a stranger's 404 comes from there (4.18, 10.2). */
+  /* The Shelf's document transaction (same body, base_revision and 409 as the
+     folder page). The owner check runs under the Shelf row lock in the domain. */
   router.post(
     '/shelves/:id/page/actions',
     requireSession,
@@ -713,10 +622,6 @@ export function createWorkshopRouter(
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * The object acts
-   * ---------------------------------------------------------------- */
-
   router.post(
     '/folders/:id/duplicate',
     requireSession,
@@ -727,12 +632,7 @@ export function createWorkshopRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      /* #228's Can-edit list, which carries duplication: copying a whole
-         shared work structure is more than ordinary read participation, so
-         it is Can edit and above. The copy
-         itself is the duplicator's own new Folder, of which they become owner
-         and Full control -- `createFolder` sees to that -- so nothing about
-         the source's Access travels with it. */
+      /* The copy is the duplicator's own new Folder; no source Access travels. */
       if (!(await gate(req, res, folderId, 'folder.duplicate'))) return
       const anchor = anchorOf(req, res)
       if (anchor === REFUSED) return
@@ -783,14 +683,8 @@ export function createWorkshopRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      /* #228: duplicating a Task is Can edit's. Accepted R8A would
-         extend it to Can contribute "where implementation can preserve the
-         accepted boundary", and this implementation cannot: `duplicateTask`
-         copies the source's assignee, so a contributor could mint a second
-         copy of somebody else's Task still assigned to that person, which is
-         originating work *for* another member rather than for themselves.
-         Refusing is the safe half of an ambiguity and is on the pull
-         request's refusals list. */
+      /* Can edit only: the copy keeps the source's assignee, so a contributor
+         could mint tasks assigned to someone else. */
       const mayCopy = mayActOnTask(source, 'task.duplicate')
       if (!mayCopy.allowed) {
         sendError(res, 403, 'forbidden', mayCopy.reason)
@@ -812,8 +706,7 @@ export function createWorkshopRouter(
     },
   )
 
-  /** POST /workflows/import and POST /folders/:id/import, one handler: the
-   * second names a page the file's folders become sub-pages of. */
+  /** Both import routes; the second makes the file's folders sub-pages of `:id`. */
   const importFile = async (
     req: Request,
     res: Response,
@@ -824,17 +717,8 @@ export function createWorkshopRouter(
       const parsed = parseBody(importWorkflowBody, req, res, securityLog)
       if (parsed === null) return
       /*
-      tz on 7.6's own precedent rather than on 7.0's
-      view-endpoint rule: a present value that fails IANA validation is 422
-      naming tz always, and an absent one is 422 exactly when a date would
-      be evaluated. A file may carry a repeat or a reminder, and 4.5 and 8.6
-      admit neither without a date, so those are the files that evaluate
-      one. A file with neither needs no zone.
-
-      The parsing half moved into `anchorOf` at the top of this file when the
-      two duplicates took the same precedent (issue #76); which requests must
-      carry a zone is still this handler's own question, and `needsImportAnchor`
-      is still how it answers it.
+      A present invalid tz is always 422; an absent one is 422 only when a task
+      carries a repeat or a reminder, which need a date.
       */
       const anchor = anchorOf(req, res)
       if (anchor === REFUSED) return
@@ -852,25 +736,14 @@ export function createWorkshopRouter(
       let outcome
       try { outcome = await importWorkflow(db, viewer(req), parsed, anchor, store, parentId) }
       catch(error:unknown){
-        /* The one rule about a file that only the database can state: two
-           Folder Label names `lower()` makes one. It reaches here as a throw
-           out of a rolled-back transaction rather than as a parse failure,
-           and is answered with the same 422 and the same field path a schema
-           refusal of the same file would have carried, because a caller
-           should not be able to tell which of the two refused them (#227
-           area 4; 7.16, 10.3). */
+        /* Duplicate label names under lower(): only the database can detect it.
+           Answered with the same 422 and field path a schema refusal would use. */
         if(error instanceof WorkflowLabelNameConflict){
           sendFieldValidationError(res,[{field:error.field,message:error.message}])
           return
         }
-        /* A refusal out of the document transaction. Where the importer knew
-           which folder's page it was building — format 4 always does — it
-           carries `folders.<n>.page`, and it goes through the one field
-           formatter so that a structural refusal reads like a schema one and a
-           caller cannot tell which of the two answered (7.0, 7.16's 2026-09-21
-           amendment). A version 2 `document` still answers with the rule alone:
-           its outline is in the file's own uuids and a refusal from it is about
-           the file rather than about a position in it. */
+        /* Document refusals carry `folders.<n>.page` when known, so they read
+           like schema failures. */
         if(error instanceof DocumentRefusal){
           if(error.field!==undefined){sendFieldValidationError(res,[{field:error.field,message:error.message}]);return}
           sendError(res,422,'validation_failed',error.message);return
@@ -886,8 +759,7 @@ export function createWorkshopRouter(
         )
         return
       }
-      /* The parent's gate, re-read under the tree lock inside the import
-         (`createSubPage`'s terms and answers). */
+      /* The parent's gate, re-read under the tree lock inside the import. */
       if (outcome.kind === 'parent_not_found') {
         sendError(res, 404, 'not_found', 'Not found.')
         return
@@ -904,8 +776,7 @@ export function createWorkshopRouter(
         sendError(res, 422, 'validation_failed', 'Pages can nest at most 20 deep.')
         return
       }
-      /* Checked against the schema the client parses it with, rather
-         than inlined into `res.json`, which takes `any` (#39). */
+      /* Typed against the client's schema; `res.json` takes `any`. */
       const body: ImportWorkflowResponse = { folders: outcome.folders }
       res.status(201).json(body)
   }
@@ -928,8 +799,7 @@ export function createWorkshopRouter(
     async (req: Request, res: Response) => {
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      /* 10.2 before the body is read: a stranger gets 404 whatever they
-         send. The import checks again under the tree lock. */
+      /* Gate before the body is read; the import checks again under the tree lock. */
       if (!(await gate(req, res, folderId, PAGE_TREE_EDIT_ACTION))) return
       await importFile(req, res, folderId)
     },
@@ -947,9 +817,7 @@ export function createWorkshopRouter(
       if (folderId === null) return
       const parsed = parseBody(z.object({ to: z.uuid() }), req, res, securityLog)
       if (parsed === null) return
-      /* Owner-only, and Full control does not confer it (R5's small custody
-         set). The resolver says so as `atLeast: null, owner: 'required'`,
-         which is the one rule on this surface that reads no preset at all. */
+      /* Owner-only; Full control does not confer it. */
       if (!(await gate(req, res, folderId, 'folder.ownership.transfer'))) return
       const access = await accessOf(db, viewer(req), folderId)
       if (access === null) {
@@ -965,24 +833,15 @@ export function createWorkshopRouter(
         )
         return
       }
-      // Step 8: ownership is the project's, whichever page was named.
+      // Ownership belongs to the project, whichever page was named.
       const projectId = await projectOf(db, folderId)
       if (projectId === null) {
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
       /*
-      **Successor eligibility, which is new and is R6 section 2's whole
-      point.** An owner may hand custody only to an active human member who
-      currently holds Full control. Before #228 any member would do, which
-      meant custody of a shared Folder could land on somebody with no
-      administrative standing in it at all -- and, through the automatic
-      "earliest remaining member" rule the leave path used, on somebody who
-      had not been asked.
-
-      422 rather than 403: the field the caller sent names somebody who does
-      not qualify, which is a fact about the body, and it is the same 422 the
-      non-member case already answered.
+      The successor must be an active member with Full control. 422, not 403:
+      the problem is the body's `to`.
       */
       if (!(await isEligibleSuccessor(db, projectId, parsed.to))) {
         sendError(

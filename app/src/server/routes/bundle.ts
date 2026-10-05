@@ -1,21 +1,6 @@
 /*
-The person's bundle on the wire: GET and PATCH /settings, the surface that
-answers 4.19's whole expansion, and the /views family for saved views
-(7.23, issue #152).
-
-This is the only settings surface (issue #113 retired 7.2's /me/settings).
-The three
-v1 columns it wrote are still stored and are still derived into the pin list
-by domain/bundle.ts; what went is every way of writing them.
-
-7.19's place covers live in this router rather than one of their own, and the reason is what they are: a cover on Today is one person's
-choice about one of Dana's own pages, which is the same kind of thing as a
-saved view and a row of 4.19's settings.
-
-7.21's place descriptions live here on the same reasoning (issue #68): a
-person's own sentence under Today is the same kind of thing as their cover
-on it, and it shares this file's place parser rather than growing a second
-copy of 4.20's eight names.
+The person's bundle: GET/PATCH /settings (the only settings surface), saved
+views, place covers and place descriptions, all per-person state.
 */
 import type { Request, Response, Router } from 'express'
 
@@ -60,9 +45,7 @@ import { routerWithPreamble } from './preamble.js'
 export interface BundleRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
-  /** The object store, because a place cover may
-   * copy the picture it names (issue #116, spec 7.19). Optional beside the
-   * other two for `routes/files.ts`'s reason, and guarded the same way. */
+  /** A place cover may copy the picture it names. */
   fileStore?: ObjectStore
   securityLog?: SecurityLogger
 }
@@ -72,9 +55,7 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
   const securityLog = options.securityLog ?? createSecurityLogger()
 
-  /** `routes/files.ts`'s guard, one router over: an application constructed
-   * without a store cannot copy a cover's bytes, and saying so is better
-   * than storing a row whose picture was never written. */
+  /** Without a store a cover's bytes cannot be copied; refuse rather than store a broken row. */
   const storeOf = (res: Response): ObjectStore | null => {
     if (options.fileStore === undefined) {
       sendError(
@@ -143,15 +124,9 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
     },
   )
 
-  /* **This router must stay mounted behind `createViewsRouter`, and this is
-     the route that makes it so.** `/views/:id` matches one segment after
-     `/views`, so ahead of that router it swallows 7.10's six literal pages —
-     `/views/my-day`, `/views/tasks`, `/views/planned`, `/views/important`,
-     `/views/all` and `/views/done` — and `parsedId` answers each of them 404
-     for not being a uuid. `/views/planned/calendar` is two segments and is
-     the one page that survives. Measured 2026-09-03, and the mount block in
-     index.ts carries the same rule and the measurement. AC-236 cannot see
-     it: both routes stay enumerated and both still answer 401 bare. */
+  /* This router must be mounted after createViewsRouter: `/views/:id` would
+     otherwise swallow `/views/my-day` and the other literal pages (404 for a
+     non-uuid). No test catches it; see the mount block in index.ts. */
   router.get(
     '/views/:id',
     requireSession,
@@ -211,13 +186,7 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * 7.19 place covers
-   * ---------------------------------------------------------------- */
-
-  /** 4.20's set and nothing else. A place page is furniture rather than a
-   * resource that might exist somewhere the caller cannot see, so an
-   * unknown name is 404 and says nothing further. */
+  /** One of 4.20's fixed places; any other name is 404. */
   const parsedPlace = (
     res: Response,
     raw: unknown,
@@ -265,9 +234,7 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      /* 10.3's one limit that is not a 422, with section 9's copy: the copy
-         this endpoint may make spends the caller's gigabyte exactly as an
-         upload does, so it is refused in exactly the same words (#116). */
+      /* Copying a cover spends the caller's quota exactly as an upload does. */
       if (outcome.kind === 'quota_exceeded') {
         sendError(
           res,
@@ -296,21 +263,6 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * 7.21 place descriptions
-   * ---------------------------------------------------------------- */
-
-  /* Mounted after the /views family and beside the covers, deliberately: a
-     literal prefix added at the end of this file shadows nothing. The
-     load-bearing order is not inside this file at all — it is this router's
-     position behind createViewsRouter in index.ts, written down at
-     `/views/:id` above and at both mounts there (issue #37). The place parser above is 4.20's set and 4.22's is the
-     same set, so it is shared rather than copied.
-
-     **The session check on the read is written here because nothing else
-     writes it.** AC-236 also sweeps GETs for a session, but a GET that forgot
-     `requireSession` here would answer every caller with the empty viewer's
-     rows, so the check stays explicit. */
   router.get(
     '/place-descriptions',
     requireSession,

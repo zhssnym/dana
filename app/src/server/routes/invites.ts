@@ -1,28 +1,8 @@
 /*
-The 7.5 surface: invites, their five transitions, and the two lists. Handlers
-validate with the shared schemas, resolve the actor through the domain
-module, delegate every decision that touches rows, and serialize; no business
-logic lives here.
-
-Mounted under /api/v1 by the boot file. The router carries
-its own session attachment so it composes whichever order routers mount in,
-the folders router's arrangement exactly; that block is `preamble.ts` since
-issue #36.
-
-Status grammar, uniform with the rest of the surface (5.2, 5.4, 7.0, 10.2):
-no session 401; an invite the caller cannot act on or see reads 404, never
-403, so nothing leaks; an actor who can see the invite but may not take this
-action gets 403; a transition against a terminal invite is 409, as is every
-V-INV rule conflict; limits and field failures are 422; and the resend window
-of 5.2 is this router's one 429, with Retry-After. One 409 here carries a
-code of its own rather than `conflict`: accepting into a folder that is
-sitting in Trash answers `folder_deleted` (issue #28), because a client has
-to say something different for it than for an invite that is merely spent.
-
-Two response shapes here are wider than 7.5 enumerates: the object inside { invite } is the
-invite element the domain module produces, which is also what GET
-/invites/sent lists, and the conversion answers { converted_to_share,
-membership } with the member element 7.4's own mutation already answers.
+The 7.5 invite routes. An invite the caller cannot see is 404, never 403;
+visible but not permitted is 403; a settled invite is 409. Accepting into a
+folder in Trash is 409 `folder_deleted`, so the client can say it differently.
+Resend's 24-hour window is 429 with Retry-After.
 */
 import type { Request, Response, Router } from 'express'
 
@@ -62,20 +42,8 @@ export interface InvitesRouterOptions {
 }
 
 /*
-Which invitation this is, decided from the row rather than from the request.
-
-7.5 makes folder_id optional and the templates split on exactly that:
-`invite_connection` when it is null, `invite_folder` when it is not. The
-decision is made here, at the call site, from data already in hand, and it is
-made in one function because three sites send an invitation, the create, the
-resend and nothing else in between: two of them would otherwise repeat this
-conditional and could one day disagree about it.
-
-`folder_name` rides InviteElement because 7.5's pending list carries
-it, so a folder invitation names its folder without a read of its own. A
-folder_id with no name would be a row whose folder vanished under it, which
-the invite's own foreign key does not permit; the throw says so rather than
-mailing somebody a blank.
+The email template follows the row: `invite_connection` without a folder,
+`invite_folder` with one. Shared by create and resend so they cannot disagree.
 */
 function inviteMessage(
   invite: InviteElement,
@@ -105,20 +73,8 @@ function inviteMessage(
 }
 
 /**
- * Who may cancel or resend a pending invite (issue #228).
- *
- * **Both rules moved, and in the same direction.** Cancel was "the inviter or
- * the folder's owner"; resend was "the inviter" alone. Accepted R8A makes
- * both administering people, which is Full control's, and #228 says the
- * inviter half out loud: a former inviter who is later downgraded loses Folder-invite
- * administration, because "I created the invite" is not permanent authority.
- * The owner half goes for the reason every other ownership-as-authority proxy
- * goes in #209 -- custody is not an operating permission.
- *
- * A **bare** roster invite carries no folder, so there is no Folder Access to
- * resolve and nobody to administer it but the person who sent it. That arm is
- * unchanged, and it is why this is a function rather than one call to
- * `mayPerform`.
+ * Folder invites: Full control administers them; having sent one is not
+ * authority. A bare roster invite has no folder, so only its sender may.
  */
 function mayAdministerInvite(facts: InviteActorFacts): boolean {
   if (facts.folderId === null) return facts.isInviter
@@ -135,12 +91,6 @@ export function createInvitesRouter(
   const inviteDayLimit = optionalLimit(options.rateLimits?.invitesPerDay)
   const securityLog = options.securityLog ?? createSecurityLogger()
 
-  // 11.10: routes that touch the database require options.dbClient and fail
-  // only when called without it (the auth and folders routers' convention).
-  /* ---------------------------------------------------------------- *
-   * Creating an invite: V-INV and the conversion (8.7)
-   * ---------------------------------------------------------------- */
-
   router.post(
     '/invites',
     requireSession,
@@ -156,9 +106,7 @@ export function createInvitesRouter(
       const result = await createInvite(db, viewer(req), parsed)
       switch (result.kind) {
         case 'own_email':
-          // 8.7's second validation. It is a 422 naming the field rather
-          // than a 409, because the address is the request's own value and
-          // no state could make it acceptable.
+          // 422, not 409: no state could make your own address acceptable.
           sendFieldValidationError(res, [
             {
               field: 'email',
@@ -167,8 +115,7 @@ export function createInvitesRouter(
           ])
           return
         case 'forbidden':
-          // 10.2's second half: the folder resolved for this caller, so the
-          // refusal may say which rule it broke (issue #228).
+          // The folder resolved for this caller, so 403 may name the rule.
           sendError(res, 403, 'forbidden', result.reason)
           return
         case 'folder_not_found':
@@ -199,9 +146,7 @@ export function createInvitesRouter(
           ])
           return
         case 'already_connected':
-          // 7.5's appended paragraph: the connection a bare invite exists to create already
-          // holds, so there is nothing this request could accomplish. The
-          // copy is 9.8's People screen sentence.
+          // A bare invite's connection already exists; the copy is 9.8's.
           sendError(
             res,
             409,
@@ -210,9 +155,7 @@ export function createInvitesRouter(
           )
           return
         case 'duplicate':
-          // 8.7: "409 pointing at it". The id rides the message, which is
-          // where the 7.0 envelope has room for it, so a client can offer
-          // resend instead of a dead end.
+          // The existing id is in the message so the client can offer resend.
           sendError(
             res,
             409,
@@ -229,10 +172,7 @@ export function createInvitesRouter(
           )
           return
         case 'converted': {
-          // 8.7's instant share. The grant email is the share-grant
-          // template, never the invite one: there is nothing to accept. It
-          // names the sharer and the folder, both read by the transaction
-          // that granted.
+          // 8.7's instant share: send the share-grant email, not an invite.
           if (result.targetEmail !== null) {
             await notifierOf(req.app).send({
               template: 'share_grant',
@@ -259,9 +199,7 @@ export function createInvitesRouter(
           return
         }
         case 'created':
-          // 5.2's create row: one email sent, last_sent_at stamped by the
-          // insert. The send follows the commit, so a rolled-back create can
-          // never have mailed anybody.
+          // The send follows the commit, so a rolled-back create mails nobody.
           securityLog.inviteEvent('invite_created', {
             inviteId: result.invite.id,
             actorId: viewer(req),
@@ -273,10 +211,6 @@ export function createInvitesRouter(
       }
     },
   )
-
-  /* ---------------------------------------------------------------- *
-   * The two lists
-   * ---------------------------------------------------------------- */
 
   router.get(
     '/invites/sent',
@@ -294,22 +228,12 @@ export function createInvitesRouter(
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      // Scoped by the caller's own address inside the query (Q12), so this
-      // handler has no way to ask for anybody else's list.
+      // Scoped by the caller's own address inside the query (Q12).
       res.status(200).json(await pendingInvitesFor(db, viewer(req)))
     },
   )
 
-  /* ---------------------------------------------------------------- *
-   * The five transitions (5.2)
-   * ---------------------------------------------------------------- */
-
-  /**
-   * Resolves the invite and the caller's standing toward it, answering 404
-   * itself when the id names nothing: an invite nobody can name is
-   * nonexistent, and 10.2 makes that the same answer as one the caller may
-   * not see.
-   */
+  /** The invite and the caller's standing toward it; 404 itself when the id names nothing. */
   const factsOf = async (
     req: Request,
     res: Response,
@@ -344,9 +268,7 @@ export function createInvitesRouter(
       if (db === null) return
       const facts = await factsOf(req, res, db)
       if (facts === null) return
-      // 5.2's actor guard, and 7.5 says outright that a mismatch is 404 and
-      // not 403: an account that is not the addressee learns nothing about
-      // the invite's existence or its state.
+      // Not the addressee: 404, so they learn nothing about the invite (7.5).
       if (!facts.isRecipient) {
         sendError(res, 404, 'not_found', 'Not found.')
         return
@@ -367,19 +289,8 @@ export function createInvitesRouter(
       }
       if (result.kind === 'folder_in_trash') {
         /*
-        Issue #28, and 5.2's accept row as amended: the invite is still
-        pending and the folder is in Trash, so this is a state conflict
-        rather than a validation failure, which is 7.0's 409.
-
-        The code is its own rather than the bare `conflict` the not-pending
-        refusal answers, because a client has three different things to say
-        here and only the code tells them apart: `not_found` is an invite
-        that is not this caller's, `conflict` is an invite already settled,
-        and `folder_deleted` is an invite that is still good and a folder
-        that is not. A restore inside the thirty days makes this one
-        acceptable and makes neither of the others so. 7.0 provides for
-        exactly this, "409's rule conflicts gain their specific codes as the
-        section 5 tables land".
+        The invite is still good but its folder is in Trash: its own 409 code,
+        since a restore within 30 days makes it acceptable again.
         */
         sendError(
           res,
@@ -396,9 +307,7 @@ export function createInvitesRouter(
       })
       res.status(200).json({
         connection_created: result.connectionCreated,
-        // 7.5 names the key and not its object. This answers what a
-        // fresh GET /folders entry would give for the folder the acceptance
-        // granted, the 7.4 mutation convention.
+        // The full Folder object, as a fresh GET /folders entry would give.
         folder:
           result.folderId === null
             ? null
@@ -431,8 +340,7 @@ export function createInvitesRouter(
         actorId: viewer(req),
         status: 'declined',
       })
-      // 5.2's decline row has no email side effect: the inviter is told
-      // nothing, and sees it on their sent list when they look.
+      // No email: the inviter sees it on their sent list.
       res.status(200).json({ invite: await inviteById(db, facts.id) })
     },
   )
@@ -448,12 +356,8 @@ export function createInvitesRouter(
       const facts = await factsOf(req, res, db)
       if (facts === null) return
       /*
-      5.2's two actors: the inviter, or the owner of the attached folder.
-      The refusal splits on visibility, which is 5.4's own distinction: a
-      co-member sees the invite on the folder detail (7.4's pending_invites)
-      and may cancel only their own, so theirs is 403, while anybody else,
-      including every caller of a bare invite that has no folder and
-      therefore no owner arm, cannot see it at all and gets 404.
+      A folder member can see the invite (pending_invites), so a refusal is 403;
+      anyone else, and every caller of a bare invite, gets 404.
       */
       if (!mayAdministerInvite(facts)) {
         if (facts.isFolderMember) {
@@ -491,9 +395,7 @@ export function createInvitesRouter(
       if (db === null) return
       const facts = await factsOf(req, res, db)
       if (facts === null) return
-      // 5.2 gives resend one actor, the inviter. The folder's owner can see
-      // the invite, so their refusal is 403 by the same visibility rule
-      // cancel uses; anybody else gets 404.
+      // Same visibility rule as cancel.
       if (!mayAdministerInvite(facts)) {
         if (facts.isFolderMember) {
           sendError(
@@ -509,8 +411,7 @@ export function createInvitesRouter(
       }
       const result = await resendInvite(db, facts.id)
       if (result.kind === 'not_pending') {
-        // Terminal outranks the window: a canceled invite is a state
-        // conflict however old its anchor.
+        // Settled outranks the time window.
         notPending(res)
         return
       }
@@ -524,11 +425,7 @@ export function createInvitesRouter(
         )
         return
       }
-      // Read before the send rather than after it, which is the whole of what
-      // this site owes the split: the invite element carries folder_id and
-      // folder_name, and 5.2 gives resend one actor, the inviter, so the
-      // caller's own display_name is the name the email says. Neither is a
-      // read this handler did not already make.
+      // The email names the caller as the sender.
       const invite = await inviteById(db, facts.id)
       await notifierOf(req.app).send(inviteMessage(invite, facts.viewerName))
       securityLog.inviteEvent('invite_resent', {

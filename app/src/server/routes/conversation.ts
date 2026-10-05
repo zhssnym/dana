@@ -1,38 +1,10 @@
 /*
-The 7.14 surface: the thread on a folder or a Discussion, member-only
-throughout, one reply level enforced, reactions as idempotent per-person
-marks from a fixed set.
-
-Status grammar (7.0, 10.2, DES-225): a folder or comment out of the
-viewer's membership 404, never 403; a member touching another author's
-words 403, the thread being visible to them; a reply below the one level, a
-parent or task or file outside the thread's folder, all 422 naming the
-field. Since issue #22 a comment carries up to 10.3's ten files, named by
-`file_ids` in the order they are to be attached; eleven, a repeated id, and
-`file_ids` sent beside `file_id` are all refused by the shared schema before
-this router reads anything.
-
-Since issue #94 the edit takes `file_ids` too, meaning the full new set:
-omitted leaves the attachments alone, `[]` removes them, anything else makes
-the set exactly those ids. The gate is the one the words already had — the
-author, and nobody widened — and the answer carries the fresh comment beside
-the `edited` flag it always carried, because the resolved file rows are
-something the caller cannot compute from what it sent.
-
-Since issue #320 a Folder-level comment belongs to a Discussion.
-`/discussions/:id/comments` is that Discussion's conversation, the same
-comment in every other respect (body, files, replies, reactions, fan-out).
-`/folders/:id/comments` stays exactly as the deployed client uses it and is
-the Folder's "General discussion": the read answers it, and a write lands in
-the open one, made if missing.
-
-Since M5 (migration 0059) a task has no thread of its own: its conversation
-is the Discussion linked to it (`POST /tasks/:id/discussion`). `?task=` on
-either verb is answered 410 `task_thread_moved`, never ignored, so a cached
-client that still sends it is told rather than having its post filed in the
-General discussion or shown the wrong thread. A resolved or trashed
-Discussion refuses every write to its conversation with 409
-`discussion_frozen`, after the 404 and the 403 have had their say.
+The 7.14 thread routes: Folder and Discussion conversations, one reply level,
+reactions from a fixed set. Outside the viewer's membership is 404, never 403.
+`/folders/:id/comments` is the Folder's General discussion. `?task=` is answered
+410 `task_thread_moved` (a task's conversation is its Discussion now), so a
+stale client is told instead of posting to the wrong thread. A resolved or
+trashed Discussion refuses writes with 409 `discussion_frozen`.
 */
 import type { Request, Response, Router } from 'express'
 import { z } from 'zod'
@@ -72,7 +44,7 @@ export interface ConversationRouterOptions {
   securityLog?: SecurityLogger
 }
 
-/* `task` is read only to refuse it (M5): see the header. */
+/* `task` is read only to refuse it. */
 const threadQuery = z.object({ task: z.string().optional() })
 
 const FOLDER_THREAD: CommentThread = { kind: 'folder' }
@@ -98,8 +70,7 @@ function sendFrozen(res: Response): void {
   sendError(res, 409, DISCUSSION_FROZEN, FROZEN_MESSAGE)
 }
 
-/** The create half's refusals, shared by the Folder and Discussion routes
- * so the two threads cannot answer the same mistake differently. */
+/** Shared so both thread routes answer the same mistakes the same way. */
 function sendCreateOutcome(
   res: Response,
   outcome: CreateCommentResult,
@@ -107,7 +78,7 @@ function sendCreateOutcome(
 ): void {
   switch (outcome.kind) {
     case 'discussion_not_here':
-      // Purged between the route's read and the write: gone, as 10.2 says.
+      // Purged between the read and the write.
       sendError(res, 404, 'not_found', 'Not found.')
       return
     case 'frozen':
@@ -122,9 +93,7 @@ function sendCreateOutcome(
       )
       return
     case 'file_not_here':
-      // The message names the field the caller actually sent: 7.14 takes
-      // `file_id` for one file and `file_ids` for up to 10.3's ten, and a
-      // 422 that names the other one is a 422 nobody can act on.
+      // Name the field the caller actually sent.
       sendError(
         res,
         422,
@@ -149,14 +118,12 @@ function sendCreateOutcome(
   }
 }
 
-/* Wave 2 (W-D): a mention naming nobody. Answered alike for a member and a
-   stranger, so it says nothing about who is on the page. */
+/* Answered the same for members and strangers, so it reveals nobody. */
 function sendMentionUnknown(res: Response): void {
   sendError(res, 422, 'validation_failed', 'content: mentions a person who does not exist.')
 }
 
-/* W-C: a post's media block names a file that is not one of the same
-   comment's own attachments. Says nothing about the file itself. */
+/* A media block must name one of the comment's own file_ids. */
 function sendContentFileNotAttached(res: Response): void {
   sendError(
     res,
@@ -166,8 +133,6 @@ function sendContentFileNotAttached(res: Response): void {
   )
 }
 
-/* W-C: a post with no words and no file, which the create half has always
-   refused for a plain comment. */
 function sendEmptyPost(res: Response): void {
   sendError(
     res,
@@ -231,14 +196,8 @@ export function createConversationRouter(
         return
       }
       if (sentTaskThread(res, query.data.task)) return
-      /* Accepted R8A: Consultation is participation, and Can comment is the
-         preset that names it. Can view reads the thread and does not write to
-         it, which is the whole of the distinction between the two lowest
-         rungs of R8A's ladder.
-
-         The attachments a comment carries ride the same gate --
-         `file.upload.comment` has the same bar -- so there is nothing to ask
-         twice. */
+      /* Can comment writes; Can view only reads. Attachments share the bar
+         (`file.upload.comment`). */
       const allowed = mayPerform(facts, 'comment.create')
       if (!allowed.allowed) {
         sendError(res, 403, 'forbidden', allowed.reason)
@@ -256,11 +215,9 @@ export function createConversationRouter(
   )
 
   /*
-  A Discussion's conversation (issue #320). The Discussion is resolved to its
-  Folder first and the Folder's access decides everything, so an id naming
-  no Discussion and a Discussion in somebody else's Folder read identically
-  (404, 10.2). A trashed Discussion's conversation still reads, as its row
-  does, and takes no writes; a trashed Folder hides both (`accessOf`).
+  The Discussion resolves to its Folder and the Folder's access decides, so a
+  missing Discussion and one elsewhere are the same 404. A trashed Discussion
+  still reads but takes no writes.
   */
   router.get(
     '/discussions/:id/comments',
@@ -310,7 +267,6 @@ export function createConversationRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      // The Folder thread's own bar: Consultation is participation (R8A).
       const allowed = mayPerform(facts, 'comment.create')
       if (!allowed.allowed) {
         sendError(res, 403, 'forbidden', allowed.reason)
@@ -345,15 +301,8 @@ export function createConversationRouter(
         return
       }
       /*
-      **Authorship is provenance, not standing authority** (issue #228, and
-      #209's accepted cross-cutting rule).
-
-      Before this change the gate was `access.isAuthor` alone, which meant a
-      member later reduced to Can view kept the power to rewrite every comment
-      they had ever left. `comment.mutate.own` is both conditions in one
-      answer: the actor is the author *and* currently holds Can comment or
-      better. Losing standing loses the edit; it does not lose the words,
-      which stay readable exactly as they were.
+      Author and currently Can comment: a downgraded author keeps their words
+      but cannot edit them.
       */
       const allowed = mayPerform(access.facts, 'comment.mutate.own', {
         authorId: access.authorId,
@@ -362,15 +311,11 @@ export function createConversationRouter(
         sendError(res, 403, 'forbidden', allowed.reason)
         return
       }
-      /* Issue #94: one gate covers the words and the attachments. A person
-         who may edit their own comment may change what it carries, and
-         nobody else gains anything here. */
+      /* One gate covers both the words and the attachments. */
       const outcome = await editComment(db, viewer(req), access, parsed)
       switch (outcome.kind) {
         case 'file_not_here':
-          // Names the field and nothing about the other side of the
-          // membership: an id outside this folder and an id that does not
-          // exist read identically (10.2, DES-225).
+          // An id elsewhere and a missing id read the same (10.2).
           sendError(
             res,
             422,
@@ -424,14 +369,8 @@ export function createConversationRouter(
         return
       }
       /*
-      Two ways to be allowed, and neither is the old one.
-
-      The rule was "author or folder owner". Both halves move: the author
-      needs current Can comment standing, for the authorship reason above; and
-      removing somebody *else's* comment is moderation, which #228's
-      Full-control list gives to Full control rather than to custody. An
-      owner who lowered their own Access to Can view no longer moderates, and a Full-control member
-      who never owned anything now does.
+      Allowed as the author with Can comment, or as Full control (moderation).
+      Ownership alone grants nothing.
       */
       const own = mayPerform(access.facts, 'comment.mutate.own', {
         authorId: access.authorId,
@@ -457,12 +396,8 @@ export function createConversationRouter(
   )
 
   /*
-  One handler for leaving and taking back a reaction. Strangers 404 before
-  anything else is read, so an unknown key from them still says nothing; a
-  Can-view member 403s (#228's Can-comment list puts reacting with
-  commenting); only then is the key checked, 422 naming `reaction`.
-  `fixed` is the old like's route, kept as thumbs_up so a cached client
-  keeps working across the deploy that retired it.
+  Strangers 404, then Can-view members 403, then the key is checked (422).
+  `fixed` serves the old like route as thumbs_up for cached clients.
   */
   const reactionRoute =
     (mode: 'add' | 'remove', fixed?: ReactionKey) =>
