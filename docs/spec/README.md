@@ -1,8 +1,8 @@
 # Dana specification
 
-What Dana must do, and a short reason wherever a rule is not obvious. It is the contract
-the code is held to; when the two disagree, one of them is a bug and the pull request that
-fixes it says which.
+What Dana must do, and a short reason when a rule is not obvious. It is reference. When the
+spec and the code do not agree, the code is the current behaviour. Correct the one that is
+wrong.
 
 Conventions: 24-hour clock; ISO 8601 dates; ranges written with "to". SQL fragments are
 Postgres dialect and are reference, not normative; the prose rule wins if they ever
@@ -37,18 +37,17 @@ look arbitrary and someone would be tempted to undo it.
 
 ## Changing it
 
-Change the spec in the same pull request as the code, and only when a rule or contract
-actually changes. Write the new rule as if it had always been true: no correction notes,
-no "previously". Any section may change; there is no freeze and no ruling step.
+Update the spec when a product rule or a contract changes. You do not have to update it for
+each change. Write the new rule as the current rule: no correction notes, no "previously".
 
-**Acceptance criteria** live in section 12, one line each:
+An acceptance criterion is optional. If you add one, write one line in section 12:
 
 ```
 - AC-NNN Given …, when …, then … (spec N.M)
 ```
 
 Take the next number from the allocator in [`12-acceptance-criteria/README.md`](12-acceptance-criteria/README.md)
-and move it in the same commit.
+and move the allocator in the same commit.
 
 ## Sections
 
