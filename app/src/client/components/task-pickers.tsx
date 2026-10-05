@@ -1,16 +1,5 @@
-/*
-The three pickers that answer a question about time, and the parts they are
-built from.
-
-This is a module and not a copy because the date and time pickers are one
-component wherever they appear, and changing them changes every place at once. A
-picker copied into a second place is a picker that will one day disagree with
-itself.
-
-They share one shape: the answers somebody probably wants, a hairline, then one
-option that opens everything exact. There is no Save and no Done; choosing
-commits.
-*/
+// The date, reminder and repeat pickers and their parts, shared by every surface.
+// Each opens on likely answers, then a hairline, then the exact controls. Choosing commits.
 
 import { Ban, Repeat2, type LucideIcon } from "../lib/icons.js"
 import { ConfirmDialog } from "./ui/ConfirmDialog.js"
@@ -18,46 +7,15 @@ import { CLEAR_DATE_WARNING, DATE_CLEAR } from "./task-copy.js"
 import { createContext, useContext, useRef, useState, type ReactNode } from "react"
 import { Check as CheckIcon } from "../lib/icons.js"
 
-/* 9.3's reminder row is "one picker, a time on that day", so what the panel
-   asks for is a time and the plainest control that takes one is the platform's.
-   The two-spinner clock in `ui/calendar.tsx` is not used here. */
 import { Calendar, sameDay } from "./ui/calendar.js"
-/*
-**A picker writes its own field.**
-
-`tasks/task-writer.tsx` receives a due date, a reminder and a repeat rule as the
-*words a chip says* rather than as values, because that is what `ConceptTask`
-holds; the pickers carry the values and call their own endpoints (7.6's PATCH,
-7.9's PUT) here.
-
-**Why the words are not enough.** A panel that only calls `patch` writes into
-the card's local edits layer, so the chip updates, the row behind it updates,
-and nothing reaches the server: `conceptPatchToBody` drops `due` and `reminder`
-deliberately, and `unwritten()` exists to name that. 9.3: "every edit commits as
-it is made, there is no Save control and no draft state", so an edit that
-reaches no endpoint is a value held in the browser and nowhere else (AC-169,
-AC-170).
-
-**`patch` is still called, and both calls are load-bearing.** The local one is
-what makes the strip right in the same render, which AC-092 requires of the two
-date-dependent chips; the endpoint is what makes it true. 8.3's refetch is what
-reconciles them, which is this client's whole invalidation strategy and is why
-neither call is optimistic.
-
-**The repeat rule is written whole.** `ruleFor` in `tasks/task-model.ts` builds
-4.11's rule from the card's parts and the repeat panel PATCHes it.
-*/
+// Pickers write their own endpoints and also call `patch`: `conceptPatchToBody` drops
+// `due` and `reminder`, so `patch` alone never reaches the server. The local call keeps
+// the chips right in the same render (AC-092); the refetch reconciles.
 import { useDeleteReminder, usePutReminder, useUpdateTask } from "../api/mutations.js"
 import { isoDay, parseIsoDate } from "../tasks/task-model.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
 import { formatTime, parseTypedTime, useTimeFormat } from "../lib/time-format.js"
-/*
-**`today()`, a function rather than a constant.** `tasks/task-model.ts` carries
-it: a constant is evaluated at module load, so a browser left open across
-midnight would go on offering yesterday as "Today" in every picker on the page.
-The value itself is 4.11's today in the viewer's own zone, from `api/tz.ts`,
-which is the one place this client evaluates a date.
-*/
+// `today()` is a function so a page left open past midnight does not offer yesterday.
 import {
   DAY_LONG,
   DAY_SHORT,
@@ -83,33 +41,21 @@ import { Segmented } from "./ui/segmented.js"
 import { formatDate, formatDay } from "../lib/dates.js"
 import { todayInBrowserZone } from "../api/tz.js"
 
-/* The day beside a preset, from the one formatter: "Sat" for "This weekend"
-   so it says which day it means, and "24 Sep" where the day word would only
-   repeat the preset's own label ("Today", "Tomorrow"). */
+// The day beside a preset: "Sat" for "This weekend", "24 Sep" where the day word would
+// repeat the label.
 function presetHint(date: Date): string {
   return `${DAY_SHORT[date.getDay()] ?? ""} ${formatDate(isoDay(date), todayInBrowserZone())}`
 }
 
-/*
-**A time field on the viewer's clock.**
-
-The platform's time input draws its own notation (24-hour here whatever the
-person chose), so a picker used it beside "2:30 PM" and showed one value
-twice. This is a plain field that reads either notation and writes the time
-back on the viewer's clock.
-
-**It commits once, on Enter or on leaving it**, never per keystroke: a time
-field is empty or half-typed for a moment in every edit, and each of those
-moments was a write, "clear the due time" among them. Emptying it and leaving
-is how a time is cleared; text that is not a time is put back as it was.
-*/
+// A time field on the viewer's 12/24h clock (the native input ignores it). Commits on
+// Enter or blur, never per keystroke; empty clears it, unreadable text is put back.
 export function TimeField({
   label,
   value,
   onCommit,
 }: {
   label: string
-  /* "HH:MM", or null for no time. */
+  // "HH:MM", or null for no time.
   value: string | null
   onCommit: (time: string | null) => void
 }) {
@@ -117,7 +63,7 @@ export function TimeField({
   const shown = value === null ? "" : (formatTime(value, format) ?? value)
   const [draft, setDraft] = useState<string | null>(null)
   const [unreadable, setUnreadable] = useState(false)
-  /* Escape closes the popover and must not commit on the blur that follows. */
+  // Escape closes the popover and must not commit on the blur that follows.
   const skip = useRef(false)
   const commit = (text: string | null) => {
     setDraft(null)
@@ -177,25 +123,8 @@ export function TimeField({
   )
 }
 
-/*
-**A picker closes once its question is answered.**
-
-9.3: "The pickers open on the answer, not the instrument: resolved presets
-first, a calendar or list behind them." AC-092 reads the second half of that as
-a state rather than a layout: the picker closes once the day is answered, which
-is what "opens on the answer" means.
-
-**A context rather than a prop, because the answer is given three levels down.**
-`PickerChip` owns the popover; the panels inside it own the question; the
-options inside those are what a person presses. Threading a close through all
-three would put a callback on every panel's signature for a fact only one of
-them uses.
-
-**And it is per option rather than per press.** A due preset answers the whole
-question and closes; a repeat preset does not, its operands living behind it, so
-the repeat picker stays open on purpose. An option asks to close only where
-choosing it finishes the field.
-*/
+// A picker closes once its question is answered (AC-092). A context, because the option
+// that answers sits three levels below the popover. Repeat presets stay open on purpose.
 const PickerClose = createContext<(() => void) | null>(null)
 
 /** Closes the picker this control sits in, where there is one. */
@@ -206,20 +135,8 @@ export function usePickerClose(): () => void {
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 
-/*
-**A property row that opens a panel rather than a list.**
-
-The task panel's properties block is a stack of quiet rows, a muted name and
-its value, each shown only once it is set. A row whose value is a day, a time
-or a rule opens the whole control for that fact; choosing commits and closes.
-
-The field's name is the visible label *and* the start of the button's name, so
-a reader hears "Date Tomorrow" and a test can address the row by its field.
-
-`defaultOpen` is for a row that "Add property" has just revealed: it appears
-already asking its question. `onOpenChange` lets the block hide the row again
-when it was dismissed without an answer.
-*/
+// A property row that opens a panel. The field name starts the button's name, so it
+// reads "Date Tomorrow" and tests can address the row by field.
 export function PropertyPicker({
   label,
   value,
@@ -277,40 +194,11 @@ export function PropertyPicker({
 export const PROPERTY_ROW =
   "grid h-[var(--control-height)] w-full grid-cols-[6rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2 text-left text-sm transition-colors duration-100 hover:bg-accent data-popup-open:bg-accent"
 export const PROPERTY_LABEL = "truncate text-muted-foreground"
-/* Where PROPERTY_ROW's value column starts, in px (a menu offset is a number):
-   px-2 + the 6rem label + gap-2 = 7rem. A row's menu opens under its value. */
+// Where PROPERTY_ROW's value column starts, in px: px-2 + 6rem label + gap-2 = 7rem.
 export const PROPERTY_VALUE_OFFSET = 112
 
-/* One choice in a picker, shaped like a menu item rather than a pill: full
-   width, on its own line, with the value it resolves to on the right where a
-   person reads it instead of working it out. "Tomorrow" is only useful next
-   to the date it means.
-
-   Every picker in the card now leads with a list of these, because nearly
-   every date anybody sets is one of about five, and making the common answer
-   one click is worth more than the calendar it sits above. */
-/*
-**An option's role is the ordinary one, and the repeat list is the one
-exception.**
-
-The container is a group, one role per picker, so an option is not
-`menuitemradio`: `getByRole('menuitem')` matches that role exactly rather than
-its subtypes, so such an option would answer to nothing at all.
-
-9.1's addressing sentence settles what it should be: "a control not named here
-is reached by its role in the ordinary sense", and the ordinary role of a
-control that sets a value is a button. AC-092 reads the due picker's presets
-exactly that way, `getByRole('button', { name: 'Tomorrow', exact: true })`.
-
-**The repeat list is a menu and says so.** A picker asking for a day or a time
-is a small modal surface and carries the dialog role; one offering a list of
-named choices is a menu. The due and reminder panels put a calendar or a clock
-under their presets and are the first kind; the repeat panel is a list of named
-rules and is the second.
-
-The chosen option is `aria-pressed` on a button and font weight on a menu item,
-because a menu item takes no pressed state and 9.3 asserts neither.
-*/
+// One choice, shaped like a menu item with its resolved value on the right. Options are
+// buttons (`aria-pressed`), as AC-092 reaches them; only the repeat list is a menu.
 export function PickerOption({
   icon: Icon,
   label,
@@ -325,11 +213,9 @@ export function PickerOption({
   hint?: string
   active: boolean
   onSelect: () => void
-  /* Choosing this answers the whole field, so the picker closes. See the
-     context above; a repeat preset deliberately does not set it. */
+  // Choosing this answers the whole field, so the picker closes.
   finishes?: boolean
-  /* One of a list of named rules rather than a value the field takes. Only
-     the repeat panel passes it; see the header above. */
+  // One of the repeat panel's named rules rather than a value.
   menu?: boolean
 }) {
   const close = usePickerClose()
@@ -358,19 +244,8 @@ export function PickerOption({
         />
       ) : null}
       <span className="flex-1 truncate">{label}</span>
-      {/*
-      **The hint is drawn and not announced.**
-
-      It is the day a preset resolves to, "Sat 15 Aug" beside "This weekend".
-      AC-092 asks for the preset by `{ name: 'Tomorrow', exact: true }`, and
-      9.1's addressing sentence is why exact is the right ask: a control is
-      reached by its name, and a name that carries today's date changes every
-      day.
-
-      `aria-hidden` rather than moving the hint out of the button, because the
-      hint belongs inside the target a person presses, and because a screen
-      reader is told the same fact by the calendar the panel opens onto.
-       */}
+      {/* The hint is `aria-hidden`: a name that carried today's date would change every day,
+         and tests reach presets by exact name. */}
       {hint ? (
         <span
           aria-hidden="true"
@@ -379,8 +254,7 @@ export function PickerOption({
           {hint}
         </span>
       ) : null}
-      {/* The tick holds its place whether or not it is showing, so a list of
-          options never reflows by a few pixels as the selection moves. */}
+      {/* The tick keeps its place, so the list never reflows as the selection moves. */}
       <CheckIcon
         className={cn(
           "size-3.5 shrink-0 text-foreground transition-opacity",
@@ -394,15 +268,12 @@ export function PickerOption({
   )
 }
 
-/* The hairline between a picker's easy answers and its exact ones. */
+// The hairline between a picker's easy answers and its exact ones.
 export function PickerDivider() {
   return <div aria-hidden="true" className="my-1 h-px bg-border" />
 }
 
-/* One row of short exclusive choices, behaving like a segmented control. The
-   only shape left in the pickers where a pill row is still right: a
-   recurrence interval and its weekdays are a set you compare at a glance,
-   not a menu you read down. */
+// A row of short exclusive choices, for sets you compare at a glance.
 export function PickerSegments({
   label,
   name,
@@ -410,10 +281,10 @@ export function PickerSegments({
   active,
   onPick,
 }: {
-  /* Absent where the row the picker opened from already names the field;
-     an empty string keeps the column so rows below a labelled one align. */
+  // Absent where the row already names the field; an empty string keeps the column so
+  // rows align.
   label?: string
-  /* The group's accessible name where `label` is absent or empty. */
+  // The group's accessible name where `label` is absent or empty.
   name?: string
   options: { key: string; label: string }[]
   active: string
@@ -436,101 +307,35 @@ export function PickerSegments({
   )
 }
 
-/* ---------------------------------------------------------- the pickers, */
-/*
-Due, Reminder and Repeat.
-
-Nearly every date anybody sets is today, tomorrow, this weekend or next week, so
-a picker that makes the rare answer and the common one cost the same is wrong.
-All three open on the answers somebody probably wants, each showing the date it
-resolves to, and keep the exact controls below a hairline. The shape is
-deliberately identical across the three, so learning one teaches the other two,
-and it is the shape the rest of the product's menus already have.
-
-There is no Save and no Done. Choosing commits.
-*/
-
 export interface PanelProps {
   task: ConceptTask
   patch: (id: string, fields: Partial<ConceptTask>) => void
 }
 
-/*
-All three panels are one shape: the answers somebody probably wants, a hairline,
-then one option that opens everything exact. Only that last option can expand,
-and only one thing is ever expanded, so the panel is the size of the question
-being asked rather than the size of the largest question it could ask.
-*/
-
-/*
-**The field has a Clear, and 8.4's warning stands in front of it.**
-
-**9.3 keeps 8.4's warning verbatim and keeps it before the cascade**: "Clearing
-the date also ends the repeat and removes the reminder." AC-092 is explicit that
-this is a gate and not a notice: a warning the person declines must leave the
-date, the repeat and the reminder exactly as they were. So the confirm runs
-first and only a Continue writes.
-
-**And the control is named "Clear"**, offered only while a date is set, and it
-runs the same 8.4 warning any other way of emptying the field runs. Tests reach
-it by that name in both this picker and the reminder's, so the two are one
-control seen twice.
-
-**The warning is skipped where there is nothing to cascade**, which is 8.4 read
-rather than softened: a task with no repeat and no reminder loses nothing by
-being undated, and a confirmation whose consequence is empty is a dead control.
-*/
-/* "Next week" is next Monday, the Monday after when next Monday is tomorrow. */
+// "Next week" is next Monday, or the Monday after when next Monday is tomorrow.
 function nextWeekAfter(from: Date): Date {
   const monday = nextWeekday(from, 1)
   return sameDay(monday, addDays(from, 1)) ? addDays(monday, 7) : monday
 }
 
-/* Said where a start would land after the due date, or a due date before the
-   start; nothing is written and neither end moves (#215, 7.6's 422). */
+// Shown when a start would fall after the due date; nothing is written (the server
+// answers 422).
 export const START_AFTER_DUE = "The start must be on or before the due date."
 
 export function DuePanel({ task, patch }: PanelProps) {
-  /*
-  **One Schedule, two ends (#215).** The panel edits the due date unless the
-  person switches to Starts; the presets, the grid and Clear then answer for
-  that end, and the grid draws the span between them. A task not made yet has
-  only a due date: its draft carries one day into the create.
-  */
+  // One schedule, two ends: the panel edits the due date unless switched to Starts.
+  // A task not made yet has only a due date.
   const [end, setEnd] = useState<"due" | "start">("due")
   const [refused, setRefused] = useState(false)
   const dueDate = task.due ? parseDueLabel(task.due.label) : null
   const startDate = task.start === undefined ? null : parseIsoDate(task.start)
   const editingStart = end === "start" && task.id !== "new"
   const selected = editingStart ? startDate : dueDate
-  /*
-  **The due picker opens with its grid showing.**
-
-  The other pickers keep their exact controls behind the last option, but a due
-  date **is** a day, so the grid is not the exact option behind the easy ones,
-  it is the field itself (AC-219: "the due picker opens on a day grid, a due
-  date being a day").
-
-  The presets stay above it and lose nothing: what changes is that the
-  instrument for the field's own type is not folded away. The reminder and
-  repeat panels keep the shared arrangement exactly, their exact answers being a
-  clock and a rule rather than the field itself.
-  */
+  // The due picker opens with its grid showing: a due date is a day (AC-219).
   const [confirming, setConfirming] = useState(false)
   const close = usePickerClose()
-  /*
-  A time under the day, so "next Tuesday at 9" is one picker rather than two
-  chips. It is the due date's own time (4.11's due_time), the one the Date row,
-  the lists and the calendar all show; the reminder keeps its own row.
-
-  **The reminder is carried across, not lost.** 8.4 deletes a time_of_day
-  reminder when a date-only task gains a time, and an offset reminder when a
-  timed task loses one. So the reminder is written again
-  in the same PATCH, in the mode the task now takes, at the clock time it had: 9:00 on a
-  task now due at 17:00 is 480 minutes before. A reminder that would fall
-  after the new time moves to the time itself, and one before the due day
-  cannot be a time on a day with no time and is removed. Either says so here.
-  */
+  // A due time under the day. Changing it rewrites the reminder in the same PATCH, in the
+  // mode the task now takes, because the server deletes a reminder whose mode no longer fits.
   const format = useTimeFormat()
   const at = task.dueTime ?? null
   const [moved, setMoved] = useState<string | null>(null)
@@ -559,20 +364,17 @@ export function DuePanel({ task, patch }: PanelProps) {
       reminder: reminder === null ? undefined : reminderWords(day, reminder.at),
       reminderAt: reminder?.at,
     })
-    /* One PATCH: 7.6 upserts a reminder in the body after 8.4's cascade, in
-       the same transaction, so the reminder cannot be lost between two
-       requests or with a panel that closed first. */
+    // One PATCH: the server upserts the reminder after its cascade, in one transaction.
     update.mutate({
       id: task.id,
       body: reminder === null ? { due_time: time } : { due_time: time, reminder: reminder.body },
     })
   }
-  /* Choosing a day answers the field, from the grid exactly as from a preset,
-     so both close. See `PickerClose`. */
+  // Choosing a day answers the field, from the grid or a preset, so both close.
   const update = useUpdateTask()
   const set = (date: Date) => {
     const day = isoDay(date)
-    /* Refused here as the server would refuse it, and nothing moves. */
+    // Refused here as the server would refuse it; nothing moves.
     const crosses = editingStart
       ? dueDate !== null && day > isoDay(dueDate)
       : task.start !== undefined && day < task.start
@@ -587,35 +389,29 @@ export function DuePanel({ task, patch }: PanelProps) {
       close()
       return
     }
-    /* The day moves and the time stays, as the server keeps it. */
+    // The day moves and the time stays, as the server keeps it.
     patch(task.id, { due: labelWithTime(date, at) })
-    /* A task not made yet has no address; its draft carries the day into the
-       create instead. */
+    // A task not made yet has no id; its draft carries the day into the create.
     if (task.id !== "new") update.mutate({ id: task.id, body: { due_date: isoDay(date) } })
     close()
   }
-  /* 8.4's own cascade, which is what the sentence describes. */
+  // Clearing the date also ends the repeat and removes the reminder (8.4).
   const cascades = Boolean(task.recurrence) || Boolean(task.reminder)
   const clear = () => {
     patch(task.id, {
       due: undefined,
-      /* The client says what it believes so the strip is right in the same
-         render; 8.4 is the server's and runs whatever this sends. */
+      // Local state so the strip is right in the same render; the server runs the cascade.
       recurrence: false,
       reminder: undefined,
       reminderAt: undefined,
       dueTime: undefined,
     })
-    /* One request, because 8.4's cascade is the server's: clearing the date
-       ends the repeat and removes the reminder inside 7.6's own transaction,
-       which is what the warning above this promised. */
+    // One request: the server's cascade runs inside its own transaction.
     if (task.id !== "new") update.mutate({ id: task.id, body: { due_date: null } })
   }
 
-  /* "This weekend" is the coming Saturday, and only while that is a day the
-     other presets do not already name: on a Friday it is "Tomorrow", and at
-     the weekend itself "this weekend" is now, so it is left out rather than
-     offered twice or as next week's Saturday. */
+  // "This weekend" only Monday to Thursday; on Friday it is "Tomorrow", and at the
+  // weekend it is now.
   const saturday = nextWeekday(today(), 6)
   const presets = [
     { label: "Today", date: today() },
@@ -623,28 +419,14 @@ export function DuePanel({ task, patch }: PanelProps) {
     ...(today().getDay() >= 1 && today().getDay() <= 4
       ? [{ label: "This weekend", date: saturday }]
       : []),
-    /* Next Monday, and never the same day as "Tomorrow": on a Sunday the two
-       presets both read Monday, so the Monday after is what "next week" means
-       there. */
+    // Never the same day as "Tomorrow" (see `nextWeekAfter`).
     { label: "Next week", date: nextWeekAfter(today()) },
   ]
 
   return (
     <div className="w-[268px]">
-      {/*
-      **The panel is the picker, and it carries one role.**
-
-      The popover carries `role="dialog"`, so a preset list inside it must not
-      also be `role="menu"`: a press on a chip would answer with two things that
-      are both "the picker", and a strict-mode locator dies on that. A picker
-      asking for a day or a time is a small modal surface and carries the dialog
-      role; one offering a list of named choices is a menu.
-
-      The dialog is the one that stays, because three of these panels put a
-      calendar or a clock below their presets, so none of them is a list of
-      named choices. The list keeps its label as a group, so the presets are
-      still announced as belonging to the field.
-       */}
+      {/* The popover already has `role="dialog"`, so the preset list must not also be a menu:
+         strict-mode locators would find two pickers. */}
       {task.id === "new" ? null : (
         <PickerSegments
           name="Which date"
@@ -681,7 +463,7 @@ export function DuePanel({ task, patch }: PanelProps) {
           active={!selected}
           onSelect={() => {
             if (editingStart) {
-              /* A start clears alone: nothing cascades from it (8.4). */
+              // A start clears alone: nothing cascades from it.
               if (task.start === undefined) return
               setRefused(false)
               patch(task.id, { start: undefined })
@@ -690,8 +472,7 @@ export function DuePanel({ task, patch }: PanelProps) {
               return
             }
             if (!task.due) return
-            /* The warning lives in this popover, so clearing closes it only
-               where there is nothing to ask. */
+            // The warning lives in this popover, so close only when there is nothing to ask.
             if (cascades) setConfirming(true)
             else {
               clear()
@@ -713,11 +494,10 @@ export function DuePanel({ task, patch }: PanelProps) {
 
       <PickerDivider />
 
-      {/* The grid stands plainly below the hairline; a toggle row would read as
-          a setting rather than a way to show the calendar. */}
+      {/* The grid always shows; a toggle row would read as a setting. */}
       <div className="pt-1">
         <Calendar
-          /* Keyed on the end, so switching shows that end's month. */
+          // Keyed on the end, so switching shows that end's month.
           key={end}
           selected={selected}
           {...(startDate !== null && dueDate !== null ? { range: { from: startDate, to: dueDate } } : {})}
@@ -746,25 +526,8 @@ export function DuePanel({ task, patch }: PanelProps) {
   )
 }
 
-/*
-**A reminder is a time, said the way the task is dated.**
-
-9.3's reminder row: "requires a due date; one picker, a time on that day".
-4.8's two modes are exclusive and the task decides which one 7.9 takes: a
-date-only task stores the clock time itself, and a task with a due time stores
-how long before it the reminder fires.
-
-So the quick answers follow the task. A date-only task is offered the three
-times a reminder is usually set to. A timed task is offered what an offset
-means, "At due time", "1 hour before" and "Day before" (the same clock time on
-the previous day), each with when it lands beside it. The exact answer is a time on the due day, on the
-viewer's clock, and one after the due time is refused in place.
-
-The empty state has one name, "No reminder", in the row and here.
-
-A reminder "requires a due date", and the chip is disabled without one, so this
-panel is never opened undated and draws no sentence for that case.
-*/
+// A reminder follows the task's dating: a date-only task stores a clock time, a timed
+// task an offset before it. Offered only with a due date. One after the due time is refused.
 export function ReminderPanel({ task, patch }: PanelProps) {
   const format = useTimeFormat()
   const put = usePutReminder()
@@ -774,7 +537,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
   const at = task.reminder ? (task.reminderAt ?? null) : null
 
   const [refused, setRefused] = useState(false)
-  /* `minutes` is from the due day's midnight; negative is the day before. */
+  // `minutes` is from the due day's midnight; negative is the day before.
   const setAt = (minutes: number) => {
     if (dueAt !== null && minutes > dueAt) {
       setRefused(true)
@@ -793,7 +556,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
   const clearAt = () => {
     setRefused(false)
     patch(task.id, { reminder: undefined, reminderAt: undefined })
-    /* Frozen 7.9's own removal, "no task body expressing a removal". */
+    // Removal is `DELETE /tasks/:id/reminder`.
     drop.mutate(task.id)
   }
 
@@ -804,8 +567,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
       : [
           { label: "At due time", minutes: dueAt, hint: clock(dueAt) },
           { label: "1 hour before", minutes: dueAt - 60, hint: clock(dueAt - 60) },
-          /* The same clock time a day earlier, and the hint names that day,
-             so it never reads like "At due time". */
+          // The hint names the earlier day, so it never reads like "At due time".
           {
             label: "Day before",
             minutes: dueAt - 1440,
@@ -815,7 +577,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
 
   return (
     <div className="w-[268px]">
-      {/* One role per picker. See the due panel above. */}
+      {/* One role per picker; see the due panel above. */}
       <div role="group" aria-label="Reminder" className="flex flex-col">
         {quick.map((option) => (
           <PickerOption
@@ -827,11 +589,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
             onSelect={() => setAt(option.minutes)}
           />
         ))}
-        {/*
-        Frozen 7.9 makes the write behind it `DELETE /tasks/:id/reminder`, "no
-        task body expressing a removal", and nothing cascades from it, so
-        unlike the due date's it asks nothing.
-        */}
+        {/* Nothing cascades from removing a reminder, so it asks nothing. */}
         <PickerOption
           finishes
           icon={Ban}
@@ -845,11 +603,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
 
       <PickerDivider />
 
-      {/*
-      9.3's "one picker, a time on that day", exact. It is open rather than
-      behind a disclosure: the picker is opened and the time is answered, with
-      nothing to unfold first (AC-169).
-       */}
+      {/* Open rather than behind a disclosure (AC-169). */}
       <div className="px-2 pt-1.5">
         <TimeField
           label="Reminder time"
@@ -869,8 +623,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
   )
 }
 
-/* The repeat's interval: a number, written on Enter or on leaving the field,
-   so "12" is one write rather than "1" then "12". */
+// Commits on Enter or blur, so "12" is one write, not "1" then "12".
 function IntervalField({ value, onCommit }: { value: number; onCommit: (next: number) => void }) {
   const [draft, setDraft] = useState<string | null>(null)
   const commit = () => {
@@ -902,9 +655,7 @@ function IntervalField({ value, onCommit }: { value: number; onCommit: (next: nu
 export function RepeatPanel({ task, patch }: PanelProps) {
   const anchor = repeatAnchor(task)
   const summary = repeatSummary(task)
-  /* Every choice here is written as the whole rule (4.11's RRULE on 7.6),
-     from the task as it is plus what changed. A draft ("new") has no address
-     yet and keeps the choice on the card alone. */
+  // Every choice writes the whole rule. A draft ("new") keeps it on the card alone.
   const update = useUpdateTask()
   const commit = (fields: Partial<ConceptTask>) => {
     patch(task.id, fields)
@@ -912,9 +663,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
     update.mutate({ id: task.id, body: { recurrence_rule: ruleFor({ ...task, ...fields }) } })
   }
 
-  /* Five answers cover essentially every repeating task anybody writes down,
-     and each is spelled out against this task's own date rather than left as
-     a word somebody has to translate. */
+  // Each preset is spelled out against this task's own date.
   const presets: { label: string; fields: Partial<ConceptTask> }[] = [
     {
       label: "Daily",
@@ -926,10 +675,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
         recurrence: true,
         repeatUnit: "week",
         repeatEvery: "1",
-        /* The filter is `noUncheckedIndexedAccess`, which this client compiles
-           with (11.4). The index is a `% 7` and can never miss, so nothing is
-           ever dropped; it is written this way rather than as a non-null
-           assertion because an assertion is a claim and this is a proof. */
+        // The filter satisfies `noUncheckedIndexedAccess`; the `% 7` index never misses.
         repeatDays: [WEEKDAY_KEYS[(anchor.getDay() + 6) % 7]].filter(
           (day): day is string => day !== undefined,
         ),
@@ -953,15 +699,12 @@ export function RepeatPanel({ task, patch }: PanelProps) {
       fields: { recurrence: true, repeatUnit: "year", repeatEvery: "1", repeatDays: [] },
     },
   ]
-  /* A rule none of the presets names opens on the exact controls. */
+  // A rule none of the presets names opens on the exact controls.
   const [custom, setCustom] = useState(
     () => task.recurrence === true && !presets.some((preset) => preset.label === summary),
   )
-  /* Until: no end, a month on, or the end of the year, all counted from the
-     task's own date so no option is already past; a stored end the two do
-     not name is offered as itself so the choice shows. */
-  /* "A month on" from the 31st is the last day of the next month, not the
-     2nd or 3rd of the one after. */
+  // End options count from the task's date so none is already past; a stored end they do
+  // not name is offered as itself. "A month on" from the 31st is the next month's last day.
   const lastOfNext = new Date(anchor.getFullYear(), anchor.getMonth() + 2, 0).getDate()
   const monthOn = isoDay(
     new Date(anchor.getFullYear(), anchor.getMonth() + 1, Math.min(anchor.getDate(), lastOfNext)),
@@ -970,12 +713,10 @@ export function RepeatPanel({ task, patch }: PanelProps) {
   const ends = [monthOn, yearEnd]
   if (task.repeatEnds !== undefined && !ends.includes(task.repeatEnds)) ends.push(task.repeatEnds)
   const now = todayInBrowserZone()
-  /* A weekly rule naming no days repeats on its own date's weekday, so that
-     day shows as chosen and a second day is added beside it, not instead. */
+  // A weekly rule naming no days repeats on its date's weekday, so that day shows chosen.
   const anchorKey = WEEKDAY_KEYS[(anchor.getDay() + 6) % 7] ?? "Mo"
   const weekDays = task.repeatDays?.length ? task.repeatDays : [anchorKey]
-  /* What the exact controls show for a task that does not repeat yet, and
-     what the first value picked there is written beside. */
+  // What the exact controls show for a task that does not repeat yet.
   const unit = task.recurrence ? (task.repeatUnit ?? "week") : "week"
   const every = task.recurrence ? Math.max(1, Number(task.repeatEvery ?? "1") || 1) : 1
   const customCommit = (fields: Partial<ConceptTask>) =>
@@ -989,7 +730,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
 
   return (
     <div className="w-[268px]">
-      {/* One role per picker. See the due panel above. */}
+      {/* One role per picker; see the due panel above. */}
       <div role="group" aria-label="Repeat" className="flex flex-col">
         <PickerOption
           menu
@@ -1013,7 +754,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
             key={preset.label}
             label={preset.label}
             active={task.recurrence === true && summary === preset.label}
-            /* An end the rule already has (UNTIL) is kept. */
+            // An existing end (UNTIL) is kept.
             onSelect={() => commit(preset.fields)}
           />
         ))}
@@ -1021,13 +762,12 @@ export function RepeatPanel({ task, patch }: PanelProps) {
 
       <PickerDivider />
 
-      {/* Opening the exact controls writes nothing; the first value picked
-          there is what makes a task that did not repeat start repeating. */}
+      {/* Opening the exact controls writes nothing; the first value picked there starts the repeat. */}
       <PickerOption
         menu
         icon={Repeat2}
         label="Custom repeat…"
-        /* Ticked only for a rule no preset above names: one tick per panel. */
+        // Ticked only for a rule no preset names: one tick per panel.
         active={task.recurrence === true && !presets.some((preset) => preset.label === summary)}
         onSelect={() => setCustom((open) => !open)}
       />
@@ -1041,9 +781,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
               onCommit={(next) => customCommit({ repeatEvery: String(next) })}
             />
           </div>
-          {/* The unit on its own full-width row, four equal segments, so four
-              plural labels fit the 268px panel and the control keeps its
-              width as the interval turns a label singular or plural. */}
+          {/* Four equal segments on their own row, so plural labels fit the 268px panel. */}
           <div className="px-2 py-1">
             <Segmented
               label="Unit"
@@ -1062,14 +800,8 @@ export function RepeatPanel({ task, patch }: PanelProps) {
           </div>
           {unit === "week" ? (
             <div className="px-2 py-1">
-              {/* The weekday row gets its own line and a seven-column grid.
-
-                  A label plus seven 28px circles on one line is 48 + 8 + 7×28 +
-                  6×4 = 292px inside a 268px panel, so the last day would sit
-                  outside the popover's own edge. Widening the panel to suit one
-                  row would make every other picker wider for nothing (a popover
-                  is as wide as what it holds). A grid divides whatever width
-                  there is, so this row cannot overflow at any panel size. */}
+              {/* A seven-column grid on its own line: seven 28px buttons plus a label overflow the
+                 268px panel. */}
               <span className="mb-1 block text-xs text-muted-foreground">
                 On
               </span>
@@ -1092,8 +824,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
                       className={cn(
                         "flex h-[var(--control-height)] w-full items-center justify-center rounded-md text-xs transition-colors",
                         T_FAST,
-                        /* A set, not one value: each chosen day takes the
-                           selected tint, as a chosen option does. */
+                        // A set, not one value: each chosen day takes the selected tint.
                         on
                           ? "bg-selected font-medium text-foreground"
                           : "text-muted-foreground hover:bg-accent hover:text-foreground",

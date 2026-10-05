@@ -1,4 +1,4 @@
-/* A month grid (six weeks, roving tabindex) and the time row beside it. */
+// A month grid: six weeks, one tab stop with a roving cursor.
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight } from "../../lib/icons.js"
@@ -21,7 +21,7 @@ export function sameDay(a: Date | null | undefined, b: Date | null | undefined) 
   )
 }
 
-/* Six weeks, always, from the Monday on or before the first. */
+// Six weeks, always, from the Monday on or before the first.
 function monthGrid(year: number, month: number) {
   const first = new Date(year, month, 1)
   const lead = (first.getDay() + 6) % 7
@@ -33,7 +33,7 @@ function monthGrid(year: number, month: number) {
   })
 }
 
-/* Range mode draws the span; the caller decides which end a click sets (DES-153). */
+// Range mode draws the span; the caller decides which end a click sets.
 export function Calendar({
   selected,
   range,
@@ -49,7 +49,7 @@ export function Calendar({
 }) {
   const anchor = selected ?? today
   const [view, setView] = useState({ year: anchor.getFullYear(), month: anchor.getMonth() })
-  /* Roving cursor: the grid is one tab stop. */
+  // Roving cursor: the grid is one tab stop.
   const [cursor, setCursor] = useState<Date>(anchor)
   const gridRef = useRef<HTMLDivElement>(null)
   const moved = useRef(false)
@@ -141,7 +141,7 @@ export function Calendar({
           const isSelected = sameDay(date, selected) || isEnd
           const isToday = sameDay(date, today)
           const isCursor = sameDay(date, cursor)
-          /* Strictly between the ends: washed, not filled. */
+          // Strictly between the ends: washed, not filled.
           const isBetween =
             !isEnd &&
             Boolean(range?.from && range?.to) &&
@@ -205,10 +205,3 @@ export function Calendar({
   )
 }
 
-/* ----------------------------------------------------------------- time -- */
-/* A time: typed segments at rest, each opening its own grid on click. */
-
-
-/* One typed segment: commits valid numbers, steps on arrows, opens its grid. */
-
-/* Six columns divide both 24 and 60. */

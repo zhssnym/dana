@@ -1,9 +1,5 @@
-/*
-Posts in one thread fold into one bell row: four posts from Bilal read as one
-line, not four. A group is one thread and one read state, so reading some of a
-thread's posts never hides the rest. Mentions and every other act stay one row
-each. The list keeps the order of each group's newest row.
-*/
+// Posts in one thread fold into one bell row. A group is one thread and one read
+// state; mentions and other acts stay one row each.
 import type { NotificationLine } from '../../shared/events.js'
 
 export interface BellGroup {
@@ -13,7 +9,7 @@ export interface BellGroup {
   readonly read: boolean
 }
 
-/** A post in a thread (not a mention of someone in one). */
+/** A post in a thread, not a mention of someone in one. */
 export function isPost(row: NotificationLine): boolean {
   return row.event.subject_kind === 'comment' && row.event.verb === 'created'
 }
@@ -48,17 +44,13 @@ export function groupNotifications(rows: readonly NotificationLine[]): BellGroup
   return groups
 }
 
-/**
- * The place a post's detail names, quotes kept: `commented on "X"` (older
- * events) and `posted in "X"` both give `"X"`. Null when there is none.
- */
+/** Older events say `commented on "X"`, newer `posted in "X"`; both give `"X"`. */
 export function placeOf(detail: string | null): string | null {
   if (detail === null) return null
   const match = /^(?:commented on|posted in)\s+(.+)$/.exec(detail.trim())
   return match?.[1] ?? null
 }
 
-/** "Bilal", "Bilal and Sara", "Bilal and 2 others". */
 export function actorsPhrase(names: readonly string[]): string {
   const [first = 'Someone', second] = names
   if (names.length <= 1) return first

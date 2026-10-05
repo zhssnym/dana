@@ -1,9 +1,5 @@
-/*
-The Dana Link picker (#223, spec 07.24): `@` in the canvas, or "Link to…" in
-the `/` menu, searches `GET /references/search` and inserts a chip pointing
-at the target's canonical `/app/<kind>s/<id>` path — never a copied title as
-the thing that matters.
-*/
+// The Dana Link picker: `@` or "Link to…" inserts a chip with the target's
+// canonical `/app/<kind>s/<id>` path.
 import { SuggestionMenuController } from '@blocknote/react'
 import type { ComponentProps } from 'react'
 import type { DefaultReactSuggestionItem } from '@blocknote/react'
@@ -21,11 +17,10 @@ type Transaction = Parameters<NonNullable<ComponentProps<typeof SuggestionMenuCo
 export function insertDanaLink(editor: CanvasEditor, summary: LooseSummary): void {
   const target = danaLinkOf(summary.path)
   const resolved = summary.label === '' ? kindNoun(summary.kind) : summary.label
-  /* The picker keeps the full "Project · Facet" label for disambiguation;
-     the inserted facet chip is intentionally compact. */
+  // The picker shows the full "Project · Facet" label; the chip stays compact.
   const label = referenceDisplayLabel(summary.kind, resolved)
   editor.insertInlineContent([
-    // A kind this client cannot resolve yet still links, as a plain link.
+    // A kind this client cannot resolve still links, as a plain link.
     target === null
       ? { type: 'link', href: summary.path, content: label }
       : { type: 'danaLink', props: { href: target.path, label } },
@@ -33,8 +28,7 @@ export function insertDanaLink(editor: CanvasEditor, summary: LooseSummary): voi
   ])
 }
 
-/** `@` opens only at a word boundary, so an email address typed in prose
- * does not pop a menu. */
+/** `@` opens only at a word boundary, so typing an email address does not open the menu. */
 export function atWordStart(tr: Transaction): boolean {
   const { $from } = tr.selection
   const before = $from.parent.textBetween(Math.max(0, $from.parentOffset - 1), $from.parentOffset, undefined, '￼')
@@ -47,12 +41,7 @@ export function hint(title: string): DefaultReactSuggestionItem & { size: 'small
 
 let latest = 0
 
-/**
- * The page half of the `@` menu, shared with the person mention menu
- * (canvas/mentions.tsx, Wave 2): hint rows until two characters, then the
- * pages the viewer can open. `quiet` drops the hint rows, for a caller that
- * already has rows of its own to show.
- */
+/** The page half of the `@` menu, shared with person mentions. `quiet` drops the hint rows. */
 export async function pageSuggestionItems(editor: CanvasEditor, query: string, quiet = false, folderId?: string): Promise<DefaultReactSuggestionItem[]> {
   const q = query.trim()
   if (q.length < 2) return quiet ? [] : [hint('Type to link a Task, Page, Collection, Purpose, Results, Result or Discussion')]
@@ -62,14 +51,13 @@ export async function pageSuggestionItems(editor: CanvasEditor, query: string, q
   if (mine !== latest) return quiet ? [] : [hint('Searching…')]
   let results: LooseSummary[]
   try {
-    // The composing Page's own Tasks, Purpose, Results and Results come first.
+    // The composing page's own items come first.
     results = await searchReferences(q.slice(0, 100), folderId)
   } catch {
     return quiet ? [] : [hint('Search is unavailable right now')]
   }
   if (results.length === 0) return quiet ? [] : [hint(`Nothing you can open matches “${q}”`)]
-  // BlockNote keys menu rows by title, and a Folder and a Shelf can share
-  // a name, so a repeated title says which kind it is.
+  // BlockNote keys menu rows by title, and a folder and a shelf can share a name.
   const titleOf = (summary: LooseSummary): string => summary.label === '' ? 'Untitled' : summary.label
   const counts = new Map<string, number>()
   for (const summary of results) counts.set(titleOf(summary), (counts.get(titleOf(summary)) ?? 0) + 1)
@@ -89,7 +77,6 @@ export async function pageSuggestionItems(editor: CanvasEditor, query: string, q
   })
 }
 
-/** The `/` menu's "Link to…": opens the same picker at the cursor. */
 export function linkSlashItem(editor: CanvasEditor): DefaultReactSuggestionItem {
   return {
     title: 'Link to…',

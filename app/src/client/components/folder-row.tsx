@@ -1,29 +1,5 @@
-/*
-One folder in the sidebar's Library: its mark and its name, and nothing else.
-
-**It is a link.** `href` is required; `render` lets the shell hand it the
-router's own link element.
-
-**The mark is the folder's own**, icon and colour resolved once by
-`parts/presenters.ts`, so the row and a task's folder chip agree.
-
-**One menu, two ways in.** The "…" appears on hover in space the row always
-reserves, so the name never shifts; a right-click presses that same button.
-The acts are the object contract's (`lib/object-acts.ts`), drawn by
-`object-menu.tsx`; an act with no handler is not drawn, which is how the role
-split of 9.6 reaches this row without a branch. What stays here is the shelf
-picker's contents, which belong to the surface.
-
-**A page in a tree** (wave 2): `depth` indents it under its parent, and a page
-with children carries a fold. The fold is its mark turned into a chevron under
-the pointer, in the same box, the way a collection heading folds, so nothing
-shifts. The one other control is the "+" beside the "…", which adds a page
-inside this one. It is mounted only while the row is under the pointer or holds
-focus, in space the row always reserves, so it is not one more control on every
-row and nothing shifts when it appears; a touch screen has no hover, so there
-the same act is an item in the "…". `children` is the page's own rows,
-drawn inside its item so that carrying a page carries its subtree.
-*/
+// One page in the sidebar Library: a link with its mark and name, a "…" menu
+// (also on right-click), and for a tree a fold and a "+" that adds a page inside.
 import { useEffect, useRef, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 
@@ -42,50 +18,41 @@ import type { SortableItemState } from '../lib/use-sortable-list.js'
 export interface FolderRowProps {
   name: string
   color: string
-  /** The folder's chosen glyph (4.3); the plain folder when unset. */
   icon?: LucideIcon
-  /** A word appended to the accessible name and never drawn. */
+  /** Appended to the accessible name, never drawn. */
   qualifier?: string
-  /** 9.1's routes table: `/app/folders/:id`. */
   href: string
-  /** The element the row renders as; it must produce an anchor carrying `href`. */
+  /** Must render an anchor carrying `href`. */
   render?: ReactElement<Record<string, unknown>>
   active?: boolean
-  /** Inside a shelf: indented under its heading. */
   nested?: boolean
-  /* The drag engine's four props; absent for a row nobody is sorting. */
+  // The drag engine's props; absent for a row nobody is sorting.
   itemRef?: (element: HTMLLIElement | null) => void
   rowProps?: React.ComponentProps<'li'>
   dragState?: SortableItemState
-  /** What a release would do, said on the carried row only. */
+  /** What a release would do, shown on the carried row only. */
   proposal?: string | null
   onSelect?: () => void
-  /* The folder menu's acts, `lib/object-acts.ts`'s one folder list: the same
-     handlers the folder page's header "…" passes. An act with no handler is
-     not drawn. */
+  // Folder menu acts from `lib/object-acts.ts`; an act with no handler is not drawn.
   acts?: ActHandlers
-  /** Whose list the menu draws: a Library root is a project. */
   menuKind?: 'project' | 'folder'
-  /** The page's id, marking the row for the tree's drop hit test. */
+  /** Marks the row for the tree's drop hit test. */
   pageId?: string
-  /** How deep in the page tree: 0 for a root. */
   depth?: number
-  /** Present on a page with children: whether they show, and the fold. */
   fold?: { readonly open: boolean; readonly onToggle: () => void }
-  /** Adds a page inside this one; absent where the viewer may not. */
+  /** Absent where the viewer may not add. */
   onAddInside?: () => void
-  /** What a drop here would do, drawn while a page is carried over this row. */
   dropMark?: 'inside' | 'before' | 'after' | 'first-child' | null
-  /** Carried along under a page that is being dragged. */
+  /** Carried along under a page being dragged. */
   dimmed?: boolean
-  /** The page's own rows, drawn inside its item. */
+  /** Drawn inside this item, so carrying a page carries its subtree. */
   children?: ReactNode
-  /** Renaming in place: the row is a field. `onRename(null)` cancels. */
+  /** `onRename(null)` cancels. */
   renaming?: boolean
   onRename?: (name: string | null) => void
 }
 
-/* The row as a name field: Enter or leaving commits, Escape cancels. */
+// Enter or blur commits, Escape cancels.
 function RenameField({
   name,
   onRename,
@@ -129,19 +96,16 @@ function RenameField({
   )
 }
 
-/* A device with no hover (touch): read once, as the row mounts. */
+// Read once, as the row mounts.
 function noHover(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches
 }
 
-/* A row's indent in spacing steps: the row's own padding, or a collection's
-   step, then four steps per level of the tree. */
 function indentOf(nested: boolean, depth: number): string {
   const steps = (nested ? 7 : 2) + depth * 4
   return `calc(var(--spacing) * ${String(steps)})`
 }
 
-/* The name shows as a tooltip only when the row cuts it short. */
 function titleIfTruncated(name: string) {
   return (event: React.PointerEvent<HTMLElement>): void => {
     const label = event.currentTarget.querySelector('span.truncate')
@@ -178,7 +142,6 @@ export function FolderRow({
   onRename,
 }: FolderRowProps) {
   const [touch] = useState(noHover)
-  /* Under the pointer or holding focus: when the "+" is drawn. */
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const near = hovered || focused
@@ -187,17 +150,13 @@ export function FolderRow({
   const menuActs: ActHandlers = addInMenu ? { ...acts, 'add-page': onAddInside } : acts
   const hasActions = Object.values(menuActs).some((act) => act !== undefined)
   const menuTrigger = useRef<HTMLButtonElement>(null)
-  /*
-  The carried row follows the pointer with no easing (any easing reads as lag);
-  the rows it passes ease into the space they make.
-  */
+  // The carried row follows the pointer with no easing; easing reads as lag.
   const offset = dragState?.offset ?? 0
   const dragStyle: React.CSSProperties | undefined =
     dragState === undefined || (offset === 0 && !dragState.isActive)
       ? undefined
       : {
-          /* The carried row sits one inline step right and down of the
-             pointer, so the row it is over stays readable. */
+          // Offset from the pointer so the row underneath stays readable.
           transform: dragState.isActive && !dragState.isSettling
             ? `translate(var(--space-inline), calc(${String(offset)}px + var(--space-inline)))`
             : `translateY(${String(offset)}px)`,
@@ -207,8 +166,8 @@ export function FolderRow({
               : 'transform 150ms cubic-bezier(0.2, 0, 0, 1)',
           zIndex: dragState.isActive ? 30 : undefined,
           position: dragState.isActive ? 'relative' : undefined,
-          /* The carried row must not catch the point it follows: the
-             Library's containerAt asks the document what is under it. */
+          // The carried row must not catch the point it follows: the Library's containerAt
+          // asks the document what is under it.
           pointerEvents: dragState.isActive ? 'none' : undefined,
         }
 
@@ -222,7 +181,7 @@ export function FolderRow({
         hasActions
           ? (event) => {
               event.preventDefault()
-              /* A sub-page's row sits inside its parent's item: one menu opens. */
+              // A sub-page's row sits inside its parent's item, so stop here to open one menu.
               event.stopPropagation()
               menuTrigger.current?.click()
             }
@@ -293,7 +252,7 @@ export function FolderRow({
         )}
 
         {fold === undefined || renaming ? null : (
-          /* Over the mark, in the same box, so nothing shifts when it shows. */
+          // Over the mark, in the same box, so nothing shifts when it shows.
           <button
             type="button"
             data-fold
@@ -313,8 +272,8 @@ export function FolderRow({
         )}
 
         {(hasActions || addButton) && !renaming ? (
-          /* Opacity and never a collapsed box: a control with an empty box
-             cannot be addressed. `data-no-drag`: a press here is not the grip. */
+          // Opacity, never a collapsed box: an empty box cannot be addressed.
+          // `data-no-drag`: a press here is not the grip.
           <div
             data-no-drag
             className="absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center opacity-0 transition-opacity duration-150 group-focus-within/folder-row:opacity-100 group-hover/folder-row:opacity-100 has-data-popup-open:opacity-100 [@media(hover:none)]:opacity-100"
@@ -326,9 +285,7 @@ export function FolderRow({
                 variant="ghost"
                 size="icon"
                 onClick={(event) => {
-                  /* The press is spent: focus must not stay here, where Enter
-                     or Space would add another page. The new page's name
-                     field takes it. */
+                  // Drop focus so Enter or Space cannot add another page; the new name field takes it.
                   event.currentTarget.blur()
                   onAddInside()
                 }}
@@ -361,7 +318,6 @@ export function FolderRow({
         ) : null}
 
         {dropMark === 'before' || dropMark === 'after' || dropMark === 'first-child' ? (
-          /* Where the page would land: a line at the depth it would take. */
           <span
             aria-hidden="true"
             className={cn(
@@ -387,8 +343,6 @@ export function FolderRow({
   )
 }
 
-/* What a release would do, in words, on the carried row, with the closing ring
-   that says how long a hold takes. */
 function Proposal({
   text,
   holding,
@@ -418,7 +372,7 @@ function Proposal({
   )
 }
 
-/* Mounted only while a hold runs, so the ring always starts from empty. */
+// Mounted only while a hold runs, so the ring always starts from empty.
 function DwellRing(): React.JSX.Element {
   const [grown, setGrown] = useState(false)
   useEffect(() => {

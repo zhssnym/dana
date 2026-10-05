@@ -43,45 +43,36 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   readonly page: PageView
   readonly folderId: string
   readonly arrangeable: boolean
-  /** A Doc page (step 7): flat headings that never make Work Sections, and no
-   * thread. Without it the canvas is a Work page's thread. */
+  /** A Doc page: flat headings that never make Work sections, and no thread. */
   readonly presentationHeadings?: boolean
-  /** A Doc page's `/` Page: a sub-page made here, where the slash was; told its id once saved. */
+  /** A Doc page's `/` Page; told the new page's id once saved. */
   readonly onCreatePage?: (madeId: string) => void
-  /** The Results tab: `/result` makes a native Result (#213). */
   readonly results?: boolean
   readonly workRootId?: string
-  /** The folder's completed task cards the page already loaded; a placement
-   * found here draws as its real row, checked and muted. */
+  /** A placement found here draws as its real row, checked and muted. */
   readonly completed?: Rows['tasks']
-  /** View-only Task narrowing. It never changes the document or thread model. */
+  /** View-only narrowing; never changes the document or thread model. */
   readonly taskFilter?: TaskFilter
-  /** Ignored since M4: done work always shows in place on the thread, where
-   * long done stretches elide instead. */
+  /** Ignored: done work always shows in place on the thread. */
   readonly showCompleted?: boolean
-  /** Compatibility with the page caller; Results is reached through its tab. */
+  /** Kept for the page caller; Results is reached through its tab. */
   readonly resultsWritable?: boolean
 }
 
-/* The Work thread's elision is computed once per opening of the page (M4
-   §2.9, "ticks linger"): a task ticked now stays where it is. Held above the
-   checkpoint remount, so making a task does not re-elide the page. */
+// The thread's elision is computed once per opening, so a task ticked now stays put.
+// Held above the checkpoint remount.
 interface Frozen { current: FrozenElision | null }
 
-/** Reset history only at identity-changing checkpoints or explicit server reconciliation. */
+/** Reset history only at identity-changing checkpoints or server reconciliation. */
 export default function FolderCanvas(props: Props): React.JSX.Element {
   const [checkpoint, setCheckpoint] = useState<{ page: PageView; epoch: number }>({ page: props.page, epoch: 0 })
-  /* One id for this opening of the page, kept across checkpoint remounts: a
-     draft stamped with it was written by this opening, not "from before". */
+  // One id per opening, kept across remounts, so a draft can tell it came from this opening.
   const [opening] = useState(() => crypto.randomUUID())
   const [frozen] = useState<Frozen>(() => ({ current: null }))
-  /* A checkpoint remounts the editor, which is empty for a few frames: the
-     page would lose its height and the browser its scroll, so a tick on a
-     repeating task (the server rewrites the document) threw the reader to
-     the top. The page keeps its height until the new editor has drawn. */
+  // A checkpoint remount leaves the editor empty for a few frames; hold the page's
+  // height so the scroll does not jump to the top.
   const shell = useRef<HTMLDivElement>(null)
-  /* One hold at a time: a second checkpoint restarts it, so the first one's
-     timer cannot let go of the height the second still needs. */
+  // One hold at a time, so an earlier timer cannot release a later hold.
   const hold = useRef<number | undefined>(undefined)
   useEffect(() => () => { window.clearTimeout(hold.current) }, [])
   const onCheckpoint = useCallback((page: PageView): void => {
@@ -97,19 +88,16 @@ export default function FolderCanvas(props: Props): React.JSX.Element {
     <PersistedCanvas key={`${props.folderId}:${checkpoint.epoch}`} {...props} opening={opening} frozen={frozen} initialPage={checkpoint.page} onCheckpoint={onCheckpoint} />
   </CanvasErrorBoundary></div>
 }
-/** How long a checkpoint remount keeps the page's height (ms): the new editor draws well within it. */
+/** How long a checkpoint remount keeps the page's height (ms). */
 const HOLD_HEIGHT_FOR = 1500
 
-/** The one error "Load latest" answers besides a failed save. */
-/* A Task made with Enter keeps the person writing Tasks: the save remounts
-   the editor (a checkpoint), so the next line is opened by the new editor,
-   right under the Task, with the page scrolled where it was. Keyed by draft key. */
+/**
+ * After a task made with Enter, the remounted editor opens the next line under it,
+ * with the scroll restored. Keyed by draft key.
+ */
 const resumeAfter = new Map<string, { taskId: string; scroller: Element | null; top: number; line?: string; typed: string }>()
-/* What is typed while the Task is being made (the editor is read-only for
-   that round trip, then remounts) is kept and lands on the next line, so
-   "Buy milk ⏎ Call mom" typed at speed loses no letters. Only plain letters
-   and Backspace, and only while nothing else has focus; it lets go when the
-   line opens or the resume is dropped. */
+// Keep letters typed while the task saves (the editor is read-only, then remounts)
+// and put them on the next line.
 function keepTyping(key: string, resume: { typed: string }): void {
   const onKey = (event: KeyboardEvent): void => {
     if (resumeAfter.get(key) !== resume) { window.removeEventListener('keydown', onKey, true); return }
@@ -135,7 +123,7 @@ function scrollerOf(element: Element | null): Element | null {
 
 const CHANGED_ELSEWHERE = 'This page changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
-/** The trashed Tasks `page` no longer holds, when that is all that differs from `held`; otherwise null. */
+/** The trashed tasks `page` no longer holds, when that is the only difference. */
 function trashedOnly(held: PageView, page: PageView, trashing: ReadonlySet<string>): ReadonlySet<string> | null {
   const gone = new Set(held.items.filter((item) => item.kind === 'task' && trashing.has(item.id) && !page.items.some((kept) => kept.id === item.id)).map((item) => item.id))
   if (gone.size === 0) return null
@@ -160,9 +148,7 @@ function PersistedCanvas({ page, initialPage, folderId, presentationHeadings, on
   const [width, setWidth] = useState<number | null>(null)
   const [reloadNote, setReloadNote] = useState('')
   useEffect(() => { setWidth(host.current?.clientWidth || 600) }, [])
-  // A page without a revision cannot be written safely: every save would carry
-  // no base and the server could not refuse a stale write. Say so and offer a
-  // reload instead of crashing the canvas or guessing a base.
+  // Without a revision every save would carry no base, so pause writing instead.
   const pageKey = queryKeys.folderPage(folderId)
   if (!initialPage.revision) return <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
     This page opened without its version, so writing is paused to keep your page safe. Nothing was changed.
@@ -189,8 +175,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
   const completedContainer = useRef<HTMLDivElement>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  /* The empty line "/ Task" turned into a task being titled in place: its
-     block id while the person types, null otherwise. */
+  // The block id of an empty "/ Task" line being titled in place, or null.
   const [draftTask, setDraftTask] = useState<string | null>(null)
   const draftRef = useRef<string | null>(null)
   draftRef.current = draftTask
@@ -205,8 +190,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     if (workRootId === undefined) return hydrated
     const shift = (blocks: CanvasInput[]): CanvasInput[] => blocks.map((block) => {
       const children = block.children ? shift(block.children) : []
-      // A Section's level is its depth, one deeper in the window; a
-      // presentation heading keeps the level it is stored with.
+      // A section's level is its depth, one deeper in the window.
       if (block.type === 'heading' && isSectionHeading({ type: block.type, props: (block.props ?? {}) as Record<string, unknown> })) {
         return {
           ...block,
@@ -218,48 +202,9 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     })
     return shift(hydrated)
   }, [editorPage, width, workRootId])
-  /* Which of these block ids the server *currently* stores as a reference, so
-     it is read from `page` — the query row `onSaved` writes back after every
-     save — and never from `initialPage`, which the editor's content comes from.
-     The two differ on purpose and reading both from `initialPage` is wrong in
-     one direction.
-
-     This session does not remount after an ordinary save. `onCheckpoint` fires
-     only for a transaction carrying `create_task`, and the reconciliation
-     effect below returns early while `page.revision === writer.revision`, so a
-     map taken at mount keeps an entry for a block long after a save wrote
-     `ref_folder_id: null` for it. BlockNote keeps a block's id across a type
-     conversion and `dehydrateCanvas` re-applies the entry to whatever is a
-     paragraph under that id, so reference → heading → paragraph inside one
-     mounted session put the relation back and dropped the rich content the
-     block gathered while it was a heading — a deliberate conversion silently
-     reverted, and `page_blocks_ref_folder_id_fkey` being ON DELETE CASCADE,
-     the folder then took the paragraph with it. Measured through this
-     component against a real database in issue #255's review; AC-663 is it.
-
-     `page` follows the server, so the entry goes as soon as the conversion
-     lands. **What that does not close is the flight itself**: a conversion and
-     its undo inside one save's flight read a map nothing has updated yet, and
-     the relation is restored.
-
-     **That window is one request long only while saves succeed, and it is
-     unbounded when one fails.** Measured on this commit in #255's second
-     review, which drove it end to end. `CanvasWriter.change` sets `latest`
-     unconditionally and latches only the state transition, so every keystroke
-     during a failure is still projected against this map; `committed` never
-     runs, so `onSaved` never runs, so `page` — and this map with it — is
-     frozen at the pre-failure row for the whole failure; and the editor stays
-     editable throughout. `retry()` then re-sends the original request,
-     `committed` runs, `settled(latest)` is computed from a projection built
-     against the stale map and answers `'changed'`, and the autosave ships it
-     **with no gesture after the retry**. Convert a reference to a heading, see
-     the save fail, press undo, click Retry save: the row comes back a
-     `folder_ref` under ON DELETE CASCADE on a block deliberately converted
-     away. Narrower than the hole above — it needs a failure straddling a
-     conversion — and far narrower than `main`, where the relation died on
-     every keystroke. Closing it means reading `writer.pending?.document`
-     rather than `page`, and it wants a criterion: nothing in the suite makes
-     `route.send` throw, so this whole path is unmeasured. */
+  // Read refs from `page` (the saved row), never `initialPage`: a stale entry re-applies
+  // a reference to a converted block, and ON DELETE CASCADE then deletes it (AC-663).
+  // Known gap: while a save fails `page` is frozen, so an undo before Retry can restore it.
   const folderRefs = useMemo(() => folderRefsOf(page), [page])
   async function uploadCanvasFile(
     kind: CanvasMediaKind,
@@ -281,7 +226,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     }
   }
 
-  // One hint everywhere, the one the focused empty line shows too (canvas.css).
+  // The same hint as the focused empty line (canvas.css).
   const placeholder = "Press '/' for commands"
   const editor = useCreateBlockNote({
     schema: canvasSchema,
@@ -294,13 +239,8 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
         setError,
         presentationHeadings === true,
       ) ?? defaultPasteHandler({ plainTextAsMarkdown: false }),
-    /*
-     * BlockNote uses this path for direct drops. The schema's fileBlockAccept
-     * tables use the same shared allowlists, so an unsupported audio/video
-     * MIME falls through to File and this classification stays in lockstep.
-     * Explicit slash insertion/replacement uses CanvasFilePanel instead, where
-     * the selected block kind is known and therefore cannot be reclassified.
-     */
+    // Direct drops. The schema's accept tables use the same allowlists, so this stays
+    // in step; slash insertion uses CanvasFilePanel instead.
     uploadFile: async (file) => {
       const mime = file.type
       const kind: CanvasMediaKind =
@@ -311,16 +251,12 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
             : (VIDEO_MIMES as readonly string[]).includes(mime)
               ? 'video'
               : 'file'
-      // BlockNote applies an object result as an updateBlock partial, so the
-      // file's url and name go under `props` or the dropped block stays empty.
+      // BlockNote applies the result as an updateBlock partial, so the file goes under `props`.
       return { props: await uploadCanvasFile(kind, file) }
     },
   })
-  // The baseline is the server's page reconciled with what this editor can draw
-  // of it, never the editor's rendering alone: a writer based on the rendering
-  // alone has nothing to restore a kind the editor cannot draw from, and every
-  // save would lose it. An empty page still starts from an empty
-  // baseline, so the placeholder paragraph is written rather than assumed.
+  // The writer's baseline is what a save of the untouched page would send (`baselineOf`).
+  // An empty page starts from an empty baseline, so the placeholder line is written.
   const documentPath = `/folders/${folderId}/page`
   const projection = (current: readonly CanvasBlock[]): CanvasDocument => {
     const drawn = dehydrateCanvas(current, width, folderRefs)
@@ -328,23 +264,19 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     return workRootId === undefined ? lossless : mergeWorkDocument(page, workRootId, lossless)
   }
   const empty = { blocks: [], items: [] }
-  // Projected once, at mount: on later renders the live document may hold an
-  // unsaveable block (an external image) and projecting it here would throw
-  // during render and take the whole canvas down.
+  // Projected once at mount: a later document may hold an unsaveable block and
+  // projecting it during render would throw.
   const firstProjection = (): CanvasDocument => initial.length
     ? projection(editor.document)
     : workRootId === undefined
       ? empty
       : mergeWorkDocument(initialPage, workRootId, empty)
   const queryClient = useQueryClient()
-  /* The page as the writer's revision holds it, and the Tasks this editor sent
-     to Trash with writing (`settle`): the page coming back with only those
-     gone is this editor's own act, not a change from elsewhere (below). */
+  // The page at the writer's revision, and tasks this editor trashed with writing,
+  // so their removal is not mistaken for a change from elsewhere.
   const held = useRef(initialPage)
   const trashing = useRef(new Set<string>())
-  // This is a recoverable draft, never a cached page or an automatic offline queue.
-  // One key per document: Work and each tab keep their own. A tab that was a
-  // facet kept the facet's id, so a draft stored under it is still found.
+  // A recoverable draft, never a cache or offline queue. One key per document.
   const draftKey = `dana-canvas-draft:${folderId}`
   const [writer] = useState(() => new CanvasWriter(firstProjection(), initialPage.revision ?? '',
     (body) => mutateApi(getPageResponse, { method: 'POST', path: `${documentPath}/actions`, body }),
@@ -359,7 +291,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
       held.current = next
       onSaved(next)
       if (checkpoint) onCheckpoint(next)
-      // A sub-page trashed or restored, or a Task made, changes the folder list.
+      // Trashing or restoring a sub-page, or making a task, changes the folder list.
       if (operations.some((op) => op.op === 'create_task' || op.op === 'create_page' || op.op === 'trash_page' || (op.op === 'put_block' && op.block_kind === 'page'))) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.folders(), exact: true })
         void queryClient.invalidateQueries({ queryKey: queryKeys.allPages(), exact: true })
@@ -367,10 +299,8 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     },
   ))
   useEffect(() => {
-    /* Offered back only when it predates this opening of the page. A save
-       that makes a task remounts this editor while the previous one's draft
-       is still stored; that writing is the page on screen, not "from before".
-       "Load latest" stores its draft without the stamp, so it is offered. */
+    // Offer a draft back only when it predates this opening; "Load latest" stores one
+    // without the stamp, so it is offered.
     try {
       const draft = sessionStorage.getItem(draftKey)
       const own = draft !== null && (JSON.parse(draft) as { opening?: unknown }).opening === opening
@@ -389,17 +319,12 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     const timer = window.setTimeout(() => { void writer.flush() }, 450)
     return () => window.clearTimeout(timer)
   }, [writer, writer.state, writer.latest])
-  // Leaving the page or the tab sends what the 450 ms wait was holding; the
-  // request outlives this editor, and the cache it answers into is shared.
+  // Leaving sends what the 450 ms wait was holding; the request outlives this editor.
   useEffect(() => () => { void writer.drain() }, [writer])
   useEffect(() => {
     if (!page.revision || page.revision === writer.revision || writer.state === 'saving') return
-    /* Writing and a Task deleted together (#512): the writing is saved, then
-       the Task goes to Trash, which moves the revision. Remounting for that
-       would take the writing's removal out of the editor's history, and
-       nothing else could bring it back. So when the page differs from the one
-       the writer holds only by those Tasks being gone, their rows leave here,
-       outside history, and the writer takes the new revision. */
+    // Writing and tasks deleted together: when the page differs only by those tasks
+    // being gone, remove their rows outside history instead of remounting.
     const gone = writer.state === 'saved' ? trashedOnly(held.current, page, trashing.current) : null
     if (gone !== null) {
       const rows = taskBlocks(editor.document, gone)
@@ -431,9 +356,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     URL.revokeObjectURL(url)
   }
   async function loadLatest(): Promise<void> {
-    // Kept as the Task and Shelf writers keep it: the draft goes to this tab's
-    // storage and the remount offers it back ("Earlier writing…"); a download
-    // only when storage refuses it.
+    // Store the draft for the remount to offer back; download only if storage refuses.
     try { sessionStorage.setItem(draftKey, JSON.stringify({ folderId, revision: writer.revision, blocks: editor.document, pending: writer.pending?.request })) } catch { copyDraft() }
     try {
       const latest = await getPlain(getPageResponse, documentPath)
@@ -441,11 +364,8 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
       onCheckpoint(latest)
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not reload the page.') }
   }
-  /* Takes its block and title as arguments rather than reading state, because
-     the slash menu calls it in the same tick it would have set that state. A
-     refusal leaves the title where it was typed, so it is never lost, and
-     says why below the canvas: on the page, or back in "Add a task…" when
-     that line wrote it (`lineTitles`). */
+  // Takes block and title as arguments: the slash menu calls it in the same tick it
+  // would set that state. A refusal leaves the title where it was typed.
   async function createTask(blockId: string | null, taskTitle: string): Promise<void> {
     if (!blockId || !taskTitle.trim()) return
     const line = lineTitles.get(blockId)
@@ -469,15 +389,13 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     const replace = (blocks: readonly CanvasInput[]): CanvasInput[] => blocks.flatMap((block) => {
       if (block.id === blockId) {
         const task: CanvasInput = { id, type: 'danaTask', props: { taskId: id } }
-        // Text, or a stored to-do, becomes the Task (blocks nested under it follow it);
-        // anything else keeps its place and the Task follows.
+        // Text or a stored to-do becomes the task; anything else stays and the task follows.
         return block.type === 'paragraph' || block.type === 'checkListItem' ? [task, ...replace(block.children ?? [])] : [block, task]
       }
       return [{ ...block, children: block.children ? replace(block.children) : [] }]
     })
     const proposal = replace(editor.document)
-    // Serialize with the schema's complete block shape; no temporary Task row or
-    // simulated mutable Task record is put into the live editor before commit.
+    // Serialize through a temporary editor; nothing is put into the live editor before commit.
     let temporary: ReturnType<typeof BlockNoteEditor.create> | null = null
     let drafted: CanvasDocument
     try {
@@ -492,22 +410,14 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     writer.change(drafted)
     const resume = resumeAfter.get(draftKey)
     if (resume !== undefined) resume.taskId = id
-    // A failed send is reported by the save status below, whose Retry
-    // re-sends this exact request, Task included.
+    // A failed send shows in the save status, whose Retry re-sends this request.
     try { await writer.flush({ op: 'create_task', id, title: taskTitle.trim() }) } finally {
       setCreating(false)
       if ((writer.state as string) === 'failed') resumeAfter.delete(draftKey)
     }
   }
-  /* A Doc's `/` Page: the page and its link are made in one save
-     (`create_page`), the link where the slash was typed. The menu has already
-     cleared its `/page` query, so an empty line becomes the link; a line
-     with text keeps it and the link follows. The writing is saved first, as
-     for a Task, so the save that makes the page carries nothing else. The
-     link is drafted outside the live editor, so the editor is read-only
-     (`creating`) until the save lands: typing meanwhile would replace the
-     drafted document with one lacking the link, and the next save would
-     trash the page just made. */
+  // A Doc's `/` Page: page and link are made in one save. The editor is read-only
+  // until it lands, or typing would replace the drafted link and trash the new page.
   const makePage = onCreatePage === undefined ? undefined : (): void => {
     const at = editor.getTextCursorPosition().block
     if (writer.state === 'failed') { setError(pageBlocked); return }
@@ -543,12 +453,9 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     })()
   }
   const pageBlocked = 'Your writing has not saved, so a page cannot be made yet. Use Load latest below; your writing is kept.'
-  // A failed save's line offers "Load latest" beside this sentence (SaveFailure): name that control, not ones it lacks.
+  // The failed-save line offers "Load latest", so name only that control.
   const taskBlocked = 'Your writing has not saved, so a task cannot be made yet. Use Load latest below; your writing is kept.'
-  /* A paragraph with text becomes its task at once. An empty line becomes a
-     task being titled right there: the line takes a checkbox and a "Task
-     title" placeholder, Enter or leaving it creates the task from what was
-     typed, and leaving it empty takes the line away. No dialog. */
+  // A paragraph with text becomes a task at once; an empty line is titled in place.
   function askTask(target?: CanvasBlock): void {
     const block = target ?? editor.getTextCursorPosition().block
     const text = block.type === 'paragraph' || block.type === 'checkListItem' ? richRuns(block).map((run) => run.text).join('') : ''
@@ -560,7 +467,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
       if (inserted === undefined) return
       at = inserted.id
     }
-    // Known at once, not after the next render: an Enter typed right after `[] ` is the draft's.
+    // Set now, not after render: an Enter right after `[] ` belongs to the draft.
     draftRef.current = at
     setDraftTask(at)
     setDraftEmpty(true)
@@ -587,8 +494,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     }
     if (editor.document.length > 1) editor.removeBlocks([blockId])
   }
-  /* Leaving the line — the cursor moving to another block, or focus leaving the
-     editor — settles it the way Enter does. */
+  // Leaving the line settles it the way Enter does.
   useEffect(() => editor.onSelectionChange(() => {
     const blockId = draftRef.current
     if (blockId !== null && editor.getTextCursorPosition().block.id !== blockId) settleDraftTask()
@@ -615,7 +521,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
       if (resume.scroller !== null) resume.scroller.scrollTop = resume.top
       document.querySelector(`.dana-writing-canvas .bn-block[data-id="${line}"]`)?.scrollIntoView({ block: 'nearest' })
     }
-    // What was typed during the round trip (`keepTyping`) is the new line's text.
+    // Text typed during the round trip (`keepTyping`) goes on the new line.
     const typedAhead = (): void => {
       if (resume.typed === '' || editor.getBlock(line) === undefined) return
       editor.setTextCursorPosition(line, 'end')
@@ -636,8 +542,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     if (draftRef.current === null) return
     const drafting = editor.getBlock(draftRef.current)
     const blank = drafting === undefined || richRuns(drafting).every((run) => run.text === '')
-    /* Enter or Backspace on the line while it is empty ends the list, as on an
-       empty to-do in Notion: the line stays, plain text, the caret on it. */
+    // Enter or Backspace on the empty line ends the list; the line stays as text.
     if (blank && ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Backspace')) {
       event.preventDefault(); event.stopPropagation()
       draftRef.current = null; setDraftTask(null)
@@ -655,8 +560,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
   }
   const draftBox = `.dana-writing-canvas .bn-block[data-id="${draftTask}"] > .react-renderer > .bn-block-content`
   const draftStyle = draftTask === null ? '' : `${draftBox}{display:flex;flex-direction:row;align-items:center} ${draftBox}::before{content:"";flex-shrink:0;width:var(--checkbox-size);height:var(--checkbox-size);border:1px solid color-mix(in srgb, var(--muted-foreground) 50%, transparent);border-radius:var(--radius-sm);margin-inline:calc((var(--control-height) - var(--checkbox-size)) / 2)} ${draftBox}::after{content:none !important} ${draftBox} > *{flex:1;min-width:0}${draftEmpty ? ` ${draftBox} .bn-inline-content::before{content:"Task title" !important;color:var(--muted-foreground);position:absolute;pointer-events:none}` : ''}`
-  /* The Results a save has stored: only those can be linked to yet, so only
-     they ask for "Referenced from" (a new one would be a 404 in the console). */
+  // Only Results a save has stored can be linked, so only they ask for backlinks.
   const savedResults = useMemo(() => new Set(page.blocks.filter((block) => block.kind === 'result').map((block) => block.id)), [page])
   const pendingTask = writer.pending?.request.operations.some((operation) => operation.op === 'create_task') === true
   const draftHasRequest = ((): boolean => {
@@ -671,8 +575,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     const link = document.createElement('a'); link.href = url; link.download = `dana-recovered-${folderId}.json`; link.click(); URL.revokeObjectURL(url)
   }
   return <>
-    {/* Purpose and Results pass the reader's edit right as `arrangeable`: a
-       reader who cannot write there has nothing filtered or sorted to hear about. */}
+    {/* `arrangeable` is the reader's edit right here; a reader who cannot write gets no notice. */}
     {!arrangeable && presentationHeadings !== true ? (
       <p className="mb-3 text-sm text-muted-foreground">
         {taskFilter === undefined ? 'Writing is paused while this list is filtered or sorted.' : 'Clear filters to edit this page.'}
@@ -740,9 +643,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
   </>
 }
 
-/* What the viewer opened on the thread, for this session only (M4 §2.9):
-   the "Earlier work" breaks they expanded. Never stored. Section headings
-   never fold, so a `toggle-<id>` an older build stored for one is ignored. */
+// The "Earlier work" breaks this viewer expanded, for this session only. Never stored.
 const threadSession = new Map<string, { expanded: Set<string> }>()
 function sessionOf(folderId: string): { expanded: Set<string> } {
   let found = threadSession.get(folderId)
@@ -756,7 +657,6 @@ interface RailMark { readonly id: string; readonly x: number; readonly y: number
 type Card = Rows['tasks'][number]
 const noFacts: ThreadFacts = { next: null, shared: false, completedOn: new Map() }
 const sharedNoThread: ThreadFacts = { ...noFacts, shared: true }
-/** Block `id` anywhere in the document, or undefined. */
 function findBlock(blocks: readonly ThreadBlock[], id: string): ThreadBlock | undefined {
   for (const block of blocks) {
     if (block.id === id) return block
@@ -768,32 +668,21 @@ function findBlock(blocks: readonly ThreadBlock[], id: string): ThreadBlock | un
 
 /** How long after a tick the lists' answer still counts as that tick's (ms). */
 const TICK_ANSWERS_WITHIN = 4000
-/* Per page: where the done stretch last stopped and what it covered, and
-   when this viewer last ticked there. Held outside ThreadLayer, because a
-   repeating task's tick rewrites the document and remounts the editor (and
-   ThreadLayer with it) between the tick and the stretch's move. */
+// Held outside ThreadLayer: a repeating task's tick remounts the editor between the
+// tick and the stretch's move.
 const threadMotion = new Map<string, {
   readonly stop: string | null
   readonly progress: ReadonlyMap<string, ProgressState>
-  /** When this viewer last ticked, and the stretch as it stood then; cleared once the growth has played. */
+  /** When this viewer last ticked, and the stretch then; cleared once the growth plays. */
   readonly tick: { readonly at: number; readonly before: ReadonlyMap<string, ProgressState> } | null
 }>()
-/* How long the growth is held at most (ms). It ends when its animation does;
-   this covers reduced motion, where none plays, and an editor a remount has
-   not drawn yet (the animation starts when the blocks appear). */
+// The longest the growth is held (ms), for reduced motion and a not-yet-drawn editor.
 const FILL_FOR = 2000
 
 /**
- * The Work thread (M4 §2): the same document, drawn on a rail. It reads the
- * document on every change and turns `thread-model` into one style element,
- * keyed by block id, so nothing is written into ProseMirror's DOM. Task nodes
- * read the ring and meta facts through `ThreadFactsProvider`; the editor
- * itself does not re-render.
- *
- * "Earlier work" is a real button laid over the rail from this container, not
- * a widget in the document, so drag, selection and undo are untouched and a
- * keyboard or screen reader reaches it. Section headings are numbered stops
- * and never fold.
+ * The Work thread: the same document drawn on a rail through one style element keyed
+ * by block id, so nothing is written into ProseMirror's DOM. "Earlier work" is a real
+ * button over the rail, so drag, selection and undo are untouched.
  */
 function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, children }: {
   readonly enabled: boolean
@@ -821,12 +710,8 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, childr
   const breaks = new Set<string>()
   for (const [id, at] of still?.elision.elided ?? []) if (!session.expanded.has(at)) { elided.set(id, at); breaks.add(at) }
   const model = threadModel({ blocks: enabled ? blocks : [], open, today: context.today, viewerId: context.viewerId, shared, elided })
-  /* The one motion (AC-1514): a tick by this viewer grows the done stretch
-     down to the new frontier. The tick is heard first (`onTick`); the stretch
-     moves when the page's lists answer, which may be a moment later (after a
-     remount, for a repeating task), and only a move that follows the viewer's
-     own tick is animated. Compared after commit, so a render React throws
-     away changes nothing. */
+  // The one motion (AC-1514): only a move that follows this viewer's own tick animates.
+  // Compared after commit, so a discarded render changes nothing.
   const [grown, setGrown] = useState<{ readonly from: ReadonlyMap<string, ProgressState>; readonly at: number } | null>(null)
   const css = enabled ? threadStyle(model, new Set(elided.keys()), breaks, grown?.from ?? null) : ''
   const stop = [...model.progress].find(([, state]) => state === 'done-frontier')?.[0] ?? null
@@ -836,9 +721,7 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, childr
     const tick = seen?.tick ?? null
     threadMotion.set(folderId, { stop, progress: model.progress, tick })
     if (seen === undefined || seen.stop === stop || tick === null || performance.now() - tick.at >= TICK_ANSWERS_WITHIN) return
-    /* Always from the stretch as it stood at the tick: a repeating task's
-       tick moves the stop twice (the lists answer before the rewritten
-       document does), and the second move lands on a freshly drawn editor. */
+    // Always from the stretch at the tick: a repeating task moves the stop twice.
     setGrown({ from: tick.before, at: performance.now() })
   })
   useEffect(() => {
@@ -846,9 +729,7 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, childr
     const timer = window.setTimeout(() => { setGrown(null) }, FILL_FOR)
     return () => { window.clearTimeout(timer) }
   }, [grown])
-  /* Only a tick of the task the stretch stops at moves it: any other tick
-     arms nothing, so a collaborator's tick of that task a moment later does
-     not play the motion here. */
+  // Only a tick of the frontier task arms the motion, so a collaborator's tick does not.
   const frontierBlock = [...model.line].find(([, style]) => style === 'frontier')?.[0]
   const frontierTask = useRef<string | null>(null)
   const frontierProps = frontierBlock === undefined ? undefined : findBlock(blocks, frontierBlock)?.props
@@ -864,14 +745,11 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, childr
     setGrown(null)
   }, [folderId])
   const facts = useMemo<ThreadFacts>(() => ({ next: model.next, shared, completedOn, onTick }), [model.next, shared, completedOn, onTick])
-  /* A press on an "Earlier work" break shows what it holds. Heard on the
-     window, before the marquee (CanvasMarquee), which takes any press outside
-     a block's row for a band selection. */
+  // Listen on the window, before CanvasMarquee takes the press as a band selection.
   const host = useRef<HTMLDivElement>(null)
   const live = useRef({ breaks })
   live.current = { breaks }
-  /* Where the rail's controls go: measured after every render and on every
-     resize, and set only when something moved. */
+  // Measured after every render and resize; set only when something moved.
   const [marks, setMarks] = useState<readonly RailMark[]>([])
   const drawn = useRef('')
   const measure = useCallback((): void => {
@@ -914,7 +792,7 @@ function ThreadLayer({ enabled, editor, folderId, tasks, context, frozen, childr
     window.addEventListener('mousedown', onPress, true)
     return () => window.removeEventListener('mousedown', onPress, true)
   }, [enabled, folderId])
-  /* A Doc draws no thread, but its tasks still show who has them. */
+  // A Doc draws no thread, but its tasks still show who has them.
   if (!enabled) return <ThreadFactsProvider value={shared ? sharedNoThread : noFacts}>{children}</ThreadFactsProvider>
   return (
     <ThreadFactsProvider value={facts}>

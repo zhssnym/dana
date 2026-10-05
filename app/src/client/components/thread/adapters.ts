@@ -1,13 +1,6 @@
-/*
-A post's content (`shared/comments.ts` `postContent`) and the editor's blocks,
-both ways. The editor is the page canvas's own schema less its pages-only
-blocks (`PostEditor.tsx`), so the rich-text half is the canvas adapter's
-`richRuns` / `contentOf` exactly, and only the block kinds are mapped here.
-
-A media block names its file by the served URL (`/api/v1/files/<id>`), which
-is what the canvas upload answers; the post names the id, and the same id
-must ride in the request's `file_ids` (the server refuses anything else).
-*/
+// A post's content and the editor's blocks, both ways. Rich text uses the canvas
+// adapter; media blocks name files by served URL, and the post names the id, which
+// must also be in `file_ids`.
 import { plainContentToString } from '@blocknote/core'
 
 import { postFileIds, postPlainText } from '../../../shared/comments.js'
@@ -24,7 +17,7 @@ export interface LooseBlock {
   readonly children?: readonly LooseBlock[]
 }
 
-/** An editor block to insert: the shape `replaceBlocks` / `initialContent` take. */
+/** The shape `replaceBlocks` and `initialContent` take. */
 export interface EditorInput {
   type: string
   props?: Record<string, unknown>
@@ -47,8 +40,7 @@ const RICH: Readonly<Record<string, PostBlockKind>> = {
 }
 const MEDIA = new Set(['image', 'file', 'audio', 'video'])
 
-/** The editor's blocks as a post's blocks. Throws when a media block points
- * somewhere other than a Dana file (a pasted outside URL). */
+/** Throws when a media block points somewhere other than a Dana file. */
 export function postBlocksOf(blocks: readonly LooseBlock[]): PostBlock[] {
   const out: PostBlock[] = []
   for (const block of blocks) {
@@ -95,8 +87,7 @@ function blank(block: PostBlock): boolean {
     (block.rich_content?.runs ?? []).every((run) => run.text.trim() === '')
 }
 
-/** The post the editor holds, empty paragraphs at either end trimmed; null
- * when it says nothing (no words, no file, no divider). */
+/** Empty paragraphs at either end trimmed; null when it says nothing. */
 export function postContentOf(blocks: readonly LooseBlock[]): PostContent | null {
   const all = postBlocksOf(blocks)
   let start = 0
@@ -109,7 +100,6 @@ export function postContentOf(blocks: readonly LooseBlock[]): PostContent | null
   return content
 }
 
-/** A post's blocks as editor blocks, for editing it in place. */
 export function editorBlocksOf(blocks: readonly PostBlock[], files: readonly CommentFile[] = []): EditorInput[] {
   const names = new Map(files.map((file) => [file.id, file.name]))
   const visit = (list: readonly PostBlock[]): EditorInput[] =>
@@ -137,7 +127,7 @@ export function editorBlocksOf(blocks: readonly PostBlock[], files: readonly Com
   return visit(blocks)
 }
 
-/** A post written before posts: its plain body, one paragraph per line. */
+/** A post from before structured content: its plain body, one paragraph per line. */
 export function editorBlocksOfBody(body: string | null): EditorInput[] {
   return (body ?? '').split('\n').map((line) => ({ type: 'paragraph', content: line }))
 }

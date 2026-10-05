@@ -1,24 +1,13 @@
 import { Button } from '../../ui/button.js'
 
-/** The words a failed save says, and the only thing any writer says about saving. */
 export const NOT_SAVED = 'Not saved'
 
 /**
- * The one save line every writer (folder, shelf, task) draws under its writing.
- *
- * Success says nothing and a save in flight says nothing; only a failure is
- * shown, quietly: "Not saved — Retry", where Retry re-sends the failed request.
- * A failure nothing can re-send (a conflict, a receipt the page moved past)
- * offers "Load latest" instead, which keeps the draft and offers it back. A
- * writer's own sentence (an edit it could not prepare, a reload that failed)
- * takes the place of "Not saved" in the same line, and so does a gesture the
- * canvas refused (its guard's sentence): one line, never two.
- *
- * The live region is always mounted, so a failure appearing in it is announced;
- * empty, it takes no height.
+ * The one save line every writer draws. Only a failure shows: "Not saved — Retry", or
+ * "Load latest" when nothing can re-send it. The live region stays mounted so it announces.
  */
 export function SaveFailure({ message, onRetry, onLoadLatest }: {
-  /** Absent: nothing failed, and the line is empty. */
+  /** Null: nothing failed, and the line is empty. */
   readonly message: string | null
   readonly onRetry?: (() => void) | undefined
   readonly onLoadLatest?: (() => void) | undefined
@@ -35,12 +24,7 @@ export function SaveFailure({ message, onRetry, onLoadLatest }: {
   </p>
 }
 
-/**
- * The one recovery line every writer draws above its writing when an earlier
- * session left unsaved writing: the same words and the same quiet buttons on
- * a folder, a shelf and a task. Restore is offered where the writer can put
- * the writing back.
- */
+/** The shared recovery line for unsaved writing from an earlier session. */
 export function RecoveryNotice({ onDownload, onRestore, onDiscard }: {
   readonly onDownload: () => void
   readonly onRestore?: (() => void) | undefined

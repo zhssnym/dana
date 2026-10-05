@@ -1,11 +1,5 @@
-/*
-A task's three states, as every task surface names and draws them (M4):
-To do, Done, Dropped. The stored value for Dropped stays `abandoned`; only
-the word and the mark changed.
-
-The mark: an empty ring (to do), a ticked disc (done), a ring struck through
-(dropped). A dropped task is never drawn with the done check.
-*/
+// A task's three states: To do, Done, Dropped (stored as `abandoned`). A dropped task
+// is never drawn with the done check.
 import type { TaskCard } from '../../../../shared/tasks.js'
 import { cn } from '../../ui/utils.js'
 

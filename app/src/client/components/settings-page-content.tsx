@@ -1,34 +1,6 @@
-/*
-9.7's Settings page, the presentation. The route page (`pages/SettingsPage.tsx`)
-owns the reads and the account delete; this file draws four labelled cards in
-one column (Account, Preferences, People, Data), then Delete account in a card of
-its own, then the quiet support line (Hassan's grouped-cards reference, r12).
-Built from the system `Row` inside `settings/screen.tsx`'s cards, neutral
-buttons, one danger style. Settings is the home of every
-configuration: a preference is not also toggled from a menu elsewhere.
-
-What is worth knowing:
-
-- **No view pins.** The sidebar no longer has pinnable views, so the switches
-  that mirrored it are gone rather than kept as a second copy of the sidebar.
-- **Every row is a label and its control** on one line, a phone included; a
-  long description wraps rather than the control.
-- **The picture is the control** for the viewer's own picture (7.15); Remove is
-  offered only while there is one.
-- **"Download my data" is an anchor with `download`**, not a fetch: a navigation
-  carries the session cookie and hands 7.22's attachment to the browser. The
-  cost, recorded in 9.7, is that a rate-limit refusal arrives as a downloaded
-  response rather than a toast.
-- **Sample data lives here and only here** among the pages; Remove is one press
-  and then offers the undo bar.
-- **People** (9.8) is a section here, and /app/people lands on `#people`.
-  Settings is reached from the sidebar's foot, beside Trash. Sign out has one
-  home, the identity row here; the sidebar has no account menu.
-- **Pickers are the one `Combobox`**; the timezone list is long, so it filters
-  as you type.
-- **Delete account** requires typing DELETE, and says shared folders must be
-  handed on first, which is what `DELETE /me`'s 409 enforces (issue #228).
-*/
+// The Settings page presentation; `pages/SettingsPage.tsx` owns the reads and account
+// deletion. "Download my data" is an anchor with `download`, so the session cookie goes
+// with it; a rate-limit refusal then arrives as a downloaded response, not a toast.
 import { useEffect, useRef } from 'react'
 import { Link } from 'react-router'
 
@@ -54,7 +26,7 @@ import { Button } from './ui/button.js'
 import { Combobox } from './ui/combobox.js'
 import { Skeleton } from './ui/skeleton.js'
 
-/* The viewer's picture, name and address. The circle is the button. */
+// The viewer's picture, name and address. The circle is the button.
 function ViewerRow() {
   const viewer = useViewer()
   const fileInput = useRef<HTMLInputElement>(null)
@@ -96,7 +68,7 @@ function ViewerRow() {
       }
       className="min-h-12"
       label={<span className="font-title">{viewer.name}</span>}
-      /* 7.1 has no write for the name: it is Google's, and the line says so. */
+      // The name comes from Google and has no write, and the line says so.
       description={`${viewer.email} · from Google`}
       control={
         <>
@@ -119,7 +91,7 @@ export function SettingsPageContent({
 }: {
   previewState?: string | null
   onDeleteAccount?: () => void
-  /* Drawn only once the page knows whether 7.20's sample is present. */
+  // Drawn only once the page knows whether the sample is present.
   sample?: { present: boolean; busy: boolean; tasks: number; folders: number } | null
   onRemoveSample?: () => void
   onRestoreSample?: () => void
@@ -128,8 +100,8 @@ export function SettingsPageContent({
   const clock = useTimeFormat()
   const [defaultWorkView, setDefaultWorkView] = useDefaultWorkView()
 
-  /* /app/people and other deep links arrive as /app/settings#<section>; the
-     sections draw after the bundle, so scroll once they exist. */
+  // Deep links arrive as /app/settings#<section>; sections draw after the bundle, so
+  // scroll once they exist.
   const ready = previewState !== 'loading' && previewState !== 'error'
   useEffect(() => {
     if (!ready) return
@@ -229,7 +201,7 @@ export function SettingsPageContent({
                 label="Sample workspace"
                 description={sample.present ? 'To show you around.' : undefined}
                 control={
-                  /* The client cannot tell removed from never had, so one neutral label. */
+                  // The client cannot tell removed from never had, so one neutral label.
                   <Button
                     disabled={sample.busy}
                     onClick={sample.present ? onRemoveSample : onRestoreSample}
@@ -270,8 +242,7 @@ export function SettingsPageContent({
   )
 }
 
-/* A simple choice: the one picker, at the one width, so the right column
-   reads as one calm edge and the chosen value is always shown in words. */
+// One picker at one width, so the right column reads as one edge.
 function Choice({
   label,
   value,
@@ -296,9 +267,8 @@ function Choice({
 
 const PICKER = 'w-(--settings-picker-width) max-sm:w-36 justify-between border border-input bg-muted'
 
-/* 7.1's PATCH /me takes a timezone. The list is the browser's own; a zone it
-   does not list, which 7.2 may still have detected, is offered as the current
-   value so the control never shows a zone the account is not in. */
+// The list is the browser's own; a detected zone it lacks is offered as the current
+// value, so the control never shows a zone the account is not in.
 function TimezoneSelect() {
   const viewer = useViewer()
   const zones = supportedTimezones()

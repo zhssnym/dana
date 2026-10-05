@@ -1,20 +1,5 @@
-/*
-The top bar's "where am I": history arrows, then the path, Notion's way.
-
-- `HistoryArrows` are the browser's own back and forward, drawn as two quiet
-  buttons, each disabled when there is nowhere to go. Back is judged by React
-  Router's own `history.state.idx`, so it never offers a way out of Dana to the
-  page before it; forward asks the Navigation API where the browser has one,
-  and otherwise remembers the furthest entry this tab has pushed.
-- `BreadcrumbTrail({ folderId, current })` draws `Page / Sub / Current`.
-  `folderId` is the page whose ancestors lead the trail; it is a link like its
-  ancestors when `current` names something inside it (a task), and the last,
-  unlinked crumb when `current` is omitted. The server has already cut the walk
-  at the first ancestor this viewer may not read, so nothing is filtered here.
-  A long trail keeps its ends: the root, then "…" (a menu of the folded
-  levels), then the last two. A phone keeps only the last two. A trail of
-  one crumb (a root page) is not drawn.
-*/
+// Top bar history arrows and breadcrumb trail. The server already cut the trail at
+// the first ancestor this viewer may not read, so nothing is filtered here.
 import { useSyncExternalStore } from 'react'
 import { Link, useLocation, useNavigate, useNavigationType } from 'react-router'
 
@@ -36,8 +21,8 @@ interface Crumb {
   readonly name: string
 }
 
-/* The furthest history entry this tab has reached, for browsers without the
-   Navigation API. A push truncates the forward stack; a pop never does. */
+// Furthest history entry this tab reached, for browsers without the Navigation API.
+// A push truncates the forward stack; a pop never does.
 let furthest = 0
 
 function historyIndex(): number {
@@ -59,8 +44,7 @@ function navigationApi(): NavigationLike | undefined {
   return (globalThis as { navigation?: NavigationLike }).navigation
 }
 
-/* Re-read after every settled navigation, including ones React Router did not
-   make (a hash change), which is what the Navigation API's event is for. */
+// The Navigation API event also covers navigations React Router did not make (hash changes).
 function subscribeNavigation(notify: () => void): () => void {
   const api = navigationApi()
   api?.addEventListener?.('navigatesuccess', notify)
@@ -71,9 +55,8 @@ export function HistoryArrows(): React.JSX.Element {
   const location = useLocation()
   const type = useNavigationType()
   const navigate = useNavigate()
-  /* Read during render: the router commits its location after the entry is
-     written, so `idx` is already this entry's. `location.key` is the render's
-     dependency; the store only adds the forward flag's own changes. */
+  // Read during render: the router commits its location after the entry is written,
+  // so `idx` is already this entry's.
   void location.key
   const idx = historyIndex()
   furthest = type === 'PUSH' ? idx : Math.max(furthest, idx)
@@ -151,7 +134,6 @@ export function BreadcrumbTrail({
 }: {
   readonly folderId: string | null
   readonly current?: string | null
-  /** Where `folderId`'s own crumb leads when it is not the default page (a thread's list). */
   readonly folderTo?: string
   readonly className?: string
 }): React.JSX.Element | null {
@@ -166,14 +148,11 @@ export function BreadcrumbTrail({
   }
   const hasCurrent = current !== undefined && current !== null
   if (hasCurrent) crumbs.push({ id: null, name: current })
-  /* Waiting for the page's own name: draw nothing rather than a half trail. */
   if (folderId !== null && detail === undefined) return null
-  /* A root page alone is its own title, already the page's heading and the
-     sidebar's highlight: the trail shows only below the root (M4). */
+  // A root page alone is already the page's heading, so the trail shows only below the root.
   if (crumbs.length < 2) return null
 
   const last = crumbs.length - 1
-  /* The root, the fold, then the last two. */
   const folded = crumbs.length > 3 ? crumbs.slice(1, crumbs.length - 2) : []
   const shown: (Crumb | 'fold')[] =
     folded.length === 0 ? crumbs : [crumbs[0] as Crumb, 'fold', ...crumbs.slice(crumbs.length - 2)]
@@ -183,16 +162,13 @@ export function BreadcrumbTrail({
       <ol className="flex min-w-0 items-center gap-0.5">
         {shown.map((crumb, index) => {
           const position = crumb === 'fold' ? -1 : crumbs.indexOf(crumb)
-          /* A phone keeps the last two: the parent and where you are. */
           const phoneHidden = crumb === 'fold' || position < last - 1
           return (
             <li
               key={crumb === 'fold' ? 'fold' : `${crumb.id ?? 'current'}-${String(position)}`}
               className={cn(
                 'flex min-w-0 items-center gap-0.5',
-                /* The current crumb wins the space: ancestors give way first,
-                   and the fold button never shrinks. */
-                /* On a phone the two crumbs share the squeeze, so the parent keeps a readable stub. */
+                // The current crumb wins the space; on a phone the two crumbs share it.
                 crumb === 'fold' ? 'shrink-0' : position === last ? 'shrink' : 'shrink-[8] max-md:shrink',
                 phoneHidden && 'max-md:hidden',
               )}
@@ -227,10 +203,8 @@ export function BreadcrumbTrail({
               ) : (
                 <Link
                   to={folderTo !== undefined && crumb.id === folderId ? folderTo : paths.folder(crumb.id ?? '')}
-                  /* The page already under a peek: going to it closes the
-                     peek without stacking a second entry for the same page.
-                     Leaving an open issue or thread (`folderTo`) pushes, so
-                     Back returns to it rather than to a copy of the list. */
+                  // Going to the page already under a peek replaces the entry. Leaving a thread
+                  // (`folderTo`) pushes, so Back returns to it.
                   replace={folderTo === undefined && paths.folder(crumb.id ?? '') === pathname}
                   title={crumb.name}
                   className={cn(CRUMB, 'text-muted-foreground hover:bg-accent hover:text-foreground')}

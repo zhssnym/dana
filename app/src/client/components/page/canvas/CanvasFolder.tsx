@@ -5,8 +5,7 @@ import { createReactBlockSpec } from '@blocknote/react'
 import { markIcon } from '../icon-manifest.js'
 import { cn } from '../../ui/utils.js'
 
-/** What a Shelf's native Folder row draws: the membership's own facts, read
- * from Dana's folder list rather than stored on the block (#221). */
+/** Read from the folder list, not stored on the block. */
 export interface CanvasFolderRow {
   readonly id: string
   readonly name: string
@@ -25,9 +24,7 @@ export function CanvasFolderProvider({ value, children }: { readonly value: Fold
   return <FolderContext.Provider value={value}>{children}</FolderContext.Provider>
 }
 
-/** A native Folder row on a Shelf (`folder_ref`): placement only, the Folder's
- * membership of the Shelf stays `folder_members.shelf_name`. Icon and name,
- * nothing else; it opens the Folder (AC-223). */
+/** A folder row on a shelf: placement only; it opens the folder (AC-223). */
 function CanvasFolder({ folderId }: { readonly folderId: string }): React.JSX.Element {
   const bridge = useContext(FolderContext)
   const folder = bridge?.byId.get(folderId)

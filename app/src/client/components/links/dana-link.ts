@@ -1,22 +1,10 @@
-/*
-Dana Links on the client (#207, #211, #213, #214, #223, #225): the picker's
-search, a chip's live resolve, and "Referenced from".
-
-**Tolerant by construction.** The shared `referenceKind` is a closed zod enum,
-and parsing a response with it turns the day the server learns a seventh kind
-into a page that fails to draw (a `ResponseShapeError` for the whole list).
-So the reads here parse with loose schemas: a kind or a backlink home this
-client does not know is carried as a string, drawn generically, and never
-fails the read. What *is* checked is the one thing that matters for safety —
-that a path the server hands back is an in-app `/app/...` path, so a summary
-can never become an `href` to somewhere else.
-*/
+// Dana Links on the client. Responses parse with loose schemas so an unknown kind
+// draws generically instead of failing the read. Only `/app/...` paths become an `href`.
 import { z } from 'zod'
 
 import { getPlain } from '../../api/http.js'
 
-/** Route segment to reference kind, for the kinds this client can resolve.
- * An unknown segment is not an error: the link stays an ordinary link. */
+/** An unknown segment is not an error: the link stays an ordinary link. */
 const KIND_OF_SEGMENT: Readonly<Record<string, string>> = {
   tasks: 'task',
   folders: 'folder',
@@ -36,10 +24,10 @@ export interface DanaLinkTarget {
   readonly path: string
 }
 
-/** A stored `href` as a Dana Link, or null. Relative `/app/<segment>/<uuid>`
- * only (with an optional query or fragment), or an absolute URL on this very
- * origin — the same rule as the shared `parseDanaLink`, without its closed
- * enum. */
+/**
+ * A stored `href` as a Dana Link, or null: `/app/<segment>/<uuid>` or an absolute URL
+ * on this origin, like the shared `parseDanaLink` without its closed enum.
+ */
 export function danaLinkOf(href: string): DanaLinkTarget | null {
   let raw = href.trim()
   if (/^https?:\/\//i.test(raw)) {
@@ -70,7 +58,6 @@ export const looseSummary = z.object({
 })
 export type LooseSummary = z.infer<typeof looseSummary>
 
-/** One bad row drops that row, not the list. */
 const looseSearch = z.object({ results: z.array(z.unknown()) }).transform(({ results }) =>
   results.flatMap((row) => {
     const parsed = looseSummary.safeParse(row)
@@ -85,8 +72,10 @@ export function resolveReference(kind: string, id: string): Promise<LooseSummary
   return getPlain(looseSummary, `/references/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`)
 }
 
-/** The picker needs `Project · Results` to disambiguate repeated facet names;
- * once inserted, the chip itself should be the compact facet name. */
+/**
+ * The picker shows `Project · Results` to tell repeated facet names apart; the
+ * inserted chip keeps only the facet name.
+ */
 export function referenceDisplayLabel(kind: string, label: string): string {
   if (kind !== 'facet') return label
   const marker = ' · '
@@ -113,7 +102,6 @@ const looseBacklinks = z.object({ results: z.array(z.unknown()), truncated: z.bo
     }),
   }))
 
-/** The kinds whose `/{segment}/:id/backlinks` route exists. */
 export type BacklinkTargetKind = 'task' | 'folder' | 'shelf' | 'facet' | 'discussion' | 'outcome' | 'result'
 const SEGMENT_OF_KIND: Record<BacklinkTargetKind, string> = {
   task: 'tasks', folder: 'folders', shelf: 'shelves', facet: 'facets', discussion: 'discussions', outcome: 'outcomes', result: 'results',
@@ -123,8 +111,7 @@ export function backlinksOf(kind: BacklinkTargetKind, id: string): Promise<{ tru
   return getPlain(looseBacklinks, `/${SEGMENT_OF_KIND[kind]}/${encodeURIComponent(id)}/backlinks`)
 }
 
-/** Where a backlink row opens. A home this client does not know falls back
- * to the row's Folder, and to nothing when it has none. */
+/** An unknown home falls back to the row's folder, or to nothing. */
 export function backlinkPath(row: LooseBacklink): string | null {
   if (row.surface === 'page') {
     if (row.home === 'task') return `/app/tasks/${row.home_id}`
@@ -132,7 +119,6 @@ export function backlinkPath(row: LooseBacklink): string | null {
     if (row.home === 'shelf') return `/app/shelves/${row.home_id}`
     if (row.home === 'facet' && row.folder_id !== null) return `/app/folders/${row.folder_id}?facet=${row.home_id}`
   }
-  /* A post in a thread (W-C): its Discussion opens. */
   if (row.surface === 'post' && row.home === 'discussion') return `/app/discussions/${row.home_id}`
   return row.folder_id === null ? null : `/app/folders/${row.folder_id}`
 }

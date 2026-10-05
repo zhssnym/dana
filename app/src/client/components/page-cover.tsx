@@ -1,17 +1,4 @@
-/*
-The page cover: a band any page can wear.
-
-A cover is native to every page except a task's: My Day, Tasks, Planned,
-Important, All, Done and every folder can carry one, because a cover is how a
-*place* announces itself and those are all places. A task is not; it is a thing
-inside one.
-
-The whole affordance travels with it, the picker and the reposition drag, so no
-page grows a second, slightly different cover.
-
-The controls stay minimal: Change, Remove and (for a photo) Reposition as 28px
-ghost buttons in the band's corner, appearing on hover.
-*/
+// The page cover band, with its picker and reposition drag.
 
 import { useRef, useState } from "react"
 
@@ -24,15 +11,10 @@ import {
 } from "./folder-cover.js"
 import { Button } from "./ui/button.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
-/* Covers are read from 7.19 keyed by 4.20's place, through
-   `lib/page-identity.js`; its two names are aliased on import. */
+// Covers are stored through `lib/page-identity.js`; its names are aliased here.
 import {
   savePageIdentity as savePrototypeFolderIdentity,
   usePageIdentity as useFolderIdentity,
-  /* Which tiers this page can honestly supply, whether it has anywhere to keep
-     a crop, and where it can store an upload. All three are properties of the
-     table behind the page rather than of the band, so the module that owns the
-     storage owns them. */
   coverStoresPosition,
   coverTiersFor,
   coverPhotoPicker,
@@ -42,35 +24,14 @@ import { cn } from "./ui/utils.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 
-/* A control over a picture: solid ground so it reads on any photo. */
+// A control over a picture: solid ground so it reads on any photo.
 const ON_COVER = "bg-background text-foreground hover:bg-hover"
 
-/*
-**The band is full-bleed, and the arithmetic is here rather than at the three
-call sites.**
-
-A cover extends across the full page width. This is drawn from the head, inside
-`app-shell.tsx`'s column, which is centred and capped at `--shell-content-max`;
-a negative margin can undo the column's padding and cannot undo its cap, so a
-wide window would put the band at the reading width with the ground showing
-either side.
-
-`50%` in a margin resolves against the containing block, and `100cqw` is the
-scroll region's own width (`tokens.css` declares it the query container), so
-`calc(50% - 50cqw)` is exactly the distance from this box's edge to the window's
-on each side.
-*/
+// Full bleed: the shell column is capped, so a negative margin cannot reach the
+// window edges. `100cqw` is the scroll region's width (the query container).
 const FULL_BLEED = { marginInline: "calc(50% - 50cqw)" } as const
 
-/* The band, drawn only when the page has a cover. `storageName` is the key
-   the cover is remembered under, a folder's real name, or the page's.
-
-   `readOnly` draws the picture and nothing that changes it (issue #228): a
-   viewer below Can edit, whom `PATCH /folders/:id` answers 403.
-
-   The cover stays inside the page surface. Global work-page chrome above it is
-   deliberately separate, so breadcrumbs and controls always have a stable
-   shell background independent of the chosen cover. */
+// `readOnly` draws the picture without controls, for viewers below Can edit.
 export function PageCover({
   storageName,
   readOnly = false,
@@ -97,16 +58,14 @@ export function PageCover({
   return (
     <div
       data-page-cover
-      /* `w-full` is gone with the bleed above it: an auto width fills the
-         containing block minus the margins, which is the whole window. */
+      // An auto width with the bleed margins fills the whole window.
       className={cn("group/cover relative h-32", repositioning && "cursor-ns-resize select-none")}
       style={{ ...visibleCover, ...FULL_BLEED }}
       onPointerDown={
         repositioning
           ? (event) => {
-              /* A press that lands on a control is not a drag, or pointer
-                 capture would retarget its click to the band and "Save
-                 position" and "Cancel" would be unreachable (AC-406). */
+              // A press on a control is not a drag, or pointer capture would retarget its click
+              // and Save and Cancel would be unreachable (AC-406).
               if ((event.target as HTMLElement).closest('button') !== null) return
               dragStart.current = { y: event.clientY, pos: draftPos }
               event.currentTarget.setPointerCapture(event.pointerId)
@@ -134,8 +93,7 @@ export function PageCover({
           </span>
         </div>
       ) : null}
-      {/* Not rendered rather than hidden for a viewer: a band with no controls
-          is the whole of what `readOnly` means here. */}
+      {/* A viewer gets no controls at all. */}
       {readOnly ? null : (
       <div
         className={cn(
@@ -222,18 +180,13 @@ export function PageCover({
   )
 }
 
-/*
-"Add cover", for a page that has none: one press puts a flat colour on the page
-(Notion's way); the band's own Change picks another or a photo. Once there is a
-cover this is gone and the band is the affordance.
-*/
+// "Add cover" puts a random flat colour on the page in one press.
 export function AddCoverAction({
   storageName,
   readOnly = false,
 }: {
   storageName: string
-  /** Withheld from a viewer who may not change the folder's identity
-   * (issue #228; see `PageCover`). */
+  /** Hidden from a viewer who may not change the folder's identity. */
   readOnly?: boolean
 }) {
   const identity = useFolderIdentity(storageName)
@@ -248,10 +201,8 @@ export function AddCoverAction({
       }
       className={cn(
         "-ml-1.5 text-muted-foreground hover:text-foreground",
-        /* A touch screen has no hover to reveal it by, so it appears while the
-           title is being edited. Not on any focus in the heading: appearing on
-           a tap's pointerdown pushes the row down, and the tap's click (Share)
-           then lands on the line above. */
+        // Touch has no hover, so it appears while the title is edited. Not on any heading
+        // focus: appearing on pointerdown pushes the row down and the tap lands above.
         "[@media(hover:none)]:hidden [@media(hover:none)]:group-has-[textarea:focus]/head:flex",
       )}
     >

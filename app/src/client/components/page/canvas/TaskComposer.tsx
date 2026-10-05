@@ -1,43 +1,6 @@
-/*
-The Task composer (#221, the Task half): the Task's authored content, written
-in the same BlockNote host and saved by the same `CanvasWriter` as the Folder
-canvas, against `GET/PUT /tasks/:id/document` (7.16's document transaction over
-the Task's own blocks, `server/domain/task-document.ts`).
-
-**Vocabulary.** What a Task document admits and this editor can draw:
-paragraph, heading 1-3 (`heading1..3`, never a Main Section) and toggle
-heading 1-3 (a heading that folds the blocks nested under it, stored with
-`toggleable`), bullet, numbered, to-do (`checklist`, its tick stored), quote,
-callout, divider, code, and image/file/audio/video from the Task's Folder.
-The server refuses Task rows, Sections and folder references, so none is
-offered: there is no Task command. Since 0038 a Task document nests like every
-home: Tab puts a block under the writing block above it (text, a heading, a
-list item, a quote, a callout), written as its `list_parent_block_id`, and
-Shift-Tab takes it out again. Here a heading's `isToggleable` simply is the
-toggle, there being no Sections; `presentation` rides along only so the shared
-canvas helpers read it as a presentation heading.
-
-**A checklist item in a Task is a subtask** (migration 0060). `/Checklist`,
-`[] ` and `[x] ` make one in place, a pasted checklist stays one, and the
-task's card counts them. `/Blocked by` opens the dependency picker by the
-properties and inserts nothing here: the body holds only what was written.
-
-**Access.** `edit` writes the body. `tick` (Assigned work on its own task)
-draws it read-only with live boxes: a tick sends one `put_block` of that item
-with the current outline, which the server admits under `step.toggle`
-(`isChecklistTickOnly`). `read` draws it read-only.
-
-**Nothing typed is dropped.** Every change is mirrored to
-`sessionStorage['dana-task-draft:<task>']` until the server acknowledges it. A
-refused save (409 when the Task was edited elsewhere) keeps the editor and the
-draft; "Load latest" re-opens on the server's copy and moves the draft to
-`dana-task-recovered:<task>`, offered back with Download writing / Restore / Discard (Restore merges);
-merging adds the draft's blocks to the latest copy and removes nothing, so
-neither tab's writing is lost to a last write.
-
-`tasks.notes` stays the server's plain-text projection for older clients; this
-editor never writes it.
-*/
+// The task body editor, saved by the shared `CanvasWriter` to `/tasks/:id/document`.
+// The server refuses task rows, sections and folder references, so none is offered.
+// Access: `edit` writes; `tick` is read-only with live checkboxes; `read` is read-only.
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BlockNoteSchema, createExtension, createHeadingBlockSpec, defaultBlockSpecs, defaultInlineContentSpecs, defaultStyleSpecs } from '@blocknote/core'
@@ -78,9 +41,8 @@ import type { TreeBlock } from './turn-into.js'
 import { validateCanvasOutline } from './outline.js'
 import './canvas.css'
 
-/* A toggle heading opens by default and keeps its fold as the Folder canvas's
-   toggles do (`openByDefault`, `toggle-<id>`), and Enter at the end of an open
-   one starts its first child, as in Notion. */
+// A toggle heading opens by default and keeps its fold; Enter at the end of an open
+// one starts its first child.
 const stockHeading = createHeadingBlockSpec({ levels: [1, 2, 3], defaultLevel: 1, allowToggleHeadings: true })
 const taskHeading = {
   ...stockHeading,
@@ -112,8 +74,7 @@ const taskHeading = {
   },
 }
 
-/* In tick mode the boxes stay live on a read-only editor and report to the
-   session (`tickHandlers`), which writes the one item. */
+// In tick mode the boxes stay live on a read-only editor and report to the session.
 const tickHandlers = new WeakMap<object, (blockId: string, checked: boolean, box: HTMLInputElement) => void>()
 const stockCheck = defaultBlockSpecs.checkListItem
 const taskCheck = {
@@ -143,15 +104,13 @@ export const taskSchema = BlockNoteSchema.create({
     callout: createCanvasCallout(),
     divider: defaultBlockSpecs.divider,
     codeBlock: defaultBlockSpecs.codeBlock,
-    // The page canvas's media blocks: the same empty row ("Add a file") and
-    // accepted types as a page, filled through the same `CanvasFilePanel`.
+    // The page canvas's media blocks, filled through the same `CanvasFilePanel`.
     image: canvasSchema.blockSpecs.image,
     file: canvasSchema.blockSpecs.file,
     audio: canvasSchema.blockSpecs.audio,
     video: canvasSchema.blockSpecs.video,
   },
-  // Dana Link chips (#223): a Task document is a backlink source, and chips
-  // are written back as href runs by `richRuns`, as on the Folder canvas.
+  // Dana Link chips, written back as href runs by `richRuns`.
   inlineContentSpecs: { ...defaultInlineContentSpecs, danaLink: danaLinkInlineSpec, mention: mentionInlineSpec },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },
 })
@@ -163,10 +122,8 @@ const fileIdOf = (url: string): string | null => /(?:^|\/)api\/v1\/files\/([0-9a
 const draftKey = (taskId: string): string => `dana-task-draft:${taskId}`
 const recoveredKey = (taskId: string): string => `dana-task-recovered:${taskId}`
 
-/** The one error "Load latest" answers besides a failed save. */
 const CHANGED_ELSEWHERE = 'This task was edited elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
-/** The stored document as editor blocks, each nested block under its parent. */
 export function hydrateTask(page: PageView, width: number): TaskInput[] {
   const records = new Map(page.blocks.map((block) => [block.id, block]))
   const nodes = new Map<string, TaskInput>()
@@ -176,8 +133,8 @@ export function hydrateTask(page: PageView, width: number): TaskInput[] {
     if (b === undefined || item.kind !== 'block') continue
     const node = { ...drawTask(b, width), children: [] as TaskInput[] } as TaskInput
     nodes.set(b.id, node)
-    // A parent precedes its children (the server's outline rule); one that
-    // cannot be found keeps the block at the root rather than losing it.
+    // A parent precedes its children; one that cannot be found keeps the block at the
+    // root rather than losing it.
     const parent = b.list_parent_block_id === null ? undefined : nodes.get(b.list_parent_block_id)
     if (parent === undefined) root.push(node)
     else parent.children!.push(node)
@@ -212,15 +169,10 @@ const KIND: Record<TaskBlock['type'], PageBlockKind> = {
   checkListItem: 'checklist', quote: 'quote', callout: 'callout', divider: 'divider', codeBlock: 'code', image: 'image', file: 'file', audio: 'audio', video: 'video',
 }
 
-/** What may hold nested blocks here (the server's `NEST_PARENT_KINDS`). */
+/** What may hold nested blocks (the server's `NEST_PARENT_KINDS`). */
 const NEST_PARENTS: ReadonlySet<string> = new Set(['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'checkListItem', 'quote', 'callout'])
 
-/**
- * Nested as drawn: a block indented under another is written with that block
- * as its `list_parent_block_id`. Children of a block that holds nothing (code,
- * a divider, media; Tab never puts them there) are written beside it, every
- * word kept.
- */
+/** Children of a block that holds nothing (code, divider, media) are written beside it. */
 export function dehydrateTask(blocks: readonly TaskBlock[], width: number): CanvasDocument {
   const result: CanvasDocument = { blocks: [], items: [] }
   const visit = (list: readonly TaskBlock[], parent: string | null): void => {
@@ -228,9 +180,8 @@ export function dehydrateTask(blocks: readonly TaskBlock[], width: number): Canv
       const runs = richRuns(block as unknown as CanvasBlock)
       const text = runs.map((run) => run.text).join('')
       let record: CanvasRecord
-      // An empty File/audio/video block is only the file picker's placeholder:
-      // the server refuses one without a file (the whole save with it), so it
-      // is not written until a file has uploaded, as on the canvas (`adapters.ts`).
+      // An empty file, audio or video block is only the picker's placeholder; the server
+      // refuses it, so it is not written until a file uploads.
       if ((block.type === 'video' || block.type === 'audio' || block.type === 'file') && block.props.url === '') {
         visit(block.children, parent)
         continue
@@ -263,11 +214,8 @@ export function dehydrateTask(blocks: readonly TaskBlock[], width: number): Canv
 }
 
 /**
- * The recovered draft merged into the current document with nothing from
- * either side removed: a draft block the document already holds unchanged is
- * skipped, one it holds differently is added as a copy right after it, and one
- * it does not hold goes after the draft block before it. So a conflict never
- * costs the other tab's edit or this one's.
+ * Merge a recovered draft without removing anything: a changed block is added as a
+ * copy after its current version, a new one after its draft neighbour.
  */
 export function mergeDraft(current: readonly TaskBlock[], draft: readonly TaskBlock[]): TaskInput[] {
   const flat = (blocks: readonly TaskBlock[]): TaskBlock[] => blocks.flatMap((block) => [{ ...block, children: [] }, ...flat(block.children)])
@@ -284,8 +232,7 @@ export function mergeDraft(current: readonly TaskBlock[], draft: readonly TaskBl
   return out as TaskInput[]
 }
 
-/** Every heading here is a presentation heading, whatever a paste set its
- * `isToggleable` to, so the shared outline never reads one as a Section. */
+/** Every heading here is a presentation heading, so the outline never reads a Section. */
 function asPresentation(blocks: readonly TreeBlock[]): TreeBlock[] {
   return blocks.map((block) => ({ ...block, props: block.type === 'heading' ? { ...block.props, isToggleable: false } : block.props, children: asPresentation(block.children) }))
 }
@@ -306,7 +253,7 @@ function writeStorage(key: string, value: string | null): void {
   try { if (value === null) sessionStorage.removeItem(key); else sessionStorage.setItem(key, value) } catch { /* storage is optional */ }
 }
 
-// The page's one hint, shown on an empty Work tab unfocused too, as on a page.
+// The page's one hint, shown on an empty Work tab unfocused too.
 const PLACEHOLDER = "Press '/' for commands"
 
 export type TaskBodyAccess = 'edit' | 'tick' | 'read'
@@ -314,11 +261,9 @@ export type TaskBodyAccess = 'edit' | 'tick' | 'read'
 export default function TaskComposer({ taskId, folderId, notes, access = 'edit', onBlockedBy }: {
   readonly taskId: string
   readonly folderId: string | null
-  /** What this viewer may do to the body (see the header). */
   readonly access?: TaskBodyAccess
-  /** `/Blocked by`: opens the dependency picker. */
   readonly onBlockedBy?: () => void
-  /** The plain-text projection, shown while the document loads or if it cannot. */
+  /** Shown while the document loads, or if it cannot. */
   readonly notes: string | null
 }): React.JSX.Element {
   const key = useMemo(() => ['tasks', taskId, 'document'] as const, [taskId])
@@ -329,8 +274,7 @@ export default function TaskComposer({ taskId, folderId, notes, access = 'edit',
   useEffect(() => { setWidth(host.current?.clientWidth || 480) }, [])
   const page = checkpoint?.page ?? query.data
   return <div ref={host} className="min-w-0" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}
-    /* Escape while writing leaves the writing and nothing else (BlockNote's own
-       menus close first); a second Escape, with nothing focused, closes the card. */
+    // Escape while writing only leaves the writing; a second Escape closes the card.
     onKeyDown={(event) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return
       event.stopPropagation()
@@ -378,7 +322,6 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
   }
   const editor = useCreateBlockNote({
     schema: taskSchema,
-    /* One quiet line where the work is written (the Work tab), and nothing on later empty lines. */
     dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: PLACEHOLDER, default: PLACEHOLDER } },
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
     uploadFile: folderId === null ? undefined : async (file, blockId) => {
@@ -388,18 +331,15 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
     },
   })
   editorRef.current = editor
-  /* Task writing is a separate BlockNote surface from CanvasSurface. It must
-     own the facet controller for its whole lifetime too; the hover side menu
-     only consumes this model and never owns relationship visibility. */
+  // This surface owns its facet controller too; the hover side menu only reads it.
   const facets = useBlockFacets(
     editor as unknown as AnyEditor,
     folderId ?? undefined,
     access === 'edit',
     setError,
   )
-  /* Tick mode: one item's tick, written as one `put_block` of the stored item
-     and the stored outline, then the session reopens on the answer. Set during
-     render so the boxes drawn at mount find it. */
+  // Tick mode writes one `put_block` with the stored outline, then reopens on the
+  // answer. Set during render so the boxes drawn at mount find it.
   if (access === 'tick') {
     tickHandlers.set(editor, (blockId, checked, box) => {
       const stored = latest.blocks.find((block) => block.id === blockId)
@@ -430,7 +370,7 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
       }).then((next) => {
         queryClient.setQueryData(['tasks', taskId, 'document'], next)
         void queryClient.invalidateQueries({ queryKey: ['tasks', taskId] })
-        // The tick records "completed the subtask …" in the task's history.
+        // The tick records "completed the subtask" in the task's history.
         void queryClient.invalidateQueries({ queryKey: queryKeys.events(`task:${taskId}`) })
         onCheckpoint(next)
       }, (failure: unknown) => {
@@ -439,10 +379,9 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
       })
     })
   }
-  // The same gutter and block menu as the Folder canvas (`BlockSideMenu`).
   const menu = useMemo<BlockMenuModel>(() => ({
     targets: (block) => blockMenuTargets(editor as unknown as CanvasEditor, block),
-    // A Task's headings are presentation headings (`false`), toggle headings included.
+    // A task's headings are presentation headings (`false`).
     turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, false) },
     canDuplicate: () => true,
     duplicate: (ids) => { duplicateBlocks(editor, ids) },
@@ -453,9 +392,7 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
   useBlockSelectionKeys(editor, selectionActions)
   useBlockAnchor(editor, true)
   const scope = `dana-canvas-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
-  /* Tab nests the block under the one above it (BlockNote's own nest) only
-     where the Task document stores that shape; elsewhere it does nothing.
-     Code keeps its own Tab; Shift-Tab is BlockNote's un-nest. */
+  // Tab nests only where the task document can store the shape; code keeps its own Tab.
   function onKeyDownCapture(event: React.KeyboardEvent): void {
     if (event.key !== 'Tab' || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return
     if (!editor.prosemirrorState.selection.empty || editor.domElement === undefined || !editor.domElement.contains(event.target as Node)) return
@@ -464,9 +401,7 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
     const next = simulateNest(editor.document as unknown as TreeBlock[], block.id)
     if (next === null || validateCanvasOutline(asPresentation(next)) !== null) { event.preventDefault(); event.stopPropagation() }
   }
-  /* `/Blocked by` writes nothing here. The menu has already cleared the
-     slash text; a line that held only that text is removed too, unless it is
-     the document's only line. */
+  // `/Blocked by` writes nothing; remove the line it was typed on unless it is the only one.
   function dropSlashLine(): void {
     const block = editor.getTextCursorPosition().block
     const empty = block.type === 'paragraph' && Array.isArray(block.content) && block.content.length === 0 && block.children.length === 0
@@ -493,16 +428,15 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
       },
       (next) => {
         queryClient.setQueryData(['tasks', taskId, 'document'], next)
-        // The write records "edited the description" (the issue page's "· edited" mark).
+        // The write records "edited the description" in history.
         void queryClient.invalidateQueries({ queryKey: queryKeys.events(`task:${taskId}`) })
       },
     )
     return created
   })
 
-  /* A draft left by an earlier session (a failed save, a closed tab, a
-     conflict's "Load latest") is moved aside and offered back, unless it says
-     nothing the server does not already hold. */
+  // Move an earlier session's draft aside and offer it back, unless the server already
+  // holds it.
   useEffect(() => {
     const draft = readStorage(draftKey(taskId))
     writeStorage(draftKey(taskId), null)
@@ -541,14 +475,13 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
       writer.change(dehydrateTask(editor.document, width))
       setError('')
     } catch (failure) {
-      // Not sendable (an embedded outside link): the writing still goes to the draft.
+      // Not sendable (an outside link): the writing still goes to the draft.
       writeStorage(draftKey(taskId), JSON.stringify({ taskId, revision: writer.revision, blocks: editor.document }))
       setError(failure instanceof Error ? failure.message : 'Could not prepare this edit for saving.')
     }
   }
   async function loadLatest(): Promise<void> {
-    // The draft is already in storage (every unsaved state writes it); the
-    // remount moves it to the recovered slot and offers it back.
+    // The remount moves the stored draft to the recovered slot and offers it back.
     writeStorage(draftKey(taskId), JSON.stringify({ taskId, revision: writer.revision, blocks: editor.document }))
     try {
       const next = await getPlain(getPageResponse, `/tasks/${taskId}/document`)

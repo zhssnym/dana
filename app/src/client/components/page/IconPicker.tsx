@@ -1,23 +1,5 @@
-/*
-The identity picker of 9.6 and 9.10: which mark a page wears, in which colour,
-opened from the mark itself and committing on every press (there is nothing a
-Save could add).
-
-**The colours commit as hex, not as CSS variables.** 4.3 stores `#RRGGBB`
-and the identity is shared, one value read by every member in every theme,
-so the swatches write the literal values from `parts/identity-colors.ts`.
-
-- **One set, icons** (M4). Emoji are no longer offered; a page already
-  wearing one keeps it (`emoji-mark.tsx` still draws the stored key), and
-  picking an icon replaces it.
-- **A search box**, matching the manifest's one-word labels and the section
-  names, so "money" answers with the wallet, the banknote and the piggy bank.
-- **A colour row** under the icons.
-- **Remove** clears the icon back to the plain page glyph, where the caller
-  can store that (`onRemove`).
-
-A selected cell wears the selection tint, never a ring.
-*/
+// The icon and colour picker for a page; every press commits. Colours store as hex
+// because the identity is shared across members and themes.
 import { useMemo, useState } from 'react'
 
 import { Search, X } from '../../lib/icons.js'
@@ -34,7 +16,6 @@ const T_FAST = 'duration-[var(--duration-fast)] ease-[var(--ease-standard)]'
 
 type IconKey = keyof typeof FOLDER_ICONS
 
-/** The heading above a block of choices. */
 function SectionLabel({ children }: { children: string }): React.JSX.Element {
   return (
     <p className="px-1 pt-2.5 pb-1.5 text-xs leading-4 font-medium text-muted-foreground first:pt-0">
@@ -50,14 +31,14 @@ export function IconPicker({
   onRemove,
   subject = 'Page',
 }: {
-  /** The stored 4.3 key, null for unset (the plain page glyph). */
+  /** The stored key, null for unset (the plain page glyph). */
   readonly icon: string | null
-  /** The stored hex, null for unset (graphite). */
+  /** The stored hex, null for unset. */
   readonly color: string | null
   readonly onPick: (next: { icon?: string; color?: string }) => void
-  /** Clears the icon; offered only where the caller can store that. */
+  /** Offered only where the caller can store that. */
   readonly onRemove?: () => void
-  /** What the picker dresses, "Page" or "Collection" (a shelf, on screen). */
+  /** "Collection" is a shelf on screen. */
   readonly subject?: 'Page' | 'Collection'
 }): React.JSX.Element {
   const activeKey = icon ?? 'folder'
@@ -65,8 +46,7 @@ export function IconPicker({
 
   const drawn = color ?? IDENTITY_COLOR_FALLBACK
 
-  /* The search, over the labels rather than the keys. A section whose own name
-     matches keeps all of its glyphs. */
+  // Search the labels; a section whose own name matches keeps all its glyphs.
   const needle = query.trim().toLowerCase()
   const sections = useMemo(() => {
     if (!needle) return ICON_SECTIONS
@@ -83,7 +63,7 @@ export function IconPicker({
   }, [needle])
 
   return (
-    /* 280: seven 32px cells plus room for a thin scrollbar. */
+    // Seven 32px cells plus room for a thin scrollbar.
     <div className="w-[280px] max-w-full p-2">
       {onRemove !== undefined && icon !== null ? (
         <div className="mb-1 flex justify-end">
@@ -117,8 +97,7 @@ export function IconPicker({
         />
       </div>
 
-      {/* A listbox per section: ARIA lets a listbox own options and groups
-          and nothing else. Each icon names itself in its tooltip. */}
+      {/* A listbox per section: ARIA lets a listbox own only options and groups. */}
       <div className="max-h-[248px] overflow-y-auto">
         {sections.length === 0 ? (
           <p className="px-1 py-4 text-center text-xs leading-4 text-muted-foreground">

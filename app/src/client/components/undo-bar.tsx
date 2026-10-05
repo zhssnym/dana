@@ -1,14 +1,5 @@
-/*
-The undo bar: what happened, and one press to take it back.
-
-Rendered once, inside the shell's one notice column (`state/ToastRegion.tsx`),
-so it shares the toasts' place and look. Entries come from the mutators (see
-`shell/undo.ts`).
-
-It expires after 9.1's five seconds (`UNDO_WINDOW_MS`, AC-225) and has no
-dismiss control, since it leaves by itself. Expiring hides the bar and never
-clears the stack: Ctrl/Cmd+Z still reaches the act afterwards.
-*/
+// The undo bar, in the toasts' notice column. It hides after the undo window
+// (`UNDO_WINDOW_MS`, AC-225) but never clears the stack: Ctrl/Cmd+Z still works.
 
 import { useEffect, useState } from 'react'
 
@@ -21,7 +12,7 @@ export function UndoBar(): React.JSX.Element | null {
   const top = stack[0]
   const [now, setNow] = useState(() => Date.now())
 
-  /* One timer that ends with the entry it belongs to. */
+  // One timer that ends with the entry it belongs to.
   useEffect(() => {
     if (!top) return
     setNow(Date.now())
@@ -31,7 +22,7 @@ export function UndoBar(): React.JSX.Element | null {
     }
   }, [top])
 
-  /* The shortcut lives with the bar: the bar is the discoverable half. */
+  // The shortcut lives with the bar, the discoverable half.
   useEffect(() => {
     function onKey(event: KeyboardEvent): void {
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'z') return

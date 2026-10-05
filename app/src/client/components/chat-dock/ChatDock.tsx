@@ -1,29 +1,5 @@
-/*
-The Discussion sidebar (issue #546, refined by #553 and #560): the project's
-Discussion beside the work.
-
-Discussion has two presentations and this is one of them. The other is the
-stored Discussion page in full-screen; that page is intentionally hidden from
-the horizontal tab strip. Both presentations draw the same list and the same
-thread (`consultation/`) from the same server rows, so there is one Discussion
-and nothing here holds a copy of it. Which project, thread, filter and
-presentation are open is workspace-tab state (`shell/tabs.ts`, adapted by
-`state/chat-dock.ts`), never global shell state, so opening it never leaves the
-task being discussed and switching tabs cannot leak the panel.
-
-The sidebar uses the same popover surface, border and elevation language as the
-Team sidebar. Depth belongs to this outer shell only; the thread filters and
-rows inside stay flat.
-
-It follows the page: on another project's page it becomes that project's,
-on a task it opens that task's thread (once per visit, so going back to the
-list sticks), and on the full-screen Discussion page itself it switches the
-same tab-local Discussion state to its full presentation.
-
-The left edge resizes it, within limits that always leave the work room
-(`dockWidthBounds`). Where the window is too narrow for both, the shell stops
-reserving room and the sidebar lies over the page instead (`app-shell.tsx`).
-*/
+// The Discussion sidebar. It draws the same list and thread as the full-screen
+// page; which thread, filter and presentation are open is workspace-tab state.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { useLocation, useMatch, useNavigate } from 'react-router'
@@ -55,7 +31,6 @@ import { RosterTints } from '../default-avatar.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
 import { Button } from '../ui/button.js'
 
-/** The window's width, kept current. */
 export function useWindowWidth(): number {
   const [width, setWidth] = useState(() => window.innerWidth)
   useEffect(() => {
@@ -66,7 +41,6 @@ export function useWindowWidth(): number {
   return width
 }
 
-/** The sidebar's drawn width: the chosen one, held inside this window's limits. */
 export function useDockWidth(): number {
   const chosen = useChatDockWidth()
   const { min, max } = dockWidthBounds(useWindowWidth())
@@ -89,25 +63,24 @@ export function ChatDock(): React.JSX.Element | null {
   )
 }
 
-/** The task on screen, when the page is a task's. */
 function useRouteTask(): string | null {
   return useMatch('/app/tasks/:id')?.params.id ?? null
 }
 
-/* Renders nothing; keeps the open sidebar on what the person is looking at. */
+// Renders nothing; keeps the open sidebar on what the person is looking at.
 function Follow({ dock }: { readonly dock: ChatDockState }): null {
   const pageId = useMatch('/app/folders/:id')?.params.id ?? null
   const taskId = useRouteTask()
   const page = useFolder(pageId ?? '', pageId !== null).data
   const docked = useFolder(dock.folderId).data
   const task = useTask(taskId).data
-  /* The task last followed: its thread opens once, not on every render. */
+  // The task last followed: its thread opens once, not on every render.
   const followed = useRef<string | null>(null)
 
   useEffect(() => {
     if (page === undefined || page.id !== pageId) return
-    /* The full-screen view of the same Discussion: one presentation at a time,
-       but keep the tab's thread/filter state for the return trip. */
+    // On the full-screen Discussion page, switch presentation but keep the tab's thread
+    // and filter for the return trip.
     if (page.kind === 'discussion') {
       setDiscussionPresentation('full')
       return
@@ -136,8 +109,7 @@ function Dock({
   readonly discussionId: string | null
   readonly filter: 'open' | 'resolved'
 }): React.JSX.Element {
-  /* The page it was opened from; a tab's people and name are its project's,
-     as on the page's own header. */
+  // A tab's people and name are its project's.
   const here = useFolder(folderId)
   const onTab = here.data !== undefined && here.data.tab_position !== null
   const headId = onTab ? here.data.project_id : folderId
@@ -164,15 +136,10 @@ function Dock({
   }, [members, connections.data])
   const personOf: PersonResolver = useCallback((authorId) => people.get(authorId) ?? { name: 'Someone' }, [people])
 
-  /* Focus lands in the sidebar when it opens, so the keyboard follows the eye;
-     a thread then moves it on to its composer. */
   useEffect(() => { box.current?.focus({ preventScroll: true }) }, [])
 
-  /* The same thread, full screen. Remember exactly what the sidebar was beside
-     so returning restores that page/view rather than guessing. Commit the
-     destination to the workspace tab before publishing the full presentation:
-     this prevents a source-route effect from mistaking the expansion handoff
-     for browser Back and collapsing it immediately. */
+  // Commit the destination to the workspace tab before going full screen, or a
+  // source-route effect mistakes the handoff for Back and collapses it.
   const fullScreen = (): void => {
     const query = discussionId === null ? 'conversation=open' : `discussion=${discussionId}`
     const source = `${location.pathname}${location.search}${location.hash}`
@@ -192,12 +159,10 @@ function Dock({
       aria-label="Discussion"
       tabIndex={-1}
       style={{ width: `${String(width)}px` }}
-      /* Match Team's sheet surface: the shell gets visual depth, not each
-         thread row. Under sheets, menus and dialogs (z-50), so a thread's own
-         menu still opens over it. */
+      // Below sheets, menus and dialogs (z-50), so a thread's own menu opens over it.
       className="fixed top-0 right-0 bottom-0 z-40 flex max-w-full flex-col border-l border-border bg-popover bg-clip-padding text-popover-foreground shadow-md outline-none transition-none animate-in fade-in-0 slide-in-from-right-2 duration-150 ease-out motion-reduce:animate-none"
       onKeyDown={(event) => {
-        /* An open thread takes Escape back to the list first. */
+        // An open thread takes Escape back to the list first.
         if (event.key === 'Escape' && !event.defaultPrevented && discussionId === null) {
           event.preventDefault()
           closeChatDock()
@@ -261,7 +226,7 @@ function Dock({
   )
 }
 
-/* The left edge: drag, arrow keys, or double-click to go back to the default. */
+// Drag, arrow keys, or double-click to reset.
 function ResizeEdge({ width }: { readonly width: number }): React.JSX.Element {
   const bounds = dockWidthBounds(useWindowWidth())
   const drag = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null)
@@ -277,7 +242,7 @@ function ResizeEdge({ width }: { readonly width: number }): React.JSX.Element {
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const current = drag.current
     if (current === null || current.pointerId !== event.pointerId) return
-    /* The edge is on the left, so dragging left widens. */
+    // The edge is on the left, so dragging left widens.
     setChatDockWidth(clamp(current.startWidth + current.startX - event.clientX))
   }
   const onPointerEnd = (event: ReactPointerEvent<HTMLDivElement>): void => {
@@ -320,7 +285,6 @@ function ResizeEdge({ width }: { readonly width: number }): React.JSX.Element {
   )
 }
 
-/* `ConsultationPanel`, with the open thread/filter in the workspace tab. */
 function Chat({
   folderId,
   discussionId,
@@ -337,11 +301,10 @@ function Chat({
   readonly collaborative: boolean
 }): React.JSX.Element {
   const [started, setStarted] = useState<string | null>(null)
-  /* The thread last left, whose row takes focus when the list returns. */
+  // The thread last left, whose row takes focus when the list returns.
   const [left, setLeft] = useState<string | null>(null)
   const open = (id: string | null): void => { openChatDock({ folderId, discussionId: id }) }
-  /* A task may start a thread only while this is actually collaborative.
-     Existing threads remain reachable after the roster becomes solo. */
+  // A task may start a thread only while the project is collaborative.
   const taskId = useRouteTask()
   const task = useTask(taskId).data
   const discuss = useDiscussTask()

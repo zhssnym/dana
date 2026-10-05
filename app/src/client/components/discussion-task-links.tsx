@@ -1,14 +1,5 @@
-/*
-Issue #495: one compact relation interaction from either side.
-
-A Task keeps its existing Discussion property. Opening it immediately shows
-recent Discussions, filters them as the person types, and offers creation in
-the same surface. A Discussion keeps "Turn into a task" as its entry point,
-in the thread's "…" menu, and uses the same pattern for Tasks; its linked
-Tasks are the slim rows above the posts. The relationship itself is
-#497's persisted many-to-many edge; this file never treats either endpoint as
-owned by the other.
-*/
+// Links between a task and its discussions, from either side. The link is a
+// many-to-many edge; neither end owns the other.
 import { useMemo, useRef, useState, type RefObject } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router'
@@ -32,7 +23,6 @@ import { ApiError, getPlain, mutateApi, OfflineError } from '../api/http.js'
 import { queryKeys } from '../api/keys.js'
 import { writeFailureMessage } from '../api/queryClient.js'
 import { showToast } from '../state/toasts.js'
-/* Discussion sidebar (#546): a task opens its conversation in the dock. */
 import { openChatDock } from '../state/chat-dock.js'
 import { paths } from '../routes.js'
 import { Plus, X } from '../lib/icons.js'
@@ -65,8 +55,6 @@ function relationFailure(error: unknown, fallback: string): string {
   if (error instanceof OfflineError) return `${fallback}: you're offline.`
   return `${fallback}. Try again.`
 }
-
-/* ------------------------------------------------------------------ Task */
 
 export function TaskDiscussionLinks({
   taskId,
@@ -110,9 +98,8 @@ function TaskDiscussionPicker({
   const [q, setQ] = useState('')
   const [working, setWorking] = useState<string | null>(null)
   const [added, setAdded] = useState<ReadonlySet<string>>(new Set())
-  /* If creating an additional Discussion succeeded but linking it failed,
-     the next Create press retries the same object rather than making a
-     duplicate. This keeps the old two-write retry guarantee. */
+  // If create succeeded but linking failed, the next press retries the same
+  // discussion instead of making a duplicate.
   const retry = useRef<{ discussion: Discussion; tabId: string | null } | null>(null)
   const linked = detail.data?.linked_discussions ?? []
   const linkedIds = useMemo(
@@ -124,16 +111,13 @@ function TaskDiscussionPicker({
     .filter((discussion) => !discussion.is_general && !linkedIds.has(discussion.id))
     .slice(0, INITIAL_LIMIT)
   const busy = detail.isPending || discuss.isPending || create.isPending || update.isPending || working !== null
-  /* Discussion sidebar (#546): was a navigation to the thread's own page; the
-     task now stays where it is and the thread opens beside it. */
   const openThread = (id: string): void => {
     openChatDock({ folderId, discussionId: id })
   }
 
   const settled = (): void => {
-    /* Relation writes change the Discussion, TaskDetail and every list that
-       can project either endpoint. Dana's mutation convention is therefore
-       the unfiltered invalidation from queryClient.ts. */
+    // A link changes the discussion, the task and every list showing either, so
+    // invalidate everything.
     void client.invalidateQueries()
   }
 
@@ -196,9 +180,8 @@ function TaskDiscussionPicker({
 
     const title = (q.trim() || taskTitle).slice(0, DISCUSSION_TITLE_MAX)
     try {
-      /* Preserve the task action's compatibility contract first: this route
-         ensures the project's Discussion tab and atomically creates+links
-         its convenience thread when one does not already exist. */
+      // This route ensures the project's Discussion tab and creates and links the
+      // convenience thread atomically.
       const convenience = await discuss.mutateAsync(taskId)
       const alreadyLinked = linkedIds.has(convenience.discussion.id)
 
@@ -208,8 +191,7 @@ function TaskDiscussionPicker({
           try {
             discussion = await update.mutateAsync({ id: discussion.id, body: { title } })
           } catch {
-            /* It is already linked atomically. The normal mutation toast says
-               why only the optional rename failed; still open the thread. */
+            // Already linked; the mutation toast reports the failed rename.
           }
         }
         setAdded((current) => new Set([...current, discussion.id]))
@@ -220,13 +202,11 @@ function TaskDiscussionPicker({
         return
       }
 
-      /* The convenience relation already exists, so the explicit Create
-         choice means a genuinely additional Discussion. The call above has
-         also ensured/recovered the Discussion tab for this project. */
+      // The convenience link already exists, so Create means an additional discussion.
       const discussion = await create.mutateAsync({ folderId, body: { title } })
       await finishNew(discussion, convenience.tabId)
     } catch {
-      /* The normal mutation cache owns create/refusal toasts. */
+      // The mutation cache shows the failure toast.
     }
   }
 
@@ -357,12 +337,8 @@ function TaskDiscussionPicker({
   )
 }
 
-/* ------------------------------------------------------------ Discussion */
-
-/* The thread's "…" menu opens this; it has no trigger of its own and is
-   drawn against the element the menu came from. `folderId` is the thread's
-   own folder (the project), whose Work a new task joins: a Discussion tab's
-   page has no Work. */
+// Opened from the thread's "…" menu and anchored to it. `folderId` is the
+// thread's project, whose Work a new task joins.
 export function DiscussionTaskPicker({
   discussion,
   folderId,
@@ -448,7 +424,7 @@ export function DiscussionTaskPicker({
         setRetry(made)
         showToast(relationFailure(error, 'The task was made but was not linked'))
       }
-      /* Before the Task exists, useCreateTask owns the normal failure toast. */
+      // Before the task exists, useCreateTask shows the failure toast.
     } finally {
       setWorking(null)
     }
@@ -539,9 +515,7 @@ export function DiscussionLinkedTasks({
   }
 
   return (
-    /* The tasks it is about: one slim row each, its mark, name and state.
-       Unlink shows on hover or focus (always on a touch screen) and removes
-       only the edge. */
+    // Unlink shows on hover or focus (always on touch) and removes only the link.
     <ul className="shrink-0 text-sm" aria-label="Linked tasks">
       {discussion.linked_tasks.map((task) => {
         const state = taskState(task)
@@ -574,9 +548,7 @@ export function DiscussionLinkedTasks({
   )
 }
 
-/* A newly created Task keeps the same placement semantics the old
-   Discussion conversion had: it is filed at the foot of the Work, inside
-   that foot's section when there is one. */
+// A new task goes at the foot of the Work, inside the last section if there is one.
 async function footSection(client: ReturnType<typeof useQueryClient>, folderId: string): Promise<string | null> {
   const page = await client.fetchQuery({
     queryKey: queryKeys.folderPage(folderId),

@@ -1,19 +1,5 @@
-/*
-The task page's body: everything a task is, in one quiet column (M4: one
-task page, no peek).
-
-Four fixed properties are always shown, in this order: Status, Assignee, Date
-(its start, reminder and repeat live inside the Date picker) and Labels. A
-collaborative page adds Discussion after Labels; a solo project keeps only an
-existing Discussion relation so history remains reachable. Desk never does
-because it has no team conversation. Then "Blocked by" / "Blocks" lines
-appear once a relation exists (the editor's `/Blocked by` makes one). Then the
-task's own document, whose checklist items are its subtasks and which holds
-only what the person wrote. Every edit commits as it is made, so there is no
-Save.
-
-Files go in the task's document, which takes file and image blocks.
-*/
+// The task page's body: Status, Assignee, Date and Labels, then Discussion (shared
+// projects), dependencies, and the task's own document. Every edit commits at once.
 
 import { Face } from "./person-face.js"
 import { Check, Plus, type LucideIcon } from "../lib/icons.js"
@@ -66,11 +52,10 @@ import {
 
 const TaskComposer = lazy(() => import("./page/canvas/TaskComposer.js"))
 
-/* The row's field name for the due date: the panel's word, not the chip's. */
+// The panel's word for the due date, not the chip's.
 const DATE_LABEL = "Date"
 
-/* The control that fills an empty block: it says the action, not the
-   absence, and sits where the first item will appear. */
+// Fills an empty block, saying the action, where the first item will appear.
 export function EmptyAction({
   label,
   onSelect,
@@ -106,7 +91,7 @@ export function EmptyAction({
   )
 }
 
-/* Mount on open with a short entrance; closing is immediate. */
+// Mount on open with a short entrance; closing is immediate.
 export function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
   if (!open) return null
   return (
@@ -116,11 +101,7 @@ export function Reveal({ open, children }: { open: boolean; children: ReactNode 
   )
 }
 
-/* ------------------------------------------------------------- properties */
-
-/* The Schedule in one line (#215): "Starts Mon", "21 Sep – 30 Sep", or the
-   due date alone, which a same-day pair also is. A range names both ends as
-   dates: "21 Sep – Wed" left the reader working out which Wednesday. */
+// A range names both ends as dates: "21 Sep – Wed" left the reader guessing which Wednesday.
 function dateWords(task: ConceptTask): string {
   const today = presenterToday()
   const dueDay = task.due ? parseDueLabel(task.due.label) : null
@@ -129,7 +110,7 @@ function dateWords(task: ConceptTask): string {
   const due = task.due?.label
   let words: string
   if (ranged && dueIso !== null && due !== undefined && task.start !== undefined) {
-    /* The due label may carry a time after its day ("Sun 7:00 PM"). */
+    // The due label may carry a time after its day ("Sun 7:00 PM").
     const dayPart = formatDay(dueIso, today)
     const time = due.startsWith(dayPart) ? due.slice(dayPart.length) : ""
     words = `${formatDate(task.start, today)} – ${formatDate(dueIso, today)}${time}`
@@ -143,8 +124,7 @@ function dateWords(task: ConceptTask): string {
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
-/* A menu-shaped property row (folder, assignee): same anatomy as the
-   picker rows in `task-pickers.tsx`, so the block reads as one list. */
+// Same anatomy as the picker rows in `task-pickers.tsx`.
 function MenuRow({
   label,
   value,
@@ -191,14 +171,8 @@ function MenuRow({
   )
 }
 
-/* ----------------------------------------------------------------- status */
-
-/*
-Status, the first property: To do, Done, Dropped (M4; the stored value for
-Dropped stays `abandoned`). Done is the completion verb, so a series still
-generates its next occurrence exactly once. Dropped to Done is two verbs in
-order (restore, then complete); the second waits for the first to land.
-*/
+// Dropped is stored as `abandoned`. Dropped to Done is two writes in order: restore,
+// then complete once the first lands.
 export function stateOf(task: ConceptTask): TaskState {
   return task.abandoned ? "dropped" : task.done ? "done" : "open"
 }
@@ -233,13 +207,10 @@ export function useStateMoves(
   }
 }
 
-/* What this viewer may do to the task, from the folder's facts (the server
-   stays the authority). mayDraw cannot project an assignment, so an
-   assignee's own reach is added here (folder-actions.ts's
-   whenAssignedToActor). */
+// UI hints from the folder's facts; the server decides. mayDraw cannot project an
+// assignment, so an assignee's own reach is added here.
 function useTaskMay(taskId: string, folderId: string | null) {
-  /* Every page, tabs and pages under them included: a task on a Work or Doc
-     tab is not in the Library list. The Desk mark is the project root's. */
+  // All pages, tabs included: a task on a tab is not in the Library list.
   const pages = useAllPages()
   const me = useMe()
   const detail = useTask(taskId).data
@@ -262,31 +233,26 @@ function useTaskMay(taskId: string, folderId: string | null) {
       facts !== null &&
       (mayDraw(facts, "task.status.complete") || (mine && (facts.access === "can_contribute" || facts.access === "assigned_work"))),
     abandon: facts !== null && (mayDraw(facts, "task.status.abandon") || (mine && facts.access === "can_contribute")),
-    /* The body: writing it is `task.edit`; ticking its checklist is
-       `step.toggle`, which Assigned work has on its own task. Unknown facts
-       (still loading) leave it writable; the server stays the authority. */
+    // Writing the body needs `task.edit`; ticking its checklist is `step.toggle`, which
+    // Assigned work has on its own task. Unknown facts leave it writable.
     body:
       facts === null || mayDraw(facts, "task.edit") || (mine && facts.access === "can_contribute")
         ? ("edit" as const)
         : mine && facts.access === "assigned_work"
           ? ("tick" as const)
           : ("read" as const),
-    /* A solo project has no new Discussion affordance. A linked historical
-       thread stays visible after teammates leave so access is never lost. */
+    // A solo project offers no new discussion, but an existing linked one stays reachable.
     showDiscussion: facts !== null && !facts.isDefault && (collaborative || hasDiscussion),
     discuss: facts !== null && !facts.isDefault && collaborative && mayDraw(facts, "discussion.create"),
     manageFolderLabels: facts !== null && mayDraw(facts, 'label.vocabulary.manage'),
-    /* A contributor may classify their own Task; only the server's locked
-       assignment read can decide which one is theirs. */
+    // A contributor may label their own task; the server decides which one is theirs.
     applyFolderLabels: facts !== null && (mayDraw(facts, 'label.apply') || facts.access === 'can_contribute'),
     labelScopeName: row?.kind === 'work' ? 'Work' as const : 'Page' as const,
     labels: [...(detail?.labels.personal ?? []), ...(detail?.labels.folder ?? [])],
   }
 }
 
-/* Status, picked in place: every state this viewer's access reaches. Done
-   and reopening a done task need task.status.complete; Dropped and
-   reopening a dropped one need task.status.abandon. */
+// Each state is offered as this viewer's access allows.
 function StatusRow({
   task,
   may,
@@ -329,8 +295,7 @@ function StatusRow({
   )
 }
 
-/* The Date picker holds the whole schedule: the date (and its start), then,
-   once there is a due date, its reminder and repeat. */
+// The Date picker holds the whole schedule; reminder and repeat appear once there is a due date.
 function DatePanel({ task, patch }: { task: ConceptTask; patch: (id: string, fields: Partial<ConceptTask>) => void }) {
   const [view, setView] = useState<"date" | "reminder" | "repeat">("date")
   const shown = task.due ? view : "date"
@@ -359,7 +324,7 @@ function DatePanel({ task, patch }: { task: ConceptTask; patch: (id: string, fie
   )
 }
 
-/* The date row's value: the schedule, then a repeat or reminder when set. */
+// The schedule, then repeat or reminder when set.
 function scheduleWords(task: ConceptTask, timeFormat: ReturnType<typeof useTimeFormat>): string {
   const parts = [dateWords(task)]
   if (task.recurrence) parts.push(repeatSummary(task))
@@ -367,28 +332,24 @@ function scheduleWords(task: ConceptTask, timeFormat: ReturnType<typeof useTimeF
   return parts.join(" · ")
 }
 
-/* ------------------------------------------------------------------- card */
-
 export function TaskCard({
   task,
   patch,
 }: {
   task: ConceptTask
   patch: (id: string, fields: Partial<ConceptTask>) => void
-  /* The wiring hands every card handler over; any this panel does not draw
-     are accepted and unused. */
+  // Card handlers this panel does not draw are accepted and unused.
   [unused: string]: unknown
 }) {
   const timeFormat = useTimeFormat()
   const folderId = task.folder?.id ?? null
   const roster = usePeopleLibrary(folderId)
   const assignment = useUpdateTask()
-  /* "Invite by email" opens its address field inside the Assignee menu, so
-     the field goes wherever the menu goes: Escape, a click outside, a pick. */
+  // The invite field lives inside the Assignee menu, so it closes with the menu.
   const [assigneeOpen, setAssigneeOpen] = useState(false)
   const assignees = task.assignees ?? (task.assignee ? [task.assignee] : [])
   const [inviting, setInviting] = useState(false)
-  /* `/Blocked by`: the block under the writing opens already asking. */
+  // `/Blocked by` opens the dependencies block already asking.
   const [depOpening, setDepOpening] = useState(false)
   const move = useStateMoves(task, patch)
   const may = useTaskMay(task.id, folderId)
@@ -444,7 +405,7 @@ export function TaskCard({
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
-          {/* `null`, issue #169: the patch that says "clear the assignee". */}
+          {/* `null` is the patch that clears the assignee. */}
           <DropdownMenuItem onClick={() => patch(task.id, { assignees: [], assignee: null })}>{UNASSIGNED}</DropdownMenuItem>
         </MenuRow>
 
@@ -464,9 +425,7 @@ export function TaskCard({
           <TaskDiscussionLinks taskId={task.id} taskTitle={task.title} folderId={folderId} mayStart={may.discuss} />
         ) : null}
 
-        {/* "Blocked by" and "Blocks", drawn only once a relation exists (or
-            `/Blocked by` is asking). They are the task's facts, never its
-            body; their making is in History. */}
+        {/* Drawn only once a relation exists or `/Blocked by` is asking. */}
         <TaskDependencies
           taskId={task.id}
           folderId={task.folder?.id}
@@ -475,9 +434,7 @@ export function TaskCard({
         />
       </div>
 
-      {/* #221: the task's own document, in the folder canvas's writer; its
-          checklist items are its subtasks. It holds only what the person
-          wrote. The plain-text notes stand in while the writer loads. */}
+      {/* The task's own document; plain-text notes stand in while it loads. */}
       <div
         aria-label="Notes"
         role="region"

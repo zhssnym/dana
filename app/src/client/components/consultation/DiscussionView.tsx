@@ -1,47 +1,6 @@
-/*
-One thread, as its own page (W-C; #212, #320; r4, r9). The top bar's
-breadcrumb names it and its page crumb returns to the list, and the page's
-own head and tabs step aside. There is no title row: the thread's acts sit
-at the top bar's right end while it is open, "Resolve" (or "Reopen") and
-the "…" menu ("Turn into a task", Rename, Move to Trash). On a phone the top
-bar's left end is back, the title, and "<Page> · Discussion" under it.
-
-"Turn into a task" (issue #495) opens a compact create-or-link picker,
-drawn under the "…" menu: the page's open tasks show at once, typing
-searches them, and the last line creates a new task from the same input,
-titled as the thread when nothing is typed, at the end of the Work of the
-thread's own folder. Choosing one links it (`POST
-/discussions/:id/tasks`); a thread may be about several tasks, so the act
-stays offered after the first. The linked tasks sit above the posts, one
-slim row each with its state mark, name and state; Unlink on a row (hover or
-focus) removes only the link. A task made whose link then fails stays
-standing and the picker offers to retry that link, never a second task. The
-General discussion is never linked: it is the page's catch-all, not one
-subject.
-
-The thread fills the window: the posts read from the top, the history
-scrolls in its own region, and the composer stays at the window's foot. "Resolve" puts one optional line, "What was decided?",
-where the composer was (empty resolves without a decision, Wave 2 decision
-3). A resolved or trashed thread takes no writes (the server answers 409
-`discussion_frozen`), so it has no composer; the feed ends with who
-resolved it, and Reopen is in the top bar. Move to Trash asks
-nothing: the thread goes back to the list at once and the undo bar brings it
-back. Server state names are unchanged (`resolved`).
-
-On a desktop the cursor lands in the composer, as Slack's does; a phone's
-keyboard is not opened uninvited. Escape, from anywhere but a field holding
-writing or an open menu, goes back to the list, which puts its focus back on
-this thread's row.
-
-Near-live: the posts re-read every few seconds and the thread's own row every
-fifteen (`api/consultation.ts`). Opening the thread, and every new post seen
-while it is on screen, marks it read for this person on every device. It
-opens at the first post from someone else since the last read, else at the
-end.
-
-Which acts are drawn is `discussionPowers`; none of it is authorization. The
-General discussion is never offered Move to Trash here (the route decides).
-*/
+// One open thread. A resolved or trashed thread takes no writes (409
+// `discussion_frozen`), so it has no composer. Which acts are drawn is
+// `discussionPowers`; none of it is authorization.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import {
@@ -81,16 +40,15 @@ export function DiscussionView(props: {
   readonly personOf: PersonResolver
   readonly justStarted: boolean
   readonly onBack: () => void
-  /** Drawn inside the Discussion sidebar (#546).
-   * Nothing is put in the app's top bar; back, the title and the thread's
-   * acts sit in one row at the top of the panel, and the thread fills its
-   * container instead of measuring the page. */
+  /**
+   * Drawn inside the Discussion sidebar: back, title and acts sit in one row and the
+   * thread fills its container.
+   */
   readonly docked?: boolean
 }): React.JSX.Element {
   const { discussionId, docked = false } = props
   const discussion = useOpenDiscussion(discussionId)
-  /* A phone's way back is drawn while the thread loads or fails too. In the
-     dock the loaded thread draws its own row, with its acts. */
+  // A phone's way back is drawn while the thread loads or fails too.
   const lead = docked ? (
     discussion.data === undefined ? <DockedLead title="" onBack={props.onBack} /> : null
   ) : (
@@ -133,8 +91,7 @@ function ThreadBody(props: {
   readonly justStarted: boolean
   readonly onBack: () => void
   readonly docked?: boolean
-  /* A write the server refused (403, or 409 frozen): the thread changed
-     under us, so read it again. */
+  // A write the server refused (403, or 409 frozen): read the thread again.
   readonly onRefused: () => void
 }): React.JSX.Element {
   const { discussion: d, viewer, personOf, justStarted, onBack, onRefused, docked = false } = props
@@ -144,28 +101,24 @@ function ThreadBody(props: {
   const restore = useRestoreDiscussion()
   const postComment = usePostDiscussionComment()
   const markRead = useMarkDiscussionRead()
-  /* "Turn into a task" opens its picker under the "…" button. */
   const [picking, setPicking] = useState(false)
   const menuRef = useRef<HTMLButtonElement>(null)
-  /* "Resolve" put its line in the composer's place. Once it resolves, the
-     focus goes to Reopen, which takes Resolve's place in the top bar. */
+  // Once resolved, focus goes to Reopen, which takes Resolve's place.
   const [closing, setClosing] = useState(false)
   const landOnReopen = useRef(false)
   const reopenRef = useRef<HTMLButtonElement>(null)
   const [box, height] = useFillHeight(!docked)
   const [renaming, setRenaming] = useState(false)
   const [pointer] = useState(() => globalThis.matchMedia?.('(pointer: fine)').matches ?? false)
-  /* Where the reading starts: the last read as it stood when the thread
-     opened, before this visit marks it. */
+  // The last read as it stood when the thread opened, before this visit marks it.
   const [openAt] = useState<string | null>(() => d.read_at ?? null)
 
-  /* On the document, so an Escape with nothing focused (after a click on the
-     page) leaves too, as does one from the thread's own acts in the top bar;
-     one aimed elsewhere (the sidebar, a dialog) does not. */
+  // On the document, so an Escape with nothing focused also leaves; one aimed at
+  // the sidebar or a dialog does not.
   useEffect(() => {
     const leave = (event: KeyboardEvent): void => {
       const target = event.target as HTMLElement
-      /* In the dock an Escape with nothing focused belongs to the page. */
+      // In the dock an Escape with nothing focused belongs to the page.
       if (docked && !box.current?.contains(target)) return
       if (target !== document.body && !box.current?.contains(target) && target.closest('[data-thread-bar]') === null) return
       if (leavesThread(event)) onBack()
@@ -176,8 +129,7 @@ function ThreadBody(props: {
 
   const comments = thread.data?.comments
   const newest = comments?.reduce<string>((latest, c) => (c.created_at > latest ? c.created_at : latest), '') ?? null
-  /* Read on open, and again for every new post seen while the thread is on
-     screen; a post that arrives in a hidden tab is read when it is shown. */
+  // Mark read on open and for every new post seen; a hidden tab marks it when shown.
   useEffect(() => {
     if (newest === null) return
     const mark = (): void => {
@@ -188,8 +140,8 @@ function ThreadBody(props: {
     return () => { document.removeEventListener('visibilitychange', mark) }
   }, [d.id, newest, markRead])
 
-  /* Unshared: every post is the creator's and it has never been decided.
-     Unknown (still loading) counts as shared, the safe direction. */
+  // Unshared: every post is the creator's and nothing was decided. Unknown counts as
+  // shared, the safe direction.
   const unshared =
     comments !== undefined && comments.every((c) => c.author_id === d.created_by) && d.current_outcome_id === null
   const powers = viewer === null ? NO_POWERS : discussionPowers(viewer, d, unshared)
@@ -210,9 +162,7 @@ function ThreadBody(props: {
   const trashed = d.trashed_at !== null
   const trashable = powers.trash && !d.is_general
   const resolvable = powers.resolve && d.state === 'open' && !trashed
-  /* The picker edits the thread's links, so it follows the thread's edit
-     authority; creating a task there is a second capability, offered inside
-     the picker only to someone who has it. */
+  // The picker follows edit authority; creating a task inside it is a separate capability.
   const relatable = d.state === 'open' && !trashed && powers.edit && !d.is_general
   const canCreateTask = viewer !== null && mayDraw(viewer.facts, 'task.create')
 
@@ -221,8 +171,7 @@ function ThreadBody(props: {
   }
 
   const moveToTrash = (): void => {
-    /* Back to the list first, so nothing on screen reads the thread it just
-       sent away; the undo bar restores it. */
+    // Back to the list first, so nothing on screen reads the trashed thread.
     onBack()
     trash(d.id)
     pushUndo(undoLabel('Moved to Trash', d.title), () => { restore.mutate(d.id) })
@@ -237,9 +186,7 @@ function ThreadBody(props: {
     reopenRef.current?.focus()
   }, [resolved])
 
-  /* The thread's acts sit at the right end of the top bar, only while it is
-     open here. A laptop reads "Resolve" (or "Reopen"); a phone draws Resolve
-     as its check alone, 44px like every touch target there. */
+  // A phone draws Resolve as its check alone, at the 44px touch size.
   const acts = (
     <div data-thread-bar="" className="flex shrink-0 items-center gap-1">
       {resolvable && !closing ? (
@@ -301,9 +248,7 @@ function ThreadBody(props: {
       ) : (
         <WindowBarActions order={2}>{acts}</WindowBarActions>
       )}
-      {/* The topic heads the thread, so it reads as a discussion of one thing.
-          On a phone the top bar already names it, so it is drawn only for a
-          screen reader there; Rename takes its place while open. */}
+      {/* A phone's top bar already names the thread, so the heading is screen-reader only there. */}
       <h1
         data-page-title={d.title}
         className={cn(
@@ -331,8 +276,7 @@ function ThreadBody(props: {
       ) : null}
 
       <ThreadPosts
-        /* Attachments are stored in the thread's own folder, which the
-           server checks `file_ids` against; the tab's id is refused (422). */
+        // Attachments are stored in the thread's own folder; the server refuses the tab's id (422).
         folderId={d.folder_id}
         comments={comments}
         loading={thread.isPending}
@@ -375,9 +319,7 @@ function ThreadBody(props: {
   )
 }
 
-/* A phone's top bar while a thread is open: back to the list, then the
-   thread's title on one line over "<Page> · Discussion". A laptop's top bar
-   keeps the breadcrumb, which says the same. */
+// A phone's top bar while a thread is open. A laptop keeps the breadcrumb.
 function ThreadLead({ title, folderId, onBack }: { readonly title: string; readonly folderId: string; readonly onBack: () => void }): React.JSX.Element {
   const folder = useFolder(folderId)
   const names = folder.data === undefined ? [] : [...(folder.data.ancestors ?? []).slice(-1), folder.data].map((f) => f.name)
@@ -396,8 +338,6 @@ function ThreadLead({ title, folderId, onBack }: { readonly title: string; reado
   )
 }
 
-/* The Discussion sidebar's own row (#546) for an open
-   thread: back to the list, the title, then the thread's acts. */
 function DockedLead({ title, onBack, children }: { readonly title: string; readonly onBack: () => void; readonly children?: React.ReactNode }): React.JSX.Element {
   return (
     <div data-thread-bar="" className="flex min-w-0 shrink-0 items-center gap-1 pb-2">
@@ -410,25 +350,24 @@ function DockedLead({ title, onBack, children }: { readonly title: string; reado
   )
 }
 
-/** Escape goes back to the list unless something nearer wants it: a field's
- * own Escape (rename, resolve, an edit), an open menu or dialog, or a
- * composer that holds writing. */
+/**
+ * Escape goes back to the list unless a field, an open menu or dialog, or a
+ * composer holding writing wants it.
+ */
 function leavesThread(event: KeyboardEvent): boolean {
   if (event.key !== 'Escape') return false
   if (document.querySelector('[role="menu"], [role="dialog"], [role="alertdialog"], .bn-suggestion-menu, .bn-formatting-toolbar') !== null) return false
   const target = event.target as HTMLElement
   if (target.closest('input, textarea, select') !== null) return false
   const editor = target.closest<HTMLElement>('[data-post-editor]')
-  /* The editor spends every Escape itself (it prevents the default), so
-     only a new post that holds nothing gives it up. */
+  // The editor prevents every Escape itself, so only an empty new post gives it up.
   if (editor === null) return !event.defaultPrevented
   if (editor.dataset.postEditor !== 'new') return false
   const text = editor.textContent?.trim() ?? ''
   return text === '' && editor.querySelector('img, video, audio, [data-content-type="file"]') === null
 }
 
-/** The thread fills the window below where it starts, so its history
- * scrolls in its own region and the composer sits at the window's foot. */
+/** Fill the window below the thread's top, so history scrolls in its own region. */
 function useFillHeight(enabled = true): [React.RefObject<HTMLDivElement | null>, number | null] {
   const box = useRef<HTMLDivElement>(null)
   const [height, setHeight] = useState<number | null>(null)
@@ -450,8 +389,7 @@ function useFillHeight(enabled = true): [React.RefObject<HTMLDivElement | null>,
   return [box, height]
 }
 
-/** Rename, from the "…" menu: the title as a field in a slim row above the
- * posts; Enter or leaving it saves, Escape leaves it unchanged. */
+/** Enter or blur saves, Escape cancels. */
 function Rename({ discussion: d, onDone }: { readonly discussion: Discussion; readonly onDone: () => void }): React.JSX.Element {
   const update = useUpdateDiscussion()
   const [draft, setDraft] = useState(d.title)
@@ -487,9 +425,7 @@ function Rename({ discussion: d, onDone }: { readonly discussion: Discussion; re
   )
 }
 
-/** "Resolve": one optional line in the composer's place and in its
- * frame (the same 40px box, the act inline where Send was), then Enter.
- * Escape or Cancel leaves it open. */
+/** Resolve's optional decision line, in the composer's frame. */
 function CloseThread({ discussion: d, onDone }: { readonly discussion: Discussion; readonly onDone: (resolved: boolean) => void }): React.JSX.Element {
   const resolve = useResolveDiscussion()
   const [statement, setStatement] = useState('')

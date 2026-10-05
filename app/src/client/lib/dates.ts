@@ -1,13 +1,6 @@
-/*
-The one date formatter. Every date on screen goes through here: "Today",
-"Tomorrow", "Mon", "24 Sep", "24 Sep 2027". Never ISO.
-
-Civil YYYY-MM-DD strings only, fixed English tables rather than `Intl` (a
-French browser would otherwise say "août" beside English copy), no `Date`
-constructed, and `today` always arrives as an argument. Times belong to
-`lib/time-format.ts`; this module only joins them to a day. The one thing
-taken from the viewer's locale is the order of day and month (`isMonthFirst`).
-*/
+// The one date formatter: "Today", "Mon", "24 Sep", never ISO. Civil YYYY-MM-DD only, fixed
+// English tables (not `Intl`), and `today` always passed in. Only the day/month order comes
+// from the locale.
 import { formatTime } from './time-format.js'
 import type { TimeFormat } from './time-format.js'
 
@@ -96,14 +89,13 @@ export function toCivilString({ year, month, day }: CivilDate): string {
   return `${String(year)}-${pad(month)}-${pad(day)}`
 }
 
-/** The civil date `days` after `date`; negative counts back. */
 export function addDays(date: string, days: number): string {
   const parsed = parseCivilDate(date)
   if (parsed === null) return date
   return toCivilString(civilFromDays(daysFromCivil(parsed) + days))
 }
 
-/** Whole days from `from` to `to`; negative when `to` is earlier. 0 if unreadable. */
+/** Negative when `to` is earlier; 0 if unreadable. */
 export function daysBetween(from: string, to: string): number {
   const a = parseCivilDate(from)
   const b = parseCivilDate(to)
@@ -115,20 +107,16 @@ export function dayBefore(date: string): string {
   return addDays(date, -1)
 }
 
-/** Monday of the week `date` falls in. */
 export function weekStart(date: string): string {
   const parsed = parseCivilDate(date)
   if (parsed === null) return date
   return addDays(date, -((weekdayIndex(parsed) + 6) % 7))
 }
 
-/** "Thursday", or '' when unreadable. */
 export function weekdayName(date: string): string {
   const parsed = parseCivilDate(date)
   return parsed === null ? '' : (WEEKDAYS_FULL[weekdayIndex(parsed)] ?? '')
 }
-
-/* ------------------------------------------------------------ formatters -- */
 
 let monthFirstOverride: boolean | null = null
 let monthFirstDetected: boolean | null = null
@@ -139,8 +127,7 @@ export function setMonthFirst(value: boolean | null): void {
 }
 
 /**
- * Whether the viewer's locale writes the month before the day (en-US). Read
- * once, in a browser only: without a document (the server, unit tests) the
+ * Whether the locale writes the month first (en-US). Read once; without a document the
  * order is day first.
  */
 export function isMonthFirst(): boolean {
@@ -165,16 +152,12 @@ function sameYear(parsed: CivilDate, today: string): boolean {
   return parseCivilDate(today)?.year === parsed.year
 }
 
-/** Relative distance in days, or null when either date is unreadable. */
 function offsetFrom(date: string, today: string): number | null {
   if (parseCivilDate(date) === null || parseCivilDate(today) === null) return null
   return daysBetween(today, date)
 }
 
-/**
- * "24 Sep", or "24 Sep 2027" outside today's year; "Sep 24" and
- * "Sep 24, 2027" where the locale puts the month first. No relative words.
- */
+/** "24 Sep", or "24 Sep 2027" outside today's year; month first where the locale wants it. */
 export function formatDate(date: string, today: string): string {
   const parsed = parseCivilDate(date)
   if (parsed === null) return ''
@@ -199,7 +182,7 @@ export function formatDay(date: string, today: string): string {
   return formatDate(date, today)
 }
 
-/** `formatDay` for mid-sentence use: "due today", "sent yesterday", "due Mon". */
+/** For mid-sentence use: "due today", "due Mon". */
 export function formatDayInline(date: string, today: string): string {
   const day = formatDay(date, today)
   return day === 'Today' || day === 'Tomorrow' || day === 'Yesterday' ? day.toLowerCase() : day
@@ -225,7 +208,7 @@ export function formatDayTime(
   return at === '' ? day : `${day} ${at}`
 }
 
-/** Group heading: "Today", "Tomorrow", "Yesterday", "Saturday" (2–6 days ahead), else `formatDate`. */
+/** Like `formatDay`, but the full weekday name (2–6 days ahead). */
 export function formatDayHeading(date: string, today: string): string {
   const parsed = parseCivilDate(date)
   if (parsed === null) return ''

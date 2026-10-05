@@ -1,5 +1,4 @@
-/* Links in canvas paragraph text: the addresses it carries, and whether one is a video the
-   canvas can embed. Only http(s) is ever treated as a link. */
+// Links in paragraph text, and which ones the canvas can embed. Only http(s) counts.
 export interface VideoTarget {
   readonly kind: 'youtube' | 'vimeo' | 'direct'
   readonly src: string
@@ -65,9 +64,9 @@ function coordinatePair(value: string | null): MapCoordinates | null {
   return match === null ? null : coordinates(match[1]!, match[2]!)
 }
 
-/** Coordinates Google exposes in its long URLs, without calling a geocoder. */
+/** Coordinates already in Google's long URLs, without calling a geocoder. */
 function mapCoordinates(url: URL): MapCoordinates | null {
-  // Prefer the exact place pin over Google's camera centre when both exist.
+  // Prefer the exact place pin over Google's camera centre.
   const data = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/u.exec(url.toString())
   if (data !== null) return coordinates(data[1]!, data[2]!)
 
@@ -86,9 +85,8 @@ function coordinateText(value: number): string {
 }
 
 /**
- * OpenStreetMap publishes this export/embed page specifically for iframe use.
- * It gives Dana a real map preview without a Google frame, API key, tile proxy,
- * or server-side image renderer.
+ * OpenStreetMap's embed page is meant for iframes: a real map with no Google frame,
+ * API key or tile proxy.
  */
 function openStreetMapEmbedSrc(url: URL): string | null {
   const point = mapCoordinates(url)
@@ -110,10 +108,8 @@ function openStreetMapEmbedSrc(url: URL): string | null {
 }
 
 /**
- * A key-free preview target for a Google Maps link. Dana never frames Google:
- * it reads coordinates already present in the long URL and uses OpenStreetMap's
- * supported embed page. Opaque maps.app.goo.gl links are first resolved by
- * Dana's Google-only redirect resolver, then passed through here again.
+ * A key-free preview for a Google Maps link: read coordinates from the URL and embed
+ * OpenStreetMap. Short maps.app.goo.gl links are resolved first, then passed back here.
  */
 export function googleMapsTarget(value: string): GoogleMapsTarget | null {
   const url = safeUrl(value)
