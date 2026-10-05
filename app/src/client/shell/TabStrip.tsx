@@ -9,7 +9,8 @@ The + is primarily an open-place search. It reuses Dana's search answer so a
 person can open a Page, Collection or Task, and keeps one separated New page
 action at the bottom rather than restoring the old mixed creation menu.
 */
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router'
 
 import { useCreateFolder } from '../api/mutations.js'
@@ -28,6 +29,7 @@ import type { Folder } from '../../shared/folders.js'
 import type { Shelf } from '../../shared/shelves.js'
 import { FOLDER_ACTION_PARAM } from './app-sidebar.js'
 import { focusList, focusMark, isFocusKey } from './focus-lists.js'
+import { clearTabDrop, registerTabStrip, useTabDrag } from './tab-drop.js'
 import {
   closeTab,
   openInNewTab,
@@ -444,6 +446,32 @@ export function TabStrip() {
   const creatingPage = useRef(false)
   const { tabs, activeId } = useTabs()
   const tablist = useRef<HTMLDivElement>(null)
+  const bar = useRef<HTMLDivElement>(null)
+  /* A sidebar row dragged out of the sidebar (`tab-drop.ts`): over the strip
+     it shows as a ghost tab at its slot, anywhere else as a card at the
+     pointer. */
+  const carried = useTabDrag()
+  const slot = carried?.slot ?? null
+  useEffect(() => {
+    if (bar.current === null || tablist.current === null) return undefined
+    registerTabStrip({ bar: bar.current, list: tablist.current, go: (path) => void navigate(path) })
+    return () => { registerTabStrip(null) }
+  }, [navigate])
+  /* However a drag ends (a release elsewhere, Escape), the ghost goes with it. */
+  useEffect(() => {
+    const end = (): void => { clearTabDrop() }
+    const escape = (event: globalThis.KeyboardEvent): void => {
+      if (event.key === 'Escape') clearTabDrop()
+    }
+    window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
+    window.addEventListener('keydown', escape)
+    return () => {
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
+      window.removeEventListener('keydown', escape)
+    }
+  }, [])
   const desk = folders.find((folder) => folder.is_default)
   const emptyTabPath = desk === undefined ? `${paths.home}/desk` : paths.folder(desk.id)
 
@@ -541,6 +569,27 @@ export function TabStrip() {
     void navigate(path)
   }
 
+  /* The tab a sidebar row would become: the same face and width as a real
+     tab, held back, so the strip shows where it opens before the release. */
+  function ghost(path: string): React.JSX.Element {
+    return (
+      <div
+        data-tab-ghost=""
+        aria-hidden="true"
+        className="pointer-events-none relative flex w-52 min-w-32 max-w-52 items-center gap-2 self-stretch bg-background px-3 pr-7 text-left text-sm font-medium text-foreground opacity-60 animate-in fade-in-0 duration-150 motion-reduce:animate-none"
+      >
+        <TabFace
+          path={path}
+          collaboration={null}
+          folders={folders}
+          shelves={shelves}
+          focusAppearance={focusAppearance}
+          labelId="dana-workspace-tab-ghost"
+        />
+      </div>
+    )
+  }
+
   function createPage(): void {
     if (creatingPage.current) return
     creatingPage.current = true
@@ -580,7 +629,7 @@ export function TabStrip() {
   }, [activeId])
 
   return (
-    <div className="hidden h-8 shrink-0 items-stretch border-b border-border bg-sidebar md:flex">
+    <div ref={bar} className="hidden h-8 shrink-0 items-stretch border-b border-border bg-sidebar md:flex">
       {/* Browser history belongs with the working-set navigation. The same
           component is moved here intact, so its back/forward semantics do not
           fork from the former window-bar placement. */}
@@ -599,8 +648,9 @@ export function TabStrip() {
           const state = drag.itemState(index)
           const labelId = `dana-workspace-tab-${tab.id}`
           return (
+            <Fragment key={tab.id}>
+            {carried !== null && slot === index ? ghost(carried.path) : null}
             <div
-              key={tab.id}
               ref={drag.setItemRef(index)}
               role="tab"
               aria-selected={active}
@@ -685,9 +735,33 @@ export function TabStrip() {
                 <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
               </button>
             </div>
+            </Fragment>
           )
         })}
+        {carried !== null && slot !== null && slot >= tabs.length ? ghost(carried.path) : null}
       </div>
+      {carried !== null && slot === null
+        ? createPortal(
+            /* The row, loose: a tab-shaped card held a little below and right
+               of the pointer, so the pointer still sees what it is over. */
+            <div
+              data-tab-drag-card=""
+              aria-hidden="true"
+              className="pointer-events-none fixed z-50 flex h-8 w-52 items-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground shadow-sm"
+              style={{ left: carried.x + 12, top: carried.y + 8 }}
+            >
+              <TabFace
+                path={carried.path}
+                collaboration={null}
+                folders={folders}
+                shelves={shelves}
+                focusAppearance={focusAppearance}
+                labelId="dana-workspace-tab-carried"
+              />
+            </div>,
+            document.body,
+          )
+        : null}
       <OpenPlacePicker
         places={places}
         onPick={(path) => {
