@@ -1,5 +1,5 @@
 /*
-AC-036: given complete on a pending task, then completed_at and completed_by
+given complete on a pending task, then completed_at and completed_by
 are set to the acting time and user.
 
 The acting user is the sharp half. 5.1 makes the actor any member of the
@@ -104,8 +104,8 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-036: completing records the acting user and time', () => {
-  test('AC-036: completed_by is the acting user, not the assignee or the creator', async () => {
+describe('completing records the acting user and time', () => {
+  test('completed_by is the acting user, not the assignee or the creator', async () => {
     const { owner, assignee, completer } = await stage()
     const taskId = await task('actor')
     const body = await transitionOk(
@@ -126,7 +126,7 @@ describe('AC-036: completing records the acting user and time', () => {
     expect(String(row.completed_by)).not.toBe(owner.id)
   })
 
-  test('AC-036: completed_at is the acting time', async () => {
+  test('completed_at is the acting time', async () => {
     const { completer } = await stage()
     const taskId = await task('instant')
     const before = Date.now()
@@ -157,7 +157,7 @@ describe('AC-036: completing records the acting user and time', () => {
     ).toBe(true)
   })
 
-  test('AC-036: the 7.6 response envelope is answered', async () => {
+  test('the 7.6 response envelope is answered', async () => {
     const { completer } = await stage()
     const taskId = await task('envelope')
     const body = await transitionOk(
@@ -172,7 +172,7 @@ describe('AC-036: completing records the acting user and time', () => {
     ).not.toBeNull()
   })
 
-  test('AC-036 adversarial: completion touches nothing else', async () => {
+  test('adversarial: completion touches nothing else', async () => {
     const { completer, assignee } = await stage()
     const taskId = await task('untouched')
     const before = await requireTaskRow(app.db, taskId)
@@ -199,7 +199,7 @@ describe('AC-036: completing records the acting user and time', () => {
     ).toBe(assignee.id)
   })
 
-  test('AC-036: invariants hold afterwards', async () => {
+  test('invariants hold afterwards', async () => {
     const { owner, assignee, completer, folderId } = await stage()
     expectSweptTasks(taskIds)
     await expectTaskInvariants(

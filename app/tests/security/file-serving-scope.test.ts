@@ -1,5 +1,5 @@
 /*
-AC-195: given a stored file in a shared folder, when a non-member requests
+given a stored file in a shared folder, when a non-member requests
 it, then the 10.2 not-found shape; when a member requests it, then the
 bytes.
 
@@ -31,7 +31,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-195 a file is as private as its folder', () => {
+describe('a file is as private as its folder', () => {
   test('member gets bytes, outsider gets not-found', async () => {
     const [owner, outsider] = (await cast.of(app)) as [Actor, Actor]
     const folderId = await createFolder(owner, 's1 ac195 serving')

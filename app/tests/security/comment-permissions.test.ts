@@ -1,5 +1,5 @@
 /*
-AC-205: given a comment in a folder, when a non-member reads or writes its
+given a comment in a folder, when a non-member reads or writes its
 thread, then the 10.2 not-found shape; when the author or the folder owner
 deletes it, then success; when another member tries, then 403.
 
@@ -48,7 +48,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-205 three roles at one thread', () => {
+describe('three roles at one thread', () => {
   test('outsider not-found; author and owner delete; bystander 403', async () => {
     const [owner, author, bystander, outsider] = (await cast.of(app)) as [
       Actor,

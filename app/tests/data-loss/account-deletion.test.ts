@@ -1,5 +1,5 @@
 /*
-AC-138: Given DELETE /me, then the user row survives scrubbed, google_sub,
+Given DELETE /me, then the user row survives scrubbed, google_sub,
 email, display_name, and avatar_url null with deleted_at set, and surviving
 tasks keep created_by and completed_by pointing at it, readable by remaining
 members with the assignee cleared; an accepted invite keeps its accepted_by.
@@ -149,8 +149,8 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-138: the account dissolves, its history does not', () => {
-  test('AC-138: the row survives with identity scrubbed', async () => {
+describe('the account dissolves, its history does not', () => {
+  test('the row survives with identity scrubbed', async () => {
     const { departing } = await stage()
     expectStatus(
       await deleteAccount(departing),
@@ -166,7 +166,7 @@ describe('AC-138: the account dissolves, its history does not', () => {
     expect(row?.deleted_at, 'and deleted_at set, the soft-deletion mark').not.toBeNull()
   })
 
-  test('AC-138: history still names the scrubbed row, the assignment does not', async () => {
+  test('history still names the scrubbed row, the assignment does not', async () => {
     const { departing, keeper, witness, folderId, createdTaskId, completedTaskId } =
       await stage()
     expect(
@@ -207,7 +207,7 @@ describe('AC-138: the account dissolves, its history does not', () => {
   An implementation that nulled tasks.created_by to make deletion easy fails
   here, on the column.
   */
-  test('AC-138: the remaining member reads the survivors', async () => {
+  test('the remaining member reads the survivors', async () => {
     const { departing, keeper, createdTaskId } = await stage()
     const detail = await readTask(keeper, createdTaskId)
     expect(
@@ -224,7 +224,7 @@ describe('AC-138: the account dissolves, its history does not', () => {
     ).toBeNull()
   })
 
-  test('AC-138: the accepted invite keeps its accepted_by', async () => {
+  test('the accepted invite keeps its accepted_by', async () => {
     const { departing, acceptedInviteId } = await stage()
     const found = await rows(
       app.db,
@@ -240,7 +240,7 @@ describe('AC-138: the account dissolves, its history does not', () => {
     )
   })
 
-  test('AC-138: invariants hold afterwards', async () => {
+  test('invariants hold afterwards', async () => {
     const { keeper, witness, folderId } = await stage()
     // Two members remain, so INV-5 has nothing to say about the cleared
     // assignment and the sweep measures what it is here to measure: INV-4

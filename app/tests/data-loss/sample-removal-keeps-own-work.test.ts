@@ -1,5 +1,5 @@
 /*
-AC-1380: Given a task, a block or a comment the person wrote into a sample
+Given a task, a block or a comment the person wrote into a sample
 page, when they DELETE /sample, then that page's sample tree goes to Trash (a thread on a
 project's Discussion tab counts as the project's)
 with their writing in it, the response names it in X-Dana-Sample-Trashed,
@@ -69,7 +69,7 @@ async function withSample(actor: Actor | undefined): Promise<Actor> {
   return actor
 }
 
-describe('AC-1380 removing the sample keeps the person’s own work', () => {
+describe('removing the sample keeps the person’s own work', () => {
   test('a sample page holding an own task goes to Trash with it, and the undo duplicates nothing', async () => {
     const [first] = await cast.of(app)
     const tryer = await withSample(first)
