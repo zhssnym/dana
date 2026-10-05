@@ -18,5 +18,5 @@ is the current behavior. Correct the one that is wrong.
 - Open questions and notes go in an issue or a PR.
 - Update a document when a rule changes. You do not have to update it for each change.
 
-`app/tests/repo/agent-instructions.test.ts` checks that each backticked repository
+`tests/repo/agent-instructions.test.ts` checks that each backticked repository
 path in `troubleshooting.md` and in the root `AGENTS.md` exists.

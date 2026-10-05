@@ -41,7 +41,7 @@ Only words that have a special sense in Dana. The code name is in brackets.
 
 ## Permissions
 
-`RULES` in `app/src/shared/folder-actions.ts` is the full table. `mayPerform` is the one
+`RULES` in `src/shared/folder-actions.ts` is the full table. `mayPerform` is the one
 resolver for the server and the client. The presets are a ladder. Each preset can do all
 that the presets below it can do.
 

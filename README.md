@@ -10,7 +10,7 @@ to finish a project. It's free and in beta: [dana.so](https://dana.so). You sign
 **Stack:** one Node app. Vite + React on the front end, an Express API on the back end, Postgres in
 production (PGlite locally), deployed on Render. No Docker needed.
 
-**To run it:** from `app/` (there is no `package.json` at the root), run `npm ci`, then
+**To run it:** from the repository root, run `npm ci`, then
 `DANA_DEV_LOGIN=1 npm run dev`. `npm test` runs the tests.
 
 **Working on the code:** read `AGENTS.md` first. It has the commands, how a change gets in, and where

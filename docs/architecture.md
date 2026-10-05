@@ -37,19 +37,19 @@ owner for the scheduler, and a serial migration run. Open an issue before you ad
 
 ## Where things live
 
-- `app/src/server/` is the API. `index.ts` holds `createApp`, the route mounts in order,
+- `src/server/` is the API. `index.ts` holds `createApp`, the route mounts in order,
   and the boot.
-- `app/src/server/domain/` holds the writes. `app/src/server/views/` holds the read
-  queries. `app/src/server/routes/` holds the routers.
-- `app/src/server/auth/`, `scheduler/`, `notify/`, `files/`, `time/`, `security/` and
+- `src/server/domain/` holds the writes. `src/server/views/` holds the read
+  queries. `src/server/routes/` holds the routers.
+- `src/server/auth/`, `scheduler/`, `notify/`, `files/`, `time/`, `security/` and
   `observability/` each hold one concern.
-- `app/src/client/` is the SPA. `api/http.ts` is the only HTTP caller.
+- `src/client/` is the SPA. `api/http.ts` is the only HTTP caller.
   `styles/tokens.css` holds every design value. `components/ui/` holds the copied shadcn
   components.
-- `app/src/shared/` holds the zod schemas and API types that both sides import.
-- `app/db/` holds the engine seam (`client.ts`), the migrations, and the seed and verify
+- `src/shared/` holds the zod schemas and API types that both sides import.
+- `db/` holds the engine seam (`client.ts`), the migrations, and the seed and verify
   scripts.
-- `app/tests/` holds the acceptance tests, the browser tests (`e2e/`) and the harnesses
+- `tests/` holds the acceptance tests, the browser tests (`e2e/`) and the harnesses
   (`support/`).
 
 ## Constraints that are not obvious
@@ -74,10 +74,10 @@ owner for the scheduler, and a serial migration run. Open an issue before you ad
   and a 404 for other methods. `/api/health` is exempt, because Render checks it by its
   own hostname.
 - **The scheduler pass is the only background work.** Keep it a plain callable,
-  `createReminderPass` in `app/src/server/scheduler/index.ts`. Each sweep claims at most
+  `createReminderPass` in `src/server/scheduler/index.ts`. Each sweep claims at most
   `SWEEP_BATCH` rows with `FOR UPDATE SKIP LOCKED`. Never move a sweep into a request
   handler.
-- **Write the read queries in `app/src/server/views/` as SQL** through Drizzle's `sql`
+- **Write the read queries in `src/server/views/` as SQL** through Drizzle's `sql`
   template, so their `ORDER BY` stays easy to read. CRUD can use the query builder.
 - **Stored client state keeps ids, never display names.** A saved view or an order keyed
   by a name breaks at the first rename.
@@ -91,7 +91,7 @@ package, not memory.
 
 ### Tailwind 4
 
-- Configuration is CSS only: `@theme` in `app/src/client/styles/tokens.css`, through
+- Configuration is CSS only: `@theme` in `src/client/styles/tokens.css`, through
   `@tailwindcss/vite`. There is no `tailwind.config.js`. A v3 configuration idiom is a
   defect.
 
@@ -105,7 +105,7 @@ package, not memory.
 - Check v3 idioms against the v4 changes that break v3 code before you write a schema. A custom
   message goes in `{ error: … }`.
 - `z.object` strips unknown keys and the route answers 200. `parseBody` in
-  `app/src/server/http/parse-body.ts` logs unknown top-level keys only. A nested unknown
+  `src/server/http/parse-body.ts` logs unknown top-level keys only. A nested unknown
   key disappears with no record.
 - Request schemas are never `.strict()`. Old installed clients outlive a deploy, and
   strictness makes their writes fail. To refuse one field, declare it as
@@ -127,12 +127,12 @@ package, not memory.
   DST gap, Luxon adds the gap length (02:30 becomes 03:30). Dana needs the first valid
   instant after the gap (03:00).
 - For an ambiguous local time, Luxon makes no promise. Dana takes the earlier instant.
-  `app/src/server/time/reminder-time.ts` holds both rules.
+  `src/server/time/reminder-time.ts` holds both rules.
 - No library implements these two rules, so no library can be a test oracle for them.
 - DST fixtures use old transitions in zones with no recent rule change. The Node runtime
   and PGlite carry separate tzdb copies that change independently.
 - `Intl.DateTimeFormat` accepts offsets such as `+05:30` and matches names without regard
-  to case. Validate every IANA zone through `app/src/shared/timezone.ts`.
+  to case. Validate every IANA zone through `src/shared/timezone.ts`.
 
 ### PGlite
 
@@ -149,18 +149,18 @@ package, not memory.
   or roll back together. Check this again after a drizzle-orm upgrade.
 - A Drizzle statement error puts the SQL and its bound values in its message, and the
   stack starts with that message. Log only the error name and the stack frames, as
-  `safeStack` in `app/src/server/security/log.ts` does.
+  `safeStack` in `src/server/security/log.ts` does.
 
 ### openid-client
 
 - By default it skips the ID token signature check in the code flow.
-  `app/src/server/auth/oidc.ts` turns on `enableNonRepudiationChecks`. After an upgrade,
+  `src/server/auth/oidc.ts` turns on `enableNonRepudiationChecks`. After an upgrade,
   make sure that this switch still exists and still forces the check.
 
 ### TypeScript build
 
 - tsc emits a file that the build config excludes when any import can reach it, a literal
-  `import()` included. The dev-login loader in `app/src/server/auth/router.ts` uses a
+  `import()` included. The dev-login loader in `src/server/auth/router.ts` uses a
   computed specifier and answers 404 when the load fails.
 - The server reads `DANA_DEV_LOGIN` when `createApp` runs, never at module load.
 
@@ -174,8 +174,8 @@ package, not memory.
 
 ### fetch in the client
 
-- A `fetch` outside `app/src/client/api/http.ts` sends no CSRF header and no `tz`
-  parameter. The server then answers 403 or 422. `app/eslint.config.ts` forbids it.
+- A `fetch` outside `src/client/api/http.ts` sends no CSRF header and no `tz`
+  parameter. The server then answers 403 or 422. `eslint.config.ts` forbids it.
 
 ## Rejected alternatives
 
@@ -200,13 +200,13 @@ package, not memory.
 
 - Vitest runs unit and acceptance tests. Acceptance tests call the real Express app in
   the process over HTTP.
-- `app/db/client.ts` selects the engine. With `TEST_DATABASE_URL` unset, tests use
+- `db/client.ts` selects the engine. With `TEST_DATABASE_URL` unset, tests use
   PGlite. With it set, tests use that Postgres. Print it before you trust a run.
 - Postgres is the authoritative leg. It has a real pool, a real planner, and concurrent
   transactions. CI runs it.
 - On the Postgres leg each Vitest worker gets its own database, with a fixed `C`
   sort order and `C.UTF-8` case rules. PGlite gives the same order.
 - Assert a database rejection by SQLSTATE and constraint name, never by message text.
-  Use `expectRejectedWith` in `app/tests/support/helpers.ts`.
+  Use `expectRejectedWith` in `tests/support/helpers.ts`.
 - Playwright runs the browser tests against PGlite, with the seed data and the dev login.
-- What the suite keeps, and the rule for a new test: `app/tests/README.md`.
+- What the suite keeps, and the rule for a new test: `tests/README.md`.
