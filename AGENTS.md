@@ -104,6 +104,8 @@ These pass every test when they are wrong. Look for them in your diff.
   write a raw value.
 - Light and dark themes both work, and follow the system setting.
 - No gradients, decorative shadows or glow. Sentence case. A button says what it does.
+- For UI work, use the `impeccable` skill in `.claude/skills/`. A hook runs its design
+  check after each UI edit. When the skill and this file do not agree, this file wins.
 
 ## Docs
 
