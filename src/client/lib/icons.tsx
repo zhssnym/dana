@@ -193,41 +193,29 @@ function icon(Static: LucideIcon, Animated: AnimComponent | null): LucideIcon {
   return DanaIcon
 }
 
-// Failure only. Lateness uses `CalendarDays` with "Overdue" instead.
-export const TriangleAlert = icon(Lu.TriangleAlert, Anim.TriangleAlertIcon)
 export const AlignLeft = icon(Lu.AlignLeft, Anim.AlignLeftIcon)
 export const Ban = icon(Lu.Ban, null)
 export const Bell = icon(Lu.Bell, Anim.BellIcon)
 export const ArrowLeft = icon(Lu.ArrowLeft, Anim.ArrowLeftIcon)
 export const ArrowRight = icon(Lu.ArrowRight, Anim.ArrowRightIcon)
-export const CalendarClock = icon(Lu.CalendarClock, Anim.CalendarClockIcon)
 // "No due date": the other value of the `CalendarDays` axis.
 export const CalendarX = icon(Lu.CalendarX, Anim.CalendarXIcon)
 export const Download = icon(Lu.Download, Anim.DownloadIcon)
-export const FolderOpen = icon(Lu.FolderOpen, Anim.FolderOpenIcon)
-export const MailPlus = icon(Lu.MailPlus, Anim.MailPlusIcon)
-export const MailWarning = icon(Lu.MailWarning, Anim.MailWarningIcon)
-export const UserRoundPlus = icon(Lu.UserRoundPlus, null)
 export const CalendarDays = icon(Lu.CalendarDays, Anim.CalendarDaysIcon)
 export const Check = icon(Lu.Check, Anim.CheckIcon)
 export const CheckCircle2 = icon(Lu.CircleCheckBig, Anim.CircleCheckBigIcon)
 export const ChevronDown = icon(Lu.ChevronDown, Anim.ChevronDownIcon)
-export const ChevronUp = icon(Lu.ChevronUp, Anim.ChevronUpIcon)
 export const ChevronLeft = icon(Lu.ChevronLeft, Anim.ChevronLeftIcon)
 export const ChevronRight = icon(Lu.ChevronRight, Anim.ChevronRightIcon)
 export const CircleAlert = icon(Lu.CircleAlert, null)
-export const Clock3 = icon(Lu.Clock, Anim.ClockIcon)
 export const Copy = icon(Lu.Copy, Anim.CopyIcon)
 // The animated `ImageIcon` draws a different picture, so this one is plain.
 export const ImagePlus = icon(Lu.ImagePlus, null)
 export const OpenInNewTab = icon(Lu.SquareArrowOutUpRight, null)
-// Lucide has three names for this drawing; export only one.
-export const CircleQuestionMark = icon(Lu.CircleQuestionMark, null)
 export const Workflow = icon(Lu.Workflow, null)
 // The Diagram block; `Workflow` already means a workflow file.
 export const Network = icon(Lu.Network, null)
 export const EyeOff = icon(Lu.EyeOff, Anim.EyeOffIcon)
-export const Eye = icon(Lu.Eye, Anim.EyeIcon)
 export const FileText = icon(Lu.FileText, Anim.FileTextIcon)
 export const Video = icon(Lu.Video, Anim.VideoIcon)
 export const Folder = icon(Lu.Folder, Anim.FolderIcon)
@@ -244,34 +232,24 @@ export const Layers3 = icon(Lu.Layers3, Anim.LayersIcon)
 export const Link2 = icon(Lu.Link, Anim.LinkIcon)
 export const ListChecks = icon(Lu.ListChecks, Anim.ListChecksIcon)
 export const Filter = icon(Lu.Filter, Anim.FilterIcon)
-export const ListPlus = icon(Lu.ListPlus, null)
 export const ListTodo = icon(Lu.ListTodo, null)
 export const LogOut = icon(Lu.LogOut, Anim.LogOutIcon)
-export const Mail = icon(Lu.Mail, Anim.MailIcon)
 export const Maximize2 = icon(Lu.Maximize2, null)
 export const MoreHorizontal = icon(Lu.MoreHorizontal, Anim.EllipsisIcon)
-export const Palette = icon(Lu.Palette, null)
 export const PanelLeft = icon(Lu.PanelLeft, null)
 export const Paperclip = icon(Lu.Paperclip, Anim.PaperclipIcon)
 export const Pencil = icon(Lu.Pencil, Anim.PencilIcon)
 export const Pin = icon(Lu.Pin, Anim.PinIcon)
-export const Play = icon(Lu.Play, Anim.PlayIcon)
 export const Plus = icon(Lu.Plus, Anim.PlusIcon)
-export const Redo2 = icon(Lu.Redo2, null)
 export const RefreshCw = icon(Lu.RefreshCw, Anim.RefreshCwIcon)
 export const Repeat2 = icon(Lu.Repeat2, Anim.Repeat2Icon)
 export const RotateCcw = icon(Lu.RotateCcw, null)
 export const Search = icon(Lu.Search, Anim.SearchIcon)
 export const Settings = icon(Lu.Settings, Anim.SettingsIcon)
-export const Share2 = icon(Lu.Share2, Anim.ShareIcon)
-export const SlidersHorizontal = icon(Lu.SlidersHorizontal, Anim.SlidersHorizontalIcon)
-export const ArrowDownUp = icon(Lu.ArrowDownUp, Anim.ArrowDownUpIcon)
-export const Bookmark = icon(Lu.Bookmark, Anim.BookmarkIcon)
 export const Group = icon(Lu.Group, null)
 export const Star = icon(Lu.Star, Anim.StarIcon)
 export const SunMedium = icon(Lu.SunMedium, Anim.SunMediumIcon)
 export const Trash2 = icon(Lu.Trash2, Anim.Trash2Icon)
-export const Undo2 = icon(Lu.Undo2, null)
 // Thread status marks: neither is square, so a thread never reads as a task checkbox.
 export const MessageCircle = icon(Lu.MessageCircle, null)
 // Discussion's entry point: two bubbles, so it never reads as the Team control.
@@ -288,24 +266,15 @@ export function ResolvedMark({ className }: { readonly className?: string }): Re
 export const Shuffle = icon(Lu.Shuffle, Anim.ShuffleIcon)
 // Desk's mark. No animated twin, so it stays still.
 export const LampDesk = icon(Lu.LampDesk, null)
-export const UserPlus = icon(Lu.UserPlus, Anim.UserPlusIcon)
-// People's mark: a card, so it is told apart from Assignments' person-with-check at 16px.
-export const Contact = icon(Lu.Contact, Anim.ContactIcon)
 export const UserRound = icon(Lu.UserRound, Anim.UserRoundIcon)
 // Assignments' mark; `UsersRound` stays a group of people.
 export const UserRoundCheck = icon(Lu.UserRoundCheck, Anim.UserRoundCheckIcon)
 export const UsersRound = icon(Lu.UsersRound, Anim.UsersRoundIcon)
-export const WifiOff = icon(Lu.WifiOff, Anim.WifiOffIcon)
 export const X = icon(Lu.X, Anim.XIcon)
 
-export const AudioLines = icon(Lu.AudioLines, Anim.AudioLinesIcon)
 export const MessageSquare = icon(Lu.MessageSquare, Anim.MessageSquareIcon)
-export const Mic = icon(Lu.Mic, Anim.MicIcon)
-export const Pause = icon(Lu.Pause, Anim.PauseIcon)
 export const Reply = icon(Lu.Reply, Anim.ReplyIcon)
-export const SendHorizontal = icon(Lu.SendHorizontal, Anim.SendHorizontalIcon)
 
-export const LayoutGrid = icon(Lu.LayoutGrid, Anim.LayoutGridIcon)
 export const List = icon(Lu.List, Anim.ListIcon)
 export const GitCommitVertical = icon(Lu.GitCommitVertical, null)
 export const SquareKanban = icon(Lu.SquareKanban, null)
@@ -314,13 +283,9 @@ export const ArrowDown = icon(Lu.ArrowDown, Anim.ArrowDownIcon)
 export const ArrowUp = icon(Lu.ArrowUp, Anim.ArrowUpIcon)
 export const ArrowUpRight = icon(Lu.ArrowUpRight, Anim.ArrowUpRightIcon)
 export const Fullscreen = icon(Lu.Fullscreen, null)
-// A dialog standing over the page; not `Fullscreen`.
-export const SquareSquare = icon(Lu.SquareSquare, null)
 export const Heading1 = icon(Lu.Heading1, Anim.Heading1Icon)
 export const LoaderCircle = icon(Lu.LoaderCircle, Anim.LoaderCircleIcon)
 export const PanelRight = icon(Lu.PanelRight, null)
-export const PictureInPicture2 = icon(Lu.PictureInPicture2, null)
-export const Pilcrow = icon(Lu.Pilcrow, Anim.PilcrowIcon)
 // The slash menu's block kinds, drawn still as menus are.
 export const Heading2 = icon(Lu.Heading2, null)
 export const Heading3 = icon(Lu.Heading3, null)
@@ -328,7 +293,6 @@ export const ListOrdered = icon(Lu.ListOrdered, null)
 export const ListCollapse = icon(Lu.ListCollapse, null)
 export const Minus = icon(Lu.Minus, null)
 export const Type = icon(Lu.Type, null)
-export const ThumbsUp = icon(Lu.ThumbsUp, Anim.ThumbsUpIcon)
 
 // Icons a person can put on a folder; none is used by Dana's own chrome, so a mark is never
 // mistaken for a control. `page/icon-manifest.ts` is the manifest.
@@ -363,7 +327,6 @@ export const MapPin = icon(Lu.MapPin, Anim.MapPinIcon)
 export const Moon = icon(Lu.Moon, Anim.MoonIcon)
 // `Sun`, not Today's `SunMedium`, so the theme control does not borrow the page's glyph.
 export const Sun = icon(Lu.Sun, Anim.SunIcon)
-export const Monitor = icon(Lu.Monitor, Anim.MonitorIcon)
 export const Mountain = icon(Lu.Mountain, Anim.MountainIcon)
 export const Music = icon(Lu.Music, Anim.MusicIcon)
 export const Piano = icon(Lu.Piano, Anim.PianoIcon)
@@ -487,6 +450,5 @@ export const FOLDER_ICON_KEYS = [
 export const CheckIcon = Check
 export const ChevronDownIcon = ChevronDown
 export const ChevronRightIcon = ChevronRight
-export const ChevronUpIcon = ChevronUp
 export const PanelLeftIcon = PanelLeft
 export const XIcon = X

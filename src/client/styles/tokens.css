@@ -108,11 +108,8 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --text-body-size: 14px;
   --text-body-line: 20px;
   --text-meta-size: 12px;
-  --text-meta-line: 16px;
   /* r7-shell: a Settings section heading, between the title and a row
      label, so the page reads as sections rather than one flat list. */
-  --text-heading-size: 16px;
-  --text-heading-line: 24px;
   /* r3-fix-editor2: the editor's Heading 1-3, Notion's 30/24/20 over a 16px
      body brought to Dana's 14px body (and under the 28px page title). */
   --text-h1-size: 24px;
@@ -136,36 +133,24 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   /* Deprecated: the old graphite ramp, mapped onto the palette so remaining
      raw uses read right. New code uses the semantic names below. */
   --color-graphite-0: var(--bg);
-  --color-graphite-25: var(--surface);
-  --color-graphite-50: var(--hover);
-  --color-graphite-200: var(--line);
   --color-graphite-300: #e3e2e0;
   --color-graphite-400: #a5a4a0;
-  --color-graphite-500: var(--text-muted);
-  --color-graphite-700: #4f4d48;
-  --color-graphite-800: var(--text);
   --color-graphite-900: #2a2925;
   --color-graphite-950: #191919;
 
   --color-dana-accent-50: #f2f8fd;
   --color-dana-accent-100: #e3eefb;
   --color-dana-accent-300: #9cc5f0;
-  --color-dana-accent-600: var(--accent-color);
 
   --color-success-100: #edf3ec;
   --color-success-200: #d8e8da;
   --color-success-600: #448361;
-  --color-success-700: #386c50;
   --color-warning-100: #fbf3db;
   --color-warning-200: #f4e4b5;
-  --color-warning-500: #cb912f;
   --color-warning-700: #93661a;
   --color-danger-100: #fdebec;
-  --color-danger-600: var(--danger);
-  --color-danger-700: #c43232;
   --color-info-100: #e7f3f8;
   --color-info-200: #cde5f0;
-  --color-info-700: #337ea9;
 
   /* Semantic roles (shadcn names). */
   --background: var(--bg);
@@ -238,7 +223,6 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --space-group: 24px;
   --shell-sidebar-row-height: 28px;
   --shell-sidebar-width: 240px;
-  --shell-windowbar-height: 36px;
   --checkbox-size: 16px;
   --icon-size-compact: 16px;
   /* r12-settings: a grouped card (Settings' sections, after Hassan's
@@ -254,17 +238,7 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --calendar-month-cell-height: 104px;
   --calendar-range-lane-height: 22px;
   --drag-proposal-width: 320px;
-  --calendar-identity-0: var(--color-dana-accent-100);
-  --calendar-identity-0-border: var(--color-dana-accent-300);
-  --calendar-identity-1: #edf3ec;
-  --calendar-identity-1-border: #c8dacb;
-  --calendar-identity-2: #f7f1e6;
-  --calendar-identity-2-border: #e4d7bd;
-  --calendar-identity-3: #f0edf5;
-  --calendar-identity-3-border: #d8d0e3;
 
-  --dana-mark-plate: var(--color-graphite-950);
-  --dana-mark-glyph: var(--color-graphite-0);
   /* r3-fix-shell: the dim behind a center peek. */
   --scrim: rgb(0 0 0 / 20%);
 }
@@ -283,7 +257,6 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
 
   --color-graphite-300: #3a3a39;
   --color-graphite-400: #6f6f6e;
-  --color-graphite-700: #bfbfbf;
   --color-graphite-900: #e8e8e8;
   --color-graphite-950: #ffffff;
 
@@ -294,22 +267,12 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --color-success-100: #1f2a23;
   --color-success-200: #25382c;
   --color-success-600: #6fb58e;
-  --color-success-700: #88c5a3;
   --color-warning-100: #2d2618;
   --color-warning-200: #3b321d;
-  --color-warning-500: #d9a54a;
   --color-warning-700: #e3b96a;
   --color-danger-100: #332020;
-  --color-danger-700: #ec8b8b;
   --color-info-100: #1b2a31;
   --color-info-200: #213742;
-  --color-info-700: #6fb0d6;
-  --calendar-identity-1: #222d26;
-  --calendar-identity-1-border: #405847;
-  --calendar-identity-2: #302b22;
-  --calendar-identity-2-border: #62533a;
-  --calendar-identity-3: #292630;
-  --calendar-identity-3-border: #50465d;
 
   --popover: #252525;
   /* r3-feel */
@@ -319,16 +282,6 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
     0 12px 32px rgb(0 0 0 / 30%);
   /* r3-fix-shell: a dark page needs a deeper dim to read as one. */
   --scrim: rgb(0 0 0 / 55%);
-}
-
-/* The mark: its plate is the opposite of the page, in both themes. */
-[data-dana-mark-surface="dark"] {
-  --dana-mark-plate: #ffffff;
-  --dana-mark-glyph: #191919;
-}
-[data-dana-mark-surface="light"] {
-  --dana-mark-plate: #191919;
-  --dana-mark-glyph: #ffffff;
 }
 
 /* Floating layers (menus, popovers, dialogs, tooltips): open from the
@@ -561,63 +514,4 @@ button:not(:disabled),
 }
 :root:not([data-theme="dark"]) {
   --color-graphite-400: #8f8e8a;
-}
-
-
-/* ---- m14-picker: a pastel per page kind, for the new-project picker.
-   Barely-there tints: each kind has a fill, a hairline and a muted ink
-   (its icon, chip text and hover border); names stay in the page's ink. "usual" is the four-tab project. */
-:root {
-  --kind-doc: #f5f8fe;
-  --kind-doc-line: #dee5f1;
-  --kind-doc-ink: #516894;
-  --kind-work: #f3faf5;
-  --kind-work-line: #dbe9de;
-  --kind-work-ink: #51775e;
-  --kind-discussion: #fef7f2;
-  --kind-discussion-line: #efe3d7;
-  --kind-discussion-ink: #916746;
-  --kind-usual: #f9f7fd;
-  --kind-usual-line: #e6e1ee;
-  --kind-usual-ink: #6e5d95;
-  --lift: -2px;
-}
-[data-theme="dark"] {
-  --kind-doc: #1b2028;
-  --kind-doc-line: #2e3541;
-  --kind-doc-ink: #a0afca;
-  --kind-work: #1a221d;
-  --kind-work-line: #2d3a32;
-  --kind-work-ink: #95b9a2;
-  --kind-discussion: #251e1a;
-  --kind-discussion-line: #3e342c;
-  --kind-discussion-ink: #c8a790;
-  --kind-usual: #201c28;
-  --kind-usual-line: #363142;
-  --kind-usual-ink: #b2a8cd;
-}
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --lift: 0px;
-  }
-}
-
-/* ---- i479-calendar-identity: Task id supplies a continuous hue while Dana
-   owns lightness/chroma. Three restrained tones add another perceptual axis
-   without coloring the text or turning Calendar into a dashboard. */
-:root {
-  --calendar-task-fill-0: oklch(0.87 0.1 var(--calendar-task-hue, 220));
-  --calendar-task-fill-1: oklch(0.9 0.1 var(--calendar-task-hue, 220));
-  --calendar-task-fill-2: oklch(0.93 0.1 var(--calendar-task-hue, 220));
-  --calendar-task-border-0: oklch(0.64 0.14 var(--calendar-task-hue, 220));
-  --calendar-task-border-1: oklch(0.68 0.14 var(--calendar-task-hue, 220));
-  --calendar-task-border-2: oklch(0.72 0.14 var(--calendar-task-hue, 220));
-}
-[data-theme="dark"] {
-  --calendar-task-fill-0: oklch(0.28 0.08 var(--calendar-task-hue, 220));
-  --calendar-task-fill-1: oklch(0.33 0.08 var(--calendar-task-hue, 220));
-  --calendar-task-fill-2: oklch(0.38 0.08 var(--calendar-task-hue, 220));
-  --calendar-task-border-0: oklch(0.48 0.13 var(--calendar-task-hue, 220));
-  --calendar-task-border-1: oklch(0.54 0.13 var(--calendar-task-hue, 220));
-  --calendar-task-border-2: oklch(0.6 0.13 var(--calendar-task-hue, 220));
 }

@@ -35,15 +35,3 @@ export function usePeopleLibrary(folderId: string | null): Person[] {
   const members = folderId === null ? undefined : folder.data?.members
   return useMemo(() => peopleLibrary(viewer, members), [viewer, members])
 }
-
-/**
- * By id. Two entries with no id are never the same person, or an unassigned row would
- * look assigned to whoever the picker last drew.
- */
-export function isSamePerson(a: Person | undefined, b: Person | undefined): boolean {
-  return (
-    a?.id !== undefined &&
-    b?.id !== undefined &&
-    a.id === b.id
-  )
-}

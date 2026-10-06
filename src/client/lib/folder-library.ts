@@ -1,7 +1,7 @@
 // Every folder the person has, from `GET /folders`, in the server's order. A choice
 // carries its id for `folder_id` writes. No "New folder…" entry; that is the picker's.
 
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 
 import type { Folder } from '../../shared/folders.js'
 import { useFolders } from '../api/queries.js'
@@ -45,14 +45,4 @@ export function FolderLibraryMemory(): null {
     published = rows ?? []
   }, [rows])
   return null
-}
-
-/**
- * Reads `useFolders()`, so every picker answers from one cache entry. Empty while
- * loading or failed; the page shows the error.
- */
-export function useFolderLibrary(): FolderChoice[] {
-  const folders = useFolders()
-  const rows = folders.data
-  return useMemo(() => folderLibrary(rows ?? []), [rows])
 }

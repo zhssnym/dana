@@ -13,7 +13,6 @@ export function tooLong(limit: number): string {
 
 /** The assignee menu's last entry. */
 export const INVITE_BY_EMAIL = 'Invite by email'
-export const DATE_CLEAR = 'Clear'
 
 /** The confirm before un-completing removes the next occurrence and its edits. */
 export const UNCOMPLETE_SERIES_CONFIRM =
