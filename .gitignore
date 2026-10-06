@@ -15,9 +15,7 @@ Thumbs.db
 .DS_Store
 *.tsbuildinfo
 
-# Claude Code: the shared agents and settings are committed, personal ones are not.
-# No blanket .claude/ rule: it would hide the agent definitions, whose whole job is
-# constraining an agent nobody can review.
+# Claude Code: the shared settings are committed, personal ones are not.
 .claude/settings.local.json
 .claude/worktrees/
 CLAUDE.local.md
@@ -32,5 +30,3 @@ CLAUDE.local.md
 .env*
 !.env
 !.env.example
-# Impeccable engine binary: the launcher downloads it to ~/.impeccable on first run.
-.claude/skills/impeccable/scripts/bin/
