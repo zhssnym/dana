@@ -1,22 +1,7 @@
 name: CI
 
-# One job, the whole suite, on every pull request, every push to main, and on
-# demand. It runs on the self-hosted Windows runner on Hassan's PC.
-#
-# Speed comes from three things. The checkout is not wiped and `git clean`
-# spares node_modules, so dependencies persist between runs; `npm ci` runs only
-# when package-lock.json (or the Node version) differs from the stamp written
-# into node_modules/.lock-sha by the last install. Lint, typecheck, build and
-# the vitest suite run concurrently through scripts/ci-parallel.mjs. Playwright
-# then reuses that build (DANA_GATE_PREBUILT=1) instead of rebuilding.
-#
-# The test leg is Postgres. TEST_DATABASE_URL comes from the runner's own .env,
-# never from a repository secret; if it is missing the suite would silently
-# fall back to PGlite, so the job refuses to start instead.
-#
-# `pull_request` stays unfiltered so every pull request gets a verdict. The
-# push paths-ignore keeps merges that touch only editor config and root
-# markdown off the runner. (The issue and PR templates were removed in #359.)
+# Runs on the self-hosted Windows runner on Hassan's PC. node_modules stays between runs.
+# TEST_DATABASE_URL comes from the runner's .env. Without it the tests use PGlite, so the job stops.
 on:
   push:
     branches: [main]
@@ -27,8 +12,7 @@ on:
   pull_request:
   workflow_dispatch:
 
-# A newer push supersedes an older run, except on main, whose runs are the
-# verdict on what was merged.
+# A new push cancels the old run, except on main.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -40,7 +24,6 @@ defaults:
 jobs:
   ci:
     runs-on: [self-hosted, windows, x64]
-    # A hang killer, not a budget.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -62,15 +45,13 @@ jobs:
             echo TEST_DATABASE_URL is unset or empty, so the suite would silently fall back to PGlite and report a green that never touched Postgres. Set it in the runner installation .env file and restart the runner.
             exit /b 1
           )
-          node scripts/ci-parallel.mjs "lint::npm run lint" "typecheck::npm run typecheck" "build::npm run build" "test::npm test"
+          npx concurrently -n lint,typecheck,build,test "npm run lint" "npm run typecheck" "npm run build" "npm test"
       - name: Playwright
         env:
-          DANA_GATE_PREBUILT: '1'
+          DANA_E2E_PREBUILT: '1'
         run: |
           call npx playwright install chromium || exit /b 1
           npx playwright test
-      # Traces, screenshots and videos from a red browser leg; absent when
-      # Playwright never started, which is not a second failure.
       - name: Failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4

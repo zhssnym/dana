@@ -18,7 +18,7 @@ npm run lint                        # eslint. Do not run prettier.
 npm run typecheck
 npm test                            # the whole vitest suite (about one minute)
 npx vitest run <file>               # one file. Arguments are substring filters.
-npm run gate -- --quick             # lint, typecheck and build
+npm run gate                        # lint, typecheck and build, at the same time
 npm run e2e                         # browser tests (Playwright)
 ```
 
@@ -35,7 +35,7 @@ npm run e2e                         # browser tests (Playwright)
 
 1. Make a branch from `main`. Open a pull request. The title is a Conventional Commit
    (`feat:`, `fix:`, `chore:`, `docs:`).
-2. Before you push, run `npm run gate -- --quick` (about 30 seconds) and the tests for the
+2. Before you push, run `npm run gate` (about 30 seconds) and the tests for the
    code you changed.
 3. CI runs lint, typecheck, build, all tests on Postgres and a browser smoke test. CI runs
    on Hassan's Windows PC, so CI waits when that PC is off.
@@ -117,6 +117,5 @@ These pass every test when they are wrong. Look for them in your diff.
 
 - Claude Code reads this file only when no `CLAUDE.md` exists. Do not create a
   `CLAUDE.md`.
-- Agent worktrees are in the worktrees folder in .claude. The browser part of `npm run gate` does not
-  work there. Use `npm run gate -- --quick`.
-- Give each parallel browser run its own `DANA_GATE_PORT` (default 3100).
+- Agent worktrees are in the worktrees folder in .claude. `npm run e2e` does not work there.
+- Give each parallel browser run its own `DANA_E2E_PORT` (default 3100).
