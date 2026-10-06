@@ -80,8 +80,8 @@ These pass every test when they are wrong. Look for them in your diff.
 
 - Keep the diff small. Do not add abstractions, options or refactors that the change does
   not need.
-- For code work, use the `ponytail` skill in `.claude/skills/`. When the skill and this
-  file do not agree, this file wins.
+- For code work, use the `ponytail` plugin. `.claude/settings.json` enables it. When the
+  plugin and this file do not agree, this file wins.
 - **Comments:** write a comment only when the reason is not clear from the code. Use one or
   two lines. Do not write long comment blocks. When you change code that has a long
   comment, you can make the comment short or remove it.
@@ -106,8 +106,9 @@ These pass every test when they are wrong. Look for them in your diff.
   write a raw value.
 - Light and dark themes both work, and follow the system setting.
 - No gradients, decorative shadows or glow. Sentence case. A button says what it does.
-- For UI work, use the `impeccable` skill in `.claude/skills/`. A hook runs its design
-  check after each UI edit. When the skill and this file do not agree, this file wins.
+- For UI work, use the `impeccable` plugin. `.claude/settings.json` enables it. A hook
+  runs its design check after each UI edit. When the plugin and this file do not agree,
+  this file wins.
 
 ## Docs
 
