@@ -32,3 +32,5 @@ CLAUDE.local.md
 .env*
 !.env
 !.env.example
+# Impeccable engine binary: the launcher downloads it to ~/.impeccable on first run.
+.claude/skills/impeccable/scripts/bin/
