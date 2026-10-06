@@ -102,18 +102,10 @@ These give no error and no red test. Read your diff for them before opening a PR
   produces. List any change to either file in the PR, with before and after, and look at the
   result in a browser.
 
-## 3. Tests and the gate
+## 3. Tests
 
 All commands run from the repository root.
 
-- **`npm run gate` printed `GATE: incomplete`.** It has three outcomes:
-  - `green`: all six steps ran and passed.
-  - `red at <step>`: a step failed.
-  - `incomplete`: a step didn't run.
-
-  `--quick` always ends `incomplete` (exit 0) because it runs lint, typecheck and build only.
-  A full run with no `TEST_DATABASE_URL` ends `incomplete` (non-zero) because the Postgres leg
-  fell back to PGlite. A leg that reports no tally counts as red.
 - **`npm test` failed although every test passed.** `scripts/run-suite.mjs` fails any run
   where vitest collected more files than it accounted for, because vitest can lose files to a
   dead worker and still exit 0. Read the file count, not just the exit code. Pass vitest flags
@@ -164,8 +156,7 @@ Name the class before you act. Only some of them are answered by re-running. Tri
 this order: (1) is it red on `main`'s latest CI run too? then it isn't this branch's;
 (2) does it match a class below? (3) does the test compare two values it measured itself?
 then it races the UI and running it alone makes it fail *more*; (4) only then treat it as
-real. Re-run at most once. Only `GATE: green` is green: `incomplete` means a step didn't
-run, and a record from a dirty tree describes something that isn't the commit.
+real. Re-run at most once.
 
 - **Worker-fork death.** You see `[vitest-pool]: Worker forks emitted error`, or whole files
   fail with their tests skipped. Run the affected files alone before believing it. Capping
@@ -193,14 +184,11 @@ run, and a record from a dirty tree describes something that isn't the commit.
 
 - **Every browser spec fails on a missing sidebar, and `GET /app` answers 404 `bad_request`.**
   The checkout path contains a directory starting with a dot, such as .claude/worktrees/.
-  Express's `res.sendFile()` refuses dot segments, so the SPA fallback 404s. `npm run gate`
-  refuses to start from such a path, and says so before lint. `--quick` still works there. Copy
-  or clone the tree to a path with no dot directory, or rely on CI.
+  Express's `res.sendFile()` refuses dot segments, so the SPA fallback 404s. Copy or clone the
+  tree to a path with no dot directory, or rely on CI.
 - **Page crashes, tests failing at 0 ms, and timeouts that pass alone.** Two browser runs are
-  sharing a port, both seeding and truncating one database. The port is `DANA_GATE_PORT`
-  (default 3100), read by `scripts/gate-port.mjs` for both the gate and
-  `playwright.config.ts`. Give each parallel session its own port. The gate refuses to
-  start if anything is already listening on that port.
+  sharing a port, both seeding and truncating one database. The port is `DANA_E2E_PORT`
+  (default 3100). Give each parallel session its own port.
 - **`ECONNREFUSED` scattered across files after you restarted a run.** Killing the server on
   the port doesn't kill `playwright test`, which keeps writing into `test-results/`. Kill every
   process whose command line matches `playwright` or `e2e:app`, then poll until nothing is
@@ -209,8 +197,7 @@ run, and a record from a dirty tree describes something that isn't the commit.
   only, because TIME_WAIT sockets linger for minutes. Delete `test-results/` between runs.
 - **Your port check says every port is clear.** Check that the tool exists first
   (`command -v lsof`). A missing command prints nothing, and `until !` reads its failure as
-  "quiet". The gate reads the socket table with `lsof`, `ss` or `netstat`, and refuses on a
-  host that has none of them.
+  "quiet".
 - **One case, different each time, hits the 120-second timeout and passes alone in seconds.**
   This is memory pressure: it was seen with free memory low and browsers holding gigabytes.
   Re-run the case alone. Read a red of one or two cases in a whole run as unmeasured, not
@@ -222,7 +209,7 @@ run, and a record from a dirty tree describes something that isn't the commit.
   Re-running locally only tells you the case *can* fail; re-running the CI job on the same
   commit tells you whether *this commit* fails.
 - **Each browser run takes minutes before the first test.** `npm run e2e` starts
-  `npm run e2e:app`, which runs `vite build` every time. Set `DANA_GATE_PREBUILT=1` to reuse an
+  `npm run e2e:app`, which runs `vite build` every time. Set `DANA_E2E_PREBUILT=1` to reuse an
   existing build. `playwright.config.ts` forces `TEST_DATABASE_URL` empty for the server it
   starts, so you don't need to unset it yourself.
 - **`Executable doesn't exist at …/chromium_headless_shell-<version>/…`.** The installed
@@ -329,7 +316,7 @@ run, and a record from a dirty tree describes something that isn't the commit.
 
 ## 11. Linux containers (cloud sessions)
 
-To run the full gate on a container:
+To run all the checks on a container:
 
 1. Initialize a cluster as the `postgres` user (`initdb` refuses to run as root) with
    `--locale=C.UTF-8`. The cluster locale matters: `C` and `C.UTF-8` fold case differently.
@@ -339,8 +326,8 @@ To run the full gate on a container:
 3. Export `TEST_DATABASE_URL` pointing at that database, and print it.
 4. If Playwright reports a missing executable, symlink the installed Chromium build to the
    pinned directory name.
-5. Run from a path with no dot directory. The default .claude/worktrees/ checkout can run
-   `npm run gate -- --quick`, but not the full gate.
+5. Run the browser tests from a path with no dot directory. A .claude/worktrees/ checkout
+   cannot run them.
 6. Poll ports with `lsof`, which containers usually have instead of `netstat` or `ss`.
 
 ## 12. Hassan's Windows PC and the CI runner
