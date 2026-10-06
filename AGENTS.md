@@ -80,6 +80,8 @@ These pass every test when they are wrong. Look for them in your diff.
 
 - Keep the diff small. Do not add abstractions, options or refactors that the change does
   not need.
+- For code work, use the `ponytail` plugin. `.claude/settings.json` enables it. When the
+  plugin and this file do not agree, this file wins.
 - **Comments:** write a comment only when the reason is not clear from the code. Use one or
   two lines. Do not write long comment blocks. When you change code that has a long
   comment, you can make the comment short or remove it.
