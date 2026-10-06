@@ -11,7 +11,7 @@ import type { Executor } from '../database.js'
 
 /** What account deletion does about one CASCADE foreign key to users(id): `deleted` (by `where`) or `retained` (`why`). */
 export interface UserCascadeDisposal {
-  /** The constraint name, as `db/constraint-catalog.ts` spells it. */
+  /** The constraint name, as the migrations spell it. */
   fk: string
   table: string
   disposition: 'deleted' | 'retained'
@@ -24,7 +24,7 @@ export interface UserCascadeDisposal {
  * Outliving is normal: 4.13 keeps acts after their actor.
  */
 export interface UserRestrictDisposal {
-  /** The constraint name, as `db/constraint-catalog.ts` spells it. */
+  /** The constraint name, as the migrations spell it. */
   fk: string
   table: string
   disposition: 'swept' | 'outlives'
@@ -245,7 +245,7 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     table: 'sessions',
     disposition: 'deleted',
     where: 'step 8, in src/server/auth/account.ts',
-    why: "handleDeleteMe runs DELETE FROM sessions WHERE user_id inside this same transaction, which is 11.6's rule that revocation never waits for the pruning pass. The table is 10.1's and sits outside section 4, so db/constraint-catalog.ts does not carry it and the guard names it as the one admitted exception, exactly as AC-001 does.",
+    why: "handleDeleteMe runs DELETE FROM sessions WHERE user_id inside this same transaction, which is 11.6's rule that revocation never waits for the pruning pass.",
   },
   {
     fk: 'comment_likes_user_id_fkey',
