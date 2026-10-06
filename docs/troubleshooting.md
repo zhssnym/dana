@@ -41,8 +41,8 @@ These give no error and no red test. Read your diff for them before opening a PR
   production when the merge deploys, so recovery is a fix-forward migration or a restore. Split
   destructive changes across two releases (expand, then contract). Never edit an applied
   `.sql` file.
-- **A constraint has no explicit name.** Name every constraint and index. The catalog in
-  `db/constraint-catalog.ts` and the spec refer to them by name.
+- **A constraint has no explicit name.** Name every constraint and index. Tests and error
+  handling refer to them by name.
 - **A both-or-neither CHECK admits the row it was written to refuse.** A CHECK fails only on
   FALSE, and NULL passes. `(a IS NULL AND b IS NULL) OR (a > 0 AND b > 0)` accepts `a` null
   with `b` set. Write `(a IS NULL) = (b IS NULL) AND (a IS NULL OR (a > 0 AND b > 0))`, and add

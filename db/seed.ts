@@ -1,47 +1,8 @@
 /*
-Seeds the example dataset: two people sharing one folder, and a third who
-shares nothing. Run from the repository root with: npx tsx db/seed.ts
-
-The dataset is constraint-conformant by construction and writes every
-section 4 table but one (issue #43). The exception is sessions, empty on
-purpose: browser sessions come from the development login endpoint (11.10),
-and a token_hash here would name a token nobody holds.
-
-**Most tables are seeded under Nadia, a third person, and that is not
-tidiness.** The browser leg reseeds once and runs its specs against the
-result, and every spec that signs in signs in as Hassan or Imran, so a shelf
-or a saved view added to either of them changes what the specs see: sidebar
-contents, empty states, notification counts and folder lists. Nadia is
-connected to nobody and shares no folder, and every read path is either
-folder-scoped through accessOf or keyed on the viewer, so nothing she owns can
-appear on Hassan's or Imran's screen. The cost: the browser leg does not
-*start* with a comment or a shelf in front of the person it signs in as, so a
-spec that wants one creates it. What the seed buys is that every table has a
-row against which a migration, a cascade or a query can be exercised, and
-that the truncate below is proved against a populated database.
-
-**The default folders are named Desk**, as `auth/provisioning.ts` creates
-them (issue #98).
-
-**A seeded Desk carries no description, and provisioning's does.** #68 gives a
-brand-new Desk the sentence "Nothing decided about it yet" and does not
-backfill existing Desks, "because a migration that wrote words into a folder
-somebody had deliberately left blank would be Dana putting sentences in a
-person's mouth". The people in this dataset are established accounts, so the
-blank is what #68 produces here.
-
-**`taskSortInbox` keeps its key and its title.** It names a task, not a
-folder, and "Sort inbox" is a thing a person wrote on a list rather than the
-product's name for anything. Browser specs may address that row by its
-literal title.
-
-Identifiers are fixed so end to end tests can reference rows; dates are
-relative to today so the day-scoped pages (My Day, Planned) have content
-whenever the seed runs. Reseeding wipes application rows first: it refuses to
-run when NODE_ENV is production, it refuses the database TEST_DATABASE_URL
-names unless asked for that in as many words (see refuseTheTestDatabase
-below), and beyond those two guards, pointing it at a database asserts the
-data there is disposable.
+Example data for local dev and the browser test: `npx tsx db/seed.ts`.
+Ids are fixed so tests can name rows. Dates are relative to today.
+Nadia shares nothing, so her rows never show for Hassan or Imran in the browser test.
+The seed empties every table first. It refuses production and the TEST_DATABASE_URL database.
 */
 import { pathToFileURL } from 'node:url'
 
@@ -63,9 +24,7 @@ export const seedIds = {
   taskOldIdea: '88888888-8888-4888-8888-888888888888',
   taskSortInbox: '77777777-7777-4777-8777-777777777777',
   waterPlantsSeries: '66666666-6666-4666-8666-666666666666',
-  // Nadia and hers. She is connected to nobody and shares no folder, so
-  // nothing below is reachable from a session signed in as Hassan or Imran;
-  // see the header for why the eleven tables she carries are hers.
+  // Nadia shares nothing. See the header.
   nadia: '33333333-3333-4333-8333-333333333333',
   nadiaDesk: '44444444-4444-4444-8444-444444444444',
   nadiaStudio: '55555555-5555-4555-8555-555555555555',
@@ -88,25 +47,7 @@ function isoDate(daysFromToday: number): string {
   return d.toISOString().slice(0, 10)
 }
 
-/**
- * Empties every table in the public schema, read from the catalog rather
- * than listed here.
- *
- * The list used to be written out and it named the ten tables the seed
- * wrote. Issue #43 called that a contamination source; **measured on
- * 2026-09-02 it was not one**, and the reason is worth keeping rather than
- * quietly deleting: every table in this schema has a foreign key path to
- * users, so TRUNCATE ... CASCADE reached all twenty-two. A probe that put a
- * row in each of them and then ran the old statement left none behind.
- *
- * What was true is that the guarantee was accidental. A table with no path
- * to any listed one would have survived silently, and nothing would have
- * said so. Reading the list from pg_class makes it a guarantee instead: a
- * twenty-third table is emptied on the day it is created, with no line to
- * remember here. The migrator's own bookkeeping lives in the drizzle schema
- * and is deliberately untouched, which is what makes runMigrations()
- * idempotent across reseeds.
- */
+/** Empties every public table. The list comes from pg_class, so a new table is included. */
 async function truncateEveryApplicationTable(db: Db): Promise<void> {
   const result = (await db.execute(sql`
     SELECT t.relname AS name
@@ -117,8 +58,7 @@ async function truncateEveryApplicationTable(db: Db): Promise<void> {
   `)) as unknown as { rows: Array<{ name: unknown }> }
   const names = result.rows
     .map((row) => String(row.name))
-    // Identifiers are interpolated raw, so anything that is not a plain
-    // lower-case table name is refused rather than quoted around.
+    // The names go into raw SQL, so accept plain names only.
     .filter((name) => /^[a-z_][a-z0-9_]*$/.test(name))
   if (names.length === 0) {
     throw new Error('the seed found no tables to truncate: migrations did not run')
@@ -128,10 +68,7 @@ async function truncateEveryApplicationTable(db: Db): Promise<void> {
   )
 }
 
-/**
- * Host and database only. The connection string carries a password, and this
- * text goes into an error message and from there into a terminal and a log.
- */
+/** Host and database only: the connection string has a password. */
 function describeTarget(url: string): string {
   try {
     const parsed = new URL(url)
@@ -141,26 +78,7 @@ function describeTarget(url: string): string {
   }
 }
 
-/**
- * Refuses the run that would empty the vitest Postgres leg's database.
- *
- * createDbClient() falls back to TEST_DATABASE_URL when it is handed no url,
- * and on the development machine that variable is set in the user scope and
- * names dana_test, the one database every file of the Postgres leg shares.
- * So this seed, invoked with nothing else set, truncates a database a test
- * run may be using right now. The failure it causes is worse than a crash:
- * the reds are counts that climb across successive files, which is
- * indistinguishable by eye from a shared-database flake. package.json
- * carries db:seed, which is short enough to type by accident.
- *
- * Empty means unset, the same convention client.ts uses, which is what keeps
- * the browser leg working: playwright.config.ts pins TEST_DATABASE_URL to ''
- * for its webServer so the seed and the server share one .data directory. A
- * developer running npm run e2e:app by hand with the variable set is the one
- * caller whose behaviour changes, and it changes from silently seeding
- * dana_test while the server serves .data - fixtures that drift because the
- * browser reads a database nothing seeded - to an error that says so.
- */
+/** The Postgres test run shares the TEST_DATABASE_URL database. Do not empty it by accident. */
 function refuseTheTestDatabase(explicitUrl: string | undefined): void {
   if (explicitUrl !== undefined) return
   const testUrl =
@@ -193,11 +111,7 @@ export async function seed(): Promise<void> {
   const tomorrow = isoDate(1)
   const nextWeek = isoDate(7)
   const yesterdayInstant = new Date(Date.now() - 86400000).toISOString()
-  // What the 8.6 derivation yields for the seeded reminder: due 09:00 minus
-  // 60 minutes in the assignee's zone, and the assignee is Hassan in
-  // Asia/Karachi, fixed UTC+5 with no DST, so 08:00 there is 03:00Z in
-  // every season. Real fire instants are computed only by the Scheduling
-  // engineer's 8.6 module; a seed must merely be consistent with it.
+  // The reminder fires 60 minutes before 09:00 in Asia/Karachi (UTC+5, no DST): 03:00Z.
   const reminderFireInstant = `${tomorrow}T03:00:00Z`
 
   await client.runMigrations()
@@ -213,9 +127,7 @@ export async function seed(): Promise<void> {
     INSERT INTO user_settings (user_id)
     VALUES (${seedIds.hassan}), (${seedIds.imran}), (${seedIds.nadia})
   `)
-  // Nadia is deliberately absent from this table. A connection would put her
-  // in Hassan's people list, which ac-183 asserts by address, and in every
-  // assignee and invite picker the browser leg opens.
+  // No connection for Nadia: it would put her in Hassan's people list and pickers.
   await db.execute(sql`
     INSERT INTO connections (user_a_id, user_b_id)
     VALUES (${seedIds.hassan}, ${seedIds.imran})
@@ -228,12 +140,7 @@ export async function seed(): Promise<void> {
       (${seedIds.nadiaDesk}, ${seedIds.nadia}, 'Desk', true),
       (${seedIds.nadiaStudio}, ${seedIds.nadia}, 'Studio', false)
   `)
-  /* The four native facets of every seeded folder (issue #210, 4.30:
-     "natives are created with the Folder and never lazily"). Written here as
-     SQL rather than through `createNativeFacets`, because this file is the
-     seed and imports nothing from `src/server`; the positions are the same
-     four keys `initialKeys(4)` produces and migration 0027 backfilled, and
-     AC-830 is what holds the two spellings together. */
+  // The four native facets of each folder, with the keys that migration 0027 used.
   await db.execute(sql`
     INSERT INTO folder_facets (folder_id, kind, position, created_by)
     SELECT f.id, k.kind, k.pos, f.owner_id
@@ -246,10 +153,7 @@ export async function seed(): Promise<void> {
                     ${seedIds.groceries}, ${seedIds.nadiaDesk},
                     ${seedIds.nadiaStudio})
   `)
-  /* Access is written explicitly (issue #228) and the values are migration
-     0023's own rule read forward: the folder's owner is Full control and
-     every other member is Can edit. Imran is the one non-owner here, in
-     Hassan's Groceries. */
+  // The owner gets Full control and each other member gets Can edit (migration 0023).
   await db.execute(sql`
     INSERT INTO folder_members (folder_id, user_id, shelf_name, color, access)
     VALUES
@@ -300,14 +204,7 @@ export async function seed(): Promise<void> {
             'pending', 'can_edit')
   `)
 
-  /* ---------------------------------------------------------------- *
-   * Nadia's half: the eleven tables the seed used to leave empty.
-   *
-   * Order is the foreign keys' rather than the story's. files before the
-   * page blocks and the comment attachment that point at it; page_blocks
-   * before the task that names a section; comments before their like and
-   * their attachment; events before the notification that carries one.
-   * ---------------------------------------------------------------- */
+  // Nadia's rows, in foreign key order.
 
   await db.execute(sql`
     INSERT INTO shelves (id, user_id, name, icon, color, description) VALUES
@@ -378,16 +275,12 @@ export async function seed(): Promise<void> {
       (${seedIds.viewNadiaThisWeek}, ${seedIds.nadia}, 'This week',
        ${JSON.stringify({ kind: 'planned' })}::jsonb, false)
   `)
-  // preset rather than file_id, so the row needs no object in a store the
-  // browser leg would then have to serve.
+  // A preset, so the row needs no stored file.
   await db.execute(sql`
     INSERT INTO user_page_covers (user_id, place, file_id, preset, focal_y)
     VALUES (${seedIds.nadia}, 'today', NULL, 'dusk', 40)
   `)
-  // The sample register of 0007, which records what a sample workspace
-  // created so 7.20's removal can find it again. Nadia's studio task stands
-  // in for one; no browser spec signs in as her, so nothing offers to
-  // remove it.
+  // Nadia's rows marked as sample objects. No browser test signs in as her.
   await db.execute(sql`
     INSERT INTO sample_objects (user_id, kind, id) VALUES
       (${seedIds.nadia}, 'task', ${seedIds.taskNadiaDraft}),
