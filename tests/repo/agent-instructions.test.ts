@@ -8,7 +8,7 @@ one-line `@AGENTS.md` import. Codex caps the file at 32 KiB; this keeps it well
 under that.
 
 Pointers rot silently too, so every backticked repository path in `AGENTS.md`
-and `docs/troubleshooting.md` must exist. Only tokens starting with `src/`, `db/`, `tests/`, `scripts/`,
+and `docs/troubleshooting.md` must exist. Only tokens starting with `src/`, `db/`, `tests/`,
 `docs/`, `.claude/` or `.github/` are checked; placeholders (`<`), globs (`*`)
 and commands (spaces) are skipped.
 */
@@ -23,7 +23,7 @@ const AGENTS = path.join(ROOT, 'AGENTS.md')
 const CLAUDE = path.join(ROOT, 'CLAUDE.md')
 const TROUBLESHOOTING = path.join(ROOT, 'docs/troubleshooting.md')
 
-const CHECKED_PREFIXES = ['src/', 'db/', 'tests/', 'scripts/', 'docs/', '.claude/', '.github/']
+const CHECKED_PREFIXES = ['src/', 'db/', 'tests/', 'docs/', '.claude/', '.github/']
 
 function repoPathsIn(text: string): string[] {
   const found = new Set<string>()

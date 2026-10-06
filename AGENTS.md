@@ -2,7 +2,7 @@
 
 Dana is a collaborative to-do PWA. One Node 24 process runs the Express 5 API and sends
 the Vite/React app. Production is Postgres on Render. Uploaded files are in Cloudflare R2.
-Local development and tests use PGlite. The code is in `src/`, `db/`, `tests/` and `scripts/`.
+Local development and tests use PGlite. The code is in `src/`, `db/` and `tests/`.
 
 The goal of this file: make a change fast and safe. Each rule here protects production.
 If a rule does not do that, remove it.
