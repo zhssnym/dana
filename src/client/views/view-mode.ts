@@ -86,5 +86,3 @@ export const RETIRED_STORAGE_KEYS = [
   'dana.folder.show-completed',
 ] as const
 
-export type FolderView = 'linear' | 'board' | 'freeform'
-

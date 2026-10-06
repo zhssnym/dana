@@ -2,50 +2,37 @@
 // Each opens on likely answers, then a hairline, then the exact controls. Choosing commits.
 
 import { Ban, Repeat2, type LucideIcon } from "../lib/icons.js"
-import { ConfirmDialog } from "./ui/ConfirmDialog.js"
-import { CLEAR_DATE_WARNING, DATE_CLEAR } from "./task-copy.js"
 import { createContext, useContext, useRef, useState, type ReactNode } from "react"
 import { Check as CheckIcon } from "../lib/icons.js"
 
-import { Calendar, sameDay } from "./ui/calendar.js"
 // Pickers write their own endpoints and also call `patch`: `conceptPatchToBody` drops
 // `due` and `reminder`, so `patch` alone never reaches the server. The local call keeps
 // the chips right in the same render (AC-092); the refetch reconciles.
 import { useDeleteReminder, usePutReminder, useUpdateTask } from "../api/mutations.js"
-import { isoDay, parseIsoDate } from "../tasks/task-model.js"
+import { isoDay } from "../tasks/task-model.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
 import { formatTime, parseTypedTime, useTimeFormat } from "../lib/time-format.js"
 // `today()` is a function so a page left open past midnight does not offer yesterday.
 import {
   DAY_LONG,
-  DAY_SHORT,
   MONTH_SHORT,
   WEEKDAY_KEYS,
   WORKING_WEEK,
   addDays,
   clockOfMinutes,
-  dueLabelFor,
   minutesOfClock,
-  nextWeekday,
   ordinal,
   parseDueLabel,
   repeatAnchor,
   reminderWords,
   repeatSummary,
   ruleFor,
-  today,
   type ConceptTask,
 } from "../tasks/task-model.js"
 import { cn } from "./ui/utils.js"
 import { Segmented } from "./ui/segmented.js"
 import { formatDate, formatDay } from "../lib/dates.js"
 import { todayInBrowserZone } from "../api/tz.js"
-
-// The day beside a preset: "Sat" for "This weekend", "24 Sep" where the day word would
-// repeat the label.
-function presetHint(date: Date): string {
-  return `${DAY_SHORT[date.getDay()] ?? ""} ${formatDate(isoDay(date), todayInBrowserZone())}`
-}
 
 // A time field on the viewer's 12/24h clock (the native input ignores it). Commits on
 // Enter or blur, never per keystroke; empty clears it, unreadable text is put back.
@@ -310,220 +297,6 @@ export function PickerSegments({
 export interface PanelProps {
   task: ConceptTask
   patch: (id: string, fields: Partial<ConceptTask>) => void
-}
-
-// "Next week" is next Monday, or the Monday after when next Monday is tomorrow.
-function nextWeekAfter(from: Date): Date {
-  const monday = nextWeekday(from, 1)
-  return sameDay(monday, addDays(from, 1)) ? addDays(monday, 7) : monday
-}
-
-// Shown when a start would fall after the due date; nothing is written (the server
-// answers 422).
-export const START_AFTER_DUE = "The start must be on or before the due date."
-
-export function DuePanel({ task, patch }: PanelProps) {
-  // One schedule, two ends: the panel edits the due date unless switched to Starts.
-  // A task not made yet has only a due date.
-  const [end, setEnd] = useState<"due" | "start">("due")
-  const [refused, setRefused] = useState(false)
-  const dueDate = task.due ? parseDueLabel(task.due.label) : null
-  const startDate = task.start === undefined ? null : parseIsoDate(task.start)
-  const editingStart = end === "start" && task.id !== "new"
-  const selected = editingStart ? startDate : dueDate
-  // The due picker opens with its grid showing: a due date is a day (AC-219).
-  const [confirming, setConfirming] = useState(false)
-  const close = usePickerClose()
-  // A due time under the day. Changing it rewrites the reminder in the same PATCH, in the
-  // mode the task now takes, because the server deletes a reminder whose mode no longer fits.
-  const format = useTimeFormat()
-  const at = task.dueTime ?? null
-  const [moved, setMoved] = useState<string | null>(null)
-  const labelWithTime = (day: Date, time: string | null) => {
-    const label = dueLabelFor(day)
-    return time === null ? label : { ...label, label: `${label.label} ${formatTime(time, format) ?? time}` }
-  }
-  const setAt = (time: string | null) => {
-    const day = dueDate ?? today()
-    const was = task.reminderAt
-    let reminder: { at: number; body: { offset_minutes: number | null; time_of_day: string | null } } | null = null
-    let note: string | null = null
-    if (was !== undefined && time !== null) {
-      const due = minutesOfClock(time)
-      const kept = Math.min(was, due)
-      if (kept !== was) note = `The reminder moved to ${formatTime(time, format) ?? time}.`
-      reminder = { at: kept, body: { offset_minutes: due - kept, time_of_day: null } }
-    } else if (was !== undefined) {
-      if (was >= 0) reminder = { at: was, body: { offset_minutes: null, time_of_day: clockOfMinutes(was) } }
-      else note = "The reminder was on the day before, which needs a due time, so it was removed."
-    }
-    setMoved(note)
-    patch(task.id, {
-      dueTime: time ?? undefined,
-      due: labelWithTime(day, time),
-      reminder: reminder === null ? undefined : reminderWords(day, reminder.at),
-      reminderAt: reminder?.at,
-    })
-    // One PATCH: the server upserts the reminder after its cascade, in one transaction.
-    update.mutate({
-      id: task.id,
-      body: reminder === null ? { due_time: time } : { due_time: time, reminder: reminder.body },
-    })
-  }
-  // Choosing a day answers the field, from the grid or a preset, so both close.
-  const update = useUpdateTask()
-  const set = (date: Date) => {
-    const day = isoDay(date)
-    // Refused here as the server would refuse it; nothing moves.
-    const crosses = editingStart
-      ? dueDate !== null && day > isoDay(dueDate)
-      : task.start !== undefined && day < task.start
-    if (crosses) {
-      setRefused(true)
-      return
-    }
-    setRefused(false)
-    if (editingStart) {
-      patch(task.id, { start: day })
-      update.mutate({ id: task.id, body: { start_date: day } })
-      close()
-      return
-    }
-    // The day moves and the time stays, as the server keeps it.
-    patch(task.id, { due: labelWithTime(date, at) })
-    // A task not made yet has no id; its draft carries the day into the create.
-    if (task.id !== "new") update.mutate({ id: task.id, body: { due_date: isoDay(date) } })
-    close()
-  }
-  // Clearing the date also ends the repeat and removes the reminder (8.4).
-  const cascades = Boolean(task.recurrence) || Boolean(task.reminder)
-  const clear = () => {
-    patch(task.id, {
-      due: undefined,
-      // Local state so the strip is right in the same render; the server runs the cascade.
-      recurrence: false,
-      reminder: undefined,
-      reminderAt: undefined,
-      dueTime: undefined,
-    })
-    // One request: the server's cascade runs inside its own transaction.
-    if (task.id !== "new") update.mutate({ id: task.id, body: { due_date: null } })
-  }
-
-  // "This weekend" only Monday to Thursday; on Friday it is "Tomorrow", and at the
-  // weekend it is now.
-  const saturday = nextWeekday(today(), 6)
-  const presets = [
-    { label: "Today", date: today() },
-    { label: "Tomorrow", date: addDays(today(), 1) },
-    ...(today().getDay() >= 1 && today().getDay() <= 4
-      ? [{ label: "This weekend", date: saturday }]
-      : []),
-    // Never the same day as "Tomorrow" (see `nextWeekAfter`).
-    { label: "Next week", date: nextWeekAfter(today()) },
-  ]
-
-  return (
-    <div className="w-[268px]">
-      {/* The popover already has `role="dialog"`, so the preset list must not also be a menu:
-         strict-mode locators would find two pickers. */}
-      {task.id === "new" ? null : (
-        <PickerSegments
-          name="Which date"
-          options={[
-            { key: "due", label: "Due" },
-            { key: "start", label: "Starts" },
-          ]}
-          active={end}
-          onPick={(key) => {
-            setRefused(false)
-            setEnd(key === "start" ? "start" : "due")
-          }}
-        />
-      )}
-      {refused ? (
-        <p role="status" className="px-2 pb-1 text-xs text-destructive">
-          {START_AFTER_DUE}
-        </p>
-      ) : null}
-      <div role="group" aria-label={editingStart ? "Start date" : "Due date"} className="flex flex-col">
-        {presets.map((preset) => (
-          <PickerOption
-            finishes
-            key={preset.label}
-            label={preset.label}
-            hint={presetHint(preset.date)}
-            active={sameDay(selected, preset.date)}
-            onSelect={() => set(preset.date)}
-          />
-        ))}
-        <PickerOption
-          icon={Ban}
-          label={selected ? DATE_CLEAR : "No date"}
-          active={!selected}
-          onSelect={() => {
-            if (editingStart) {
-              // A start clears alone: nothing cascades from it.
-              if (task.start === undefined) return
-              setRefused(false)
-              patch(task.id, { start: undefined })
-              update.mutate({ id: task.id, body: { start_date: null } })
-              close()
-              return
-            }
-            if (!task.due) return
-            // The warning lives in this popover, so close only when there is nothing to ask.
-            if (cascades) setConfirming(true)
-            else {
-              clear()
-              close()
-            }
-          }}
-        />
-      </div>
-      {confirming ? (
-        <ConfirmDialog
-          message={CLEAR_DATE_WARNING}
-          onContinue={() => {
-            setConfirming(false)
-            clear()
-          }}
-          onCancel={() => setConfirming(false)}
-        />
-      ) : null}
-
-      <PickerDivider />
-
-      {/* The grid always shows; a toggle row would read as a setting. */}
-      <div className="pt-1">
-        <Calendar
-          // Keyed on the end, so switching shows that end's month.
-          key={end}
-          selected={selected}
-          {...(startDate !== null && dueDate !== null ? { range: { from: startDate, to: dueDate } } : {})}
-          onSelect={set}
-          today={today()}
-        />
-      </div>
-
-      {task.due && !editingStart && task.id !== "new" ? (
-        <>
-          <PickerDivider />
-          <div className="flex items-center gap-2 px-2 pt-1.5 text-xs text-muted-foreground">
-            <span className="w-10 shrink-0">Time</span>
-            <div className="min-w-0 flex-1">
-              <TimeField label="Due time" value={at} onCommit={setAt} />
-            </div>
-          </div>
-          {moved === null ? null : (
-            <p role="status" className="px-2 pt-1.5 text-xs text-muted-foreground">
-              {moved}
-            </p>
-          )}
-        </>
-      ) : null}
-    </div>
-  )
 }
 
 // A reminder follows the task's dating: a date-only task stores a clock time, a timed

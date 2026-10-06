@@ -42,19 +42,6 @@ const VERB_LABEL: Record<HistoryVerb, string> = {
   mentioned: 'Mentioned',
 }
 
-/** The undo bar's wording names the thing; the history line does not. */
-export function sentenceFor(
-  event: Pick<HistoryEvent, 'name' | 'verb' | 'detail'>,
-): string {
-  const tail = event.detail ? ` ${tabWords(event.detail)}` : ''
-  return `${VERB_LABEL[event.verb]} “${event.name}”${tail}`
-}
-
-/** Just the verb: the Activity control's resting line, beside a time. */
-export function verbFor(event: Pick<HistoryEvent, 'verb'>): string {
-  return VERB_LABEL[event.verb]
-}
-
 /** The act without its subject, for a panel already about one object. */
 export function lineFor(event: Pick<HistoryEvent, 'verb' | 'detail'>): string {
   return `${VERB_LABEL[event.verb]}${event.detail ? ` ${tabWords(event.detail)}` : ''}`

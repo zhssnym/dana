@@ -2,7 +2,7 @@
 // projects), dependencies, and the task's own document. Every edit commits at once.
 
 import { Face } from "./person-face.js"
-import { Check, Plus, type LucideIcon } from "../lib/icons.js"
+import { Check } from "../lib/icons.js"
 import { TaskDependencies, isRelatableTask } from "./task-dependencies.js"
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react"
 
@@ -54,52 +54,6 @@ const TaskComposer = lazy(() => import("./page/canvas/TaskComposer.js"))
 
 // The panel's word for the due date, not the chip's.
 const DATE_LABEL = "Date"
-
-// Fills an empty block, saying the action, where the first item will appear.
-export function EmptyAction({
-  label,
-  onSelect,
-  hint,
-  icon: Icon = Plus,
-  fill = true,
-  expanded,
-}: {
-  label: string
-  onSelect?: () => void
-  hint?: string
-  icon?: LucideIcon
-  fill?: boolean
-  expanded?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      title={hint}
-      aria-expanded={expanded}
-      onClick={(e) => {
-        e.stopPropagation()
-        onSelect?.()
-      }}
-      className={cn(
-        "-ml-0.5 flex h-[var(--control-height)] items-center gap-2 rounded-sm px-0.5 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground",
-        fill ? "w-full" : "shrink-0",
-      )}
-    >
-      <Icon className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
-      {label}
-    </button>
-  )
-}
-
-// Mount on open with a short entrance; closing is immediate.
-export function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
-  if (!open) return null
-  return (
-    <div className="animate-in fade-in-0 slide-in-from-top-1 duration-150 ease-out">
-      {children}
-    </div>
-  )
-}
 
 // A range names both ends as dates: "21 Sep – Wed" left the reader guessing which Wednesday.
 function dateWords(task: ConceptTask): string {

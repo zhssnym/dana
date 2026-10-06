@@ -158,23 +158,3 @@ export function conceptPatchToBody(fields: Partial<ConceptTask>): PatchTaskBody 
   }
   return body as PatchTaskBody
 }
-
-/** Card fields with their own verb, so one press is not also logged as an edit. */
-export const writtenElsewhere: readonly (keyof ConceptTask)[] = [
-  'done',
-  'abandoned',
-  'pulled',
-  'steps',
-  'reminder',
-  'repeatEvery',
-  'repeatDays',
-  'repeatEnds',
-  'repeatUnit',
-  'recurrence',
-  'due',
-  'dueTime',
-  'reminderAt',
-  'repeatMonthDay',
-  'start',
-  'startTime',
-]

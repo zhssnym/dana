@@ -81,6 +81,13 @@ owner for the scheduler, and a serial migration run. Open an issue before you ad
   template, so their `ORDER BY` stays easy to read. CRUD can use the query builder.
 - **Stored client state keeps ids, never display names.** A saved view or an order keyed
   by a name breaks at the first rename.
+- **The client reads through hooks in `api/queries.ts` and writes through hooks in
+  `api/mutations.ts`.** Components take data and callbacks as props and do not fetch.
+- **Each mutation success invalidates all queries** (`api/queryClient.ts`). Do not replace
+  this with a map of keys: a forgotten key shows stale data after another member's edit.
+- **The client has no offline write queue and no stored query cache.** Keep
+  `networkMode: 'always'`, `retry: 0` on writes, `staleTime: Infinity` and
+  `refetchOnWindowFocus: 'always'`. Plain `true` does not refetch when nothing is stale.
 - **Prototypes are references, not code to port.** Build the feature against the real
   client, its query layer and `tokens.css`.
 

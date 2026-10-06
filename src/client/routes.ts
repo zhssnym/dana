@@ -83,20 +83,3 @@ export const navPages = [
     pinnable: true,
   },
 ] as const satisfies readonly NavPage[]
-
-export const DEFAULT_PINNED_KEYS: readonly NativeViewKey[] = [
-  'today',
-  'scheduled',
-  'assignments',
-]
-
-/**
- * Ordered by this file, not the pin list. A missing or failed settings read falls back to the defaults
- * (AC-095).
- */
-export function pinnedNavPages(
-  pinned: readonly string[] | undefined,
-): readonly NavPage[] {
-  const keys = new Set<string>(pinned ?? DEFAULT_PINNED_KEYS)
-  return navPages.filter((page) => !page.pinnable || keys.has(page.key))
-}

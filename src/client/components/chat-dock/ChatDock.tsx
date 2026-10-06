@@ -120,6 +120,7 @@ function Dock({
   const navigate = useNavigate()
   const location = useLocation()
   const width = useDockWidth()
+  const windowWidth = useWindowWidth()
   const box = useRef<HTMLElement | null>(null)
 
   const members = useMemo(() => project?.members ?? [], [project?.members])
@@ -169,7 +170,7 @@ function Dock({
         }
       }}
     >
-      <ResizeEdge width={width} />
+      <ResizeEdge width={width} {...dockWidthBounds(windowWidth)} label="Resize discussion" />
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
         <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-accent text-foreground" aria-hidden="true">
           <MessagesSquare className="size-4" strokeWidth={1.75} />
@@ -226,11 +227,15 @@ function Dock({
   )
 }
 
-// Drag, arrow keys, or double-click to reset.
-function ResizeEdge({ width }: { readonly width: number }): React.JSX.Element {
-  const bounds = dockWidthBounds(useWindowWidth())
+// Drag, arrow keys, or double-click to reset. The Team panel uses it too.
+export function ResizeEdge({ width, min, max, label }: {
+  readonly width: number
+  readonly min: number
+  readonly max: number
+  readonly label: string
+}): React.JSX.Element {
   const drag = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null)
-  const clamp = (next: number): number => Math.min(bounds.max, Math.max(bounds.min, next))
+  const clamp = (next: number): number => Math.min(max, Math.max(min, next))
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return
@@ -255,8 +260,8 @@ function ResizeEdge({ width }: { readonly width: number }): React.JSX.Element {
     const next =
       event.key === 'ArrowLeft' ? width + step
         : event.key === 'ArrowRight' ? width - step
-          : event.key === 'Home' ? bounds.max
-            : event.key === 'End' ? bounds.min
+          : event.key === 'Home' ? max
+            : event.key === 'End' ? min
               : null
     if (next === null) return
     event.preventDefault()
@@ -266,14 +271,14 @@ function ResizeEdge({ width }: { readonly width: number }): React.JSX.Element {
   return (
     <div
       role="separator"
-      aria-label="Resize discussion"
+      aria-label={label}
       aria-orientation="vertical"
-      aria-valuemin={bounds.min}
-      aria-valuemax={bounds.max}
+      aria-valuemin={min}
+      aria-valuemax={max}
       aria-valuenow={width}
       aria-valuetext={`${String(width)} pixels`}
       tabIndex={0}
-      title="Resize discussion"
+      title={label}
       className="absolute inset-y-0 -left-1 z-10 hidden w-2 cursor-col-resize touch-none outline-none md:block after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent hover:after:bg-border focus-visible:after:bg-ring"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

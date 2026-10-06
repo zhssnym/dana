@@ -51,7 +51,7 @@ import { UndoBar } from '../components/undo-bar.js'
 import { useAppearance } from './appearance.js'
 import { mirroredTheme } from '../lib/theme.js'
 import { openSearch } from './overlays.js'
-import { useModalOpen, useRightEdge } from '../components/right-edge.js'
+import { useRightEdge } from '../components/right-edge.js'
 import { ChatDock, useDockWidth, useWindowWidth } from '../components/chat-dock/ChatDock.js'
 import { DOCK_PAGE_MIN, DOCK_SIDEBAR_ROOM, useChatDock } from '../state/chat-dock.js'
 import { WindowBar, WindowBarActions, WindowBarLead } from '../components/window-bar.js'
@@ -300,7 +300,6 @@ export function AppShell(): React.JSX.Element {
   const windowWidth = useWindowWidth()
   const roomy = windowWidth - dockWidth >= DOCK_PAGE_MIN + DOCK_SIDEBAR_ROOM
   const rightEdge = panelEdge + (dockOpen && roomy ? dockWidth : 0)
-  const modalOpen = useModalOpen()
   /* Use the 4.19 defaults while the bundle loads, so the first paint is styled. */
   useAppearance(
     /*
@@ -340,14 +339,6 @@ export function AppShell(): React.JSX.Element {
   }, [storedFocus])
 
   /*
-   * shadcn's `SidebarProvider` writes a `sidebar_state` cookie nothing reads; it would ride every API request.
-   * The write happens inside the primitive's setter, so it is undone after commit.
-   */
-  useEffect(() => {
-    document.cookie = 'sidebar_state=; path=/; max-age=0'
-  }, [railOpen])
-
-  /*
    * Only a 401 from /me sends the person to `/`: offline or slow keeps the shell, which must work with no
    * network. A full document load, so no cached data survives.
    */
@@ -385,9 +376,7 @@ export function AppShell(): React.JSX.Element {
         <SearchOverlay />
         <ShortcutsSheet />
       </div>
-      {/* A modal task surface takes the page out: `aria-hidden` for assistive tech, `inert` for pointer and Tab. */}
       <div
-        {...(modalOpen ? { "aria-hidden": true, inert: true } : {})}
         className="flex h-svh flex-col overflow-hidden bg-background"
       >
         {/* The first Tab on every page: past the sidebar to the page itself. */}

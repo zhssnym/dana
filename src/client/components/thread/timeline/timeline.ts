@@ -105,17 +105,6 @@ function actsOf(line: EventLine, previousName: string | null, actorName: string)
   }
 }
 
-/** When the body was last edited: only the server's document write says so. */
-export function bodyEditedAt(events: readonly EventLine[]): number | null {
-  let latest: number | null = null
-  for (const line of events) {
-    if (line.subject_kind !== 'task' || line.verb !== 'edited' || line.detail !== DESCRIPTION_EDITED) continue
-    const at = Date.parse(line.created_at)
-    if (latest === null || at > latest) latest = at
-  }
-  return latest
-}
-
 function sameAct(a: Act, b: Act): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
 }

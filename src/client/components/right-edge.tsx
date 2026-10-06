@@ -2,7 +2,7 @@
 // owner publishes a width and the shell keeps the widest. A CSS variable used as
 // padding resolved to 0px, so the shell reads a number from this store.
 
-import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react"
+import { useEffect, useRef, useSyncExternalStore } from "react"
 
 let reserved = 0
 const reservations = new Map<symbol, number>()
@@ -42,37 +42,6 @@ export function useRightEdge() {
   )
 }
 
-// A modal surface makes the page behind it `aria-hidden` and `inert`, so neither a
-// screen reader nor a click reaches the rows behind it (AC-219, AC-220).
-let modal = 0
-const modalListeners = new Set<() => void>()
-
-function publishModal(next: number) {
-  if (modal === next) return
-  modal = next
-  modalListeners.forEach((notify) => notify())
-}
-
-export function useModalOpen() {
-  return useSyncExternalStore(
-    (notify) => {
-      modalListeners.add(notify)
-      return () => modalListeners.delete(notify)
-    },
-    () => modal > 0,
-    () => false,
-  )
-}
-
-/** Renders nothing; marks what is around it as a modal surface. */
-export function HoldsTheDocument({ children }: { children: ReactNode }) {
-  useEffect(() => {
-    publishModal(modal + 1)
-    return () => publishModal(modal - 1)
-  }, [])
-  return <>{children}</>
-}
-
 // The hook form, for a page that reserves from inside rather than wrapping. Each
 // mounted hook owns one reservation, so one surface cannot clear another's room.
 export function useReserveRightEdge(width: number, open: boolean) {
@@ -84,15 +53,4 @@ export function useReserveRightEdge(width: number, open: boolean) {
     setReservation(key, width)
     return () => clearReservation(key)
   }, [width, open])
-}
-
-export function ReservesRightEdge({
-  width,
-  children,
-}: {
-  width: number
-  children: ReactNode
-}) {
-  useReserveRightEdge(width, true)
-  return <>{children}</>
 }

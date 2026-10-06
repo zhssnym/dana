@@ -16,8 +16,6 @@ type Mode = "depends_on" | "blocks"
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export const DEPENDS_ON_ACTION = "Blocked by…"
-export const BLOCKS_ACTION = "Blocks…"
 export const BLOCKED_BY_HEADING = "Blocked by"
 export const BLOCKS_HEADING = "Blocks"
 

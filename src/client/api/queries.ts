@@ -39,7 +39,6 @@ import type { GetTrashResponse } from '../../shared/trash.js'
 import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
 import {
   getAllResponse,
-  getDoneResponse,
   getFocusResponse,
   getFolderTasksCompletedResponse,
   getFolderTasksOpenResponse,
@@ -197,21 +196,6 @@ export function mergeCompletedDays(
     }
   }
   return order.map((date) => ({ date, rows: byDate.get(date) ?? [] }))
-}
-
-/** `useInfiniteQuery` because the list is keyset paginated. Invalidation refetches every loaded page. */
-export function useDoneView(
-  /** False while All's Completed section is collapsed, so the collapse saves the fetch. */
-  enabled = true,
-): UseInfiniteQueryResult<{ readonly pages: readonly CompletedPage[] }, Error> {
-  return useInfiniteQuery({
-    queryKey: queryKeys.view('done'),
-    queryFn: ({ pageParam }) =>
-      getView(getDoneResponse, '/views/done', { cursor: pageParam }),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: nextPageParam,
-    enabled,
-  })
 }
 
 export function useFolderOpenTasks(
