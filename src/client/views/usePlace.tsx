@@ -140,11 +140,6 @@ export function usePlace(
   }
 }
 
-/** Filter chips are gone; kept for the folder page's import. */
-export function PlaceFilterChips(_props: { readonly place: Place }): null {
-  return null
-}
-
 /**
  * Keeps the empty line above the title that a page head uses for "Add cover", so the title sits at one height
  * on every screen. Change one, change the other.

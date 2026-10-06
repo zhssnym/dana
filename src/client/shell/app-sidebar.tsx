@@ -43,10 +43,6 @@ export {
 export { useAddPageInside } from './sidebar/use-add-page-inside.js'
 export { FOOT_BUTTON } from './sidebar/SidebarFoot.js'
 
-/** The one row treatment every sidebar entry shares. */
-export const SIDEBAR_ROW =
-  'my-(--sidebar-row-gap) h-(--shell-sidebar-row-height) max-md:h-(--row-height) gap-2 rounded-md px-2 text-sm font-normal text-muted-foreground hover:bg-(--sidebar-row-hover) hover:text-foreground data-active:bg-sidebar-accent data-active:hover:bg-sidebar-accent data-active:font-normal data-active:text-foreground [&_svg]:!size-4 [&_svg]:shrink-0'
-
 const NO_SHELVES: readonly Shelf[] = []
 const NO_FOLDERS: readonly Folder[] = []
 

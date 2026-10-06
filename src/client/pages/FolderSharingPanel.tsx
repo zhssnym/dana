@@ -4,7 +4,6 @@
  * The region keeps the "Sharing panel" name for the shell.
  */
 import { useEffect, useId, useRef, useState } from 'react'
-import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 
 import type { GetConnectionsResponse } from '../../shared/connections.js'
@@ -30,14 +29,10 @@ import type { FolderViewerFacts } from '../lib/folder-authority.js'
 import { ChevronDown, Maximize2, PanelRight, UsersRound } from '../lib/icons.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
-import {
-  DOCK_DEFAULT_WIDTH,
-  dockWidthBounds,
-  setChatDockWidth,
-  useChatDockWidth,
-} from '../state/chat-dock.js'
+import { DOCK_DEFAULT_WIDTH, dockWidthBounds, useChatDockWidth } from '../state/chat-dock.js'
 import { useTeamPresentation } from '../state/collaboration.js'
 import { PersonFace } from '../components/person-face.js'
+import { ResizeEdge, useWindowWidth } from '../components/chat-dock/ChatDock.js'
 import { AccessMenu, InviteAccessPicker, MemberDetails } from './MemberDetails.js'
 import { ConfirmDialog, useConfirm } from './task-rows.js'
 
@@ -83,16 +78,6 @@ function workspaceTabInteraction(event: Event): boolean {
       '[role="tab"], [aria-label="Open tab"], [aria-label="Search Dana to open a tab"], [aria-label="Go back"], [aria-label="Go forward"], #dana-open-tab-results',
     ) !== null
   )
-}
-
-function useWindowWidth(): number {
-  const [width, setWidth] = useState(() => window.innerWidth)
-  useEffect(() => {
-    const onResize = (): void => { setWidth(window.innerWidth) }
-    window.addEventListener('resize', onResize)
-    return () => { window.removeEventListener('resize', onResize) }
-  }, [])
-  return width
 }
 
 interface WorkspaceRect {
@@ -404,7 +389,7 @@ export function FolderSharingPanel({
         overlayClassName="hidden"
       >
         {fullPage ? null : (
-          <TeamResizeEdge width={sidebarWidth} min={teamMinWidth} max={bounds.max} />
+          <ResizeEdge width={sidebarWidth} min={teamMinWidth} max={bounds.max} label="Resize Team" />
         )}
         <section
           ref={surface}
@@ -739,69 +724,5 @@ export function FolderSharingPanel({
     </Sheet>
     <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />
     </>
-  )
-}
-
-function TeamResizeEdge({
-  width,
-  min,
-  max,
-}: {
-  readonly width: number
-  readonly min: number
-  readonly max: number
-}): React.JSX.Element {
-  const drag = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null)
-  const clamp = (next: number): number => Math.min(max, Math.max(min, next))
-
-  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
-    if (event.button !== 0) return
-    event.preventDefault()
-    event.currentTarget.focus()
-    drag.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: width }
-    event.currentTarget.setPointerCapture(event.pointerId)
-  }
-  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
-    const current = drag.current
-    if (current === null || current.pointerId !== event.pointerId) return
-    setChatDockWidth(clamp(current.startWidth + current.startX - event.clientX))
-  }
-  const onPointerEnd = (event: ReactPointerEvent<HTMLDivElement>): void => {
-    if (drag.current?.pointerId !== event.pointerId) return
-    drag.current = null
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-  }
-  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    const step = event.shiftKey ? 48 : 16
-    const next =
-      event.key === 'ArrowLeft' ? width + step
-        : event.key === 'ArrowRight' ? width - step
-          : event.key === 'Home' ? max
-            : event.key === 'End' ? min
-              : null
-    if (next === null) return
-    event.preventDefault()
-    setChatDockWidth(clamp(next))
-  }
-
-  return (
-    <div
-      role="separator"
-      aria-label="Resize Team"
-      aria-orientation="vertical"
-      aria-valuemin={min}
-      aria-valuemax={max}
-      aria-valuenow={width}
-      aria-valuetext={`${String(width)} pixels`}
-      tabIndex={0}
-      title="Resize Team"
-      className="absolute inset-y-0 -left-1 z-10 hidden w-2 cursor-col-resize touch-none outline-none md:block after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent hover:after:bg-border focus-visible:after:bg-ring"
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerEnd}
-      onPointerCancel={onPointerEnd}
-      onDoubleClick={() => { setChatDockWidth(clamp(DOCK_DEFAULT_WIDTH)) }}
-      onKeyDown={onKeyDown}
-    />
   )
 }

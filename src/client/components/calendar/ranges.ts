@@ -51,12 +51,6 @@ export type CalendarDrag = {
 
 const DRAG_TYPE = 'application/x-dana-calendar-task'
 
-export function writeCalendarDrag(transfer: DataTransfer, drag: CalendarDrag): void {
-  transfer.setData(DRAG_TYPE, JSON.stringify(drag))
-  transfer.setData('text/plain', drag.taskId)
-  transfer.effectAllowed = 'move'
-}
-
 export function readCalendarDrag(transfer: DataTransfer): CalendarDrag | null {
   const raw = transfer.getData(DRAG_TYPE)
   if (raw !== '') {

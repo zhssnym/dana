@@ -14,7 +14,7 @@ import {
   useUpdateTask,
 } from '../api/mutations.js'
 import { useFolders } from '../api/queries.js'
-import { conceptPatchToBody, writtenElsewhere } from './task-concept.js'
+import { conceptPatchToBody } from './task-concept.js'
 import type { ConceptTask } from './task-model.js'
 
 export type TaskPatch = (taskId: string, fields: Partial<ConceptTask>) => void
@@ -33,16 +33,6 @@ export function TaskWriter({
 
 export function useTaskWriter(): TaskPatch | null {
   return useContext(TaskWriterContext)
-}
-
-/** Pure and exported so the seam can be tested. A folder or assignee without an id is unwritten. */
-export function unwritten(fields: Partial<ConceptTask>): (keyof ConceptTask)[] {
-  const dropped = writtenElsewhere.filter(
-    (key) =>
-      key !== 'done' && key !== 'abandoned' && key !== 'pulled' && key !== 'steps' && key in fields,
-  )
-  if (fields.folder !== undefined && fields.folder.id === undefined) dropped.push('folder')
-  return dropped
 }
 
 /**

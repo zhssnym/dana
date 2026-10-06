@@ -1,12 +1,10 @@
 // Loading, error and empty states for every page, defined once. A 404 is an answer,
 // not a failure: it shows the not-found line with no retry.
-import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import type { LucideIcon } from '../../lib/icons.js'
 
 import { ApiError } from '../../api/http.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
-import { Button } from '../ui/button.js'
 
 export const EMPTY_LINE = 'flex min-h-[var(--row-height)] items-center px-2 text-sm text-muted-foreground'
 
@@ -82,50 +80,5 @@ export function TruncationNotice(): React.JSX.Element {
     <p role="status" className="px-2 py-2 text-xs leading-4 text-muted-foreground">
       {TRUNCATION_NOTICE}
     </p>
-  )
-}
-
-/**
- * A button keeps the next page reachable by keyboard; the observer presses it
- * when it scrolls into view.
- */
-export interface InfinitePageState {
-  readonly hasNextPage: boolean
-  readonly isFetchingNextPage: boolean
-  readonly fetchNextPage: () => unknown
-}
-
-export function MorePages({ query }: { readonly query: InfinitePageState }): React.JSX.Element | null {
-  const button = useRef<HTMLButtonElement | null>(null)
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query
-
-  useEffect(() => {
-    const element = button.current
-    if (element === null || !hasNextPage || isFetchingNextPage) return undefined
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) void fetchNextPage()
-    })
-    observer.observe(element)
-    return () => {
-      observer.disconnect()
-    }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
-
-  if (!hasNextPage) return null
-  return (
-    <div className="flex justify-center py-4">
-      <Button
-        type="button"
-        ref={button}
-        variant="outline"
-        className="px-3"
-        disabled={isFetchingNextPage}
-        onClick={() => {
-          void fetchNextPage()
-        }}
-      >
-        Show more
-      </Button>
-    </div>
   )
 }
