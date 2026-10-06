@@ -106,7 +106,7 @@ These give no error and no red test. Read your diff for them before opening a PR
 
 All commands run from the repository root.
 
-- **`npm test` failed although every test passed.** `scripts/run-suite.mjs` fails any run
+- **`npm test` failed although every test passed.** `tests/run-suite.mjs` fails any run
   where vitest collected more files than it accounted for, because vitest can lose files to a
   dead worker and still exit 0. Read the file count, not just the exit code. Pass vitest flags
   after `--`, as in `npm test -- --maxWorkers=2 <file>`.
