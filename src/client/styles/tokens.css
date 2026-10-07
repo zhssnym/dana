@@ -125,9 +125,9 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   /* r5: the one hairline, for dividers and control borders alike. */
   --line: #e9e9e7;
   --text: #37352f;
-  --text-muted: #73726f;
+  --text-muted: #6c6b68;
   --hover: #f1f1ef;
-  --accent-color: #2383e2;
+  --accent-color: #1b6fc4;
   --danger: #d33636;
 
   /* Deprecated: the old graphite ramp, mapped onto the palette so remaining
@@ -254,9 +254,11 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --hover: #2c2c2c;
   --accent-color: #529cca;
   --danger: #e06b6b;
+  /* White on the dark accent is 3:1; the page color on it is 5.8:1. */
+  --primary-foreground: var(--bg);
 
   --color-graphite-300: #3a3a39;
-  --color-graphite-400: #6f6f6e;
+  --color-graphite-400: #888887;
   --color-graphite-900: #e8e8e8;
   --color-graphite-950: #ffffff;
 
@@ -500,18 +502,11 @@ button:not(:disabled),
   }
 }
 
-/* ---- wf-a11y: contrast that reaches WCAG's 3:1 for things you act on.
-   Appended (the swarm keeps tokens.css append-only), so these override the
-   definitions above: --focus-ring (line ~228, was 45% of the ring) and the
-   light graphite-400 (line ~143, #a5a4a0), which only --quiet-foreground
-   reads. The keyboard ring is the accent itself: at 45% it measured 1.8:1 on
-   the page in light and 2.2:1 in dark. Quiet grey stays the quietest step,
-   dark enough (3.3:1 on the page) to read as an icon you can press. Dark's
-   graphite-400 (#6f6f6e) is unchanged; the :not() keeps this rule from
-   outranking the later-declared dark value. */
+/* WCAG AA: the focus ring is the full accent, and quiet grey (placeholders,
+   counts) reaches 4.5:1 on the page and the surface in both themes. */
 :root {
   --focus-ring: var(--ring);
 }
 :root:not([data-theme="dark"]) {
-  --color-graphite-400: #8f8e8a;
+  --color-graphite-400: #737270;
 }
