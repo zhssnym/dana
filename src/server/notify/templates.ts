@@ -27,8 +27,6 @@ interface Composition {
   footer: string
 }
 
-const SENT_BY_DANA = 'Sent by Dana'
-
 // The orientation footer goes on invitations only: their recipients may not know Dana.
 // On other messages it reads as promotional, which can hurt the transactional classification.
 const ORIENTATION_FOOTER =
@@ -37,6 +35,11 @@ const ORIENTATION_FOOTER =
 /** /app is the invites view: the invite gate renders over whatever /app route is open. */
 function startUrl(context: TemplateContext): string {
   return `${context.appOrigin}/app`
+}
+
+/** Why the address got mail it did not ask for, and that it can do nothing. */
+function notExpecting(inviter: string): string {
+  return `You got this because ${inviter} entered your address. Not expecting it? Ignore this email; nothing happens unless you accept.`
 }
 
 function inviterOf(name: string | null): string {
@@ -65,7 +68,7 @@ function compose(
         contextMeta: `Shared folder · From ${inviter}`,
         action: 'Review invitation',
         href: startUrl(context),
-        footer: ORIENTATION_FOOTER,
+        footer: `${ORIENTATION_FOOTER} ${notExpecting(inviter)}`,
       }
     }
     case 'invite_connection': {
@@ -79,7 +82,7 @@ function compose(
         contextMeta: 'Connection invitation',
         action: 'Review invitation',
         href: startUrl(context),
-        footer: ORIENTATION_FOOTER,
+        footer: `${ORIENTATION_FOOTER} ${notExpecting(inviter)}`,
       }
     }
     case 'share_grant': {
@@ -94,7 +97,7 @@ function compose(
         contextMeta: `Shared folder · Shared by ${inviter}`,
         action: `Open ${folderName}`,
         href: `${context.appOrigin}/app/folders/${folderId}`,
-        footer: SENT_BY_DANA,
+        footer: `Sent by Dana because ${inviter} shared a folder with you.`,
       }
     }
     case 'reminder': {
@@ -108,7 +111,7 @@ function compose(
         contextMeta: `In ${task.folderName}`,
         action: 'Open task',
         href: `${context.appOrigin}/app/tasks/${task.taskId}`,
-        footer: SENT_BY_DANA,
+        footer: 'Sent by Dana because you set a reminder on this task. Remove the reminder to stop these emails.',
       }
     }
   }

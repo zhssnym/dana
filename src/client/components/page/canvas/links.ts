@@ -157,7 +157,7 @@ export function videoTarget(value: string): VideoTarget | null {
     const id = url.pathname.split('/').filter(Boolean)[0]
     return id === undefined || !/^\d+$/u.test(id)
       ? null
-      : { kind: 'vimeo', src: `https://player.vimeo.com/video/${id}` }
+      : { kind: 'vimeo', src: `https://player.vimeo.com/video/${id}?dnt=1` }
   }
   if (/\.(?:mp4|webm|ogg)$/iu.test(url.pathname)) {
     return { kind: 'direct', src: url.toString() }

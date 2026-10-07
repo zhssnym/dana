@@ -53,9 +53,8 @@ export function LandingPage(): React.JSX.Element {
             when the work is shared and discuss it right next to the work itself.
           </p>
           <p>
-            We&apos;re building Dana as a bloat-free combination of Notion, GitHub Issues, and
-            Slack, giving you the tools you need to move work forward without drowning in
-            features you don&apos;t need.
+            We&apos;re building Dana to keep pages, tasks, and discussion in one tool, with the
+            features you need to move work forward and nothing more.
           </p>
           <p>
             Dana is in beta as of October 2026. If you try it, I&apos;d really like to hear what
@@ -75,13 +74,15 @@ export function LandingPage(): React.JSX.Element {
         </Button>
 
         <p className="mt-6 text-xs text-muted-foreground">
-          <a href="/privacy" className="rounded-sm hover:text-foreground">
-            Privacy
-          </a>
-          <span aria-hidden="true"> · </span>
-          <a href="/terms" className="rounded-sm hover:text-foreground">
+          By continuing, you accept the{' '}
+          <a href="/terms" className="rounded-sm underline underline-offset-2 hover:text-foreground">
             Terms
           </a>
+          . The{' '}
+          <a href="/privacy" className="rounded-sm underline underline-offset-2 hover:text-foreground">
+            Privacy
+          </a>{' '}
+          page says what Dana stores and why.
         </p>
       </div>
     </main>

@@ -131,6 +131,14 @@ What a caller gets:
 - Keep logs for 30 days.
 - Dana has no analytics and no tracking.
 
+## Privacy
+
+- Dana sets only the cookies that sign-in and security need. Thus Dana shows no cookie
+  banner. Before you add analytics, advertising or another cookie that is not necessary,
+  add a consent step.
+- `src/client/pages/LegalPage.tsx` names each provider, cookie and retention period. When
+  one of them changes, update that page in the same PR.
+
 ## Response headers and CSP
 
 - `securityHeaders` in `createApp` (`src/server/index.ts`) sets the headers on every
