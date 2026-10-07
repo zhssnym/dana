@@ -232,7 +232,7 @@ function Block({
       ) : (
         <img
           src={fileSrc(block.file_id ?? '')}
-          alt=""
+          alt="Attached image"
           loading="lazy"
           className="max-h-96 max-w-full rounded-md border border-border object-contain"
         />
