@@ -148,8 +148,8 @@ function Share({ label, value, of }: {
 
 function People({ people }: { readonly people: readonly StatsPerson[] }): React.JSX.Element {
   return (
-    <section aria-label="Everyone" className="flex flex-col gap-2">
-      <h2 className="text-sm font-section text-foreground">Everyone</h2>
+    <section aria-label="Active in the last 7 days" className="flex flex-col gap-2">
+      <h2 className="text-sm font-section text-foreground">Active in the last 7 days</h2>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -240,7 +240,7 @@ export function StatsPage(): React.JSX.Element {
   // No heading until the server answers, so a non-operator sees nothing before "not found".
   if (stats.isPending) return <SkeletonList />
   return (
-    <Screen title="Stats" description="Every account on Dana, and how much each uses it. No page names or content.">
+    <Screen title="Stats" description="Accounts with an email, and how much each uses Dana. No page names or content.">
       {stats.isError ? <InlineError onRetry={() => { void stats.refetch() }} /> : null}
       {stats.data === undefined ? null : <Stats stats={stats.data} />}
     </Screen>

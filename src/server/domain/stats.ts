@@ -13,16 +13,19 @@ const workPages = sql`
    WHERE f.kind = 'work' AND NOT f.is_default AND f.deleted_at IS NULL AND f.archived_at IS NULL
      AND NOT EXISTS (SELECT 1 FROM sample_objects s WHERE s.kind = 'folder' AND s.id = f.id)`
 
+// Accounts without an email (sample people) are not counted.
+const counted = sql`u.deleted_at IS NULL AND u.email IS NOT NULL`
+
 const num = (value: unknown): number => Number(value ?? 0)
 
 export async function readStats(db: Db, sessionTtlDays: number): Promise<GetStatsResponse> {
   const ttl = sql.raw(`interval '${String(Math.trunc(sessionTtlDays))} days'`)
   const [totals] = await rowsOf(db, sql`
     WITH pages AS (${workPages}),
-         people AS (SELECT created_at FROM users WHERE deleted_at IS NULL),
+         people AS (SELECT u.created_at FROM users u WHERE ${counted}),
          seen AS (
            SELECT s.user_id, max(s.expires_at) - ${ttl} AS at
-             FROM sessions s JOIN users u ON u.id = s.user_id AND u.deleted_at IS NULL
+             FROM sessions s JOIN users u ON u.id = s.user_id AND ${counted}
             WHERE s.expires_at > now()
             GROUP BY s.user_id)
     SELECT
@@ -42,7 +45,7 @@ export async function readStats(db: Db, sessionTtlDays: number): Promise<GetStat
              date_trunc('week', now(), 'UTC'),
              interval '1 week') AS start)
     SELECT to_char(w.start AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS week_start,
-      (SELECT count(*) FROM users u WHERE u.deleted_at IS NULL
+      (SELECT count(*) FROM users u WHERE ${counted}
           AND u.created_at >= w.start AND u.created_at < w.start + interval '1 week') AS new_people,
       (SELECT count(*) FROM pages p
           WHERE p.created_at >= w.start AND p.created_at < w.start + interval '1 week') AS new_work_pages
@@ -56,8 +59,10 @@ export async function readStats(db: Db, sessionTtlDays: number): Promise<GetStat
          FROM sessions s WHERE s.user_id = u.id AND s.expires_at > now()) AS last_active_on,
       (SELECT count(*) FROM pages p WHERE p.owner_id = u.id) AS work_pages
       FROM users u
-     WHERE u.deleted_at IS NULL
-     ORDER BY last_active_on DESC NULLS LAST, u.created_at DESC`)
+     WHERE ${counted} AND EXISTS (
+       SELECT 1 FROM sessions s
+        WHERE s.user_id = u.id AND s.expires_at - ${ttl} > now() - interval '7 days')
+     ORDER BY last_active_on DESC, u.created_at DESC`)
 
   const t = totals ?? {}
   return {
