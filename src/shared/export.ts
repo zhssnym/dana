@@ -4,7 +4,7 @@ Rule for new fields: no other person's email address appears anywhere; other
 people appear only as display names.
 */
 import { z } from 'zod'
-import { richContent } from './page-document.js'
+import { pageRichContent } from './page-document.js'
 
 import { CALENDAR_ZOOMS } from './bundle.js'
 import { postContent } from './comments.js'
@@ -100,7 +100,7 @@ export type ExportReminder = z.infer<typeof exportReminder>
 
 /** 4.17 without the file dimensions; `files` carries those once. */
 export const exportBlock = z.object({
-  rich_content:richContent.nullable(),
+  rich_content:pageRichContent.nullable(),
   section_block_id:z.uuid().nullable(),
   list_parent_block_id:z.uuid().nullable(),
   checked:z.boolean().nullable(),

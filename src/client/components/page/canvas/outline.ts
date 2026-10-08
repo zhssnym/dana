@@ -54,6 +54,7 @@ const KNOWN_TYPES: ReadonlySet<string> = new Set([
   'danaPage',
   'danaPageRef',
   'diagram',
+  'table',
   'divider',
 ])
 

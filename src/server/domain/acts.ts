@@ -80,24 +80,14 @@ function remapRichContentLinks(
   value: unknown,
   remap: (kind: ReferenceKind, id: string) => string | null,
 ): unknown {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return value
-  const content = value as { version?: unknown; runs?: unknown }
-  if (!Array.isArray(content.runs)) return value
-  return {
-    ...content,
-    runs: content.runs.map((run) => {
-      if (typeof run !== 'object' || run === null || Array.isArray(run)) return run
-      const record = run as Record<string, unknown>
-      const href = typeof record.href === 'string' ? record.href : null
-      if (href === null) return run
-      const target = parseDanaLink(href)
-      if (target === null) return run
-      const id = remap(target.kind, target.id)
-      return id === null
-        ? run
-        : { ...record, href: referencePath(target.kind, id) }
-    }),
-  }
+  if (Array.isArray(value)) return value.map((item) => remapRichContentLinks(item, remap))
+  if (typeof value !== 'object' || value === null) return value
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => {
+    if (key !== 'href' || typeof item !== 'string') return [key, remapRichContentLinks(item, remap)]
+    const target = parseDanaLink(item)
+    const id = target === null ? null : remap(target.kind, target.id)
+    return [key, target === null || id === null ? item : referencePath(target.kind, id)]
+  }))
 }
 
 /**

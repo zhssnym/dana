@@ -347,6 +347,7 @@ export const canvasSchema = BlockNoteSchema.create({
     // A shelf's folder row; only the shelf canvas inserts one.
     danaFolder: createCanvasFolderSpec(),
     diagram: createCanvasDiagramSpec(),
+    table: defaultBlockSpecs.table,
     // A sub-page; only Folder Work's `/page` inserts one.
     danaPage: createCanvasPageSpec(),
     // A page of another project (`folder_ref` with no text); never inserted.

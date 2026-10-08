@@ -1,7 +1,9 @@
 import { plainContentToString } from '@blocknote/core'
 import type { PartialBlock } from '@blocknote/core'
-import type { PageBlockKind, PageView } from '../../../../shared/pages.js'
+import type { PageBlockKind, PageRichContent, PageView } from '../../../../shared/pages.js'
 import { MAX_SECTION_DEPTH, NEST_PARENT_KINDS, isPresentationHeadingKind } from '../../../../shared/page-document.js'
+import { tablePlainText, tableRichContent } from '../../../../shared/rich-content.js'
+import type { TableRichContent } from '../../../../shared/rich-content.js'
 import type { CanvasBlock, canvasSchema } from './schema.js'
 import { isSectionHeading, isToggleHeading } from './outline.js'
 import { danaLinkOf } from '../../links/dana-link.js'
@@ -12,7 +14,7 @@ export interface CanvasRecord {
   id: string
   block_kind: PageBlockKind
   text: string | null
-  rich_content: { version: 1; runs: RichRun[] } | null
+  rich_content: PageRichContent | null
   file_id: string | null
   ref_folder_id: string | null
   width_pct: number | null
@@ -27,7 +29,7 @@ export class CanvasHydrationError extends Error {
   override readonly name = 'CanvasHydrationError'
 }
 
-export function contentOf(text: string | null, rich?: { version: 1; runs: RichRun[] } | null): CanvasInput['content'] {
+export function contentOf(text: string | null, rich?: { version: 1; runs: RichRun[] } | null) {
   if (!rich) return text ?? ''
   return rich.runs.map((run) => {
     const node = { type: 'text' as const, text: run.text, styles: { ...(run.bold ? { bold: true } : {}), ...(run.italic ? { italic: true } : {}) } }
@@ -36,6 +38,47 @@ export function contentOf(text: string | null, rich?: { version: 1; runs: RichRu
     if (run.href && danaLinkOf(run.href) !== null) return { type: 'danaLink' as const, props: { href: run.href, label: run.text } }
     return run.href ? { type: 'link' as const, href: run.href, content: [node] } : node
   })
+}
+
+export function tableContentOf(rich: PageRichContent | null | undefined): Extract<CanvasBlock, { type: 'table' }>['content'] {
+  if (rich === null || rich === undefined || !('table' in rich)) throw new CanvasHydrationError('This table has no cells. Reload before editing.')
+  return {
+    type: 'tableContent',
+    columnWidths: rich.table.columnWidths.map((width) => width ?? undefined),
+    ...(rich.table.headerRows === undefined ? {} : { headerRows: rich.table.headerRows }),
+    ...(rich.table.headerCols === undefined ? {} : { headerCols: rich.table.headerCols }),
+    rows: rich.table.rows.map((row) => ({ cells: row.cells.map((cell) => ({
+      type: 'tableCell' as const, props: cell.props,
+      content: contentOf(null, { version: 1, runs: cell.runs }),
+    })) })),
+  } as Extract<CanvasBlock, { type: 'table' }>['content']
+}
+
+export function tableRichOf(block: CanvasBlock): TableRichContent {
+  if (block.type !== 'table') throw new Error('This block is not a table.')
+  const table = block.content
+  const raw = {
+    version: 1, runs: [],
+    table: {
+      columnWidths: table.columnWidths.map((width) => width ?? null),
+      ...(table.headerRows ? { headerRows: table.headerRows } : {}),
+      ...(table.headerCols ? { headerCols: table.headerCols } : {}),
+      rows: table.rows.map((row) => ({ cells: row.cells.map((cell) => {
+        const content = Array.isArray(cell) ? cell : cell.content
+        const props = Array.isArray(cell) ? { backgroundColor: 'default', textColor: 'default', textAlignment: 'left' } : cell.props
+        const colspan = Array.isArray(cell) ? undefined : cell.props.colspan
+        const rowspan = Array.isArray(cell) ? undefined : cell.props.rowspan
+        return { props: {
+          backgroundColor: props.backgroundColor, textColor: props.textColor, textAlignment: props.textAlignment,
+          ...(colspan && colspan > 1 ? { colspan } : {}),
+          ...(rowspan && rowspan > 1 ? { rowspan } : {}),
+        }, runs: richRuns({ content } as CanvasBlock) }
+      }) })),
+    },
+  }
+  const checked = tableRichContent.safeParse(raw)
+  if (!checked.success) throw new Error('This table is too large or has invalid cells. Shorten it before saving.')
+  return checked.data
 }
 
 /**
@@ -199,6 +242,8 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
       } as CanvasInput
     } else if (block.kind === 'diagram') {
       node = { id: block.id, type: 'diagram', props: { source: block.text ?? '' }, children: [] }
+    } else if (block.kind === 'table') {
+      node = { id: block.id, type: 'table', content: tableContentOf(block.rich_content), children: [] }
     } else if (block.kind === 'page') {
       node = { id: block.id, type: 'danaPage', props: { folderId: block.ref_folder_id ?? '' }, children: [] }
     } else if (block.kind === 'folder_ref' && block.ref_folder_id !== null && (block.text ?? '') === '') {
@@ -370,6 +415,7 @@ export function dehydrateCanvas(
         else if (block.type === 'file') blockKind = 'file'
         else if (block.type === 'audio') blockKind = 'audio'
         else if (block.type === 'video') blockKind = 'video'
+        else if (block.type === 'table') blockKind = 'table'
         else if (reference !== null) blockKind = 'folder_ref'
 
         const media =
@@ -428,6 +474,10 @@ export function dehydrateCanvas(
         // A sub-page is only its reference, the same record `documentOf` reads.
         else if (block.type === 'danaPage') result.blocks.push({ id: block.id, block_kind: 'page', text: null, rich_content: null, file_id: null, ref_folder_id: block.props.folderId, width_pct: null, checked: null, toggleable: null })
         else if (block.type === 'diagram') result.blocks.push({ id: block.id, block_kind: 'diagram', text: block.props.source, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null })
+        else if (block.type === 'table') {
+          const table = tableRichOf(block)
+          result.blocks.push({ id: block.id, block_kind: 'table', text: tablePlainText(table.table), rich_content: table, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null })
+        }
         else result.blocks.push({
           id: block.id,
           block_kind: blockKind,

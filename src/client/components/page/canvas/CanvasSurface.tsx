@@ -380,6 +380,7 @@ export function CanvasSurface({
         slashMenu={false}
         sideMenu={false}
         filePanel={false}
+        tableHandles={true}
         onChange={() => { onNotice(''); onChange(editor) }}
         aria-label={label ?? (taskCreator === undefined ? 'Page writing' : 'Page writing and tasks')}
       >
