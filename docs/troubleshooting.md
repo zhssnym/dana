@@ -241,6 +241,9 @@ real. Re-run at most once.
 
 ## 7. Client
 
+- **A slash-menu block appears but does not insert.** The canvas guard checks block types in
+  `src/client/components/page/canvas/outline.ts`. Add the new type to `KNOWN_TYPES` and test
+  insertion with `installCanvasGuard` active. A slash-menu or schema test alone misses the refusal.
 - **A request fails with 403 or 422, and it looks like a backend bug.** Every server call must
   go through `src/client/api/http.ts`, which adds the CSRF header and the timezone. Lint
   refuses direct `fetch(...)` calls, but not an alias like `const g = fetch`.

@@ -14,7 +14,7 @@ import { PersonBlockContext } from './person-context.js'
 function MemberCard({ folderId, userId, picker }: { readonly folderId: string; readonly userId: string; readonly picker: React.ReactNode }): React.JSX.Element {
   const details = useFolderMember(folderId, userId)
   if (details.data === undefined) {
-    return <p className="text-sm text-muted-foreground">{details.isPending ? 'Loading person…' : 'Person is no longer available on this Team.'}</p>
+    return <p className="text-sm text-muted-foreground">{details.isPending ? 'Loading teammate…' : 'Teammate is no longer available on this Team.'}</p>
   }
   const member = details.data
   const name = member.user.display_name ?? 'Someone'
@@ -50,8 +50,8 @@ function PersonBlock({ userId, editable, onChoose }: {
     names.set(name, (names.get(name) ?? 0) + 1)
   }
   const picker = editable && folderId !== null && folder.data !== undefined ? <Popover open={choosing} onOpenChange={setChoosing}>
-    <PopoverTrigger render={<Button variant="ghost" size={present ? 'icon-sm' : 'sm'} aria-label={present ? 'Change person' : 'Choose person'} title={present ? 'Change person' : undefined} className="text-muted-foreground hover:text-foreground" />}>
-      {present ? <ChevronDown strokeWidth={1.75} aria-hidden="true" /> : <><UserRound strokeWidth={1.75} aria-hidden="true" /> Choose person</>}
+    <PopoverTrigger render={<Button variant="ghost" size={present ? 'icon-sm' : 'sm'} aria-label={present ? 'Change teammate' : 'Choose teammate'} title={present ? 'Change teammate' : undefined} className="text-muted-foreground hover:text-foreground" />}>
+      {present ? <ChevronDown strokeWidth={1.75} aria-hidden="true" /> : <><UserRound strokeWidth={1.75} aria-hidden="true" /> Choose teammate</>}
     </PopoverTrigger>
     <PopoverContent className="max-w-[var(--person-picker-max-width)] p-[var(--space-inline)]" onKeyDown={(event) => event.stopPropagation()}>
       <PopoverTitle className="px-[var(--space-inline)] pb-[var(--space-inline)]">Team members</PopoverTitle>
@@ -75,13 +75,13 @@ function PersonBlock({ userId, editable, onChoose }: {
     </PopoverContent>
   </Popover> : null
   return <div contentEditable={false} className="w-full min-w-0 rounded-[var(--radius-card)] border border-border bg-card p-[var(--person-card-padding)]" data-canvas-person="">
-    {folderId === null ? <p className="text-sm text-muted-foreground">Person is unavailable here.</p>
+    {folderId === null ? <p className="text-sm text-muted-foreground">Teammate is unavailable here.</p>
       : folder.isPending ? <p className="text-sm text-muted-foreground">Loading Team…</p>
         : folder.isError ? <p className="text-sm text-muted-foreground">Team is unavailable.</p>
           : present ? <MemberCard folderId={folderId} userId={userId} picker={picker} />
             : <div className="flex items-center gap-[var(--person-card-padding)]">
               <span className="flex size-[var(--row-height)] shrink-0 items-center justify-center rounded-md bg-accent text-muted-foreground"><UserRound className="size-[var(--icon-size-compact)]" strokeWidth={1.75} aria-hidden="true" /></span>
-              <p className="min-w-0 flex-1 text-sm text-muted-foreground">{userId === '' ? 'Add a person from this Team.' : 'Person is no longer on this Team.'}</p>
+              <p className="min-w-0 flex-1 text-sm text-muted-foreground">{userId === '' ? 'Add a teammate from this Team.' : 'Teammate is no longer on this Team.'}</p>
               {picker}
             </div>}
   </div>
@@ -95,6 +95,6 @@ export const createCanvasPersonSpec = createReactBlockSpec(
       editable={editor.isEditable}
       onChoose={(userId) => editor.updateBlock(block, { props: { userId } })}
     />,
-    toExternalHTML: () => <p>Person</p>,
+    toExternalHTML: () => <p>Teammate</p>,
   },
 )
