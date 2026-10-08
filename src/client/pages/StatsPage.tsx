@@ -148,8 +148,8 @@ function Share({ label, value, of }: {
 
 function People({ people }: { readonly people: readonly StatsPerson[] }): React.JSX.Element {
   return (
-    <section aria-label="Active in the last 7 days" className="flex flex-col gap-2">
-      <h2 className="text-sm font-section text-foreground">Active in the last 7 days</h2>
+    <section aria-label="Everyone" className="flex flex-col gap-2">
+      <h2 className="text-sm font-section text-foreground">Everyone</h2>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -193,10 +193,11 @@ function Stats({ stats }: { readonly stats: GetStatsResponse }): React.JSX.Eleme
       <section aria-label="People" className="flex flex-col gap-4">
         <div>
           <p className="text-(length:--text-title-size) leading-(--text-title-line) font-title text-foreground tabular-nums">
-            {count.format(stats.people.total)}
+            {count.format(stats.active.week)}
           </p>
           <p className="text-sm text-muted-foreground">
-            people on Dana, {count.format(stats.people.new_this_week)} joined this week
+            active in the last 7 days, of {count.format(stats.people.total)} people on Dana.{' '}
+            {count.format(stats.people.new_this_week)} joined this week.
           </p>
         </div>
         <GrowthChart points={people} tall label="People on Dana over the last 12 weeks" />

@@ -29,7 +29,7 @@ export const getStatsResponse = z.object({
   work_pages: z.object({ total: z.number().int(), new_this_week: z.number().int() }),
   /** The last 12 weeks, oldest first, the current week last. */
   weeks: z.array(statsWeek),
-  /** Accounts with an email that were active in the last 7 days, most recent first. */
+  /** Accounts with an email, most recently active first. */
   people_list: z.array(statsPerson),
 })
 

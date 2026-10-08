@@ -59,10 +59,8 @@ export async function readStats(db: Db, sessionTtlDays: number): Promise<GetStat
          FROM sessions s WHERE s.user_id = u.id AND s.expires_at > now()) AS last_active_on,
       (SELECT count(*) FROM pages p WHERE p.owner_id = u.id) AS work_pages
       FROM users u
-     WHERE ${counted} AND EXISTS (
-       SELECT 1 FROM sessions s
-        WHERE s.user_id = u.id AND s.expires_at - ${ttl} > now() - interval '7 days')
-     ORDER BY last_active_on DESC, u.created_at DESC`)
+     WHERE ${counted}
+     ORDER BY last_active_on DESC NULLS LAST, u.created_at DESC`)
 
   const t = totals ?? {}
   return {
