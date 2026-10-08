@@ -120,6 +120,10 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
    if(file===undefined)throw new DocumentRefusal('file_not_here','That file is not in this folder.')
    if(isMediaKind(block.block_kind)&&!(BLOCK_FILE_KINDS[block.block_kind] as readonly string[]).includes(String(file.kind)))throw new DocumentRefusal('file_kind_mismatch',`This ${block.block_kind} block names a file uploaded as ${String(file.kind)}. Upload it again as the kind you mean to insert.`)
   }
+  if(block.block_kind==='person'){
+   const member=await rowsOf(tx,sql`SELECT 1 AS present FROM folder_members m JOIN folders f ON f.project_id=m.folder_id WHERE f.id=${folderId}::uuid AND m.user_id=${block.text}::uuid`)
+   if(member.length===0)throw new DocumentRefusal('not_found','This person is not on the Team.')
+  }
   // A `page` block's reference was judged by `pageTreeRules` above.
   if(block.ref_folder_id!==null&&block.block_kind!=='page'&&(await folderActorFacts(tx,viewerId,block.ref_folder_id))===null)throw new DocumentRefusal('not_found','Referenced folder is not accessible.')
  }

@@ -96,7 +96,8 @@ test('duplicate, export and workflow import retain hierarchy and rich content wi
     `parent_folder_id`.
     **8 to 9 at issue #353**: settings gains the durable `focus_appearance`
     map, so an older reader cannot silently discard the viewer's Focus identity. */
- expect(data.version).toBe(11);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
+ /* Version 12 adds private messages to the account export (#610). */
+ expect(data.version).toBe(12);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
  const current=await read(owner,folder)
  expectStatus(await owner.browser.json(`/folders/${folder}/page/actions`,'POST',{action:'document_transaction',mutation_id:randomUUID(),base_revision:current.revision,operations:[{op:'delete_block',id:h1},{op:'set_outline',items:[{kind:'block',id:h2,section_block_id:null,list_parent_block_id:null},{kind:'block',id:p,section_block_id:h2,list_parent_block_id:null}]}]}),200,'remove H1 promotes subgroup')
  expect((await read(owner,folder)).blocks.find(b=>b.id===h2)?.section_block_id).toBeNull()
@@ -179,6 +180,19 @@ type PutKind=Extract<DocumentOperation,{op:'put_block'}>['block_kind']
 const put=(id:string,kind:PutKind,text:string|null,extra:Record<string,unknown>={}):DocumentOperation=>({op:'put_block',id,block_kind:kind,text,rich_content:null,file_id:null,ref_folder_id:null,width_pct:null,checked:kind==='checklist'?false:null,...extra} as DocumentOperation)
 const at=(id:string,parent:string|null=null,section:string|null=null)=>({kind:'block' as const,id,section_block_id:section,list_parent_block_id:parent})
 async function transact(actor:Actor,url:string,base:string,operations:DocumentOperation[],method:'POST'|'PUT'='POST'){return actor.browser.json(url,method,{action:'document_transaction',mutation_id:randomUUID(),base_revision:base,operations})}
+
+test('a Person block names only a current Team member',async()=>{
+ const [owner,stranger]=await cast.of(app) as [Actor,Actor]
+ const folder=await createFolder(owner,'Person reference');const url=`/folders/${folder}/page/actions`
+ const id=randomUUID();const outline=[at(id)]
+ const before=await read(owner,folder)
+ expectStatus(await transact(owner,url,before.revision!,[put(id,'person',stranger.id),{op:'set_outline',items:outline}]),404,'another user is not on the Team')
+ expect((await read(owner,folder)).revision).toBe(before.revision)
+ expectStatus(await transact(owner,url,before.revision!,[put(id,'person',owner.id),{op:'set_outline',items:outline}]),200,'member reference saves')
+ const saved=await read(owner,folder)
+ expect(saved.blocks.find((item)=>item.id===id)?.text).toBe(owner.id)
+ expectStatus(await stranger.browser.json(`/folders/${folder}/page`,'GET'),404,'nonmember cannot read the reference')
+})
 
 test('a folder page nests any block under writing, keeps it through a kind change, and refuses bad nesting before writes',async()=>{
  const [owner]=await cast.of(app) as [Actor,Actor]

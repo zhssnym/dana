@@ -17,6 +17,7 @@ import {
 import { useFolderMember, useFolderMemberHistory } from '../api/queries.js'
 import type { MemberHistoryEntry } from '../api/queries.js'
 import { PersonFace } from '../components/person-face.js'
+import { DirectMessageButton } from '../components/direct-message/DirectMessageButton.js'
 import { Button } from '../components/ui/button.js'
 import { Checkbox } from '../components/ui/checkbox.js'
 import {
@@ -88,6 +89,7 @@ export function MemberDetails({
             className={fullPage ? 'size-[var(--row-height)] data-[size=sm]:size-[var(--row-height)]' : undefined}
           />
           <Heading className={cn('min-w-0 flex-1 truncate font-title text-foreground', fullPage ? 'text-[length:var(--text-h2-size)] leading-[var(--text-h2-line)]' : 'text-sm')}>{name}</Heading>
+          <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} />
           {member.is_owner ? <span className="text-sm text-muted-foreground">Owner</span> : null}
         </div>
       </div>
