@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { Search, Settings, Trash2 } from '../../lib/icons.js'
 import { SidebarFooter, SidebarTrigger } from '../../components/ui/sidebar.js'
 import { NotificationsBell } from '../../components/notifications-bell.js'
+import { MessagesButton } from '../../components/direct-message/MessagesButton.js'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip.js'
 import { paths } from '../../routes.js'
 
@@ -50,6 +51,7 @@ export function SidebarFoot({
           </button>
         </FootTip>
         <NotificationsBell side="top" className={FOOT_BUTTON} />
+        <MessagesButton className={FOOT_BUTTON} />
         <FootTip label="Settings">
           <Link
             to={paths.settings}
