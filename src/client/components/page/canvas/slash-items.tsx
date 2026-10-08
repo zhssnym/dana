@@ -259,7 +259,7 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
       insertOrUpdateBlockForSlashMenu(editor, { type: 'table', content: { type: 'tableContent', headerRows: 1, rows } } as never)
       editor.focus()
     }, glyph(Table2)) },
-    person: () => { if (has(editor, 'person')) add('Advanced', 'Person', ['person', 'team', 'member'], insert('person'), glyph(UserRound)) },
+    person: () => { if (has(editor, 'person')) add('Advanced', 'Teammate', ['teammate', 'team', 'member', 'person'], insert('person'), glyph(UserRound)) },
     file: () => {
       const file = byKey('file')
       if (media && file !== undefined) add('Media', 'File', ['file', 'attachment', 'upload', 'document'], () => { file.onItemClick() }, glyph(FileText))
