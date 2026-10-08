@@ -66,10 +66,12 @@ export function tableRichOf(block: CanvasBlock): TableRichContent {
       rows: table.rows.map((row) => ({ cells: row.cells.map((cell) => {
         const content = Array.isArray(cell) ? cell : cell.content
         const props = Array.isArray(cell) ? { backgroundColor: 'default', textColor: 'default', textAlignment: 'left' } : cell.props
+        const colspan = Array.isArray(cell) ? undefined : cell.props.colspan
+        const rowspan = Array.isArray(cell) ? undefined : cell.props.rowspan
         return { props: {
           backgroundColor: props.backgroundColor, textColor: props.textColor, textAlignment: props.textAlignment,
-          ...(props.colspan && props.colspan > 1 ? { colspan: props.colspan } : {}),
-          ...(props.rowspan && props.rowspan > 1 ? { rowspan: props.rowspan } : {}),
+          ...(colspan && colspan > 1 ? { colspan } : {}),
+          ...(rowspan && rowspan > 1 ? { rowspan } : {}),
         }, runs: richRuns({ content } as CanvasBlock) }
       }) })),
     },
