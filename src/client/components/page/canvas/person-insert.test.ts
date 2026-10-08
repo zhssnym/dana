@@ -8,11 +8,11 @@ import { installCanvasGuard } from './guard.js'
 import { canvasSchema } from './schema.js'
 import { canvasSlashItems } from './slash-items.js'
 
-test('Person inserts from the Work slash menu with the canvas guard active', () => {
+test('Teammate inserts from the Work slash menu with the canvas guard active', () => {
   const editor = BlockNoteEditor.create({ schema: canvasSchema, initialContent: [{ type: 'paragraph', content: '' }] })
   const explain = vi.fn()
   const stopGuard = installCanvasGuard(editor, explain)
-  const person = canvasSlashItems(editor, { surface: 'work' }).find((item) => item.title === 'Person')
+  const person = canvasSlashItems(editor, { surface: 'work' }).find((item) => item.title === 'Teammate')
   expect(person).toBeDefined()
   person?.onItemClick()
   const inserted = editor.document.find((block) => block.type === 'person')
