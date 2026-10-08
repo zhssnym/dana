@@ -1,6 +1,5 @@
-// The one slash menu for every canvas. Each surface offers only what its page kind is
-// for (`SLASH_MENUS`); other kinds stay reachable by markdown shortcut or Turn into.
-// `/turn …` converts the block at the cursor; Cmd/Ctrl+/ opens the same list.
+// Work and Doc share the full slash menu. Work alone offers Task.
+// A typed `/turn` converts the current block; Cmd/Ctrl+/ opens the same list.
 import { useEffect, useMemo, useRef } from 'react'
 import type { JSX } from 'react'
 import { SuggestionMenuController, getDefaultReactSlashMenuItems, useComponentsContext } from '@blocknote/react'
@@ -14,7 +13,7 @@ import { linkSlashItem } from '../../links/dana-link-picker.js'
 import { placeSection, sectionPlace } from './commands.js'
 import { TOGGLE_HEADING_SURFACES, TOGGLE_SURFACES, bindCanvasSurface, bindResultCanvas, offersResults, surfaceOf } from './markdown.js'
 import { shelfOutlineFailure, validateCanvasOutline } from './outline.js'
-import { TEXT_TYPES, TURN_TARGETS, isCurrent, simulate } from './turn-into.js'
+import { HEADING_NAMES, TEXT_TYPES, TURN_TARGETS, isCurrent, simulate } from './turn-into.js'
 import { turnBlocksInto } from './BlockSideMenu.js'
 import { blockSelection, setBlockSelection } from './block-selection.js'
 import type { TreeBlock, TurnKey, TurnTarget } from './turn-into.js'
@@ -53,12 +52,12 @@ const has = (editor: AnyEditor, type: string): boolean => type in editor.schema.
 // disagree; only the search words live here.
 const TURN_ALIASES: Record<TurnKey, readonly string[]> = {
   text: ['text', 'paragraph', 'plain', 'p'],
-  h1: ['h1', '#', 'heading 1', 'title'],
-  h2: ['h2', '##', 'heading 2', 'subheading'],
-  h3: ['h3', '###', 'heading 3'],
-  th1: ['toggle heading 1', 'toggle h1', 'toggleh1'],
-  th2: ['toggle heading 2', 'toggle h2', 'toggleh2'],
-  th3: ['toggle heading 3', 'toggle h3', 'toggleh3'],
+  h1: ['h1', '#', 'heading 1', 'large heading', 'title'],
+  h2: ['h2', '##', 'heading 2', 'medium heading', 'subheading'],
+  h3: ['h3', '###', 'heading 3', 'small heading'],
+  th1: ['toggle heading 1', 'toggle large heading', 'toggle h1', 'toggleh1'],
+  th2: ['toggle heading 2', 'toggle medium heading', 'toggle h2', 'toggleh2'],
+  th3: ['toggle heading 3', 'toggle small heading', 'toggle h3', 'toggleh3'],
   toggle: ['toggle', '>', 'collapsible', 'details'],
   bullet: ['bullet', 'bulleted', 'ul', '-', '*', 'unordered'],
   numbered: ['num', 'numbered', 'ol', '1.', 'ordered'],
@@ -158,16 +157,16 @@ function turnItems(editor: AnyEditor): Item[] {
 
 type SlashCommand = 'text' | 'heading' | 'checklist' | 'task' | 'page' | 'blocked_by' | 'media' | 'bullet' | 'numbered' | 'toggle' | 'quote' | 'callout' | 'divider' | 'code' | 'file' | 'diagram' | 'link'
 
-const THREAD_WORK_MENU: readonly SlashCommand[] = ['text', 'heading', 'task']
-const FREEFORM_WORK_MENU: readonly SlashCommand[] = [
-  'text', 'heading', 'task', 'page', 'checklist', 'bullet', 'numbered', 'toggle',
+const DOC_MENU: readonly SlashCommand[] = [
+  'text', 'heading', 'page', 'checklist', 'bullet', 'numbered', 'toggle',
   'quote', 'callout', 'divider', 'code', 'media', 'file', 'diagram', 'link',
 ]
-const DOC_MENU: readonly SlashCommand[] = ['text', 'heading', 'checklist', 'page', 'media']
+const WORK_MENU: readonly SlashCommand[] = [
+  'text', 'heading', 'task', ...DOC_MENU.slice(2),
+]
 
-// The `/` menu each page home shows: what that kind of page is for, nothing else.
 const SLASH_MENUS: Readonly<Record<BlockHome, readonly SlashCommand[]>> = {
-  work: THREAD_WORK_MENU,
+  work: WORK_MENU,
   doc: DOC_MENU,
   results: DOC_MENU,
   task: ['text', 'heading', 'checklist', 'blocked_by', 'media', 'file'],
@@ -179,17 +178,6 @@ export function slashHomeOf(surface: CanvasSurfaceKind, results: boolean): Block
   if (surface === 'post') return null
   if (surface === 'document' || surface === 'plain') return results ? 'results' : 'doc'
   return surface
-}
-
-/**
- * Thread and Freeform are views of one Work document; only the thread view has the
- * `.dana-thread` wrapper. A detached editor keeps the Thread menu.
- */
-function slashCommands(editor: AnyEditor, home: BlockHome): readonly SlashCommand[] {
-  if (home !== 'work') return SLASH_MENUS[home]
-  const root = editor.domElement
-  const freeform = root?.isConnected === true && root.closest('.dana-thread') === null
-  return freeform ? FREEFORM_WORK_MENU : THREAD_WORK_MENU
 }
 
 export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item[] {
@@ -221,17 +209,17 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
         for (const level of [1, 2, 3] as const) {
           // A Section where one of this level may stand, exactly as `#` makes one.
           const section = sectionPlace(canvas.document, cursor, level, !empty) !== null
-          add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading', ...(section ? ['section'] : [])], section ? () => {
+          add('Basic blocks', HEADING_NAMES[level], [`h${level}`, '#'.repeat(level), `heading ${level}`, 'title', 'heading', ...(section ? ['section'] : [])], section ? () => {
             // The query is already cleared: an empty line becomes the Section.
             const block = canvas.getTextCursorPosition().block
             placeSection(canvas, block, level, Array.isArray(block.content) && block.content.length === 0)
           } : insert('heading', { level, isToggleable: false, presentation: false }), kindIcon('heading', level), { hint: '#'.repeat(level) })
         }
       } else if (surface === 'shelf') {
-        add('Basic blocks', 'Heading 1', ['h1', '#', 'title', 'heading'], insert('heading', { level: 1, isToggleable: true }), kindIcon('heading', 1), { hint: '#' })
+        add('Basic blocks', HEADING_NAMES[1], ['h1', '#', 'heading 1', 'title', 'heading'], insert('heading', { level: 1, isToggleable: true }), kindIcon('heading', 1), { hint: '#' })
       } else if (surface !== 'plain') {
         for (const level of [1, 2, 3] as const) {
-          add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading'], insert('heading', { level, isToggleable: false, presentation: false }), kindIcon('heading', level), { hint: '#'.repeat(level) })
+          add('Basic blocks', HEADING_NAMES[level], [`h${level}`, '#'.repeat(level), `heading ${level}`, 'title', 'heading'], insert('heading', { level, isToggleable: false, presentation: false }), kindIcon('heading', level), { hint: '#'.repeat(level) })
         }
       }
     },
@@ -273,7 +261,7 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
       add('Advanced', link.title, ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, glyph(Link2))
     },
   }
-  for (const command of slashCommands(editor, home)) commands[command]()
+  for (const command of SLASH_MENUS[home]) commands[command]()
   return items
 }
 

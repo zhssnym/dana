@@ -45,7 +45,7 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   readonly arrangeable: boolean
   /** A Doc page: flat headings that never make Work sections, and no thread. */
   readonly presentationHeadings?: boolean
-  /** A Doc page's `/` Page; told the new page's id once saved. */
+  /** Work or Doc `/` Page action; told the new page's id once saved. */
   readonly onCreatePage?: (madeId: string) => void
   readonly results?: boolean
   readonly workRootId?: string
@@ -416,8 +416,8 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
       if ((writer.state as string) === 'failed') resumeAfter.delete(draftKey)
     }
   }
-  // A Doc's `/` Page: page and link are made in one save. The editor is read-only
-  // until it lands, or typing would replace the drafted link and trash the new page.
+  // Work and Doc create the page and link in one save. Keep the editor read-only
+  // until it lands, or typing could replace the link and trash the new page.
   const makePage = onCreatePage === undefined ? undefined : (): void => {
     const at = editor.getTextCursorPosition().block
     if (writer.state === 'failed') { setError(pageBlocked); return }
