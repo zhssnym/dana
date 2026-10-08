@@ -89,7 +89,7 @@ export function MemberDetails({
             className={fullPage ? 'size-[var(--row-height)] data-[size=sm]:size-[var(--row-height)]' : undefined}
           />
           <Heading className={cn('min-w-0 flex-1 truncate font-title text-foreground', fullPage ? 'text-[length:var(--text-h2-size)] leading-[var(--text-h2-line)]' : 'text-sm')}>{name}</Heading>
-          <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} />
+          <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} memberImage={member.user.avatar_url} />
           {member.is_owner ? <span className="text-sm text-muted-foreground">Owner</span> : null}
         </div>
       </div>
