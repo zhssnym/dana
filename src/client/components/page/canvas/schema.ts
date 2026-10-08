@@ -14,6 +14,7 @@ import { createCanvasFolderSpec } from './CanvasFolder.js'
 import { createCanvasPageRefSpec, createCanvasPageSpec } from './CanvasPage.js'
 import { createCanvasParagraph } from './CanvasParagraph.js'
 import { createCanvasDiagramSpec } from './CanvasDiagram.js'
+import { createCanvasPersonSpec } from './CanvasPerson.js'
 import { createTaskAtCursor, removeCanvasBlocks, removeEmptyBeforeHeading } from './commands.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 import { mentionInlineSpec } from './mentions.js'
@@ -354,6 +355,7 @@ export const canvasSchema = BlockNoteSchema.create({
     // A shelf's folder row; only the shelf canvas inserts one.
     danaFolder: createCanvasFolderSpec(),
     diagram: createCanvasDiagramSpec(),
+    person: createCanvasPersonSpec(),
     table: defaultBlockSpecs.table,
     // A sub-page; only Folder Work's `/page` inserts one.
     danaPage: createCanvasPageSpec(),

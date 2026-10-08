@@ -14,6 +14,7 @@ import type {
   ExportBlock,
   ExportCollection,
   ExportComment,
+  ExportDirectMessage,
   ExportDocument,
   ExportFacet,
   ExportFile,
@@ -267,6 +268,16 @@ export async function exportForViewer(
   const covers = await listPlaceCovers(db, viewerId)
   const descriptions = await listPlaceDescriptions(db, viewerId)
   const views = truncation.apply('views', await listViews(db, viewerId))
+  const directMessages = truncation.apply('direct_messages', await rowsOf(db, sql`
+    SELECT m.id, m.conversation_id, m.author_id, m.body, m.created_at,
+           other_user.display_name AS other_name
+    FROM direct_messages m
+    JOIN direct_conversations c ON c.id = m.conversation_id
+    JOIN users other_user ON other_user.id = CASE
+      WHEN c.user_a_id = ${viewerId}::uuid THEN c.user_b_id ELSE c.user_a_id END
+    WHERE c.user_a_id = ${viewerId}::uuid OR c.user_b_id = ${viewerId}::uuid
+    ORDER BY m.created_at ASC, m.id ASC
+    LIMIT ${FETCH}`))
 
   const folderRows = await rowsOf(
     db,
@@ -770,6 +781,14 @@ export async function exportForViewer(
       }
     }),
     comments: exportedComments,
+    direct_messages: directMessages.map((row): ExportDirectMessage => ({
+      id: String(row.id),
+      conversation_id: String(row.conversation_id),
+      other_name: nullableString(row.other_name),
+      sent_by_me: String(row.author_id) === viewerId,
+      body: String(row.body),
+      created_at: toIso(row.created_at),
+    })),
     shelves: exportedShelves,
     views: views.map((view) => ({
       id: view.id,

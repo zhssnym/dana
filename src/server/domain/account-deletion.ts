@@ -227,6 +227,27 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     why: 'The same statement: 8.10 step 5 deletes every row containing the account, whichever column holds it.',
   },
   {
+    fk: 'direct_conversations_user_a_id_fkey',
+    table: 'direct_conversations',
+    disposition: 'deleted',
+    where: 'step 5, in this file',
+    why: 'A private exchange belongs to both participants. Deleting either account removes the whole conversation and its messages, so no private text remains attached to a scrubbed user.',
+  },
+  {
+    fk: 'direct_conversations_user_b_id_fkey',
+    table: 'direct_conversations',
+    disposition: 'deleted',
+    where: 'step 5, in this file',
+    why: 'The same pair deletion checks both user columns. It removes a conversation even when this account is the second participant in canonical order.',
+  },
+  {
+    fk: 'direct_messages_author_id_fkey',
+    table: 'direct_messages',
+    disposition: 'deleted',
+    where: 'step 5, through direct_messages_conversation_id_fkey',
+    why: 'Only a participant can send a message. Step 5 removes every conversation containing the account, and the conversation foreign key then removes every message it authored.',
+  },
+  {
     fk: 'folder_members_user_id_fkey',
     table: 'folder_members',
     disposition: 'deleted',
@@ -407,6 +428,10 @@ export async function deleteAccountData(
   )
   await tx.execute(
     sql`DELETE FROM connections
+         WHERE user_a_id = ${userId} OR user_b_id = ${userId}`,
+  )
+  await tx.execute(
+    sql`DELETE FROM direct_conversations
          WHERE user_a_id = ${userId} OR user_b_id = ${userId}`,
   )
 

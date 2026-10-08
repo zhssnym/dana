@@ -6,7 +6,7 @@ import { SuggestionMenuController, getDefaultReactSlashMenuItems, useComponentsC
 import type { DefaultReactSuggestionItem, SuggestionMenuProps } from '@blocknote/react'
 import { SuggestionMenu, insertOrUpdateBlockForSlashMenu } from '@blocknote/core/extensions'
 
-import { CheckCircle2, Code, FileText, Flag, Heading1, Heading2, Heading3, IconMotion, Image as ImageIcon, Lightbulb, Link2, List, ListChecks, ListCollapse, ListOrdered, Minus, Network, Quote, Table2, Type, Workflow } from '../../../lib/icons.js'
+import { CheckCircle2, Code, FileText, Flag, Heading1, Heading2, Heading3, IconMotion, Image as ImageIcon, Lightbulb, Link2, List, ListChecks, ListCollapse, ListOrdered, Minus, Network, Quote, Table2, Type, UserRound, Workflow } from '../../../lib/icons.js'
 import type { LucideIcon } from '../../../lib/icons.js'
 import './slash-menu.css'
 import { linkSlashItem } from '../../links/dana-link-picker.js'
@@ -155,17 +155,17 @@ function turnItems(editor: AnyEditor): Item[] {
   }))
 }
 
-type SlashCommand = 'text' | 'heading' | 'checklist' | 'task' | 'page' | 'blocked_by' | 'media' | 'bullet' | 'numbered' | 'toggle' | 'quote' | 'callout' | 'divider' | 'code' | 'file' | 'diagram' | 'table' | 'link'
+type SlashCommand = 'text' | 'heading' | 'checklist' | 'task' | 'page' | 'person' | 'blocked_by' | 'media' | 'bullet' | 'numbered' | 'toggle' | 'quote' | 'callout' | 'divider' | 'code' | 'file' | 'diagram' | 'table' | 'link'
 
 const DOC_MENU: readonly SlashCommand[] = [
-  'text', 'heading', 'page', 'checklist', 'bullet', 'numbered', 'toggle',
+  'text', 'heading', 'page', 'person', 'checklist', 'bullet', 'numbered', 'toggle',
   'quote', 'callout', 'divider', 'code', 'table', 'media', 'file', 'diagram', 'link',
 ]
 const WORK_MENU: readonly SlashCommand[] = [
   'text', 'heading', 'task', ...DOC_MENU.slice(2),
 ]
 const TASK_MENU: readonly SlashCommand[] = [
-  'text', 'heading', 'checklist', 'blocked_by', ...DOC_MENU.slice(4),
+  'text', 'heading', 'checklist', 'blocked_by', ...DOC_MENU.slice(5),
 ]
 
 const SLASH_MENUS: Readonly<Record<BlockHome, readonly SlashCommand[]>> = {
@@ -259,6 +259,7 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
       insertOrUpdateBlockForSlashMenu(editor, { type: 'table', content: { type: 'tableContent', headerRows: 1, rows } } as never)
       editor.focus()
     }, glyph(Table2)) },
+    person: () => { if (has(editor, 'person')) add('Advanced', 'Person', ['person', 'team', 'member'], insert('person'), glyph(UserRound)) },
     file: () => {
       const file = byKey('file')
       if (media && file !== undefined) add('Media', 'File', ['file', 'attachment', 'upload', 'document'], () => { file.onItemClick() }, glyph(FileText))

@@ -26,7 +26,7 @@ import type { LooseBlock } from './adapters.js'
 import '../page/canvas/canvas.css'
 
 // The canvas's blocks without the pages-only three.
-const { danaTask: _task, danaFolder: _folder, diagram: _diagram, ...postBlockSpecs } = canvasSchema.blockSpecs
+const { danaTask: _task, danaFolder: _folder, diagram: _diagram, person: _person, ...postBlockSpecs } = canvasSchema.blockSpecs
 const postSchema = BlockNoteSchema.create({
   blockSpecs: postBlockSpecs,
   inlineContentSpecs: canvasSchema.inlineContentSpecs,

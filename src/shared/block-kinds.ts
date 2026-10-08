@@ -36,6 +36,7 @@ export const BLOCK_KINDS: Readonly<Record<DocumentBlockKind, readonly BlockHome[
   // A sub-page's home block lives in its parent page's document.
   page: ['work', 'doc'],
   result: ['doc', 'results'],
+  person: ['work', 'doc', 'results'],
 }
 
 export function allowedIn(kind: DocumentBlockKind, home: BlockHome): boolean {

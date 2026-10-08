@@ -316,6 +316,7 @@ type ResourceId =
      through a Discussion route, so the comment routes' rows stand on their
      own. */
   | 'generalDiscussionId'
+  | 'conversationId'
   /* Issue #320: a trashed Discussion, for the Trash pair (7.28). */
   | 'trashedDiscussionId'
 
@@ -360,6 +361,16 @@ async function fixturesOf(): Promise<Fixtures> {
     folderId,
     'ac397 the assignment',
   )
+  const openedConversation = await owner.browser.json('/direct-conversations', 'POST', {
+    folder_id: folderId,
+    member_id: member.id,
+  })
+  expect(openedConversation.status).toBe(200)
+  const conversationId = String((openedConversation.json() as { id: string }).id)
+  const sentMessage = await owner.browser.json(
+    `/direct-conversations/${conversationId}/messages`, 'POST', { body: 'Private message' },
+  )
+  expect(sentMessage.status).toBe(201)
   await writePage(owner, 'folders', folderId, 'ac397 folder page')
   await writePage(owner, 'shelves', shelfId, 'ac397 shelf page')
 
@@ -464,6 +475,7 @@ async function fixturesOf(): Promise<Fixtures> {
     fileId,
     inviteId,
     notificationId,
+    conversationId,
     personalLabelId,
     strangerPersonalLabelId,
     folderLabelId,
@@ -538,6 +550,20 @@ Adding a route is adding one line here. Routes that carry no id, such as
 enumeration.
 */
 const TABLE = new Map<string, Row>([
+  [
+    'GET /api/v1/direct-conversations/:id/messages',
+    {
+      attempt: (fx) => ({ path: `/direct-conversations/${fx.conversationId}/messages` }),
+      stranger: { expected: 404, rule: '#610: only the two participants can read a private conversation' },
+    },
+  ],
+  [
+    'POST /api/v1/direct-conversations/:id/messages',
+    {
+      attempt: (fx) => ({ path: `/direct-conversations/${fx.conversationId}/messages`, body: { body: 'Intrusion' } }),
+      stranger: { expected: 404, rule: '#610: only the two participants can write to a private conversation' },
+    },
+  ],
   /* -------------------------------------------------------------- *
    * Folders (5.4's own table)
    * -------------------------------------------------------------- */
@@ -2392,6 +2418,11 @@ describe('every id-bearing route refuses a stranger', () => {
       what: 'the notification',
       path: '/notifications',
       holds: fx.notificationId,
+    }),
+    conversationId: (fx) => ({
+      what: 'the private conversation',
+      path: `/direct-conversations/${fx.conversationId}/messages`,
+      holds: fx.conversationId,
     }),
     inviteId: (fx) => ({
       what: 'the invite',

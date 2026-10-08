@@ -23,7 +23,10 @@ describe('block-kind registry', () => {
   it('refuses on each home no more than that home refused before', () => {
     for (const home of BLOCK_HOMES) {
       const refused = DOCUMENT_BLOCK_KINDS.filter((kind) => !allowedIn(kind, home))
-      for (const kind of refused) expect(REFUSED_BEFORE[home], `${home} ${kind}`).toContain(kind)
+      for (const kind of refused) {
+        if (kind === 'person') continue // This kind did not exist in the old homes.
+        expect(REFUSED_BEFORE[home], `${home} ${kind}`).toContain(kind)
+      }
     }
   })
 
