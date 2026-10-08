@@ -332,6 +332,21 @@ export function useSetSelfEditGrant(): UseMutationResult<
   })
 }
 
+export function useSaveMemberBio(): UseMutationResult<
+  void,
+  Error,
+  { readonly folderId: string; readonly userId: string; readonly bio: string | null }
+> {
+  return useMutation({
+    mutationFn: ({ folderId, userId, bio }) =>
+      mutateApi(null, {
+        method: 'PATCH',
+        path: `/folders/${folderId}/members/${userId}/bio`,
+        body: { bio },
+      }),
+  })
+}
+
 /** A 409 or 422 is drawn in the editor, which keeps the draft, so neither toasts. */
 export function useSaveResponsibility(): UseMutationResult<
   PutResponsibilityResponse,

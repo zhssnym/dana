@@ -1,36 +1,35 @@
 import { useContext, useState } from 'react'
 import { createReactBlockSpec } from '@blocknote/react'
+import { Link } from 'react-router'
 
 import { FOLDER_ACCESS_LABELS } from '../../../../shared/folder-access.js'
 import { useFolder, useFolderMember } from '../../../api/queries.js'
 import { documentToText } from '../../../lib/responsibility-text.js'
 import { Check, ChevronDown, UserRound } from '../../../lib/icons.js'
+import { paths } from '../../../routes.js'
+import { useTeamPanelState } from '../../../state/collaboration.js'
 import { PersonFace } from '../../person-face.js'
-import { DirectMessageButton } from '../../direct-message/DirectMessageButton.js'
 import { Button } from '../../ui/button.js'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '../../ui/popover.js'
 import { PersonBlockContext } from './person-context.js'
 
-function MemberCard({ folderId, userId, picker }: { readonly folderId: string; readonly userId: string; readonly picker: React.ReactNode }): React.JSX.Element {
+function MemberReference({ folderId, userId, picker, onOpen }: { readonly folderId: string; readonly userId: string; readonly picker: React.ReactNode; readonly onOpen: () => void }): React.JSX.Element {
   const details = useFolderMember(folderId, userId)
   if (details.data === undefined) {
     return <p className="text-sm text-muted-foreground">{details.isPending ? 'Loading teammate…' : 'Teammate is no longer available on this Team.'}</p>
   }
   const member = details.data
   const name = member.user.display_name ?? 'Someone'
-  const role = member.is_owner ? 'Owner' : FOLDER_ACCESS_LABELS[member.access]
   const responsibility = documentToText(member.responsibility.content).trim()
-  return <div className="flex min-w-0 items-start gap-[var(--person-card-padding)]">
-    <PersonFace id={userId} name={name} image={member.user.avatar_url} className="size-[var(--row-height)] data-[size=sm]:size-[var(--row-height)]" />
-    <div className="min-w-0 flex-1">
-      <p className="truncate text-sm font-title text-foreground">{name}</p>
-      <p className="text-xs text-muted-foreground">{role}</p>
-      {responsibility === '' ? null : <p className="mt-[var(--space-inline)] line-clamp-2 whitespace-pre-line text-sm text-muted-foreground">{responsibility}</p>}
-    </div>
-    <div className="flex shrink-0 items-center gap-[var(--space-row)]">
-      <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} memberImage={member.user.avatar_url} />
-      {picker}
-    </div>
+  return <div className="inline-flex max-w-full items-center gap-[var(--space-inline)] py-[var(--space-row)]">
+    <Link to={`${paths.folder(folderId)}?team=full&member=${encodeURIComponent(userId)}`} onClick={onOpen} className="inline-flex min-w-0 items-center gap-[var(--space-inline)] rounded-sm text-foreground no-underline outline-none hover:underline focus-visible:outline focus-visible:outline-ring">
+      <PersonFace id={userId} name={name} image={member.user.avatar_url} />
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-medium text-foreground">{name}</span>
+        {responsibility === '' ? null : <span className="block truncate text-xs text-muted-foreground">{responsibility}</span>}
+      </span>
+    </Link>
+    {picker}
   </div>
 }
 
@@ -40,6 +39,7 @@ function PersonBlock({ userId, editable, onChoose }: {
   readonly onChoose: (userId: string) => void
 }): React.JSX.Element {
   const folderId = useContext(PersonBlockContext)
+  const [, openTeam] = useTeamPanelState(folderId ?? '')
   const [choosing, setChoosing] = useState(false)
   const folder = useFolder(folderId ?? '', folderId !== null)
   const members = folder.data?.members ?? []
@@ -74,14 +74,20 @@ function PersonBlock({ userId, editable, onChoose }: {
       </div>
     </PopoverContent>
   </Popover> : null
-  return <div contentEditable={false} className="w-full min-w-0 rounded-[var(--radius-card)] border border-border bg-card p-[var(--person-card-padding)]" data-canvas-person="">
+  return <div contentEditable={false} className="w-full min-w-0" data-canvas-person="">
     {folderId === null ? <p className="text-sm text-muted-foreground">Teammate is unavailable here.</p>
       : folder.isPending ? <p className="text-sm text-muted-foreground">Loading Team…</p>
         : folder.isError ? <p className="text-sm text-muted-foreground">Team is unavailable.</p>
-          : present ? <MemberCard folderId={folderId} userId={userId} picker={picker} />
-            : <div className="flex items-center gap-[var(--person-card-padding)]">
-              <span className="flex size-[var(--row-height)] shrink-0 items-center justify-center rounded-md bg-accent text-muted-foreground"><UserRound className="size-[var(--icon-size-compact)]" strokeWidth={1.75} aria-hidden="true" /></span>
-              <p className="min-w-0 flex-1 text-sm text-muted-foreground">{userId === '' ? 'Add a teammate from this Team.' : 'Teammate is no longer on this Team.'}</p>
+          : present ? <MemberReference folderId={folderId} userId={userId} picker={picker} onOpen={() => openTeam(true)} />
+            : <div className="inline-flex min-h-[var(--row-height)] max-w-full items-center gap-[var(--space-inline)]">
+              {userId === '' ? (
+                editable ? null : <p className="text-sm text-muted-foreground">No teammate selected.</p>
+              ) : (
+                <>
+                  <UserRound className="size-[var(--icon-size-compact)] shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+                  <p className="min-w-0 text-sm text-muted-foreground">Teammate is no longer on this Team.</p>
+                </>
+              )}
               {picker}
             </div>}
   </div>

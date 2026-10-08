@@ -26,7 +26,7 @@ import { cn } from '../components/ui/utils.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
 import { mayDraw } from '../lib/folder-authority.js'
 import type { FolderViewerFacts } from '../lib/folder-authority.js'
-import { ChevronDown, Maximize2, PanelRight, UsersRound } from '../lib/icons.js'
+import { ArrowLeft, ChevronDown, Maximize2, PanelRight, Plus, UsersRound } from '../lib/icons.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
 import { DOCK_DEFAULT_WIDTH, dockWidthBounds, useChatDockWidth } from '../state/chat-dock.js'
@@ -152,6 +152,7 @@ export function FolderSharingPanel({
   const listId = useId()
   const [text, setText] = useState('')
   const [inviteAccess, setInviteAccess] = useState<FolderAccessPreset>(DEFAULT_INVITE_ACCESS)
+  const [inviteOpen, setInviteOpen] = useState(false)
   const [pickedEmail, setPickedEmail] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
@@ -268,7 +269,9 @@ export function FolderSharingPanel({
     setOpen(false)
     setActive(-1)
     // A page invite must name its Access; folderInviteBody says which.
-    invite.mutate(folderInviteBody(target, folder.id, inviteAccess))
+    invite.mutate(folderInviteBody(target, folder.id, inviteAccess), {
+      onSuccess: () => setInviteOpen(false),
+    })
     // Each invite starts from the default, so a Full control pick never carries over.
     setInviteAccess(DEFAULT_INVITE_ACCESS)
   }
@@ -400,6 +403,16 @@ export function FolderSharingPanel({
           {fullPage ? (
             <div className="shrink-0 pt-5 md:pt-6">
               <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-4 md:px-10">
+                {openMember !== null ? (
+                  <div className="flex items-center justify-between border-b border-border pb-[var(--space-inline)]">
+                    <button type="button" className="inline-flex items-center gap-[var(--space-inline)] rounded-sm text-sm text-muted-foreground hover:text-foreground" onClick={() => setOpenMember(null)}>
+                      <ArrowLeft className="size-[var(--icon-size-compact)]" strokeWidth={1.75} aria-hidden="true" /> Team
+                    </button>
+                    <Button type="button" variant="ghost" size="icon" aria-label="Open in side panel" title="Open in side panel" onClick={changePresentation}>
+                      <PanelRight className="size-[var(--icon-size-compact)]" strokeWidth={1.75} aria-hidden="true" />
+                    </Button>
+                  </div>
+                ) : (
                 <ContextPageHeader
                   parent={shared}
                   title="Team"
@@ -422,6 +435,7 @@ export function FolderSharingPanel({
                     </Button>
                   )}
                 />
+                )}
               </div>
             </div>
           ) : (
@@ -501,7 +515,7 @@ export function FolderSharingPanel({
               />
             ) : (
             <>
-            {mayShare ? (
+            {mayShare && (!fullPage || inviteOpen) ? (
               <section
                 aria-label="Invite people"
                 className={cn('mb-[var(--space-group)]', fullPage && 'border-b border-border pb-[var(--space-group)]')}
@@ -608,15 +622,24 @@ export function FolderSharingPanel({
               </section>
             ) : null}
 
-            <SectionHeading className={cn('text-sm font-section text-foreground', fullPage ? 'mb-3' : 'px-2 pb-1')}>Members</SectionHeading>
-            <ul role="list" className={cn('flex flex-col', fullPage ? 'divide-y divide-border overflow-hidden rounded-md border border-border' : 'gap-[var(--space-row)]')}>
+            <div className={cn('flex items-center gap-[var(--space-inline)]', fullPage ? 'mb-[var(--space-inline)]' : 'px-2 pb-1')}>
+              <SectionHeading className="flex-1 text-sm font-section text-foreground">
+                Members {fullPage ? <span className="text-xs text-muted-foreground">{folder.members.length}</span> : null}
+              </SectionHeading>
+              {fullPage && mayShare ? <Button variant="ghost" size="sm" aria-expanded={inviteOpen} onClick={() => setInviteOpen((open) => !open)}><Plus className="size-[var(--icon-size-compact)]" strokeWidth={1.75} aria-hidden="true" /> Invite</Button> : null}
+            </div>
+            {fullPage ? <div className="hidden grid-cols-[minmax(0,1fr)_var(--team-directory-meta-width)_var(--team-directory-meta-width)] border-b border-border px-[var(--person-card-padding)] pb-[var(--space-inline)] text-xs text-muted-foreground md:grid">
+              <span>Name</span><span>Joined</span><span>Access</span>
+            </div> : null}
+            <ul role="list" className={cn('flex flex-col', fullPage ? 'divide-y divide-border border-b border-border' : 'gap-[var(--space-row)]')}>
               {[...folder.members]
                 .sort((a, b) => Number(b.is_owner) - Number(a.is_owner))
                 .map((member) => {
                 const name = member.user.display_name ?? 'Someone'
                 const isSelf = member.user.id === viewerId
                 return (
-                  <li key={member.user.id} className={cn(ROW, fullPage && 'rounded-none px-3 py-2')}>
+                  <li key={member.user.id} className={fullPage ? 'grid min-h-[var(--row-height)] grid-cols-[minmax(0,1fr)_var(--team-directory-meta-width)] items-center gap-[var(--space-inline)] px-[var(--person-card-padding)] py-[var(--person-card-padding)] hover:bg-accent md:grid-cols-[minmax(0,1fr)_var(--team-directory-meta-width)_var(--team-directory-meta-width)]' : ROW}>
+                    <div className="flex min-w-0 items-center gap-[var(--space-inline)]">
                     <PersonFace
                       id={member.user.id}
                       name={name}
@@ -634,6 +657,9 @@ export function FolderSharingPanel({
                       {name}
                       {isSelf ? <span className="text-muted-foreground"> (you)</span> : null}
                     </button>
+                    </div>
+                    {fullPage ? <span className="hidden text-xs text-muted-foreground md:block">{formatRelativeDay(member.joined_at, presenterToday())}</span> : null}
+                    <div className={cn(fullPage && 'flex items-center')}>
                     {member.is_owner ? (
                       <span className="inline-flex shrink-0 items-center gap-1 px-1.5 text-xs text-muted-foreground">
                         Owner
@@ -659,6 +685,7 @@ export function FolderSharingPanel({
                         }
                       />
                     )}
+                    </div>
                   </li>
                 )
               })}
