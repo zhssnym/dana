@@ -193,10 +193,11 @@ function Stats({ stats }: { readonly stats: GetStatsResponse }): React.JSX.Eleme
       <section aria-label="People" className="flex flex-col gap-4">
         <div>
           <p className="text-(length:--text-title-size) leading-(--text-title-line) font-title text-foreground tabular-nums">
-            {count.format(stats.people.total)}
+            {count.format(stats.active.week)}
           </p>
           <p className="text-sm text-muted-foreground">
-            people on Dana, {count.format(stats.people.new_this_week)} joined this week
+            active in the last 7 days, of {count.format(stats.people.total)} people on Dana.{' '}
+            {count.format(stats.people.new_this_week)} joined this week.
           </p>
         </div>
         <GrowthChart points={people} tall label="People on Dana over the last 12 weeks" />
@@ -240,7 +241,7 @@ export function StatsPage(): React.JSX.Element {
   // No heading until the server answers, so a non-operator sees nothing before "not found".
   if (stats.isPending) return <SkeletonList />
   return (
-    <Screen title="Stats" description="Every account on Dana, and how much each uses it. No page names or content.">
+    <Screen title="Stats" description="Accounts with an email, and how much each uses Dana. No page names or content.">
       {stats.isError ? <InlineError onRetry={() => { void stats.refetch() }} /> : null}
       {stats.data === undefined ? null : <Stats stats={stats.data} />}
     </Screen>
