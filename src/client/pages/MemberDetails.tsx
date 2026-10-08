@@ -11,6 +11,7 @@ import type { ResponsibilityDocument } from '../../shared/responsibility.js'
 import { ApiError } from '../api/http.js'
 import {
   useChangeMemberAccess,
+  useSaveMemberBio,
   useSaveResponsibility,
   useSetSelfEditGrant,
 } from '../api/mutations.js'
@@ -30,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
 import { cn } from '../components/ui/utils.js'
-import { ChevronDown } from '../lib/icons.js'
+import { BookOpen, CalendarDays, ChevronDown, History, Key, ListChecks, Pencil } from '../lib/icons.js'
 import { documentToText, textToDocument } from '../lib/responsibility-text.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
@@ -62,6 +63,8 @@ export function MemberDetails({
   const [showHistory, setShowHistory] = useState(false)
   const history = useFolderMemberHistory(folderId, userId, showHistory)
   const grant = useSetSelfEditGrant()
+  const saveBio = useSaveMemberBio()
+  const [bioDraft, setBioDraft] = useState<string | null>(null)
 
   const member = details.data
   if (member === undefined) {
@@ -76,26 +79,65 @@ export function MemberDetails({
   }
   const name = member.user.display_name ?? 'Someone'
   const Heading = fullPage ? 'h2' : 'h3'
+  const iconClass = 'size-[var(--icon-size-compact)] shrink-0 text-muted-foreground'
 
   return (
-    <div className={cn('flex flex-col', fullPage ? 'gap-0' : 'gap-[var(--space-group)]')}>
+    <div className="flex flex-col gap-[var(--space-group)]">
       <div className={cn(fullPage && 'border-b border-border pb-[var(--space-group)]')}>
-        <div className={cn('flex items-center gap-[var(--space-inline)]', !fullPage && 'px-2')}>
+        <div className={cn('flex items-center gap-[var(--space-inline)]', fullPage && 'flex-wrap', !fullPage && 'px-2')}>
           <PersonFace
             id={member.user.id}
             name={name}
             initials={initialsOf(name)}
             image={member.user.avatar_url}
-            className={fullPage ? 'size-[var(--row-height)] data-[size=sm]:size-[var(--row-height)]' : undefined}
+            className={fullPage ? 'size-[var(--team-profile-avatar-size)] data-[size=sm]:size-[var(--team-profile-avatar-size)]' : undefined}
           />
-          <Heading className={cn('min-w-0 flex-1 truncate font-title text-foreground', fullPage ? 'text-[length:var(--text-h2-size)] leading-[var(--text-h2-line)]' : 'text-sm')}>{name}</Heading>
-          <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} memberImage={member.user.avatar_url} />
-          {member.is_owner ? <span className="text-sm text-muted-foreground">Owner</span> : null}
+          <div className="min-w-0 flex-1">
+            <Heading className={cn('truncate font-title text-foreground', fullPage ? 'text-[length:var(--text-title-size)] leading-[var(--text-title-line)]' : 'text-sm')}>{name}</Heading>
+            {fullPage ? <p className="text-sm text-muted-foreground">{member.is_owner ? 'Owner' : FOLDER_ACCESS_LABELS[member.access]} · Team member</p> : null}
+          </div>
+          <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} memberImage={member.user.avatar_url} prominent={fullPage} />
+          {!fullPage && member.is_owner ? <span className="text-sm text-muted-foreground">Owner</span> : null}
         </div>
       </div>
 
-      <section aria-label="Access" className={cn(fullPage && 'border-b border-border py-[var(--space-group)]')}>
+      <div className={cn('grid gap-[var(--space-group)]', fullPage && 'lg:grid-cols-[minmax(0,1fr)_var(--team-profile-aside-width)]')}>
+      <div className="flex min-w-0 flex-col gap-[var(--space-group)]">
+      <section aria-label="Bio" className={cn(fullPage && 'border-b border-border pb-[var(--space-group)]')}>
+        <div className="flex items-center gap-[var(--space-inline)] px-[var(--space-inline)]">
+          <BookOpen className={iconClass} strokeWidth={1.75} aria-hidden="true" />
+          <h3 className={`${HEADING} flex-1`}>Bio</h3>
+          {member.viewer_may_edit_bio && bioDraft === null ? <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setBioDraft(member.bio ?? '')}><Pencil strokeWidth={1.75} aria-hidden="true" /> Edit</Button> : null}
+        </div>
+        {bioDraft === null ? <p className="whitespace-pre-wrap px-[var(--space-inline)] text-sm text-foreground">{member.bio ?? <span className="text-muted-foreground">No bio yet.</span>}</p> : (
+          <div className="flex flex-col gap-[var(--space-inline)] px-[var(--space-inline)]">
+            <textarea aria-label="Bio" autoFocus rows={4} maxLength={500} value={bioDraft} onChange={(event) => setBioDraft(event.target.value)} placeholder="A short introduction" className="w-full resize-y rounded-md border border-input bg-background px-[var(--space-inline)] py-[var(--space-inline)] text-sm text-foreground outline-none placeholder:text-quiet-foreground focus-visible:border-ring" />
+            <div className="flex justify-end gap-[var(--space-inline)]">
+              <Button variant="ghost" onClick={() => setBioDraft(null)}>Cancel</Button>
+              <Button disabled={saveBio.isPending} onClick={() => saveBio.mutate({ folderId, userId, bio: bioDraft.trim() || null }, { onSuccess: () => { setBioDraft(null); void details.refetch() } })}>Save</Button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <div className={cn(fullPage && 'border-b border-border pb-[var(--space-group)]')}>
+        {/* A refetch after another edit keeps the responsibility draft in this component. */}
+        <Responsibilities
+          folderId={folderId}
+          userId={userId}
+          content={member.responsibility.content}
+          revision={member.responsibility.revision}
+          mayEdit={member.viewer_may_edit_responsibility}
+          onStale={() => { void details.refetch() }}
+        />
+      </div>
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-[var(--space-group)]">
+
+      <section aria-label="Access" className={cn(fullPage && 'border-b border-border pb-[var(--space-group)]')}>
         <div className={cn('flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)]', !fullPage && 'px-2')}>
+          <Key className={iconClass} strokeWidth={1.75} aria-hidden="true" />
           <h3 className="flex-1 text-sm font-section text-foreground">Access</h3>
           <AccessMenu
             folderId={folderId}
@@ -129,22 +171,14 @@ export function MemberDetails({
         ) : null}
       </section>
 
-      {/* Not keyed by revision: a refetch after someone else's save must not throw away the draft. */}
-      <div className={cn(fullPage && 'border-b border-border py-[var(--space-group)]')}>
-        <Responsibilities
-          folderId={folderId}
-          userId={userId}
-          content={member.responsibility.content}
-          revision={member.responsibility.revision}
-          mayEdit={member.viewer_may_edit_responsibility}
-          onStale={() => {
-            void details.refetch()
-          }}
-        />
+      <div className="flex items-center gap-[var(--space-inline)] px-2 text-sm text-muted-foreground">
+        <CalendarDays className={iconClass} strokeWidth={1.75} aria-hidden="true" />
+        Joined {formatRelativeDay(member.joined_at, presenterToday())}
       </div>
 
-      <section aria-label="History" className={cn(fullPage && 'pt-[var(--space-group)]')}>
+      <section aria-label="History">
         <div className="flex items-center gap-[var(--space-inline)] px-2">
+          <History className={iconClass} strokeWidth={1.75} aria-hidden="true" />
           <h3 className={`${HEADING} flex-1`}>History</h3>
           <Button
             variant="ghost"
@@ -170,6 +204,8 @@ export function MemberDetails({
           </ul>
         ) : null}
       </section>
+      </div>
+      </div>
     </div>
   )
 }
@@ -347,6 +383,7 @@ function Responsibilities({
   return (
     <section aria-label="Responsibilities">
       <div className="flex items-center gap-[var(--space-inline)] px-2">
+        <ListChecks className="size-[var(--icon-size-compact)] shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
         <h3 className={`${HEADING} flex-1`}>Responsibilities</h3>
         {mayEdit && draft === null ? (
           <Button

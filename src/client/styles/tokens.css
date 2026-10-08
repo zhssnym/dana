@@ -242,6 +242,9 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --person-card-padding: 12px;
   --person-picker-max-height: 320px;
   --person-picker-max-width: calc(100vw - var(--space-group) - var(--space-group));
+  --team-profile-avatar-size: 72px;
+  --team-profile-aside-width: 232px;
+  --team-directory-meta-width: 144px;
   --direct-message-height: 520px;
   --direct-message-max-height: calc(100dvh - var(--space-group) - var(--space-group));
   --direct-message-bubble-width: 82%;

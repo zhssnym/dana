@@ -96,8 +96,8 @@ test('duplicate, export and workflow import retain hierarchy and rich content wi
     `parent_folder_id`.
     **8 to 9 at issue #353**: settings gains the durable `focus_appearance`
     map, so an older reader cannot silently discard the viewer's Focus identity. */
- /* Version 12 adds private messages to the account export (#610). */
- expect(data.version).toBe(12);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
+ /* Version 13 adds the exporter's Team bios. */
+ expect(data.version).toBe(13);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
  const current=await read(owner,folder)
  expectStatus(await owner.browser.json(`/folders/${folder}/page/actions`,'POST',{action:'document_transaction',mutation_id:randomUUID(),base_revision:current.revision,operations:[{op:'delete_block',id:h1},{op:'set_outline',items:[{kind:'block',id:h2,section_block_id:null,list_parent_block_id:null},{kind:'block',id:p,section_block_id:h2,list_parent_block_id:null}]}]}),200,'remove H1 promotes subgroup')
  expect((await read(owner,folder)).blocks.find(b=>b.id===h2)?.section_block_id).toBeNull()

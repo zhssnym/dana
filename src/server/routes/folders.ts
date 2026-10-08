@@ -3,6 +3,7 @@ The 7.4 folder and membership routes. Inaccessible or missing folders answer
 404, never 403, so existence never leaks (10.2); visible but not permitted is 403.
 */
 import type { Request, Response, Router } from 'express'
+import { sql } from 'drizzle-orm'
 
 import type { Db, DbClient } from '../../../db/client.js'
 import {
@@ -57,6 +58,7 @@ import {
 } from '../../shared/folder-access.js'
 import type { GetFolderAccessHistoryResponse } from '../../shared/folder-access.js'
 import {
+  patchMemberBioBody,
   putResponsibilityBody,
   putSelfEditGrantBody,
 } from '../../shared/responsibility.js'
@@ -1040,6 +1042,9 @@ export function createFoldersRouter(
         user: member.user,
         is_owner: member.isOwner,
         joined_at: member.joinedAt,
+        bio: member.bio,
+        viewer_may_edit_bio:
+          ids.memberId === viewer(req) || mayPerform(access, 'responsibility.manage').allowed,
         access: member.access,
         viewer_may_change_access:
           mayPerform(access, 'member.access.change').allowed && !member.isOwner,
@@ -1058,6 +1063,47 @@ export function createFoldersRouter(
         },
       }
       res.status(200).json(body)
+    },
+  )
+
+  router.patch(
+    '/folders/:id/members/:userId/bio',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const ids = memberOfPath(req, res)
+      if (ids === null) return
+      const access = await gate(req, res, ids.folderId, 'folder.read')
+      if (access === null) return
+      const projectId = await projectFor(db, res, ids.folderId)
+      if (projectId === null) return
+      if (ids.memberId !== viewer(req) && !mayPerform(access, 'responsibility.manage').allowed) {
+        sendError(res, 403, 'forbidden', 'You cannot edit this teammate’s bio.')
+        return
+      }
+      const body = parseBody(patchMemberBioBody, req, res, securityLog)
+      if (body === null) return
+      const bio = body.bio === '' ? null : body.bio
+      const actorId = viewer(req)
+      const updated = await db.execute(sql`
+        UPDATE folder_members SET bio = ${bio}
+        WHERE folder_id = ${projectId}::uuid AND user_id = ${ids.memberId}::uuid
+          AND (${ids.memberId === actorId} OR EXISTS (
+            SELECT 1 FROM folder_members actor
+             WHERE actor.folder_id = ${projectId}::uuid
+               AND actor.user_id = ${actorId}::uuid
+               AND actor.access = 'full_control'
+          ))
+        RETURNING user_id
+      `)
+      if (updated.rows.length === 0) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      res.status(204).end()
     },
   )
 
