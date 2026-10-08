@@ -222,6 +222,7 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --table-cell-block: 8px;
   --table-cell-min-width: 120px;
   --table-handle-space: 24px;
+  --table-handle-opacity: 0.7;
   --table-border-width: 1px;
   --space-inline: 8px;
   --space-row: 2px;

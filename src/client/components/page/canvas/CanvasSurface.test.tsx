@@ -77,6 +77,7 @@ function draw(block: CanvasBlock, folderRefs: ReadonlyMap<string, string>, onCre
     document: [block],
     getBlock: (id: string) => id === block.id ? block : undefined,
     getTextCursorPosition: () => ({ block }),
+    updateBlock: vi.fn(),
     onSelectionChange: () => () => {},
     onChange: () => () => {},
     schema: { blockSchema: Object.fromEntries(['paragraph', 'heading', 'checkListItem', 'toggleListItem', 'bulletListItem', 'numberedListItem', 'quote', 'callout', 'codeBlock', 'divider', 'diagram', 'table'].map((type) => [type, {}])) },
@@ -132,6 +133,19 @@ describe('Turn into › Task from the canvas block menu', () => {
 })
 
 describe('the block menu', () => {
+  test('a table offers header row and column toggles', () => {
+    const table = { id: 'grid', type: 'table', props: { textColor: 'default' },
+      content: { type: 'tableContent', columnWidths: [undefined], rows: [{ cells: [[]] }] }, children: [],
+    } as CanvasBlock
+    draw(table, new Map(), vi.fn())
+    expect(screen.getByText('Table options')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Header row' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Header column' }))
+    expect(state.editor.updateBlock).toHaveBeenCalledWith(table, expect.objectContaining({
+      content: expect.objectContaining({ headerCols: 1 }),
+    }))
+  })
+
   test('offers Turn into, Duplicate, Copy link and Delete, and no Move items', () => {
     draw(paragraph('prose', 'Words'), new Map(), vi.fn())
     const names = screen.getAllByRole('button').map((button) => button.textContent)

@@ -17,7 +17,7 @@ import { CanvasFolderProvider } from './CanvasFolder.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import type { CanvasFolderRow } from './CanvasFolder.js'
 import { CanvasSurface } from './CanvasSurface.js'
-import { canvasSchema } from './schema.js'
+import { canvasSchema, canvasTableOptions } from './schema.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { dehydrateCanvas, documentOf, hydrateCanvas } from './adapters.js'
 import type { CanvasDocument, CanvasInput } from './adapters.js'
@@ -132,6 +132,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
   }
   const editor = useCreateBlockNote({
     schema: canvasSchema,
+    tables: canvasTableOptions,
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
     pasteHandler: ({ editor: current, event, defaultPasteHandler }) => pasteIntoCanvas(current, event, setError) ?? defaultPasteHandler({ plainTextAsMarkdown: false }),
     uploadFile: async (file) => {
