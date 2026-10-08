@@ -100,10 +100,12 @@ export const taskSchema = BlockNoteSchema.create({
     bulletListItem: defaultBlockSpecs.bulletListItem,
     numberedListItem: defaultBlockSpecs.numberedListItem,
     checkListItem: taskCheck,
+    toggleListItem: canvasSchema.blockSpecs.toggleListItem,
     quote: defaultBlockSpecs.quote,
     callout: createCanvasCallout(),
     divider: defaultBlockSpecs.divider,
     codeBlock: defaultBlockSpecs.codeBlock,
+    diagram: canvasSchema.blockSpecs.diagram,
     // The page canvas's media blocks, filled through the same `CanvasFilePanel`.
     image: canvasSchema.blockSpecs.image,
     file: canvasSchema.blockSpecs.file,
@@ -152,10 +154,12 @@ function drawTask(b: PageView['blocks'][number], width: number): TaskInput {
     case 'bullet': return { id: b.id, type: 'bulletListItem', content }
     case 'numbered': return { id: b.id, type: 'numberedListItem', content }
     case 'checklist': return { id: b.id, type: 'checkListItem', props: { checked: b.checked === true }, content }
+    case 'toggle': return { id: b.id, type: 'toggleListItem', content }
     case 'quote': return { id: b.id, type: 'quote', content }
     case 'callout': return { id: b.id, type: 'callout', content }
     case 'divider': return { id: b.id, type: 'divider' }
     case 'code': return { id: b.id, type: 'codeBlock', content: b.text ?? '' }
+    case 'diagram': return { id: b.id, type: 'diagram', props: { source: b.text ?? '' } }
     case 'image': return { id: b.id, type: 'image', props: { url: fileUrl(b.file_id), caption: b.text ?? '', previewWidth } }
     case 'video': return { id: b.id, type: 'video', props: { url: fileUrl(b.file_id), caption: '', previewWidth } }
     case 'audio': return { id: b.id, type: 'audio', props: { url: fileUrl(b.file_id), caption: '' } }
@@ -166,11 +170,11 @@ function drawTask(b: PageView['blocks'][number], width: number): TaskInput {
 
 const KIND: Record<TaskBlock['type'], PageBlockKind> = {
   paragraph: 'paragraph', heading: 'heading1', bulletListItem: 'bullet', numberedListItem: 'numbered',
-  checkListItem: 'checklist', quote: 'quote', callout: 'callout', divider: 'divider', codeBlock: 'code', image: 'image', file: 'file', audio: 'audio', video: 'video',
+  checkListItem: 'checklist', toggleListItem: 'toggle', quote: 'quote', callout: 'callout', divider: 'divider', codeBlock: 'code', diagram: 'diagram', image: 'image', file: 'file', audio: 'audio', video: 'video',
 }
 
 /** What may hold nested blocks (the server's `NEST_PARENT_KINDS`). */
-const NEST_PARENTS: ReadonlySet<string> = new Set(['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'checkListItem', 'quote', 'callout'])
+const NEST_PARENTS: ReadonlySet<string> = new Set(['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem', 'quote', 'callout'])
 
 /** Children of a block that holds nothing (code, divider, media) are written beside it. */
 export function dehydrateTask(blocks: readonly TaskBlock[], width: number): CanvasDocument {
@@ -199,6 +203,8 @@ export function dehydrateTask(blocks: readonly TaskBlock[], width: number): Canv
         }
       } else if (block.type === 'divider') {
         record = { id: block.id, block_kind: 'divider', text: null, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null }
+      } else if (block.type === 'diagram') {
+        record = { id: block.id, block_kind: 'diagram', text: block.props.source, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null }
       } else {
         const kind: PageBlockKind = block.type === 'heading' ? `heading${block.props.level}` as PageBlockKind : KIND[block.type]
         const checked = block.type === 'checkListItem' ? block.props.checked : null

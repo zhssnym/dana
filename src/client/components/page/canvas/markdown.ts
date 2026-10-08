@@ -29,7 +29,7 @@ export function offersResults(editor: object): boolean {
   return resultCanvases.has(editor)
 }
 
-/** A shelf keeps `>` as a quote, and the task composer has no toggle list. */
+/** Shelf and Task keep `>` as a quote. Task offers Toggle through the block menu. */
 export const TOGGLE_SURFACES: ReadonlySet<CanvasSurfaceKind> = new Set(['work', 'document', 'plain', 'post'])
 
 /**

@@ -151,12 +151,15 @@ describe('the block menu', () => {
   })
 })
 
-test('Work and Doc offer the same full slash menu apart from Task', () => {
+test('Work, Doc and Task share writing blocks and keep their own actions', () => {
   draw(paragraph('prose', ''), new Map(), vi.fn())
   const onCreatePage = vi.fn()
   const work = canvasSlashItems(state.editor, { surface: 'work', onCreateTask: vi.fn(), onCreatePage }).map((item) => item.title)
   const doc = canvasSlashItems(state.editor, { surface: 'document', onCreatePage }).map((item) => item.title)
+  const task = canvasSlashItems(state.editor, { surface: 'task', onCreateBlocker: vi.fn() }).map((item) => item.title)
   expect(work.filter((title) => title !== 'Task')).toEqual(doc)
+  expect(task.filter((title) => title !== 'Blocked by')).toEqual(doc.filter((title) => title !== 'Page'))
   expect(work).toContain('Task')
+  expect(task).toContain('Blocked by')
   expect(doc).toEqual(expect.arrayContaining(['Large heading', 'Medium heading', 'Small heading', 'Checklist', 'Page', 'Media', 'File', 'Diagram', 'Link to…']))
 })
