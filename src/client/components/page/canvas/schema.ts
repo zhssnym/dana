@@ -25,6 +25,13 @@ import './file-chip.css'
 const headingLevels = Array.from({ length: MAX_SECTION_DEPTH }, (_, index) => index + 1)
 const heading = createHeadingBlockSpec({ levels: headingLevels, defaultLevel: 1, allowToggleHeadings: true })
 
+export const canvasTableOptions = {
+  headers: true,
+  splitCells: true,
+  cellBackgroundColor: true,
+  cellTextColor: true,
+} as const
+
 // Toggle state uses BlockNote's `toggle-<id>` keys, read as open only when 'true'. Dana
 // opens by default, so the key is seeded for the render and removed after; only closed
 // toggles ('false') stay stored. Blocked storage reads as open.

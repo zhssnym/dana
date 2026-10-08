@@ -23,7 +23,7 @@ import './thread/thread.css'
 import { SavedResults } from './CanvasResult.js'
 import { CanvasSurface } from './CanvasSurface.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
-import { canvasSchema } from './schema.js'
+import { canvasSchema, canvasTableOptions } from './schema.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { baselineOf, dehydrateCanvas, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
 import type { CanvasDocument, CanvasInput } from './adapters.js'
@@ -230,6 +230,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
   const placeholder = "Press '/' for commands"
   const editor = useCreateBlockNote({
     schema: canvasSchema,
+    tables: canvasTableOptions,
     dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: placeholder, default: placeholder } },
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
     pasteHandler: ({ editor: current, event, defaultPasteHandler }) =>
@@ -399,7 +400,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     let temporary: ReturnType<typeof BlockNoteEditor.create> | null = null
     let drafted: CanvasDocument
     try {
-      temporary = BlockNoteEditor.create({ schema: canvasSchema, initialContent: proposal })
+      temporary = BlockNoteEditor.create({ schema: canvasSchema, tables: canvasTableOptions, initialContent: proposal })
       drafted = dehydrateCanvas(temporary.document, width, folderRefs)
     } catch (failure) {
       // Nothing was sent; the title is still the line's own text.
@@ -439,7 +440,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
         let temporary: ReturnType<typeof BlockNoteEditor.create> | null = null
         let drafted: CanvasDocument
         try {
-          temporary = BlockNoteEditor.create({ schema: canvasSchema, initialContent: replace(editor.document) })
+          temporary = BlockNoteEditor.create({ schema: canvasSchema, tables: canvasTableOptions, initialContent: replace(editor.document) })
           drafted = dehydrateCanvas(temporary.document, width, folderRefs)
         } catch (failure) {
           setError(failure instanceof Error ? failure.message : 'Could not make this page.')

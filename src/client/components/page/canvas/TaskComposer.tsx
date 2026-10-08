@@ -25,7 +25,7 @@ import { baselineOf, contentOf, richRuns, tableContentOf, tableRichOf } from './
 import type { CanvasDocument, CanvasRecord } from './adapters.js'
 import { tablePlainText } from '../../../../shared/rich-content.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { canvasSchema, openByDefault, toggleClosed } from './schema.js'
+import { canvasSchema, canvasTableOptions, openByDefault, toggleClosed } from './schema.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 import { MentionSuggestions, mentionInlineSpec } from './mentions.js'
 import { CanvasSlashMenu, blockMenuTargets } from './slash-items.js'
@@ -334,6 +334,7 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
   }
   const editor = useCreateBlockNote({
     schema: taskSchema,
+    tables: canvasTableOptions,
     dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: PLACEHOLDER, default: PLACEHOLDER } },
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
     uploadFile: folderId === null ? undefined : async (file, blockId) => {
