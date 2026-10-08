@@ -69,7 +69,7 @@ These pass every test when they are wrong. Look for them in your diff.
 
 - Write technical text in Simplified Technical English (ASD-STE100): docs, comments,
   commit messages, PR and issue text. Use short sentences, active voice and no
-  contractions.
+  contractions. The `asd-ste100` skill has the full rules.
 - Write only what is necessary. Make the text as long as the change needs: a small fix
   gets a one-line commit message and a short PR description.
 - Do not repeat what the diff or the code shows. Write the reason, the risk, and what you
@@ -80,8 +80,7 @@ These pass every test when they are wrong. Look for them in your diff.
 
 - Keep the diff small. Do not add abstractions, options or refactors that the change does
   not need.
-- For code work, use the `ponytail` plugin. `.claude/settings.json` enables it. When the
-  plugin and this file do not agree, this file wins.
+- For code work, use the `ponytail` skill.
 - **Comments:** write a comment only when the reason is not clear from the code. Use one or
   two lines. Do not write long comment blocks. When you change code that has a long
   comment, you can make the comment short or remove it.
@@ -106,9 +105,16 @@ These pass every test when they are wrong. Look for them in your diff.
   write a raw value.
 - Light and dark themes both work, and follow the system setting.
 - No gradients, decorative shadows or glow. Sentence case. A button says what it does.
-- For UI work, use the `impeccable` plugin. `.claude/settings.json` enables it. A hook
-  runs its design check after each UI edit. When the plugin and this file do not agree,
-  this file wins.
+- For UI work, use the `impeccable` skill.
+
+## Skills
+
+Read the skill before you do the work it covers. Each skill is one file. When a skill and
+this file do not agree, this file wins.
+
+- `.agents/skills/ponytail/SKILL.md`: all code work, code review and repo audits.
+- `.agents/skills/impeccable/SKILL.md`: all UI work.
+- `.agents/skills/asd-ste100/SKILL.md`: all technical text.
 
 ## Docs
 
