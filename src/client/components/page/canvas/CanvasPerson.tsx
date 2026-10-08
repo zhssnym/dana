@@ -5,6 +5,7 @@ import { FOLDER_ACCESS_LABELS } from '../../../../shared/folder-access.js'
 import { useFolder, useFolderMember } from '../../../api/queries.js'
 import { documentToText } from '../../../lib/responsibility-text.js'
 import { PersonFace } from '../../person-face.js'
+import { DirectMessageButton } from '../../direct-message/DirectMessageButton.js'
 import { PersonBlockContext } from './person-context.js'
 
 function MemberCard({ folderId, userId }: { readonly folderId: string; readonly userId: string }): React.JSX.Element {
@@ -23,6 +24,7 @@ function MemberCard({ folderId, userId }: { readonly folderId: string; readonly 
       <p className="text-xs text-muted-foreground">{role}</p>
       {responsibility === '' ? null : <p className="line-clamp-2 whitespace-pre-line text-sm text-muted-foreground">{responsibility}</p>}
     </div>
+    <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} />
   </div>
 }
 

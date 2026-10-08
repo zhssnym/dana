@@ -239,6 +239,8 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
 
   /* Read by pages/FolderSharingPanel.tsx and pages/FolderPage.tsx. */
   --sharing-panel-width: 440px;
+  --direct-message-height: 520px;
+  --direct-message-max-height: calc(100dvh - var(--space-group) - var(--space-group));
   --content-list: clamp(720px, 60vw, 900px);
   --shell-content-max: var(--content-list);
   --calendar-month-cell-height: 104px;

@@ -63,6 +63,9 @@ itself. Dana has two mechanisms, and a new route needs both:
 - **Gates.** Each mutation and each route with an id must call an `accessOf(...)` gate
   (`src/server/domain/folder-access.ts`) before it touches rows. Nothing adds the gate
   for you.
+- **DMs.** A new DM checks current shared project membership for both people. Each
+  message read and write checks the two participant IDs on the conversation row.
+  This participant check replaces `accessOf(...)` because a DM has no folder.
 
 Rules for ids:
 

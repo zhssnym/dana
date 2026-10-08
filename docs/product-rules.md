@@ -29,6 +29,8 @@ Only words that have a special sense in Dana. The code name is in brackets.
 - **Pull**: a person adds a task to their own Today by hand (`my_day_entries`).
 - **Discussion**: a conversation in a project. Its state is open or resolved.
   A Discussion can link to one or more tasks.
+- **DM**: a private text conversation between two people. It belongs to the pair,
+  not to a project or page.
 - **Outcome**: the recorded result of a Discussion. Outcomes never change.
 - **Access**: the preset of one member on one project. See "Permissions".
 - **Owner** (`owner_id`): the person with custody of a project. Custody is not authority.
@@ -49,6 +51,15 @@ blocks except Page. Its Checklist items remain subtasks, and Blocked by remains
 a Task action. A Page block lives only on a folder page.
 Work, Doc, Task and Collection writing can hold editable Tables. A Table keeps
 its rows, columns, headers, cell formatting and links when the page saves.
+Work and Doc can hold a Person block. It stores a Team member ID and reads the
+current Team profile. A removed member shows as unavailable.
+
+## Private messages
+
+- Two current members of the same project can start a DM from a Person block or Team profile.
+- The two participants can read and write that DM after either leaves the project.
+- A DM has text messages only. Its history is separate from project Discussions.
+- Account deletion removes the person's private conversations and all messages in them.
 
 ## Permissions
 
