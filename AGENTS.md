@@ -86,8 +86,8 @@ These pass every test when they are wrong. Look for them in your diff.
   comment, you can make the comment short or remove it.
 - Many old comments are long and some are wrong. Trust the code, not the comment.
 - Every client HTTP call goes through `src/client/api/http.ts`.
-- `.env` is in git on purpose (private repo). Do not copy its values to other places.
-  Do not commit the local `.data` folder.
+- `.env` is local only. Copy `.env.example` to `.env`. Never commit `.env` or the local
+  `.data` folder.
 
 ## Tests
 

@@ -298,10 +298,8 @@ real. Re-run at most once.
 
 ## 9. Secrets and config
 
-- **`.env` is committed.** This is deliberate: the repository is private and has two
-  collaborators. The repo therefore stays private, and any credential that leaves it is
-  rotated. Never copy the file anywhere else. A branch that deletes it deletes it from every
-  working tree that checks that branch out.
+- **`.env` is gone after a pull.** Git deleted it when the commit that untracked it came
+  in. Copy `.env.example` to `.env` and fill in the values again.
 - **Never commit .data.** It's the local PGlite scratch database.
 
 ## 10. Tools and libraries
