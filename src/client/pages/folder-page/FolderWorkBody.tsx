@@ -129,11 +129,11 @@ export function FolderWorkBody({
               /* A Doc is never filtered, so only the edit right decides. */
               arrangeable={kind === 'doc' ? sharedPageEditable : !filteringTasks}
               resultsWritable={sharedPageEditable}
+              {...(sharedPageEditable ? { onCreatePage: (made: string) => { void navigate(folderActionPath(made, 'rename')) } } : {})}
               {...(kind === 'doc'
                 ? {
                     presentationHeadings: true,
                     results: resultsTab(tabs)?.id === id,
-                    ...(sharedPageEditable ? { onCreatePage: (made: string) => { void navigate(folderActionPath(made, 'rename')) } } : {}),
                   }
                 : {})}
             /> : page.isError ? <p role="alert" className="text-sm text-muted-foreground">Could not load writing. Reload to try again.</p> : null}

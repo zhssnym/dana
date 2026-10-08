@@ -39,6 +39,13 @@ Only words that have a special sense in Dana. The code name is in brackets.
 - **Activation date**: the start date of a task, or the due date when it has no start date.
 - **Status words on screen**: To do (`pending`), Done (`completed`), Dropped (`abandoned`).
 
+## Page writing
+
+Work and Doc pages offer the same blocks in the `/` menu. Work alone offers Task.
+Work shows the same menu in Thread and Freeform views. The three heading sizes are
+Large heading, Medium heading and Small heading. A Checklist on Work is writing;
+it does not create a task in the task list.
+
 ## Permissions
 
 `RULES` in `src/shared/folder-actions.ts` is the full table. `mayPerform` is the one

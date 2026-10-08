@@ -5,6 +5,8 @@ import { isSectionHeading, isToggleHeading } from './outline.js'
 
 export type TurnKey = 'text' | 'h1' | 'h2' | 'h3' | 'th1' | 'th2' | 'th3' | 'toggle' | 'bullet' | 'numbered' | 'quote' | 'callout' | 'code' | 'result'
 
+export const HEADING_NAMES = { 1: 'Large heading', 2: 'Medium heading', 3: 'Small heading' } as const
+
 export interface TurnTarget {
   readonly key: TurnKey
   readonly title: string
@@ -16,12 +18,12 @@ export interface TurnTarget {
 
 export const TURN_TARGETS: readonly TurnTarget[] = [
   { key: 'text', title: 'Text', type: 'paragraph' },
-  { key: 'h1', title: 'Heading 1', type: 'heading', level: 1 },
-  { key: 'h2', title: 'Heading 2', type: 'heading', level: 2 },
-  { key: 'h3', title: 'Heading 3', type: 'heading', level: 3 },
-  { key: 'th1', title: 'Toggle heading 1', type: 'heading', level: 1, toggle: true },
-  { key: 'th2', title: 'Toggle heading 2', type: 'heading', level: 2, toggle: true },
-  { key: 'th3', title: 'Toggle heading 3', type: 'heading', level: 3, toggle: true },
+  { key: 'h1', title: HEADING_NAMES[1], type: 'heading', level: 1 },
+  { key: 'h2', title: HEADING_NAMES[2], type: 'heading', level: 2 },
+  { key: 'h3', title: HEADING_NAMES[3], type: 'heading', level: 3 },
+  { key: 'th1', title: 'Toggle large heading', type: 'heading', level: 1, toggle: true },
+  { key: 'th2', title: 'Toggle medium heading', type: 'heading', level: 2, toggle: true },
+  { key: 'th3', title: 'Toggle small heading', type: 'heading', level: 3, toggle: true },
   { key: 'toggle', title: 'Toggle list', type: 'toggleListItem' },
   { key: 'bullet', title: 'Bulleted list', type: 'bulletListItem' },
   { key: 'numbered', title: 'Numbered list', type: 'numberedListItem' },

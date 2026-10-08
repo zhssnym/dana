@@ -94,7 +94,7 @@ export function validateCanvasOutline(
           item.props.level !== sectionLevel + 1 ||
           sectionLevel >= MAX_SECTION_DEPTH
         ) {
-          return 'Heading 1 belongs at the page root, with Heading 2 and Heading 3 nested in order.'
+          return 'A large heading belongs at the page root, with medium and small headings nested in order.'
         }
         const failure = visit(item.children, item.props.level, 0)
         if (failure !== null) return failure

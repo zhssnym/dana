@@ -31,7 +31,7 @@ vi.mock('@blocknote/react', () => ({
   }),
   useExtension: () => ({ freezeMenu: () => {}, unfreezeMenu: () => {}, openSuggestionMenu: () => {} }),
   useExtensionState: () => ({ id: state.selectedId }),
-  getDefaultReactSlashMenuItems: () => [],
+  getDefaultReactSlashMenuItems: () => ['image', 'file'].map((key) => ({ key, title: key, onItemClick: () => {} })),
 }))
 vi.mock('@blocknote/core/extensions', () => ({
   filterSuggestionItems: (items: unknown[]) => items,
@@ -57,6 +57,7 @@ vi.mock('./commands.js', () => ({
 
 import { CanvasSurface } from './CanvasSurface.js'
 import { bindCanvasSurface } from './markdown.js'
+import { canvasSlashItems } from './slash-items.js'
 
 afterEach(cleanup)
 
@@ -78,7 +79,7 @@ function draw(block: CanvasBlock, folderRefs: ReadonlyMap<string, string>, onCre
     getTextCursorPosition: () => ({ block }),
     onSelectionChange: () => () => {},
     onChange: () => () => {},
-    schema: { blockSchema: Object.fromEntries(['paragraph', 'heading', 'checkListItem', 'toggleListItem', 'bulletListItem', 'numberedListItem', 'quote', 'callout', 'codeBlock'].map((type) => [type, {}])) },
+    schema: { blockSchema: Object.fromEntries(['paragraph', 'heading', 'checkListItem', 'toggleListItem', 'bulletListItem', 'numberedListItem', 'quote', 'callout', 'codeBlock', 'divider', 'diagram'].map((type) => [type, {}])) },
   } as unknown as CanvasEditor
   // The slash menu binds the surface in the app; it is stubbed here.
   bindCanvasSurface(state.editor, headingMode === 'document' ? 'document' : 'work')
@@ -134,18 +135,28 @@ describe('the block menu', () => {
   test('offers Turn into, Duplicate, Copy link and Delete, and no Move items', () => {
     draw(paragraph('prose', 'Words'), new Map(), vi.fn())
     const names = screen.getAllByRole('button').map((button) => button.textContent)
-    expect(names).toEqual(expect.arrayContaining(['Text', 'Heading 1', 'Bulleted list', 'Task', 'Copy link to block', 'Delete']))
+    expect(names).toEqual(expect.arrayContaining(['Text', 'Large heading', 'Bulleted list', 'Task', 'Copy link to block', 'Delete']))
     expect(names.some((name) => name?.startsWith('Duplicate'))).toBe(true)
     expect(names.filter((name) => /Move|Remove heading|Continue after/.test(name ?? ''))).toEqual([])
-    // Every heading Work stores: Heading 1 a Section here; Heading 2 and 3 a
+    // Every heading Work stores: the large heading is a Section here; medium and small are
     // presentation heading (no Section of theirs stands at the root); and the
     // three toggle headings, which fold without grouping Tasks.
-    expect(names).toEqual(expect.arrayContaining(['Heading 1', 'Heading 2', 'Heading 3', 'Toggle heading 1', 'Toggle heading 2', 'Toggle heading 3']))
+    expect(names).toEqual(expect.arrayContaining(['Large heading', 'Medium heading', 'Small heading', 'Toggle large heading', 'Toggle medium heading', 'Toggle small heading']))
   })
 
   test('a document page offers the three toggle headings beside the flat ones', () => {
     draw(paragraph('prose', 'Words'), new Map(), vi.fn(), 'document')
     const names = screen.getAllByRole('button').map((button) => button.textContent)
-    expect(names).toEqual(expect.arrayContaining(['Heading 2', 'Toggle heading 1', 'Toggle heading 2', 'Toggle heading 3']))
+    expect(names).toEqual(expect.arrayContaining(['Medium heading', 'Toggle large heading', 'Toggle medium heading', 'Toggle small heading']))
   })
+})
+
+test('Work and Doc offer the same full slash menu apart from Task', () => {
+  draw(paragraph('prose', ''), new Map(), vi.fn())
+  const onCreatePage = vi.fn()
+  const work = canvasSlashItems(state.editor, { surface: 'work', onCreateTask: vi.fn(), onCreatePage }).map((item) => item.title)
+  const doc = canvasSlashItems(state.editor, { surface: 'document', onCreatePage }).map((item) => item.title)
+  expect(work.filter((title) => title !== 'Task')).toEqual(doc)
+  expect(work).toContain('Task')
+  expect(doc).toEqual(expect.arrayContaining(['Large heading', 'Medium heading', 'Small heading', 'Checklist', 'Page', 'Media', 'File', 'Diagram', 'Link to…']))
 })
