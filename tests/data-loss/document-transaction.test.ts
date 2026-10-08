@@ -346,3 +346,39 @@ test('a folder page stores presentation headings beside its Sections: flat, togg
  const bad=await transact(owner,url,before!,[put(p,'paragraph','folds?',{toggleable:true}),{op:'set_outline',items:outline}])
  expect(bad.status).toBe(422)
 })
+
+test('a table keeps formatted cells through folder and Task saves, copy and export',async()=>{
+ const [owner]=await cast.of(app) as [Actor,Actor]
+ const folder=await createFolder(owner,'table writing')
+ const id=randomUUID()
+ const props={backgroundColor:'default',textColor:'default',textAlignment:'left'}
+ const rich={version:1,runs:[],table:{columnWidths:[160,null],headerRows:1,rows:[
+  {cells:[{props,runs:[{text:'Name',bold:true}]},{props,runs:[{text:'Page'}]}]},
+  {cells:[{props,runs:[{text:'Dana'}]},{props,runs:[{text:'Open',href:`/app/folders/${folder}`}]}]},
+ ]}}
+ const text='Name\tPage\nDana\tOpen'
+ const url=`/folders/${folder}/page/actions`
+ const initial=await read(owner,folder)
+ expectStatus(await transact(owner,url,initial.revision!,[put(id,'table',text,{rich_content:rich}),{op:'set_outline',items:[at(id)]}]),200,'save table')
+ const written=await read(owner,folder)
+ expect(written.blocks.find(block=>block.id===id)?.rich_content).toEqual(rich)
+ const invalid=await transact(owner,url,written.revision!,[put(id,'table','wrong',{rich_content:rich}),{op:'set_outline',items:[at(id)]}])
+ expectStatus(invalid,422,'refuse a mismatched table projection')
+ expect((await read(owner,folder)).revision).toBe(written.revision)
+ const copied=await owner.browser.json(`/folders/${folder}/duplicate`,'POST',{})
+ expectStatus(copied,201,'copy table page')
+ const copy=await read(owner,(copied.json() as {id:string}).id)
+ expect(copy.blocks.find(block=>block.kind==='table')?.rich_content).toEqual(rich)
+ const exported=await owner.browser.json('/me/export','GET')
+ expectStatus(exported,200,'export table')
+ const data=exported.json() as {folders:{id:string;blocks:{kind:string;rich_content:unknown}[]}[]}
+ expect(data.folders.find(entry=>entry.id===folder)?.blocks.find(block=>block.kind==='table')?.rich_content).toEqual(rich)
+
+ const taskId=await seedTask(app.db,{folderId:folder,createdBy:owner.id})
+ const taskUrl=`/tasks/${taskId}/document`
+ const before=(await owner.browser.api(taskUrl)).json() as PageView
+ const taskTable=randomUUID()
+ expectStatus(await transact(owner,taskUrl,before.revision!,[put(taskTable,'table',text,{rich_content:rich}),{op:'set_outline',items:[at(taskTable)]}],'PUT'),200,'save Task table')
+ const task=(await owner.browser.api(taskUrl)).json() as PageView
+ expect(task.blocks.find(block=>block.id===taskTable)?.rich_content).toEqual(rich)
+})

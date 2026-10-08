@@ -1,6 +1,6 @@
 import {
   BasicTextStyleButton, CreateLinkButton, FileCaptionButton, FileDownloadButton, FileReplaceButton,
-  FormattingToolbar, useBlockNoteEditor, useEditorState,
+  FormattingToolbar, TableCellMergeButton, useBlockNoteEditor, useEditorState,
 } from '@blocknote/react'
 
 function ImageCaptionButton(): React.JSX.Element | null {
@@ -22,6 +22,7 @@ export function CanvasFormattingToolbar(): React.JSX.Element {
       <BasicTextStyleButton basicTextStyle="bold" />
       <BasicTextStyleButton basicTextStyle="italic" />
       <CreateLinkButton />
+      <TableCellMergeButton />
       <ImageCaptionButton />
       <FileReplaceButton />
       <FileDownloadButton />

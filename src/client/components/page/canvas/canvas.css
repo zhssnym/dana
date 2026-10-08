@@ -424,6 +424,33 @@
 .dana-writing-canvas [data-canvas-task-id] { --task-row-height: var(--row-height); }
 /* The divider block is the one divider: the hairline, not a second grey. */
 .dana-writing-canvas .bn-block-content[data-content-type='divider'] hr { border: 0; border-top: 1px solid var(--border); background: none; }
+.dana-writing-canvas .bn-block-content[data-content-type='table'] { min-width: 0; }
+.dana-writing-canvas .bn-editor [data-content-type='table'] .tableWrapper {
+  max-width: 100%;
+  padding: var(--table-handle-space);
+  overflow-x: auto;
+}
+.dana-writing-canvas .bn-editor [data-content-type='table'] table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: var(--table-border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+}
+.dana-writing-canvas .bn-editor [data-content-type='table'] :is(th, td) {
+  min-width: var(--table-cell-min-width);
+  padding: var(--table-cell-block) var(--table-cell-inline);
+  border: 0;
+  border-inline-end: var(--table-border-width) solid var(--border);
+  border-block-end: var(--table-border-width) solid var(--border);
+  vertical-align: top;
+}
+.dana-writing-canvas .bn-editor [data-content-type='table'] th {
+  background: var(--muted);
+  font-weight: var(--font-weight-section);
+}
+.dana-writing-canvas .bn-editor [data-content-type='table'] tr > :last-child { border-inline-end: 0; }
+.dana-writing-canvas .bn-editor [data-content-type='table'] tr:last-child > * { border-block-end: 0; }
 /* A Task row reached by keyboard (Tab, or focus handed back when its peek
    closes) wears the block-selection tint, in its shape (m3-hover, below): the
    editor suppresses the global outline inside its document, and a ring would

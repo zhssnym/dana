@@ -4,9 +4,9 @@ Last write wins per block, with 409 on a stale `updated_at` (4.17).
 */
 import { z } from 'zod'
 
-import { DOCUMENT_BLOCK_KINDS, documentTransaction, richContent } from './page-document.js'
-import type { RichContent } from './page-document.js'
-export type { RichContent, DocumentTransaction, DocumentOperation, DocumentOutlineItem } from './page-document.js'
+import { DOCUMENT_BLOCK_KINDS, documentTransaction, pageRichContent } from './page-document.js'
+import type { PageRichContent } from './page-document.js'
+export type { RichContent, PageRichContent, DocumentTransaction, DocumentOperation, DocumentOutlineItem } from './page-document.js'
 export { DOCUMENT_BLOCK_KINDS, LIST_BLOCK_KINDS, STRUCTURED_BLOCK_KINDS, PRESENTATION_HEADING_KINDS, RICH_TEXT_BLOCK_KINDS, MEDIA_BLOCK_KINDS, WIDTH_BLOCK_KINDS, BLOCK_FILE_KINDS, isListKind, isPresentationHeadingKind, isMediaKind, blockMayOpen } from './page-document.js'
 export type { ListBlockKind, PresentationHeadingKind, DocumentBlockKind, MediaBlockKind } from './page-document.js'
 import { taskTitle } from './tasks.js'
@@ -97,7 +97,7 @@ export interface PageBlock {
   toggleable?: boolean | null
   /** Checklist tick; null on other kinds. Never completes a Task. */
   checked: boolean | null
-  rich_content?: RichContent | null
+  rich_content?: PageRichContent | null
   text: string | null
   file_id: string | null
   /*
@@ -215,7 +215,7 @@ export type PageActionBody = z.infer<typeof pageActionBody>
 
 /* The zod read half, written from domain/pages.ts's pageView. */
 export const pageBlock = z.object({
-  rich_content: richContent.nullable().optional(),
+  rich_content: pageRichContent.nullable().optional(),
   id: z.uuid(),
   kind: z.enum(PAGE_BLOCK_KINDS),
   position: z.number().int(),

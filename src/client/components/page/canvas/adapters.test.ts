@@ -9,6 +9,7 @@ import { BlockNoteEditor } from '@blocknote/core'
 import { describe, expect, test } from 'vitest'
 
 import type { PageView } from '../../../../shared/pages.js'
+import { documentOperation } from '../../../../shared/page-document.js'
 import { CanvasHydrationError, canvasOperations, contentOf, dehydrateCanvas, documentOf, hydrateCanvas, richRuns } from './adapters.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasBlock } from './schema.js'
@@ -19,6 +20,42 @@ const row = (id: string, kind: string, extra: Record<string, unknown>) => ({
   id, kind, position: 0, page_position: 'a', section_block_id: null, list_parent_block_id: null, checked: null,
   rich_content: null, text: null, file_id: null, file_width: null, file_height: null, ref_folder_id: null,
   width_pct: null, updated_at: '2026-09-24T00:00:00.000Z', ...extra,
+})
+
+test('a formatted table keeps its cells, headers and widths across a page save', () => {
+  const props = { backgroundColor: 'default', textColor: 'default', textAlignment: 'left' as const }
+  const rich = { version: 1 as const, runs: [], table: {
+    columnWidths: [160, null], headerRows: 1,
+    rows: [
+      { cells: [{ props, runs: [{ text: 'Name', bold: true }] }, { props, runs: [{ text: 'Link' }] }] },
+      { cells: [{ props, runs: [{ text: 'Dana', italic: true }] }, { props, runs: [{ text: 'Open', href: '/app/folders/11111111-1111-4111-8111-111111111111' }] }] },
+    ],
+  } }
+  const page = { revision: 'r', task_placements: [],
+    blocks: [row(TEXT, 'table', { text: 'Name\tLink\nDana\tOpen', rich_content: rich })],
+    items: [{ kind: 'block', id: TEXT }],
+  } as unknown as PageView
+  const editor = BlockNoteEditor.create({ schema: canvasSchema, initialContent: hydrateCanvas(page, 600) as never })
+  const after = dehydrateCanvas(editor.document, 600, new Map())
+  expect(after.blocks[0]).toEqual(documentOf(page).blocks[0])
+  expect(canvasOperations(documentOf(page), after).filter((op) => op.op !== 'set_outline')).toEqual([])
+  expect(documentOperation.safeParse({ op: 'put_block', ...after.blocks[0] }).success).toBe(true)
+})
+
+test('a merged table cell keeps its span and colour across a page save', () => {
+  const props = { backgroundColor: 'blue', textColor: 'default', textAlignment: 'center' as const }
+  const rich = { version: 1 as const, runs: [], table: {
+    columnWidths: [160, 160], rows: [
+      { cells: [{ props: { ...props, colspan: 2 }, runs: [{ text: 'Schedule' }] }] },
+      { cells: [{ props, runs: [{ text: 'Today' }] }, { props, runs: [{ text: 'Tomorrow' }] }] },
+    ],
+  } }
+  const page = { revision: 'r', task_placements: [],
+    blocks: [row(TEXT, 'table', { text: 'Schedule\nToday\tTomorrow', rich_content: rich })],
+    items: [{ kind: 'block', id: TEXT }],
+  } as unknown as PageView
+  const editor = BlockNoteEditor.create({ schema: canvasSchema, initialContent: hydrateCanvas(page, 600) as never })
+  expect(dehydrateCanvas(editor.document, 600, new Map()).blocks[0]).toEqual(documentOf(page).blocks[0])
 })
 
 describe('reclaimed media survives autosave', () => {

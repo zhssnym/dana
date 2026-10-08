@@ -79,7 +79,7 @@ function draw(block: CanvasBlock, folderRefs: ReadonlyMap<string, string>, onCre
     getTextCursorPosition: () => ({ block }),
     onSelectionChange: () => () => {},
     onChange: () => () => {},
-    schema: { blockSchema: Object.fromEntries(['paragraph', 'heading', 'checkListItem', 'toggleListItem', 'bulletListItem', 'numberedListItem', 'quote', 'callout', 'codeBlock', 'divider', 'diagram'].map((type) => [type, {}])) },
+    schema: { blockSchema: Object.fromEntries(['paragraph', 'heading', 'checkListItem', 'toggleListItem', 'bulletListItem', 'numberedListItem', 'quote', 'callout', 'codeBlock', 'divider', 'diagram', 'table'].map((type) => [type, {}])) },
   } as unknown as CanvasEditor
   // The slash menu binds the surface in the app; it is stubbed here.
   bindCanvasSurface(state.editor, headingMode === 'document' ? 'document' : 'work')
@@ -161,5 +161,5 @@ test('Work, Doc and Task share writing blocks and keep their own actions', () =>
   expect(task.filter((title) => title !== 'Blocked by')).toEqual(doc.filter((title) => title !== 'Page'))
   expect(work).toContain('Task')
   expect(task).toContain('Blocked by')
-  expect(doc).toEqual(expect.arrayContaining(['Large heading', 'Medium heading', 'Small heading', 'Checklist', 'Page', 'Media', 'File', 'Diagram', 'Link to…']))
+  expect(doc).toEqual(expect.arrayContaining(['Large heading', 'Medium heading', 'Small heading', 'Checklist', 'Page', 'Table', 'Media', 'File', 'Diagram', 'Link to…']))
 })
