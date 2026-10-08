@@ -103,6 +103,31 @@ describe('Task composer', () => {
     expect(canvasOperations(baselineOf(page, drawn), dehydrateTask(editor.document, 600)).filter((op) => op.op !== 'set_outline')).toEqual([])
   })
 
+  test('a toggle and a diagram in Task writing survive save and reload', () => {
+    const page = { ...stored,
+      blocks: [block(1, 'toggle', 'Steps'), block(2, 'paragraph', 'First step', { list_parent_block_id: id(1) }), block(3, 'diagram', 'Start -> Finish')],
+      items: [1, 2, 3].map((n) => ({ kind: 'block' as const, id: id(n) })),
+    } as PageView
+    const editor = editorOf(page)
+    const baseline = baselineOf(page, dehydrateTask(editor.document, 600))
+    editor.updateBlock(id(1), { content: 'Updated steps' })
+    editor.updateBlock(id(3), { props: { source: 'Start -> Check\nCheck -> Finish' } })
+    const drawn = dehydrateTask(editor.document, 600)
+    expect(drawn.blocks.map((entry) => [entry.block_kind, entry.text])).toEqual([
+      ['toggle', 'Updated steps'], ['paragraph', 'First step'], ['diagram', 'Start -> Check\nCheck -> Finish'],
+    ])
+    expect(drawn.items[1]?.list_parent_block_id).toBe(id(1))
+    expect(canvasOperations(baseline, drawn).filter((op) => op.op === 'put_block').map((op) => [op.block_kind, op.text])).toEqual([
+      ['toggle', 'Updated steps'], ['diagram', 'Start -> Check\nCheck -> Finish'],
+    ])
+    const saved = { ...page, blocks: page.blocks.map((entry) => {
+      const record = drawn.blocks.find((candidate) => candidate.id === entry.id)!
+      const item = drawn.items.find((candidate) => candidate.id === entry.id)!
+      return { ...entry, kind: record.block_kind, text: record.text, rich_content: record.rich_content, list_parent_block_id: item.list_parent_block_id }
+    }) } as PageView
+    expect(dehydrateTask(editorOf(saved).document, 600)).toEqual(drawn)
+  })
+
   test('AC-998 merging a conflicted draft into the latest copy removes nothing from either', () => {
     const latest = editorOf(stored)
     latest.updateBlock(id(5), { content: 'said by tab A' })

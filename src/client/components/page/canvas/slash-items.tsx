@@ -1,4 +1,4 @@
-// Work and Doc share the full slash menu. Work alone offers Task.
+// Work, Doc and Task share writing blocks. Each home adds its own actions.
 // A typed `/turn` converts the current block; Cmd/Ctrl+/ opens the same list.
 import { useEffect, useMemo, useRef } from 'react'
 import type { JSX } from 'react'
@@ -112,7 +112,7 @@ export function turnTargetsFor(editor: AnyEditor, block: TreeBlock): TurnTarget[
     if (!has(editor, target.type) || isCurrent(block, target)) return false
     if (target.type === 'result' && !offersResults(editor)) return false
     if (target.type === 'heading' && (surface === 'plain' || (surface === 'shelf' && target.level !== 1))) return false
-    if (target.type === 'toggleListItem' && !TOGGLE_SURFACES.has(surface)) return false
+    if (target.type === 'toggleListItem' && !TOGGLE_SURFACES.has(surface) && surface !== 'task') return false
     if (target.toggle === true && !TOGGLE_HEADING_SURFACES.has(surface)) return false
     const simulated = simulate(document, block.id, target, toggles)
     // A task has no sections: a pasted folding heading without `presentation` is still
@@ -164,12 +164,15 @@ const DOC_MENU: readonly SlashCommand[] = [
 const WORK_MENU: readonly SlashCommand[] = [
   'text', 'heading', 'task', ...DOC_MENU.slice(2),
 ]
+const TASK_MENU: readonly SlashCommand[] = [
+  'text', 'heading', 'checklist', 'blocked_by', ...DOC_MENU.slice(4),
+]
 
 const SLASH_MENUS: Readonly<Record<BlockHome, readonly SlashCommand[]>> = {
   work: WORK_MENU,
   doc: DOC_MENU,
   results: DOC_MENU,
-  task: ['text', 'heading', 'checklist', 'blocked_by', 'media', 'file'],
+  task: TASK_MENU,
   shelf: ['text', 'heading', 'bullet', 'numbered', 'quote', 'callout', 'divider', 'code', 'media', 'file', 'diagram', 'link'],
 }
 
@@ -194,7 +197,7 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     insertOrUpdateBlockForSlashMenu(editor, { type, props } as never)
     editor.focus()
   }
-  const toggles = has(editor, 'toggleListItem') && TOGGLE_SURFACES.has(surface)
+  const toggles = has(editor, 'toggleListItem') && (TOGGLE_SURFACES.has(surface) || surface === 'task')
 
   const commands: Record<SlashCommand, () => void> = {
     text: () => { add('Basic blocks', 'Text', ['text', 'paragraph', 'plain', 'p'], insert('paragraph'), kindIcon('paragraph')) },
@@ -245,9 +248,9 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     },
     bullet: () => { add('Basic blocks', 'Bulleted list', ['bullet', 'bulleted', '-', '*', 'ul', 'unordered'], insert('bulletListItem'), kindIcon('bulletListItem'), { hint: '-' }) },
     numbered: () => { add('Basic blocks', 'Numbered list', ['num', 'numbered', '1.', 'ol', 'ordered'], insert('numberedListItem'), kindIcon('numberedListItem'), { hint: '1.' }) },
-    toggle: () => { if (toggles) add('Basic blocks', 'Toggle', ['toggle', 'collapsible', 'details', '>'], insert('toggleListItem'), kindIcon('toggleListItem'), { hint: '>' }) },
+    toggle: () => { if (toggles) add('Basic blocks', 'Toggle', ['toggle', 'collapsible', 'details', '>'], insert('toggleListItem'), kindIcon('toggleListItem'), surface === 'task' ? {} : { hint: '>' }) },
     // `>` is the toggle's where there is one, and the quote's elsewhere.
-    quote: () => { add('Basic blocks', 'Quote', ['quote', 'blockquote', '"'], insert('quote'), kindIcon('quote'), { hint: toggles ? '"' : '>' }) },
+    quote: () => { add('Basic blocks', 'Quote', ['quote', 'blockquote', '"'], insert('quote'), kindIcon('quote'), { hint: toggles && surface !== 'task' ? '"' : '>' }) },
     callout: () => { if (has(editor, 'callout')) add('Basic blocks', 'Callout', ['callout', 'note', 'tip', 'info'], insert('callout'), kindIcon('callout')) },
     divider: () => { if (has(editor, 'divider')) add('Basic blocks', 'Divider', ['div', 'divider', '---', 'hr', 'line', 'separator'], insert('divider'), kindIcon('divider'), { hint: '---' }) },
     code: () => { if (has(editor, 'codeBlock')) add('Basic blocks', 'Code', ['code', '```', 'snippet'], byKey('code_block')?.onItemClick ?? insert('codeBlock'), kindIcon('codeBlock'), { hint: '```' }) },
