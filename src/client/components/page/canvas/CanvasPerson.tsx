@@ -1,12 +1,11 @@
-import { createContext, useContext, useState } from 'react'
+import { useContext, useState } from 'react'
 import { createReactBlockSpec } from '@blocknote/react'
 
 import { FOLDER_ACCESS_LABELS } from '../../../../shared/folder-access.js'
 import { useFolder, useFolderMember } from '../../../api/queries.js'
 import { documentToText } from '../../../lib/responsibility-text.js'
 import { PersonFace } from '../../person-face.js'
-
-export const PersonBlockContext = createContext<string | null>(null)
+import { PersonBlockContext } from './person-context.js'
 
 function MemberCard({ folderId, userId }: { readonly folderId: string; readonly userId: string }): React.JSX.Element {
   const details = useFolderMember(folderId, userId)

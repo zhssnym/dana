@@ -33,7 +33,7 @@ import { backspaceToText, contains, simulateNest, TEXT_TYPES, TURN_TARGETS } fro
 import type { TreeBlock } from './turn-into.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { MentionSuggestions } from './mentions.js'
-import { PersonBlockContext } from './CanvasPerson.js'
+import { PersonBlockContext } from './person-context.js'
 import { AddTaskLine } from './AddTaskLine.js'
 import { useCanvasTaskDelete } from './CanvasTask.js'
 import { ConnectedWork } from '../../links/connected-work.js'
