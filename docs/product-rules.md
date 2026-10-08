@@ -59,6 +59,7 @@ current Team profile. A removed member shows as unavailable.
 - Two current members of the same project can start a DM from a Person block or Team profile.
 - The two participants can read and write that DM after either leaves the project.
 - A DM has text messages only. Its history is separate from project Discussions.
+- The Messages control shows unread private messages. A conversation can stay open, minimize, or close. Opening it clears its unread state after the messages load.
 - Account deletion removes the person's private conversations and all messages in them.
 
 ## Permissions

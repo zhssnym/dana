@@ -428,6 +428,13 @@
       "when": 1794900000000,
       "tag": "0074_direct_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1795000000000,
+      "tag": "0075_direct_message_reads",
+      "breakpoints": true
     }
   ]
 }
