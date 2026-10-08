@@ -31,6 +31,7 @@ export const BLOCK_KINDS: Readonly<Record<DocumentBlockKind, readonly BlockHome[
   audio: EVERYWHERE,
   video: EVERYWHERE,
   diagram: EVERYWHERE,
+  table: EVERYWHERE,
   divider: EVERYWHERE,
   // A sub-page's home block lives in its parent page's document.
   page: ['work', 'doc'],

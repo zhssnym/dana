@@ -6,7 +6,7 @@ import { SuggestionMenuController, getDefaultReactSlashMenuItems, useComponentsC
 import type { DefaultReactSuggestionItem, SuggestionMenuProps } from '@blocknote/react'
 import { SuggestionMenu, insertOrUpdateBlockForSlashMenu } from '@blocknote/core/extensions'
 
-import { CheckCircle2, Code, FileText, Flag, Heading1, Heading2, Heading3, IconMotion, Image as ImageIcon, Lightbulb, Link2, List, ListChecks, ListCollapse, ListOrdered, Minus, Network, Quote, Type, Workflow } from '../../../lib/icons.js'
+import { CheckCircle2, Code, FileText, Flag, Heading1, Heading2, Heading3, IconMotion, Image as ImageIcon, Lightbulb, Link2, List, ListChecks, ListCollapse, ListOrdered, Minus, Network, Quote, Table2, Type, Workflow } from '../../../lib/icons.js'
 import type { LucideIcon } from '../../../lib/icons.js'
 import './slash-menu.css'
 import { linkSlashItem } from '../../links/dana-link-picker.js'
@@ -155,11 +155,11 @@ function turnItems(editor: AnyEditor): Item[] {
   }))
 }
 
-type SlashCommand = 'text' | 'heading' | 'checklist' | 'task' | 'page' | 'blocked_by' | 'media' | 'bullet' | 'numbered' | 'toggle' | 'quote' | 'callout' | 'divider' | 'code' | 'file' | 'diagram' | 'link'
+type SlashCommand = 'text' | 'heading' | 'checklist' | 'task' | 'page' | 'blocked_by' | 'media' | 'bullet' | 'numbered' | 'toggle' | 'quote' | 'callout' | 'divider' | 'code' | 'file' | 'diagram' | 'table' | 'link'
 
 const DOC_MENU: readonly SlashCommand[] = [
   'text', 'heading', 'page', 'checklist', 'bullet', 'numbered', 'toggle',
-  'quote', 'callout', 'divider', 'code', 'media', 'file', 'diagram', 'link',
+  'quote', 'callout', 'divider', 'code', 'table', 'media', 'file', 'diagram', 'link',
 ]
 const WORK_MENU: readonly SlashCommand[] = [
   'text', 'heading', 'task', ...DOC_MENU.slice(2),
@@ -173,7 +173,7 @@ const SLASH_MENUS: Readonly<Record<BlockHome, readonly SlashCommand[]>> = {
   doc: DOC_MENU,
   results: DOC_MENU,
   task: TASK_MENU,
-  shelf: ['text', 'heading', 'bullet', 'numbered', 'quote', 'callout', 'divider', 'code', 'media', 'file', 'diagram', 'link'],
+  shelf: ['text', 'heading', 'bullet', 'numbered', 'quote', 'callout', 'divider', 'code', 'table', 'media', 'file', 'diagram', 'link'],
 }
 
 /** The registry's home for a surface; a post has no `/` menu. */
@@ -254,6 +254,11 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     callout: () => { if (has(editor, 'callout')) add('Basic blocks', 'Callout', ['callout', 'note', 'tip', 'info'], insert('callout'), kindIcon('callout')) },
     divider: () => { if (has(editor, 'divider')) add('Basic blocks', 'Divider', ['div', 'divider', '---', 'hr', 'line', 'separator'], insert('divider'), kindIcon('divider'), { hint: '---' }) },
     code: () => { if (has(editor, 'codeBlock')) add('Basic blocks', 'Code', ['code', '```', 'snippet'], byKey('code_block')?.onItemClick ?? insert('codeBlock'), kindIcon('codeBlock'), { hint: '```' }) },
+    table: () => { if (has(editor, 'table')) add('Basic blocks', 'Table', ['table', 'grid', 'rows', 'columns'], () => {
+      const rows = Array.from({ length: 3 }, () => ({ cells: [[], [], []] }))
+      insertOrUpdateBlockForSlashMenu(editor, { type: 'table', content: { type: 'tableContent', headerRows: 1, rows } } as never)
+      editor.focus()
+    }, glyph(Table2)) },
     file: () => {
       const file = byKey('file')
       if (media && file !== undefined) add('Media', 'File', ['file', 'attachment', 'upload', 'document'], () => { file.onItemClick() }, glyph(FileText))

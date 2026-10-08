@@ -4,9 +4,9 @@ import { folderName } from './folders.js'
 import type { FileKind } from './files.js'
 
 /* Re-exported from rich-content.ts, which exists to break an import cycle. */
-export { richContent } from './rich-content.js'
-export type { RichContent } from './rich-content.js'
-import { richContent } from './rich-content.js'
+export { richContent, pageRichContent } from './rich-content.js'
+export type { RichContent, PageRichContent } from './rich-content.js'
+import { pageRichContent, tablePlainText } from './rich-content.js'
 /**
  * Sections nest three deep (H1 to H3). The level is the depth in the
  * section_block_id relation; this is the only place the ceiling is written.
@@ -30,7 +30,7 @@ export const isPresentationHeadingKind = (kind:string):kind is PresentationHeadi
 export const MEDIA_BLOCK_KINDS = ['image','file','audio','video'] as const
 export type MediaBlockKind = (typeof MEDIA_BLOCK_KINDS)[number]
 export const isMediaKind = (kind:string):kind is MediaBlockKind => (MEDIA_BLOCK_KINDS as readonly string[]).includes(kind)
-export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video','diagram','divider','page','result'] as const
+export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video','diagram','table','divider','page','result'] as const
 export type DocumentBlockKind = (typeof DOCUMENT_BLOCK_KINDS)[number]
 /**
  * Kinds that persist a width (25 to 100); matches
@@ -80,10 +80,13 @@ export const documentOutlineItem = z.object({kind:z.enum(['block','task']),id:z.
 })
 export type DocumentOutlineItem = z.infer<typeof documentOutlineItem>
 export const documentOperation = z.discriminatedUnion('op',[
- z.object({op:z.literal('put_block'),id:z.uuid(),block_kind:z.enum(DOCUMENT_BLOCK_KINDS),text:z.string().max(4000).nullable(),rich_content:richContent.nullable(),file_id:z.uuid().nullable(),ref_folder_id:z.uuid().nullable(),width_pct:z.number().int().min(25).max(100).nullable(),checked:z.boolean().nullable().default(null),toggleable:z.boolean().nullable().optional()}).superRefine((b,ctx)=>{
+ z.object({op:z.literal('put_block'),id:z.uuid(),block_kind:z.enum(DOCUMENT_BLOCK_KINDS),text:z.string().max(4000).nullable(),rich_content:pageRichContent.nullable(),file_id:z.uuid().nullable(),ref_folder_id:z.uuid().nullable(),width_pct:z.number().int().min(25).max(100).nullable(),checked:z.boolean().nullable().default(null),toggleable:z.boolean().nullable().optional()}).superRefine((b,ctx)=>{
   if((b.toggleable??null)!==null && !isPresentationHeadingKind(b.block_kind))ctx.addIssue({code:'custom',path:['toggleable'],message:'Only a heading folds.'})
   if((b.block_kind==='section'||isPresentationHeadingKind(b.block_kind)) && (b.text?.length??0)>120)ctx.addIssue({code:'custom',path:['text'],message:'A heading has at most 120 characters.'})
-  if(b.rich_content!==null && (!(RICH_TEXT_BLOCK_KINDS as readonly string[]).includes(b.block_kind)||b.rich_content.runs.map(r=>r.text).join('')!==b.text))ctx.addIssue({code:'custom',path:['rich_content'],message:'Rich content must match its text projection.'})
+  if(b.block_kind==='table'){
+   if(b.rich_content===null||!('table' in b.rich_content)||b.text!==tablePlainText(b.rich_content.table)||b.file_id!==null||b.ref_folder_id!==null)
+    ctx.addIssue({code:'custom',path:['rich_content'],message:'A table needs its cells and text projection, with no file or folder reference.'})
+  }else if(b.rich_content!==null && ('table' in b.rich_content||!(RICH_TEXT_BLOCK_KINDS as readonly string[]).includes(b.block_kind)||b.rich_content.runs.map(r=>r.text).join('')!==b.text))ctx.addIssue({code:'custom',path:['rich_content'],message:'Rich content must match its text projection.'})
   if(b.width_pct!==null && !(WIDTH_BLOCK_KINDS as readonly string[]).includes(b.block_kind))ctx.addIssue({code:'custom',path:['width_pct'],message:'Width belongs to an image or a video.'})
   // A tick is authored content, never a Task status. Unticked is stored as false.
   if(b.checked!==null && b.block_kind!=='checklist')ctx.addIssue({code:'custom',path:['checked'],message:'Only a checklist item is checked or unchecked.'})

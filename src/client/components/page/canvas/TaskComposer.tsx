@@ -21,8 +21,9 @@ import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
 import { CanvasMarquee } from './CanvasMarquee.js'
 import { CanvasFilePanel } from './CanvasFilePanel.js'
 import type { CanvasMediaKind } from './CanvasFilePanel.js'
-import { baselineOf, contentOf, richRuns } from './adapters.js'
+import { baselineOf, contentOf, richRuns, tableContentOf, tableRichOf } from './adapters.js'
 import type { CanvasDocument, CanvasRecord } from './adapters.js'
+import { tablePlainText } from '../../../../shared/rich-content.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { canvasSchema, openByDefault, toggleClosed } from './schema.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
@@ -106,6 +107,7 @@ export const taskSchema = BlockNoteSchema.create({
     divider: defaultBlockSpecs.divider,
     codeBlock: defaultBlockSpecs.codeBlock,
     diagram: canvasSchema.blockSpecs.diagram,
+    table: canvasSchema.blockSpecs.table,
     // The page canvas's media blocks, filled through the same `CanvasFilePanel`.
     image: canvasSchema.blockSpecs.image,
     file: canvasSchema.blockSpecs.file,
@@ -160,6 +162,7 @@ function drawTask(b: PageView['blocks'][number], width: number): TaskInput {
     case 'divider': return { id: b.id, type: 'divider' }
     case 'code': return { id: b.id, type: 'codeBlock', content: b.text ?? '' }
     case 'diagram': return { id: b.id, type: 'diagram', props: { source: b.text ?? '' } }
+    case 'table': return { id: b.id, type: 'table', content: tableContentOf(b.rich_content) }
     case 'image': return { id: b.id, type: 'image', props: { url: fileUrl(b.file_id), caption: b.text ?? '', previewWidth } }
     case 'video': return { id: b.id, type: 'video', props: { url: fileUrl(b.file_id), caption: '', previewWidth } }
     case 'audio': return { id: b.id, type: 'audio', props: { url: fileUrl(b.file_id), caption: '' } }
@@ -170,7 +173,7 @@ function drawTask(b: PageView['blocks'][number], width: number): TaskInput {
 
 const KIND: Record<TaskBlock['type'], PageBlockKind> = {
   paragraph: 'paragraph', heading: 'heading1', bulletListItem: 'bullet', numberedListItem: 'numbered',
-  checkListItem: 'checklist', toggleListItem: 'toggle', quote: 'quote', callout: 'callout', divider: 'divider', codeBlock: 'code', diagram: 'diagram', image: 'image', file: 'file', audio: 'audio', video: 'video',
+  checkListItem: 'checklist', toggleListItem: 'toggle', quote: 'quote', callout: 'callout', divider: 'divider', codeBlock: 'code', diagram: 'diagram', table: 'table', image: 'image', file: 'file', audio: 'audio', video: 'video',
 }
 
 /** What may hold nested blocks (the server's `NEST_PARENT_KINDS`). */
@@ -205,6 +208,9 @@ export function dehydrateTask(blocks: readonly TaskBlock[], width: number): Canv
         record = { id: block.id, block_kind: 'divider', text: null, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null }
       } else if (block.type === 'diagram') {
         record = { id: block.id, block_kind: 'diagram', text: block.props.source, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null }
+      } else if (block.type === 'table') {
+        const table = tableRichOf(block as unknown as CanvasBlock)
+        record = { id: block.id, block_kind: 'table', text: tablePlainText(table.table), rich_content: table, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null }
       } else {
         const kind: PageBlockKind = block.type === 'heading' ? `heading${block.props.level}` as PageBlockKind : KIND[block.type]
         const checked = block.type === 'checkListItem' ? block.props.checked : null
@@ -515,7 +521,7 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
     <BlockSelectionStyle editor={editor} scope={scope} />
     <div onKeyDownCapture={onKeyDownCapture} className={`dana-writing-canvas dana-task-composer ${scope} min-w-0`} style={{ '--dana-canvas-placeholder': JSON.stringify(PLACEHOLDER) } as React.CSSProperties}>
       <BlockNoteView editor={editor} theme={pageTheme()} editable={access === 'edit'}
-        formattingToolbar={false} slashMenu={false} sideMenu={false} filePanel={false} onChange={changed} aria-label="Task writing">
+        formattingToolbar={false} slashMenu={false} sideMenu={false} filePanel={false} tableHandles={true} onChange={changed} aria-label="Task writing">
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
         {folderId === null ? null : <FilePanelController filePanel={(props) => <CanvasFilePanel {...props} onUpload={(kind: CanvasMediaKind, file: File) => upload(kind, folderId, file)} />} />}
         <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />

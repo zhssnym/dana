@@ -128,6 +128,27 @@ describe('Task composer', () => {
     expect(dehydrateTask(editorOf(saved).document, 600)).toEqual(drawn)
   })
 
+  test('a Task table keeps its cell text and header after editing', () => {
+    const props = { backgroundColor: 'default', textColor: 'default', textAlignment: 'left' as const }
+    const rich = { version: 1 as const, runs: [], table: { columnWidths: [null, null], headerRows: 1,
+      rows: [{ cells: [{ props, runs: [{ text: 'Item' }] }, { props, runs: [{ text: 'Owner' }] }] }],
+    } }
+    const page = { ...stored,
+      blocks: [block(1, 'table', 'Item\tOwner', { rich_content: rich })],
+      items: [{ kind: 'block' as const, id: id(1) }],
+    } as PageView
+    const editor = editorOf(page)
+    const baseline = baselineOf(page, dehydrateTask(editor.document, 600))
+    editor.updateBlock(id(1), { content: { type: 'tableContent', headerRows: 1,
+      rows: [{ cells: [['Item'], ['Owner']] }, { cells: [['Draft'], ['Amina']] }],
+    } })
+    const drawn = dehydrateTask(editor.document, 600)
+    expect(drawn.blocks[0]?.text).toBe('Item\tOwner\nDraft\tAmina')
+    expect(canvasOperations(baseline, drawn).filter((op) => op.op === 'put_block').map((op) => op.block_kind)).toEqual(['table'])
+    const saved = { ...page, blocks: [{ ...page.blocks[0]!, text: drawn.blocks[0]!.text, rich_content: drawn.blocks[0]!.rich_content }] } as PageView
+    expect(dehydrateTask(editorOf(saved).document, 600)).toEqual(drawn)
+  })
+
   test('AC-998 merging a conflicted draft into the latest copy removes nothing from either', () => {
     const latest = editorOf(stored)
     latest.updateBlock(id(5), { content: 'said by tab A' })

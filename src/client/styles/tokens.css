@@ -218,6 +218,11 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   /* r4-system: the one control height, row, and rhythm. See SYSTEM.md. */
   --control-height: 28px;
   --row-height: 32px;
+  --table-cell-inline: 12px;
+  --table-cell-block: 8px;
+  --table-cell-min-width: 120px;
+  --table-handle-space: 24px;
+  --table-border-width: 1px;
   --space-inline: 8px;
   --space-row: 2px;
   --space-group: 24px;

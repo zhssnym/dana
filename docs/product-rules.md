@@ -47,6 +47,8 @@ Large heading, Medium heading and Small heading. A Checklist on Work is writing;
 it does not create a task in the task list. Task writing offers the same writing
 blocks except Page. Its Checklist items remain subtasks, and Blocked by remains
 a Task action. A Page block lives only on a folder page.
+Work, Doc, Task and Collection writing can hold editable Tables. A Table keeps
+its rows, columns, headers, cell formatting and links when the page saves.
 
 ## Permissions
 

@@ -14,3 +14,35 @@ export const richContent = z.object({version:z.literal(1),runs:z.array(richRun).
  if(value.runs.reduce((n,run)=>n+run.text.length,0)>4000 || new TextEncoder().encode(JSON.stringify(value)).length>65536) ctx.addIssue({code:'custom',message:'Rich content exceeds the paragraph limit.'})
 }).transform(({version,runs})=>({version,runs}))
 export type RichContent = z.infer<typeof richContent>
+
+const tableCell = z.object({
+ props:z.object({
+  backgroundColor:z.string().max(40),textColor:z.string().max(40),
+  textAlignment:z.enum(['left','center','right','justify']),
+  colspan:z.number().int().min(1).max(30).optional(),
+  rowspan:z.number().int().min(1).max(100).optional(),
+ }).catchall(z.never()),
+ runs:z.array(richRun).max(400),
+}).catchall(z.never())
+
+export const tableRichContent = z.object({
+ version:z.literal(1),runs:z.array(richRun).length(0),
+ table:z.object({
+  columnWidths:z.array(z.number().int().min(35).max(2000).nullable()).min(1).max(30),
+  headerRows:z.number().int().min(0).max(100).optional(),
+  headerCols:z.number().int().min(0).max(30).optional(),
+  rows:z.array(z.object({cells:z.array(tableCell).min(1).max(30)}).catchall(z.never())).min(1).max(100),
+ }).catchall(z.never()),
+}).catchall(z.never()).superRefine((value,ctx)=>{
+ if((value.table.headerRows??0)>value.table.rows.length || (value.table.headerCols??0)>value.table.columnWidths.length)
+  ctx.addIssue({code:'custom',message:'Table headers exceed its size.'})
+ if(new TextEncoder().encode(JSON.stringify(value)).length>65536)
+  ctx.addIssue({code:'custom',message:'Table content exceeds the block limit.'})
+})
+export type TableRichContent = z.infer<typeof tableRichContent>
+export const pageRichContent = z.union([richContent,tableRichContent])
+export type PageRichContent = z.infer<typeof pageRichContent>
+
+export function tablePlainText(table:TableRichContent['table']):string {
+ return table.rows.map(row=>row.cells.map(cell=>cell.runs.map(run=>run.text).join('')).join('\t')).join('\n').slice(0,4000)
+}
