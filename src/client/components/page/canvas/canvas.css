@@ -427,8 +427,24 @@
 .dana-writing-canvas .bn-block-content[data-content-type='table'] { min-width: 0; }
 .dana-writing-canvas .bn-editor [data-content-type='table'] .tableWrapper {
   max-width: 100%;
-  padding: var(--table-handle-space);
+  padding: 0 var(--table-handle-space) var(--table-handle-space) 0;
   overflow-x: auto;
+}
+.dana-writing-canvas :is(.bn-table-handle, .bn-table-cell-handle, .bn-extend-button) {
+  color: var(--muted-foreground);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  opacity: var(--table-handle-opacity);
+}
+.dana-writing-canvas :is(.bn-table-handle, .bn-table-cell-handle, .bn-extend-button) svg {
+  width: var(--icon-size-compact);
+  height: var(--icon-size-compact);
+}
+.dana-writing-canvas :is(.bn-table-handle, .bn-table-cell-handle, .bn-extend-button):is(:hover, :focus-visible, [aria-expanded='true']) {
+  color: var(--foreground);
+  background: var(--muted);
+  opacity: 1;
 }
 .dana-writing-canvas .bn-editor [data-content-type='table'] table {
   border-collapse: separate;

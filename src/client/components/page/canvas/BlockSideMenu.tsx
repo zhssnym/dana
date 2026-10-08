@@ -9,7 +9,7 @@ import type { BlockFacetRef } from '../../../../shared/block-facets.js'
 import { blockLink, blockSelection, setBlockSelection } from './block-selection.js'
 import { conversionOf, isCurrent, withoutIds } from './turn-into.js'
 import type { TreeBlock, TurnTarget } from './turn-into.js'
-import { Check, CheckCircle2, Copy, GripVertical, Link2, Network, Plus, Repeat2, Trash2 } from '../../../lib/icons.js'
+import { Check, CheckCircle2, Copy, GripVertical, Link2, Network, Plus, Repeat2, Table2, Trash2 } from '../../../lib/icons.js'
 import type { LucideIcon } from '../../../lib/icons.js'
 import { kindIconOf } from './slash-items.js'
 
@@ -64,6 +64,13 @@ function TurnRow({ icon, title, current }: { readonly icon: LucideIcon | undefin
   )
 }
 
+function toggleTableHeader(editor: AnyEditor, id: string, key: 'headerRows' | 'headerCols'): void {
+  const table = editor.getBlock(id)
+  if (table?.type !== 'table') return
+  const content = table.content as { headerRows?: number; headerCols?: number }
+  editor.updateBlock(table, { content: { ...content, [key]: content[key] ? undefined : 1 } } as never)
+}
+
 function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element {
   const editor = useBlockNoteEditor() as AnyEditor
   const Components = useComponentsContext()!
@@ -75,6 +82,7 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
   const facets = model.facets
   const selected = new Set(facets?.selected(block.id).map((facet) => facet.id) ?? [])
   const canConnectFacet = facets !== undefined && facets.editable && facets.options.length > 0 && !NON_PERSISTED_BLOCKS.has(block.type)
+  const tableContent = block.type === 'table' ? block.content as { headerRows?: number; headerCols?: number } : null
   const Item = Components.Generic.Menu.Item
   return (
     <Components.Generic.Menu.Dropdown className="bn-menu-dropdown bn-drag-handle-menu dana-block-menu">
@@ -92,6 +100,23 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
               </Item>
             ))}
             {extra === null ? null : <Item className="bn-menu-item" onClick={extra.run}><TurnRow icon={CheckCircle2} title={extra.title} current={false} /></Item>}
+          </Components.Generic.Menu.Dropdown>
+        </Components.Generic.Menu.Root>
+      ) : null}
+      {tableContent !== null ? (
+        <Components.Generic.Menu.Root position="right" sub={true}>
+          <Components.Generic.Menu.Trigger sub={true}>
+            <Item className="bn-menu-item" subTrigger={true}>
+              <span className="flex flex-1 items-center gap-2"><MenuIcon icon={Table2} />Table options</span>
+            </Item>
+          </Components.Generic.Menu.Trigger>
+          <Components.Generic.Menu.Dropdown sub={true} className="bn-menu-dropdown dana-block-menu">
+            <Item className="bn-menu-item" onClick={() => toggleTableHeader(editor, block.id, 'headerRows')}>
+              <span className="flex flex-1 items-center justify-between gap-2">Header row{tableContent.headerRows ? <Check size={14} /> : null}</span>
+            </Item>
+            <Item className="bn-menu-item" onClick={() => toggleTableHeader(editor, block.id, 'headerCols')}>
+              <span className="flex flex-1 items-center justify-between gap-2">Header column{tableContent.headerCols ? <Check size={14} /> : null}</span>
+            </Item>
           </Components.Generic.Menu.Dropdown>
         </Components.Generic.Menu.Root>
       ) : null}
