@@ -2,13 +2,15 @@
  * The public page at `/` (spec 9.2). Name no capability Dana does not ship, and claim no AI (AC-159). "Continue
  * with Google" is a link carrying the detected timezone to the auth endpoint.
  */
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
+import { mutateApi } from '../api/http.js'
 import { useMe } from '../api/queries.js'
 import { browserTimezone } from '../api/tz.js'
 import { Button } from '../components/ui/button.js'
 import { paths } from '../routes.js'
 import { obfuscatedEmail } from '../components/obfuscated-email.js'
+import { Laptop } from '../lib/icons.js'
 
 function GoogleGlyph(): React.JSX.Element {
   return (
@@ -32,6 +34,35 @@ function SignedInRedirect(): null {
   return null
 }
 
+function LocalPreviewLogin(): React.JSX.Element {
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState(false)
+
+  async function signIn(): Promise<void> {
+    setPending(true)
+    setError(false)
+    try {
+      await mutateApi(null, {
+        method: 'POST',
+        path: '/auth/dev-login',
+        body: { sub: 'dana-local-preview', name: 'Preview', sample: true },
+      })
+      window.location.assign(paths.today)
+    } catch {
+      setError(true)
+      setPending(false)
+    }
+  }
+
+  return <div className="mt-[var(--space-inline)]">
+    <Button variant="ghost" disabled={pending} onClick={() => { void signIn() }}>
+      <Laptop className="size-[var(--icon-size-compact)]" strokeWidth={1.75} aria-hidden="true" />
+      {pending ? 'Opening local preview…' : 'Open local preview'}
+    </Button>
+    {error ? <p role="status" className="mt-[var(--space-inline)] text-xs text-destructive">Local preview is unavailable. Start Dana with DANA_DEV_LOGIN=1.</p> : null}
+  </div>
+}
+
 export function LandingPage(): React.JSX.Element {
   const signInHref = `/api/v1/auth/google?tz=${encodeURIComponent(browserTimezone())}`
   /* The auth callback returns here with ?signin=failed on any refusal but the unverified page. */
@@ -41,7 +72,7 @@ export function LandingPage(): React.JSX.Element {
 
   return (
     <main className="flex min-h-svh items-center bg-background px-4 py-16 text-foreground">
-      {import.meta.env.DEV ? <SignedInRedirect /> : null}
+      {import.meta.env.MODE === 'development' ? <SignedInRedirect /> : null}
       <div className="mx-auto w-full max-w-[520px]">
         <h1 className="text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-balance">
           All your work, in one quiet place.
@@ -72,6 +103,7 @@ export function LandingPage(): React.JSX.Element {
           <GoogleGlyph />
           Continue with Google
         </Button>
+        {import.meta.env.MODE === 'development' ? <LocalPreviewLogin /> : null}
 
         <p className="mt-6 text-xs text-muted-foreground">
           By continuing, you accept the{' '}

@@ -533,6 +533,12 @@ export async function exportForViewer(
     'responsibilities',
     responsibilityRows,
   )
+  const bioRows = await rowsOf(db, sql`
+    SELECT f.id AS folder_id, f.name AS folder_name, m.bio
+      FROM folder_members m JOIN folders f ON f.id = m.folder_id
+     WHERE m.user_id = ${viewerId} AND m.bio IS NOT NULL
+     ORDER BY f.name ASC, f.id ASC LIMIT ${FETCH}
+  `)
   const responsibilityIds = responsibilityCurrent.map((row) => String(row.id))
   const revisionRows =
     responsibilityIds.length === 0
@@ -780,6 +786,10 @@ export async function exportForViewer(
           })),
       }
     }),
+    team_bios: truncation.apply('team_bios', bioRows).map((row) => ({
+      folder: { id: String(row.folder_id), name: String(row.folder_name) },
+      bio: String(row.bio),
+    })),
     comments: exportedComments,
     direct_messages: directMessages.map((row): ExportDirectMessage => ({
       id: String(row.id),

@@ -212,6 +212,8 @@ export const folderMemberDetails = z.object({
   user: responsibilityActor,
   is_owner: z.boolean(),
   joined_at: z.iso.datetime(),
+  bio: z.string().nullable(),
+  viewer_may_edit_bio: z.boolean(),
 
   access: folderAccessPreset,
   viewer_may_change_access: z.boolean(),
@@ -233,6 +235,7 @@ export const folderMemberDetails = z.object({
 export type FolderMemberDetails = z.infer<typeof folderMemberDetails>
 
 export const getFolderMemberDetailsResponse = folderMemberDetails
+export const patchMemberBioBody = z.object({ bio: z.string().trim().max(500).nullable() })
 export type GetFolderMemberDetailsResponse = z.infer<
   typeof getFolderMemberDetailsResponse
 >

@@ -809,6 +809,27 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'PATCH /api/v1/folders/:id/members/:userId/bio',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/members/${fx.owner.id}/bio`,
+        body: { bio: 'A short introduction' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: 'A teammate bio is visible only through the Team, so an outsider cannot learn that the folder exists.',
+      },
+      member: {
+        expected: 403,
+        rule: 'A member may edit their own bio. Editing another member requires responsibility management authority.',
+        attempt: (fx) => ({
+          path: `/folders/${fx.folderId}/members/${fx.owner.id}/bio`,
+          body: { bio: 'Changed by another member' },
+        }),
+      },
+    },
+  ],
+  [
     'GET /api/v1/folders/:id/members/:userId/responsibility/history',
     {
       attempt: (fx) => ({

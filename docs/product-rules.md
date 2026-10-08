@@ -35,6 +35,7 @@ Only words that have a special sense in Dana. The code name is in brackets.
 - **Access**: the preset of one member on one project. See "Permissions".
 - **Owner** (`owner_id`): the person with custody of a project. Custody is not authority.
 - **Responsibility**: a document that says what one member does in a project.
+- **Bio**: a short introduction for one member in one project. It ends when that member leaves.
 - **Connection**: a link between two people. Either can add the other to a project directly.
 - **Series**: the task rows that one repeat rule makes. The **current occurrence** is
   the one open row of the series. Only that row holds the rule.
@@ -51,12 +52,16 @@ blocks except Page. Its Checklist items remain subtasks, and Blocked by remains
 a Task action. A Page block lives only on a folder page.
 Work, Doc, Task and Collection writing can hold editable Tables. A Table keeps
 its rows, columns, headers, cell formatting and links when the page saves.
-Work and Doc can hold a Person block. It stores a Team member ID and reads the
+Work and Doc can hold a Teammate block. It stores a Team member ID and reads the
 current Team profile. A removed member shows as unavailable.
+
+The Team directory opens each member's page. Members can edit their own bio.
+Full control can edit another member's bio. Access and Responsibilities keep
+their own permission rules.
 
 ## Private messages
 
-- Two current members of the same project can start a DM from a Person block or Team profile.
+- Two current members of the same project can start a DM from a Teammate block or Team profile.
 - The two participants can read and write that DM after either leaves the project.
 - A DM has text messages only. Its history is separate from project Discussions.
 - The Messages control shows unread private messages. A conversation can stay open, minimize, or close. Opening it clears its unread state after the messages load.

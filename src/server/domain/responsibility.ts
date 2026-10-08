@@ -575,6 +575,7 @@ export interface MemberDetailsRow {
   user: Person
   isOwner: boolean
   joinedAt: string
+  bio: string | null
   access: FolderAccessPreset
   canEditOwnResponsibilities: boolean
   assignedOpenTaskCount: number
@@ -596,7 +597,7 @@ export async function memberDetailsOf(
 
   const members = await rowsOf(
     executor,
-    sql`SELECT u.id, u.display_name, u.avatar_url, m.access,
+    sql`SELECT u.id, u.display_name, u.avatar_url, m.access, m.bio,
                m.can_edit_own_responsibilities, m.created_at AS joined_at,
                (m.user_id = f.owner_id) AS is_owner
           FROM folder_members m
@@ -638,6 +639,7 @@ export async function memberDetailsOf(
       },
       isOwner: row.is_owner === true,
       joinedAt: toIso(row.joined_at),
+      bio: nullableString(row.bio),
       access: String(row.access) as FolderAccessPreset,
       canEditOwnResponsibilities: row.can_edit_own_responsibilities === true,
       assignedOpenTaskCount: byMember.get(id) ?? 0,

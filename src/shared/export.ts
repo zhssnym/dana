@@ -16,7 +16,7 @@ Bump on every shape change: a reader must refuse a version it does not know,
 because an older schema strips new keys silently. Pick the next number from
 the open branches, not this file, so two branches never share one number.
 */
-export const EXPORT_VERSION = 12
+export const EXPORT_VERSION = 13
 
 /** 10.3's per-collection row cap; a cut collection is named in `truncated`. */
 export const EXPORT_ROW_CAP = 1000
@@ -27,6 +27,7 @@ export const EXPORT_COLLECTIONS = [
   'folders',
   'folders.members',
   'responsibilities',
+  'team_bios',
   'responsibilities.revisions',
   'folders.tasks',
   'folders.tasks.steps',
@@ -345,6 +346,11 @@ export const exportResponsibility = z.object({
 })
 export type ExportResponsibility = z.infer<typeof exportResponsibility>
 
+export const exportTeamBio = z.object({
+  folder: z.object({ id: z.uuid(), name: z.string() }),
+  bio: z.string(),
+})
+
 export const exportDocument = z.object({
   format: z.literal(EXPORT_FORMAT),
   version: z.literal(EXPORT_VERSION),
@@ -354,6 +360,7 @@ export const exportDocument = z.object({
   folders: z.array(exportFolder),
   tasks_elsewhere: z.array(exportForeignTask),
   responsibilities: z.array(exportResponsibility),
+  team_bios: z.array(exportTeamBio),
   comments: z.array(exportComment),
   direct_messages: z.array(exportDirectMessage),
   shelves: z.array(exportShelf),
