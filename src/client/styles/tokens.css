@@ -245,6 +245,14 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --direct-message-height: 520px;
   --direct-message-max-height: calc(100dvh - var(--space-group) - var(--space-group));
   --direct-message-bubble-width: 82%;
+  --direct-message-width: 360px;
+  --direct-message-max-width: calc(100vw - var(--space-group));
+  --direct-message-inbox-width: 320px;
+  --direct-message-inbox-height: 400px;
+  --direct-message-name-width: 120px;
+  --direct-message-dot: 6px;
+  --direct-message-dot-offset: 4px;
+  --direct-message-layer: 65;
   --content-list: clamp(720px, 60vw, 900px);
   --shell-content-max: var(--content-list);
   --calendar-month-cell-height: 104px;

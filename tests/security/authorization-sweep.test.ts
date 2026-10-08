@@ -317,6 +317,7 @@ type ResourceId =
      own. */
   | 'generalDiscussionId'
   | 'conversationId'
+  | 'directMessageId'
   /* Issue #320: a trashed Discussion, for the Trash pair (7.28). */
   | 'trashedDiscussionId'
 
@@ -371,6 +372,7 @@ async function fixturesOf(): Promise<Fixtures> {
     `/direct-conversations/${conversationId}/messages`, 'POST', { body: 'Private message' },
   )
   expect(sentMessage.status).toBe(201)
+  const directMessageId = String((sentMessage.json() as { id: string }).id)
   await writePage(owner, 'folders', folderId, 'ac397 folder page')
   await writePage(owner, 'shelves', shelfId, 'ac397 shelf page')
 
@@ -476,6 +478,7 @@ async function fixturesOf(): Promise<Fixtures> {
     inviteId,
     notificationId,
     conversationId,
+    directMessageId,
     personalLabelId,
     strangerPersonalLabelId,
     folderLabelId,
@@ -562,6 +565,13 @@ const TABLE = new Map<string, Row>([
     {
       attempt: (fx) => ({ path: `/direct-conversations/${fx.conversationId}/messages`, body: { body: 'Intrusion' } }),
       stranger: { expected: 404, rule: '#610: only the two participants can write to a private conversation' },
+    },
+  ],
+  [
+    'POST /api/v1/direct-conversations/:id/read',
+    {
+      attempt: (fx) => ({ path: `/direct-conversations/${fx.conversationId}/read`, body: { through: fx.directMessageId } }),
+      stranger: { expected: 404, rule: '#608: only a participant can clear unread private messages' },
     },
   ],
   /* -------------------------------------------------------------- *
@@ -2423,6 +2433,11 @@ describe('every id-bearing route refuses a stranger', () => {
       what: 'the private conversation',
       path: `/direct-conversations/${fx.conversationId}/messages`,
       holds: fx.conversationId,
+    }),
+    directMessageId: (fx) => ({
+      what: 'the private message',
+      path: `/direct-conversations/${fx.conversationId}/messages`,
+      holds: fx.directMessageId,
     }),
     inviteId: (fx) => ({
       what: 'the invite',

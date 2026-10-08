@@ -53,6 +53,7 @@ import { mirroredTheme } from '../lib/theme.js'
 import { openSearch } from './overlays.js'
 import { useRightEdge } from '../components/right-edge.js'
 import { ChatDock, useDockWidth, useWindowWidth } from '../components/chat-dock/ChatDock.js'
+import { DirectMessageCenter } from '../components/direct-message/DirectMessageCenter.js'
 import { DOCK_PAGE_MIN, DOCK_SIDEBAR_ROOM, useChatDock } from '../state/chat-dock.js'
 import { WindowBar, WindowBarActions, WindowBarLead } from '../components/window-bar.js'
 import { BreadcrumbTrail } from '../components/breadcrumb-trail.js'
@@ -368,7 +369,7 @@ export function AppShell(): React.JSX.Element {
      * Dialog, sidebar and inline row are views of one task, so every card writes through this one provider. A
      * card that finds none keeps its edits and sends none. The surface host provides its own for drafts.
      */
-    <TaskWriter patch={taskPatch}>
+    <DirectMessageCenter><TaskWriter patch={taskPatch}>
     <>
       {/* Search overlay first in the document (see header). `z-50` on a positioned wrapper keeps the overlays above
          the fixed sidebar, whose stale classes leave them unpositioned. */}
@@ -482,6 +483,6 @@ export function AppShell(): React.JSX.Element {
         <TaskSurfaceHost />
       </div>
     </>
-    </TaskWriter>
+    </TaskWriter></DirectMessageCenter>
   )
 }

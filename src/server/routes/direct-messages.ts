@@ -4,11 +4,14 @@ import type { DbClient } from '../../../db/client.js'
 import {
   directMessageQuery,
   openDirectConversationBody,
+  readDirectMessageBody,
   sendDirectMessageBody,
 } from '../../shared/direct-messages.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
 import {
   directMessagePage,
+  listDirectConversations,
+  markDirectMessagesRead,
   openDirectConversation,
   sendDirectMessage,
 } from '../domain/direct-messages.js'
@@ -28,6 +31,13 @@ export function createDirectMessagesRouter(options: {
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
   const securityLog = options.securityLog ?? createSecurityLogger()
+
+  router.get('/direct-conversations', requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      res.status(200).json(await listDirectConversations(db, viewer(req)))
+    })
 
   router.post('/direct-conversations', requireSession, requireCsrf, mutationLimit,
     async (req: Request, res: Response) => {
@@ -68,6 +78,19 @@ export function createDirectMessagesRouter(options: {
       const message = await sendDirectMessage(db, viewer(req), id, body.body)
       if (message === null) { sendError(res, 404, 'not_found', 'Not found.'); return }
       res.status(201).json(message)
+    })
+
+  router.post('/direct-conversations/:id/read', requireSession, requireCsrf, mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const id = parsedId(res, req.params.id)
+      if (id === null) return
+      const body = parseBody(readDirectMessageBody, req, res, securityLog)
+      if (body === null) return
+      const read = await markDirectMessagesRead(db, viewer(req), id, body.through)
+      if (read === null) { sendError(res, 404, 'not_found', 'Not found.'); return }
+      res.status(200).json({ read })
     })
 
   return router

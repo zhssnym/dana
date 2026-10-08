@@ -39,6 +39,7 @@ export const queryKeys = {
   folderDependencies: (id: string) => ['folders', id, 'dependencies'] as const,
   shelfPage: (id: string) => ['shelves', id, 'page'] as const,
   notifications: () => ['notifications'] as const,
+  directConversations: () => ['direct-conversations'] as const,
 
   /* One key for all place covers, because the read returns the whole set. */
   placeCovers: () => ['place-covers'] as const,
