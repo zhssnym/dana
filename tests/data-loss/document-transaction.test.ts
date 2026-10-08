@@ -180,6 +180,19 @@ const put=(id:string,kind:PutKind,text:string|null,extra:Record<string,unknown>=
 const at=(id:string,parent:string|null=null,section:string|null=null)=>({kind:'block' as const,id,section_block_id:section,list_parent_block_id:parent})
 async function transact(actor:Actor,url:string,base:string,operations:DocumentOperation[],method:'POST'|'PUT'='POST'){return actor.browser.json(url,method,{action:'document_transaction',mutation_id:randomUUID(),base_revision:base,operations})}
 
+test('a Person block names only a current Team member',async()=>{
+ const [owner,stranger]=await cast.of(app) as [Actor,Actor]
+ const folder=await createFolder(owner,'Person reference');const url=`/folders/${folder}/page/actions`
+ const id=randomUUID();const outline=[at(id)]
+ const before=await read(owner,folder)
+ expectStatus(await transact(owner,url,before.revision!,[put(id,'person',stranger.id),{op:'set_outline',items:outline}]),404,'another user is not on the Team')
+ expect((await read(owner,folder)).revision).toBe(before.revision)
+ expectStatus(await transact(owner,url,before.revision!,[put(id,'person',owner.id),{op:'set_outline',items:outline}]),200,'member reference saves')
+ const saved=await read(owner,folder)
+ expect(saved.blocks.find((item)=>item.id===id)?.text).toBe(owner.id)
+ expectStatus(await stranger.browser.json(`/folders/${folder}/page`,'GET'),404,'nonmember cannot read the reference')
+})
+
 test('a folder page nests any block under writing, keeps it through a kind change, and refuses bad nesting before writes',async()=>{
  const [owner]=await cast.of(app) as [Actor,Actor]
  const folder=await createFolder(owner,'nesting');const url=`/folders/${folder}/page/actions`

@@ -58,6 +58,20 @@ test('a merged table cell keeps its span and colour across a page save', () => {
   expect(dehydrateCanvas(editor.document, 600, new Map()).blocks[0]).toEqual(documentOf(page).blocks[0])
 })
 
+test('a Person block keeps only its member reference across a page save', () => {
+  const memberId = '33333333-3333-4333-8333-333333333333'
+  const page = {
+    blocks: [row(TEXT, 'person', { text: memberId })],
+    items: [{ kind: 'block', id: TEXT }],
+  } as unknown as PageView
+  const editor = BlockNoteEditor.create({ schema: canvasSchema, initialContent: hydrateCanvas(page, 600) as never })
+  const after = dehydrateCanvas(editor.document, 600, new Map())
+  expect(after.blocks).toEqual(documentOf(page).blocks)
+  expect(documentOperation.safeParse({ op: 'put_block', ...after.blocks[0] }).success).toBe(true)
+  editor.updateBlock(TEXT, { props: { userId: '' } })
+  expect(dehydrateCanvas(editor.document, 600, new Map()).blocks).toEqual([])
+})
+
 describe('reclaimed media survives autosave', () => {
   test.each(['file', 'audio', 'video'])('a reclaimed %s block is kept as-is', (kind) => {
     const page = {

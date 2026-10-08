@@ -33,6 +33,7 @@ import { backspaceToText, contains, simulateNest, TEXT_TYPES, TURN_TARGETS } fro
 import type { TreeBlock } from './turn-into.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { MentionSuggestions } from './mentions.js'
+import { PersonBlockContext } from './CanvasPerson.js'
 import { AddTaskLine } from './AddTaskLine.js'
 import { useCanvasTaskDelete } from './CanvasTask.js'
 import { ConnectedWork } from '../../links/connected-work.js'
@@ -372,6 +373,7 @@ export function CanvasSurface({
       className={`dana-writing-canvas ${scope} min-w-0${lastLine ? ' dana-last-line' : ''}`}
       style={placeholder === undefined || lastLine ? undefined : ({ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties)}
     >
+      <PersonBlockContext.Provider value={peopleFolderId ?? null}>
       <BlockNoteView
         editor={editor}
         editable={editable}
@@ -395,6 +397,7 @@ export function CanvasSurface({
         {editable ? <MentionSuggestions editor={editor} folderId={peopleFolderId} /> : null}
         <CanvasMarquee />
       </BlockNoteView>
+      </PersonBlockContext.Provider>
       <DropdownMenu open={insertMenu !== null} onOpenChange={(open) => { if (!open) setInsertMenu(null) }}>
         <DropdownMenuTrigger nativeButton={false} render={<span aria-hidden="true" tabIndex={-1} />}
           style={{ position: 'fixed', left: insertMenu?.x ?? 0, top: insertMenu?.y ?? 0, width: 0, height: 0 }} />
