@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
 import { cn } from '../components/ui/utils.js'
-import { BookOpen, CalendarDays, ChevronDown, History, Key, ListChecks, Pencil } from '../lib/icons.js'
+import { ChevronDown, History, Pencil } from '../lib/icons.js'
 import { documentToText, textToDocument } from '../lib/responsibility-text.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
@@ -40,7 +40,7 @@ import type { ConfirmLabels } from './task-rows.js'
 /** The panel's one confirm, shared so the panel knows not to close under it. */
 export type AskConfirm = (message: string, run: () => void, labels?: ConfirmLabels) => void
 
-const HEADING = 'pb-1 text-sm font-medium text-foreground'
+const HEADING = 'text-sm font-section text-foreground'
 
 export function MemberDetails({
   folderId,
@@ -78,13 +78,12 @@ export function MemberDetails({
     )
   }
   const name = member.user.display_name ?? 'Someone'
-  const Heading = fullPage ? 'h2' : 'h3'
-  const iconClass = 'size-[var(--icon-size-compact)] shrink-0 text-muted-foreground'
+  const Heading = fullPage ? 'h1' : 'h3'
+  const hasBio = (member.bio?.trim().length ?? 0) > 0
 
   return (
     <div className="flex flex-col gap-[var(--space-group)]">
-      <div className={cn(fullPage && 'border-b border-border pb-[var(--space-group)]')}>
-        <div className={cn('flex items-center gap-[var(--space-inline)]', fullPage && 'flex-wrap', !fullPage && 'px-2')}>
+      <header className={cn('flex items-center gap-[var(--person-card-padding)]', fullPage ? 'border-b border-border pb-[var(--space-group)]' : 'px-[var(--space-inline)]')}>
           <PersonFace
             id={member.user.id}
             name={name}
@@ -94,33 +93,36 @@ export function MemberDetails({
           />
           <div className="min-w-0 flex-1">
             <Heading className={cn('truncate font-title text-foreground', fullPage ? 'text-[length:var(--text-title-size)] leading-[var(--text-title-line)]' : 'text-sm')}>{name}</Heading>
-            {fullPage ? <p className="text-sm text-muted-foreground">{member.is_owner ? 'Owner' : FOLDER_ACCESS_LABELS[member.access]} · Team member</p> : null}
+            {fullPage ? <p className="mt-[var(--space-row)] text-sm text-muted-foreground">Team member · Joined {formatRelativeDay(member.joined_at, presenterToday())}</p> : null}
           </div>
           <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} memberImage={member.user.avatar_url} prominent={fullPage} />
-          {!fullPage && member.is_owner ? <span className="text-sm text-muted-foreground">Owner</span> : null}
-        </div>
-      </div>
+      </header>
 
       <div className={cn('grid gap-[var(--space-group)]', fullPage && 'lg:grid-cols-[minmax(0,1fr)_var(--team-profile-aside-width)]')}>
       <div className="flex min-w-0 flex-col gap-[var(--space-group)]">
       <section aria-label="Bio" className={cn(fullPage && 'border-b border-border pb-[var(--space-group)]')}>
-        <div className="flex items-center gap-[var(--space-inline)] px-[var(--space-inline)]">
-          <BookOpen className={iconClass} strokeWidth={1.75} aria-hidden="true" />
+        <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)]">
           <h3 className={`${HEADING} flex-1`}>Bio</h3>
-          {member.viewer_may_edit_bio && bioDraft === null ? <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setBioDraft(member.bio ?? '')}><Pencil strokeWidth={1.75} aria-hidden="true" /> Edit</Button> : null}
+          {member.viewer_may_edit_bio && hasBio && bioDraft === null ? <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setBioDraft(member.bio ?? '')}><Pencil strokeWidth={1.75} aria-hidden="true" /> Edit</Button> : null}
         </div>
-        {bioDraft === null ? <p className="whitespace-pre-wrap px-[var(--space-inline)] text-sm text-foreground">{member.bio ?? <span className="text-muted-foreground">No bio yet.</span>}</p> : (
-          <div className="flex flex-col gap-[var(--space-inline)] px-[var(--space-inline)]">
+        {bioDraft !== null ? (
+          <div className="flex flex-col gap-[var(--space-inline)]">
             <textarea aria-label="Bio" autoFocus rows={4} maxLength={500} value={bioDraft} onChange={(event) => setBioDraft(event.target.value)} placeholder="A short introduction" className="w-full resize-y rounded-md border border-input bg-background px-[var(--space-inline)] py-[var(--space-inline)] text-sm text-foreground outline-none placeholder:text-quiet-foreground focus-visible:border-ring" />
             <div className="flex justify-end gap-[var(--space-inline)]">
               <Button variant="ghost" onClick={() => setBioDraft(null)}>Cancel</Button>
               <Button disabled={saveBio.isPending} onClick={() => saveBio.mutate({ folderId, userId, bio: bioDraft.trim() || null }, { onSuccess: () => { setBioDraft(null); void details.refetch() } })}>Save</Button>
             </div>
           </div>
+        ) : hasBio ? (
+          <p className="whitespace-pre-wrap text-sm leading-[var(--text-body-line)] text-foreground">{member.bio}</p>
+        ) : member.viewer_may_edit_bio ? (
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setBioDraft('')}><Pencil strokeWidth={1.75} aria-hidden="true" /> Add a bio</Button>
+        ) : (
+          <p className="text-sm text-muted-foreground">No bio.</p>
         )}
       </section>
 
-      <div className={cn(fullPage && 'border-b border-border pb-[var(--space-group)]')}>
+      <div>
         {/* A refetch after another edit keeps the responsibility draft in this component. */}
         <Responsibilities
           folderId={folderId}
@@ -133,12 +135,10 @@ export function MemberDetails({
       </div>
       </div>
 
-      <div className="flex min-w-0 flex-col gap-[var(--space-group)]">
-
-      <section aria-label="Access" className={cn(fullPage && 'border-b border-border pb-[var(--space-group)]')}>
-        <div className={cn('flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)]', !fullPage && 'px-2')}>
-          <Key className={iconClass} strokeWidth={1.75} aria-hidden="true" />
-          <h3 className="flex-1 text-sm font-section text-foreground">Access</h3>
+      <aside aria-label="Membership" className={cn('min-w-0 border-t border-border pt-[var(--space-inline)]', fullPage && 'lg:border-t-0 lg:border-l lg:pt-0 lg:pl-[var(--space-group)]')}>
+        <h3 className="mb-[var(--space-inline)] text-xs font-section text-muted-foreground">Membership</h3>
+        <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)]">
+          <span className="flex-1 text-sm text-muted-foreground">Access</span>
           <AccessMenu
             folderId={folderId}
             userId={userId}
@@ -156,7 +156,7 @@ export function MemberDetails({
           />
         </div>
         {member.viewer_may_change_self_edit_grant ? (
-          <label className={cn('flex min-h-[var(--row-height)] cursor-pointer items-center gap-[var(--space-inline)] text-sm text-foreground', !fullPage && 'px-2')}>
+          <label className="flex min-h-[var(--row-height)] cursor-pointer items-start gap-[var(--space-inline)] py-[var(--space-inline)] text-xs text-muted-foreground">
             <Checkbox
               checked={member.can_edit_own_responsibilities}
               disabled={grant.isPending}
@@ -167,44 +167,29 @@ export function MemberDetails({
             Can edit their own responsibilities
           </label>
         ) : member.can_edit_own_responsibilities ? (
-          <p className={cn('text-sm text-muted-foreground', !fullPage && 'px-2')}>Can edit their own responsibilities</p>
+          <p className="py-[var(--space-inline)] text-xs text-muted-foreground">Can edit their own responsibilities</p>
         ) : null}
-      </section>
-
-      <div className="flex items-center gap-[var(--space-inline)] px-2 text-sm text-muted-foreground">
-        <CalendarDays className={iconClass} strokeWidth={1.75} aria-hidden="true" />
-        Joined {formatRelativeDay(member.joined_at, presenterToday())}
-      </div>
-
-      <section aria-label="History">
-        <div className="flex items-center gap-[var(--space-inline)] px-2">
-          <History className={iconClass} strokeWidth={1.75} aria-hidden="true" />
+        {fullPage ? null : <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)] border-t border-border text-sm"><span className="flex-1 text-muted-foreground">Joined</span><span className="text-foreground">{formatRelativeDay(member.joined_at, presenterToday())}</span></div>}
+      </aside>
+      <section aria-label="History" className={cn('border-t border-border pt-[var(--space-inline)]', fullPage && 'lg:col-span-2')}>
+        <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)]">
+          <History className="size-[var(--icon-size-compact)] text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
           <h3 className={`${HEADING} flex-1`}>History</h3>
-          <Button
-            variant="ghost"
-            className="text-muted-foreground"
-            aria-expanded={showHistory}
-            onClick={() => {
-              setShowHistory((open) => !open)
-            }}
-          >
+          <Button variant="ghost" size="sm" className="text-muted-foreground" aria-expanded={showHistory} onClick={() => setShowHistory((open) => !open)}>
             {showHistory ? 'Hide' : 'Show'}
           </Button>
         </div>
         {showHistory && history.data !== undefined ? (
-          <ul role="list" className="mt-1 flex flex-col px-2">
+          <ul role="list" className="mt-[var(--space-inline)] flex flex-col">
             {history.data.map((item) => (
-              <li key={`${item.kind}-${item.entry.id}`} className="flex items-baseline gap-[var(--space-inline)] py-1 text-sm">
+              <li key={`${item.kind}-${item.entry.id}`} className="flex items-baseline gap-[var(--space-inline)] py-[var(--space-inline)] text-sm">
                 <span className="min-w-0 flex-1 text-foreground">{historySentence(item)}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {formatRelativeDay(item.entry.effective_at, presenterToday())}
-                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">{formatRelativeDay(item.entry.effective_at, presenterToday())}</span>
               </li>
             ))}
           </ul>
         ) : null}
       </section>
-      </div>
       </div>
     </div>
   )
@@ -382,10 +367,9 @@ function Responsibilities({
 
   return (
     <section aria-label="Responsibilities">
-      <div className="flex items-center gap-[var(--space-inline)] px-2">
-        <ListChecks className="size-[var(--icon-size-compact)] shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+      <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)]">
         <h3 className={`${HEADING} flex-1`}>Responsibilities</h3>
-        {mayEdit && draft === null ? (
+        {mayEdit && !empty && draft === null ? (
           <Button
             variant="ghost"
             className="text-muted-foreground"
@@ -398,7 +382,7 @@ function Responsibilities({
         ) : null}
       </div>
       {draft !== null ? (
-        <div className="flex flex-col gap-[var(--space-inline)] px-2">
+        <div className="flex flex-col gap-[var(--space-inline)]">
           <textarea
             aria-label="Responsibilities"
             autoFocus
@@ -429,10 +413,12 @@ function Responsibilities({
             </Button>
           </div>
         </div>
+      ) : empty && mayEdit ? (
+        <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setDraft('')}><Pencil strokeWidth={1.75} aria-hidden="true" /> Add responsibilities</Button>
       ) : empty ? (
-        <p className="px-2 text-sm text-muted-foreground">Nothing written yet.</p>
+        <p className="text-sm text-muted-foreground">No responsibilities.</p>
       ) : (
-        <div className="flex flex-col gap-1 px-2 text-sm text-foreground">
+        <div className="flex flex-col gap-1 text-sm text-foreground">
           {content.blocks.map((block, index) =>
             block.kind === 'heading' ? (
               <p key={index} className="pt-1 font-medium">

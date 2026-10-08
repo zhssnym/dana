@@ -631,14 +631,14 @@ export function FolderSharingPanel({
             {fullPage ? <div className="hidden grid-cols-[minmax(0,1fr)_var(--team-directory-meta-width)_var(--team-directory-meta-width)] border-b border-border px-[var(--person-card-padding)] pb-[var(--space-inline)] text-xs text-muted-foreground md:grid">
               <span>Name</span><span>Joined</span><span>Access</span>
             </div> : null}
-            <ul role="list" className={cn('flex flex-col', fullPage ? 'divide-y divide-border overflow-hidden rounded-md border border-border' : 'gap-[var(--space-row)]')}>
+            <ul role="list" className={cn('flex flex-col', fullPage ? 'divide-y divide-border border-b border-border' : 'gap-[var(--space-row)]')}>
               {[...folder.members]
                 .sort((a, b) => Number(b.is_owner) - Number(a.is_owner))
                 .map((member) => {
                 const name = member.user.display_name ?? 'Someone'
                 const isSelf = member.user.id === viewerId
                 return (
-                  <li key={member.user.id} className={fullPage ? 'grid min-h-[var(--row-height)] grid-cols-[minmax(0,1fr)_var(--team-directory-meta-width)] items-center gap-[var(--space-inline)] px-[var(--person-card-padding)] py-[var(--space-inline)] hover:bg-accent md:grid-cols-[minmax(0,1fr)_var(--team-directory-meta-width)_var(--team-directory-meta-width)]' : ROW}>
+                  <li key={member.user.id} className={fullPage ? 'grid min-h-[var(--row-height)] grid-cols-[minmax(0,1fr)_var(--team-directory-meta-width)] items-center gap-[var(--space-inline)] px-[var(--person-card-padding)] py-[var(--person-card-padding)] hover:bg-accent md:grid-cols-[minmax(0,1fr)_var(--team-directory-meta-width)_var(--team-directory-meta-width)]' : ROW}>
                     <div className="flex min-w-0 items-center gap-[var(--space-inline)]">
                     <PersonFace
                       id={member.user.id}
