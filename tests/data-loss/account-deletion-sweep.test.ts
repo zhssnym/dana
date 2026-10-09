@@ -178,6 +178,11 @@ describe('account deletion sweeps every inert cascade on users(id)', () => {
     expect(
       retained.map((entry) => entry.fk),
       'Every retained key must have an argument in 8.10 and its disposition beside the deletion code.',
-    ).toEqual(['folders_archived_by_fkey', 'page_document_receipts_actor_id_fkey'])
+    ).toEqual([
+      'folders_archived_by_fkey',
+      'folder_members_bio_author_id_fkey',
+      'folder_members_bio_last_editor_id_fkey',
+      'page_document_receipts_actor_id_fkey',
+    ])
   })
 })

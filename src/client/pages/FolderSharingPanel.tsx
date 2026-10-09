@@ -404,10 +404,12 @@ export function FolderSharingPanel({
             <div className="shrink-0 pt-5 md:pt-6">
               <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-4 md:px-10">
                 {openMember !== null ? (
-                  <div className="flex items-center justify-between border-b border-border pb-[var(--space-inline)]">
+                  <div className="flex items-center gap-[var(--space-inline)] border-b border-border pb-[var(--space-inline)]">
                     <button type="button" className="inline-flex items-center gap-[var(--space-inline)] rounded-sm text-sm text-muted-foreground hover:text-foreground" onClick={() => setOpenMember(null)}>
                       <ArrowLeft className="size-[var(--icon-size-compact)]" strokeWidth={1.75} aria-hidden="true" /> Team
                     </button>
+                    <span aria-hidden="true" className="text-muted-foreground">/</span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">{openMemberName}</span>
                     <Button type="button" variant="ghost" size="icon" aria-label="Open in side panel" title="Open in side panel" onClick={changePresentation}>
                       <PanelRight className="size-[var(--icon-size-compact)]" strokeWidth={1.75} aria-hidden="true" />
                     </Button>
@@ -498,6 +500,7 @@ export function FolderSharingPanel({
             <div className={cn('w-full', fullPage ? 'mx-auto max-w-[var(--shell-content-max)] px-4 md:px-10' : null)}>
             {openMember !== null ? (
               <MemberDetails
+                key={`${folder.id}:${openMember}`}
                 folderId={folder.id}
                 userId={openMember}
                 viewerId={viewerId}

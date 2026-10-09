@@ -9,6 +9,7 @@ import { Check, ChevronDown, UserRound } from '../../../lib/icons.js'
 import { paths } from '../../../routes.js'
 import { useTeamPanelState } from '../../../state/collaboration.js'
 import { PersonFace } from '../../person-face.js'
+import { DirectMessageButton } from '../../direct-message/DirectMessageButton.js'
 import { Button } from '../../ui/button.js'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '../../ui/popover.js'
 import { PersonBlockContext } from './person-context.js'
@@ -29,6 +30,7 @@ function MemberReference({ folderId, userId, picker, onOpen }: { readonly folder
         {responsibility === '' ? null : <span className="block truncate text-xs text-muted-foreground">{responsibility}</span>}
       </span>
     </Link>
+    <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} memberImage={member.user.avatar_url} compact />
     {picker}
   </div>
 }
