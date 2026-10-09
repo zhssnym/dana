@@ -1043,6 +1043,10 @@ export function createFoldersRouter(
         is_owner: member.isOwner,
         joined_at: member.joinedAt,
         bio: member.bio,
+        bio_content: member.bioContent,
+        bio_author: member.bioAuthor,
+        bio_last_editor: member.bioLastEditor,
+        bio_updated_at: member.bioUpdatedAt,
         viewer_may_edit_bio:
           ids.memberId === viewer(req) || mayPerform(access, 'responsibility.manage').allowed,
         access: member.access,
@@ -1086,11 +1090,20 @@ export function createFoldersRouter(
       }
       const body = parseBody(patchMemberBioBody, req, res, securityLog)
       if (body === null) return
-      const bio = body.bio === '' ? null : body.bio
+      const bio = body.content === undefined
+        ? body.bio || null
+        : body.content?.runs.map((run) => run.text).join('').trim() || null
+      const content = bio === null || body.content === undefined ? null : body.content
       const actorId = viewer(req)
       const updated = await db.execute(sql`
-        UPDATE folder_members SET bio = ${bio}
+        UPDATE folder_members SET bio = ${bio},
+          bio_content = ${content === null ? null : JSON.stringify(content)}::jsonb,
+          bio_author_id = CASE WHEN ${bio === null} THEN NULL
+            WHEN bio IS NULL THEN ${actorId}::uuid ELSE bio_author_id END,
+          bio_last_editor_id = CASE WHEN ${bio === null} THEN NULL ELSE ${actorId}::uuid END,
+          bio_updated_at = CASE WHEN ${bio === null} THEN NULL ELSE now() END
         WHERE folder_id = ${projectId}::uuid AND user_id = ${ids.memberId}::uuid
+          AND (${body.base_updated_at === undefined} OR bio_updated_at IS NOT DISTINCT FROM ${body.base_updated_at ?? null}::timestamptz)
           AND (${ids.memberId === actorId} OR EXISTS (
             SELECT 1 FROM folder_members actor
              WHERE actor.folder_id = ${projectId}::uuid
@@ -1100,7 +1113,12 @@ export function createFoldersRouter(
         RETURNING user_id
       `)
       if (updated.rows.length === 0) {
-        sendError(res, 404, 'not_found', 'Not found.')
+        const present = await db.execute(sql`
+          SELECT 1 FROM folder_members
+           WHERE folder_id = ${projectId}::uuid AND user_id = ${ids.memberId}::uuid
+        `)
+        if (present.rows.length === 0) sendError(res, 404, 'not_found', 'Not found.')
+        else sendError(res, 409, 'conflict', 'This overview changed. Load it again before saving.')
         return
       }
       res.status(204).end()

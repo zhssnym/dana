@@ -35,7 +35,7 @@ Only words that have a special sense in Dana. The code name is in brackets.
 - **Access**: the preset of one member on one project. See "Permissions".
 - **Owner** (`owner_id`): the person with custody of a project. Custody is not authority.
 - **Responsibility**: a document that says what one member does in a project.
-- **Bio**: a short introduction for one member in one project. It ends when that member leaves.
+- **Overview**: a short introduction for one member in one project. It ends when that member leaves.
 - **Connection**: a link between two people. Either can add the other to a project directly.
 - **Series**: the task rows that one repeat rule makes. The **current occurrence** is
   the one open row of the series. Only that row holds the rule.
@@ -55,9 +55,15 @@ its rows, columns, headers, cell formatting and links when the page saves.
 Work and Doc can hold a Teammate block. It stores a Team member ID and reads the
 current Team profile. A removed member shows as unavailable.
 
-The Team directory opens each member's page. Members can edit their own bio.
-Full control can edit another member's bio. Access and Responsibilities keep
-their own permission rules.
+The Team directory opens each member's profile in the side panel or full page.
+The Overview uses one paragraph with bold, italic and links. The member or Full
+control can edit it. Dana records its author and last editor. Earlier Bio text
+without an actor keeps no author claim. Access and Responsibilities keep their
+own permission rules. Written Responsibilities never grant Access.
+
+A Teammate block reads the current profile. Its name opens that profile and its
+Message action opens the existing DM. A removed member stays unavailable. The
+block stores no copy of the profile.
 
 ## Private messages
 

@@ -15,6 +15,8 @@ import type {
   ResponsibilityTransition,
 } from '../../shared/responsibility.js'
 import { LIST_ROW_CAP } from '../../shared/list-cap.js'
+import { richContent } from '../../shared/rich-content.js'
+import type { RichContent } from '../../shared/rich-content.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { documentHash } from './document-hash.js'
@@ -576,6 +578,10 @@ export interface MemberDetailsRow {
   isOwner: boolean
   joinedAt: string
   bio: string | null
+  bioContent: RichContent | null
+  bioAuthor: Person | null
+  bioLastEditor: Person | null
+  bioUpdatedAt: string | null
   access: FolderAccessPreset
   canEditOwnResponsibilities: boolean
   assignedOpenTaskCount: number
@@ -597,12 +603,17 @@ export async function memberDetailsOf(
 
   const members = await rowsOf(
     executor,
-    sql`SELECT u.id, u.display_name, u.avatar_url, m.access, m.bio,
+    sql`SELECT u.id, u.display_name, u.avatar_url, m.access, m.bio, m.bio_content,
+               m.bio_updated_at,
+               author.id AS bio_author_id, author.display_name AS bio_author_name, author.avatar_url AS bio_author_avatar,
+               editor.id AS bio_editor_id, editor.display_name AS bio_editor_name, editor.avatar_url AS bio_editor_avatar,
                m.can_edit_own_responsibilities, m.created_at AS joined_at,
                (m.user_id = f.owner_id) AS is_owner
           FROM folder_members m
           JOIN folders f ON f.id = m.folder_id
           JOIN users u ON u.id = m.user_id
+          LEFT JOIN users author ON author.id = m.bio_author_id
+          LEFT JOIN users editor ON editor.id = m.bio_last_editor_id
           JOIN jsonb_array_elements_text(${ids}::jsonb) AS wanted(member_id)
             ON wanted.member_id::uuid = m.user_id
          WHERE m.folder_id = ${folderId}::uuid`,
@@ -640,6 +651,18 @@ export async function memberDetailsOf(
       isOwner: row.is_owner === true,
       joinedAt: toIso(row.joined_at),
       bio: nullableString(row.bio),
+      bioContent: row.bio_content === null ? null : richContent.parse(row.bio_content),
+      bioAuthor: row.bio_author_id === null ? null : {
+        id: String(row.bio_author_id),
+        display_name: nullableString(row.bio_author_name),
+        avatar_url: nullableString(row.bio_author_avatar),
+      },
+      bioLastEditor: row.bio_editor_id === null ? null : {
+        id: String(row.bio_editor_id),
+        display_name: nullableString(row.bio_editor_name),
+        avatar_url: nullableString(row.bio_editor_avatar),
+      },
+      bioUpdatedAt: row.bio_updated_at === null ? null : toIso(row.bio_updated_at),
       access: String(row.access) as FolderAccessPreset,
       canEditOwnResponsibilities: row.can_edit_own_responsibilities === true,
       assignedOpenTaskCount: byMember.get(id) ?? 0,

@@ -2,7 +2,7 @@
  * One member of a page, opened from the sharing panel: Access, Responsibilities, and their history. Controls
  * follow the server's `viewer_may_*` answers; the routes check again on every write.
  */
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 
 import { FOLDER_ACCESS_LABELS, FOLDER_ACCESS_PRESETS } from '../../shared/folder-access.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
@@ -41,6 +41,15 @@ import type { ConfirmLabels } from './task-rows.js'
 export type AskConfirm = (message: string, run: () => void, labels?: ConfirmLabels) => void
 
 const HEADING = 'text-sm font-section text-foreground'
+const ProfileOverviewEditor = lazy(() => import('./ProfileOverviewEditor.js'))
+const ACCESS_SCOPE: Record<FolderAccessPreset, string> = {
+  full_control: 'Manage people, access, and all project work',
+  can_edit: 'Edit shared work and project pages',
+  can_contribute: 'Create tasks and edit assigned work',
+  assigned_work: 'Update assigned tasks',
+  can_comment: 'Comment and start discussions',
+  can_view: 'View project work',
+}
 
 export function MemberDetails({
   folderId,
@@ -64,7 +73,7 @@ export function MemberDetails({
   const history = useFolderMemberHistory(folderId, userId, showHistory)
   const grant = useSetSelfEditGrant()
   const saveBio = useSaveMemberBio()
-  const [bioDraft, setBioDraft] = useState<string | null>(null)
+  const [editingOverview, setEditingOverview] = useState(false)
 
   const member = details.data
   if (member === undefined) {
@@ -83,7 +92,7 @@ export function MemberDetails({
 
   return (
     <div className="flex flex-col gap-[var(--space-group)]">
-      <header className={cn('flex items-center gap-[var(--person-card-padding)]', fullPage ? 'border-b border-border pb-[var(--space-group)]' : 'px-[var(--space-inline)]')}>
+      <header className={cn('flex items-center gap-[var(--person-card-padding)] border-b border-border pb-[var(--space-group)]', fullPage && 'flex-wrap sm:flex-nowrap')}>
           <PersonFace
             id={member.user.id}
             name={name}
@@ -92,38 +101,65 @@ export function MemberDetails({
             className={fullPage ? 'size-[var(--team-profile-avatar-size)] data-[size=sm]:size-[var(--team-profile-avatar-size)]' : undefined}
           />
           <div className="min-w-0 flex-1">
-            <Heading className={cn('truncate font-title text-foreground', fullPage ? 'text-[length:var(--text-title-size)] leading-[var(--text-title-line)]' : 'text-sm')}>{name}</Heading>
-            {fullPage ? <p className="mt-[var(--space-row)] text-sm text-muted-foreground">Team member · Joined {formatRelativeDay(member.joined_at, presenterToday())}</p> : null}
+            <Heading className={cn('font-title text-foreground', fullPage ? 'break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)]' : 'truncate text-sm')}>{name}</Heading>
+            {fullPage ? <p className="mt-[var(--space-row)] text-sm text-muted-foreground">Team member</p> : null}
           </div>
-          <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} memberImage={member.user.avatar_url} prominent={fullPage} />
+          <div className={cn(fullPage && 'flex w-full justify-end sm:w-auto')}>
+            <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} memberImage={member.user.avatar_url} prominent={fullPage} />
+          </div>
       </header>
 
-      <div className={cn('grid gap-[var(--space-group)]', fullPage && 'lg:grid-cols-[minmax(0,1fr)_var(--team-profile-aside-width)]')}>
-      <div className="flex min-w-0 flex-col gap-[var(--space-group)]">
-      <section aria-label="Bio" className={cn(fullPage && 'border-b border-border pb-[var(--space-group)]')}>
+      <section aria-label="Overview">
         <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)]">
-          <h3 className={`${HEADING} flex-1`}>Bio</h3>
-          {member.viewer_may_edit_bio && hasBio && bioDraft === null ? <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setBioDraft(member.bio ?? '')}><Pencil strokeWidth={1.75} aria-hidden="true" /> Edit</Button> : null}
+          <h2 className={`${HEADING} flex-1`}>Overview</h2>
+          {member.viewer_may_edit_bio && hasBio && !editingOverview ? <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setEditingOverview(true)}><Pencil strokeWidth={1.75} aria-hidden="true" /> Edit</Button> : null}
         </div>
-        {bioDraft !== null ? (
-          <div className="flex flex-col gap-[var(--space-inline)]">
-            <textarea aria-label="Bio" autoFocus rows={4} maxLength={500} value={bioDraft} onChange={(event) => setBioDraft(event.target.value)} placeholder="A short introduction" className="w-full resize-y rounded-md border border-input bg-background px-[var(--space-inline)] py-[var(--space-inline)] text-sm text-foreground outline-none placeholder:text-quiet-foreground focus-visible:border-ring" />
-            <div className="flex justify-end gap-[var(--space-inline)]">
-              <Button variant="ghost" onClick={() => setBioDraft(null)}>Cancel</Button>
-              <Button disabled={saveBio.isPending} onClick={() => saveBio.mutate({ folderId, userId, bio: bioDraft.trim() || null }, { onSuccess: () => { setBioDraft(null); void details.refetch() } })}>Save</Button>
-            </div>
-          </div>
+        {editingOverview ? (
+          <Suspense fallback={<p role="status" className="text-sm text-muted-foreground">Loading editor…</p>}>
+            <ProfileOverviewEditor key={member.bio_updated_at ?? member.bio ?? 'empty'}
+              initial={member.bio_content} text={member.bio}
+              onCancel={() => setEditingOverview(false)}
+              onSave={async (content) => {
+                await saveBio.mutateAsync({ folderId, userId, content, baseUpdatedAt: member.bio_updated_at })
+                await details.refetch()
+                setEditingOverview(false)
+              }} />
+          </Suspense>
         ) : hasBio ? (
-          <p className="whitespace-pre-wrap text-sm leading-[var(--text-body-line)] text-foreground">{member.bio}</p>
+          <>
+            <p className="whitespace-pre-wrap text-sm leading-[var(--text-body-line)] text-foreground">
+              {member.bio_content === null ? member.bio : <Runs content={member.bio_content} />}
+            </p>
+            {member.bio_author === null && member.bio_last_editor === null ? null : (
+              <p className="mt-[var(--space-inline)] text-xs text-muted-foreground">
+                {member.bio_author === null ? null : `Written by ${member.bio_author.display_name ?? 'Someone'}`}
+                {member.bio_last_editor === null || member.bio_last_editor.id === member.bio_author?.id
+                  ? null : `${member.bio_author === null ? '' : ' · '}Edited by ${member.bio_last_editor.display_name ?? 'Someone'}`}
+                {member.bio_updated_at === null ? null : ` · Updated ${formatRelativeDay(member.bio_updated_at, presenterToday())}`}
+              </p>
+            )}
+          </>
         ) : member.viewer_may_edit_bio ? (
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setBioDraft('')}><Pencil strokeWidth={1.75} aria-hidden="true" /> Add a bio</Button>
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setEditingOverview(true)}><Pencil strokeWidth={1.75} aria-hidden="true" /> Add an overview</Button>
         ) : (
-          <p className="text-sm text-muted-foreground">No bio.</p>
+          <p className="text-sm text-muted-foreground">No overview.</p>
         )}
       </section>
 
-      <div>
-        {/* A refetch after another edit keeps the responsibility draft in this component. */}
+      <section aria-label="Details" className="border-t border-border pt-[var(--space-inline)]">
+        <h2 className={`${HEADING} mb-[var(--space-inline)]`}>Details</h2>
+        <div className="flex min-h-[var(--row-height)] flex-wrap items-center gap-[var(--space-inline)] border-t border-border py-[var(--space-inline)]">
+          <span className="min-w-0 flex-1 text-sm text-muted-foreground">Access and authorities</span>
+          <AccessMenu folderId={folderId} userId={userId} access={member.access}
+            mayChange={member.viewer_may_change_access} self={userId === viewerId}
+            ask={ask} onRemove={onRemove === undefined || member.is_owner ? undefined : () => onRemove(name)} />
+          <p className="w-full text-xs text-muted-foreground">{ACCESS_SCOPE[member.access]}</p>
+        </div>
+        <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)] border-t border-border py-[var(--space-inline)] text-sm">
+          <span className="flex-1 text-muted-foreground">Joined</span>
+          <span className="text-foreground">{formatRelativeDay(member.joined_at, presenterToday())}</span>
+        </div>
+        <div className="border-t border-border py-[var(--space-inline)]">
         <Responsibilities
           folderId={folderId}
           userId={userId}
@@ -132,28 +168,6 @@ export function MemberDetails({
           mayEdit={member.viewer_may_edit_responsibility}
           onStale={() => { void details.refetch() }}
         />
-      </div>
-      </div>
-
-      <aside aria-label="Membership" className={cn('min-w-0 border-t border-border pt-[var(--space-inline)]', fullPage && 'lg:border-t-0 lg:border-l lg:pt-0 lg:pl-[var(--space-group)]')}>
-        <h3 className="mb-[var(--space-inline)] text-xs font-section text-muted-foreground">Membership</h3>
-        <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)]">
-          <span className="flex-1 text-sm text-muted-foreground">Access</span>
-          <AccessMenu
-            folderId={folderId}
-            userId={userId}
-            access={member.access}
-            mayChange={member.viewer_may_change_access}
-            self={userId === viewerId}
-            ask={ask}
-            onRemove={
-              onRemove === undefined || member.is_owner
-                ? undefined
-                : () => {
-                    onRemove(name)
-                  }
-            }
-          />
         </div>
         {member.viewer_may_change_self_edit_grant ? (
           <label className="flex min-h-[var(--row-height)] cursor-pointer items-start gap-[var(--space-inline)] py-[var(--space-inline)] text-xs text-muted-foreground">
@@ -169,9 +183,7 @@ export function MemberDetails({
         ) : member.can_edit_own_responsibilities ? (
           <p className="py-[var(--space-inline)] text-xs text-muted-foreground">Can edit their own responsibilities</p>
         ) : null}
-        {fullPage ? null : <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)] border-t border-border text-sm"><span className="flex-1 text-muted-foreground">Joined</span><span className="text-foreground">{formatRelativeDay(member.joined_at, presenterToday())}</span></div>}
-      </aside>
-      <section aria-label="History" className={cn('border-t border-border pt-[var(--space-inline)]', fullPage && 'lg:col-span-2')}>
+      <section aria-label="History" className="border-t border-border py-[var(--space-inline)]">
         <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)]">
           <History className="size-[var(--icon-size-compact)] text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
           <h3 className={`${HEADING} flex-1`}>History</h3>
@@ -190,7 +202,7 @@ export function MemberDetails({
           </ul>
         ) : null}
       </section>
-      </div>
+      </section>
     </div>
   )
 }
@@ -345,7 +357,9 @@ function Responsibilities({
   const save = useSaveResponsibility()
   const [draft, setDraft] = useState<string | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
   const empty = content === null || content.blocks.length === 0
+  const collapsible = content !== null && (content.blocks.length > 1 || documentToText(content).length > 180)
 
   function commit(): void {
     if (draft === null) return
@@ -380,6 +394,7 @@ function Responsibilities({
             Edit
           </Button>
         ) : null}
+        {collapsible && draft === null ? <Button variant="ghost" size="sm" className="text-muted-foreground" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>{expanded ? 'Show less' : 'Show all'}</Button> : null}
       </div>
       {draft !== null ? (
         <div className="flex flex-col gap-[var(--space-inline)]">
@@ -417,6 +432,8 @@ function Responsibilities({
         <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setDraft('')}><Pencil strokeWidth={1.75} aria-hidden="true" /> Add responsibilities</Button>
       ) : empty ? (
         <p className="text-sm text-muted-foreground">No responsibilities.</p>
+      ) : collapsible && !expanded ? (
+        <p className="truncate text-sm text-foreground"><Runs content={content.blocks[0]!.content} /></p>
       ) : (
         <div className="flex flex-col gap-1 text-sm text-foreground">
           {content.blocks.map((block, index) =>
