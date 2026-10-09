@@ -1095,15 +1095,19 @@ export function createFoldersRouter(
         : body.content?.runs.map((run) => run.text).join('').trim() || null
       const content = bio === null || body.content === undefined ? null : body.content
       const actorId = viewer(req)
+      // The API sends milliseconds. Advance the stored time for edits in the same millisecond.
       const updated = await db.execute(sql`
         UPDATE folder_members SET bio = ${bio},
           bio_content = ${content === null ? null : JSON.stringify(content)}::jsonb,
           bio_author_id = CASE WHEN ${bio === null} THEN NULL
             WHEN bio IS NULL THEN ${actorId}::uuid ELSE bio_author_id END,
           bio_last_editor_id = CASE WHEN ${bio === null} THEN NULL ELSE ${actorId}::uuid END,
-          bio_updated_at = CASE WHEN ${bio === null} THEN NULL ELSE now() END
+          bio_updated_at = CASE WHEN ${bio === null} THEN NULL ELSE GREATEST(
+            date_trunc('milliseconds', clock_timestamp()),
+            COALESCE(bio_updated_at + interval '1 millisecond', '-infinity'::timestamptz)
+          ) END
         WHERE folder_id = ${projectId}::uuid AND user_id = ${ids.memberId}::uuid
-          AND (${body.base_updated_at === undefined} OR bio_updated_at IS NOT DISTINCT FROM ${body.base_updated_at ?? null}::timestamptz)
+          AND (${body.base_updated_at === undefined} OR date_trunc('milliseconds', bio_updated_at) IS NOT DISTINCT FROM ${body.base_updated_at ?? null}::timestamptz)
           AND (${ids.memberId === actorId} OR EXISTS (
             SELECT 1 FROM folder_members actor
              WHERE actor.folder_id = ${projectId}::uuid
