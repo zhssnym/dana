@@ -5,6 +5,7 @@ people appear only as display names.
 */
 import { z } from 'zod'
 import { pageRichContent } from './page-document.js'
+import { richContent } from './rich-content.js'
 
 import { CALENDAR_ZOOMS } from './bundle.js'
 import { postContent } from './comments.js'
@@ -16,7 +17,7 @@ Bump on every shape change: a reader must refuse a version it does not know,
 because an older schema strips new keys silently. Pick the next number from
 the open branches, not this file, so two branches never share one number.
 */
-export const EXPORT_VERSION = 13
+export const EXPORT_VERSION = 14
 
 /** 10.3's per-collection row cap; a cut collection is named in `truncated`. */
 export const EXPORT_ROW_CAP = 1000
@@ -349,6 +350,10 @@ export type ExportResponsibility = z.infer<typeof exportResponsibility>
 export const exportTeamBio = z.object({
   folder: z.object({ id: z.uuid(), name: z.string() }),
   bio: z.string(),
+  content: richContent.nullable(),
+  author: z.string().nullable(),
+  last_editor: z.string().nullable(),
+  updated_at: z.string().nullable(),
 })
 
 export const exportDocument = z.object({

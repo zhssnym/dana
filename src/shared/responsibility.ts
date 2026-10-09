@@ -213,6 +213,10 @@ export const folderMemberDetails = z.object({
   is_owner: z.boolean(),
   joined_at: z.iso.datetime(),
   bio: z.string().nullable(),
+  bio_content: richContent.nullable(),
+  bio_author: responsibilityActor.nullable(),
+  bio_last_editor: responsibilityActor.nullable(),
+  bio_updated_at: z.iso.datetime().nullable(),
   viewer_may_edit_bio: z.boolean(),
 
   access: folderAccessPreset,
@@ -235,7 +239,21 @@ export const folderMemberDetails = z.object({
 export type FolderMemberDetails = z.infer<typeof folderMemberDetails>
 
 export const getFolderMemberDetailsResponse = folderMemberDetails
-export const patchMemberBioBody = z.object({ bio: z.string().trim().max(500).nullable() })
+export const patchMemberBioBody = z.object({
+  bio: z.string().trim().max(500).nullable().optional(),
+  content: richContent.nullable().optional(),
+  base_updated_at: z.iso.datetime().nullable().optional(),
+}).superRefine((body, ctx) => {
+  if ((body.bio === undefined) === (body.content === undefined)) {
+    ctx.addIssue({ code: 'custom', path: ['content'], message: 'Send bio or content.' })
+  }
+  if (body.content !== null && body.content !== undefined) {
+    const text = body.content.runs.map((run) => run.text).join('').trim()
+    if (text.length > 500 || body.content.runs.some((run) => run.mention !== undefined)) {
+      ctx.addIssue({ code: 'custom', path: ['content'], message: 'Overview supports up to 500 characters, with bold, italic, and links.' })
+    }
+  }
+})
 export type GetFolderMemberDetailsResponse = z.infer<
   typeof getFolderMemberDetailsResponse
 >
