@@ -127,6 +127,7 @@ const DOMAIN_FILES = path.join(APP_ROOT, 'src', 'server', 'domain', 'files-core.
  */
 const KNOWN_ARMS: readonly { relation: string; column: string; onDelete: string }[] = [
   { relation: 'comment_files', column: 'file_id', onDelete: 'CASCADE — the attachment row goes too' },
+  { relation: 'feedback_files', column: 'file_id', onDelete: 'CASCADE — the attachment row goes too' },
   { relation: 'folders', column: 'cover_file_id', onDelete: 'SET NULL — the folder is blanked' },
   { relation: 'page_blocks', column: 'file_id', onDelete: 'SET NULL — the block draws nothing' },
   { relation: 'shelves', column: 'cover_file_id', onDelete: 'SET NULL — the shelf is blanked' },

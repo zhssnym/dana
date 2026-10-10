@@ -19,7 +19,7 @@ import { sameZone, writeTimezone } from './timezone-sync.js'
 export async function meBody(db: Db, userId: string): Promise<MeResponse | null> {
   const found = await rowsOf(
     db,
-    sql`SELECT u.id, u.email, u.display_name, u.avatar_url, u.timezone,
+    sql`SELECT u.id, u.email, u.display_name, u.avatar_url, u.timezone, u.heard_about,
                s.show_important, s.show_all, s.show_done
         FROM users u
         LEFT JOIN user_settings s ON s.user_id = u.id
@@ -56,6 +56,7 @@ export async function meBody(db: Db, userId: string): Promise<MeResponse | null>
       display_name: row.display_name === null ? null : String(row.display_name),
       avatar_url: row.avatar_url === null ? null : String(row.avatar_url),
       timezone: String(row.timezone),
+      heard_about: typeof row.heard_about === 'string' ? row.heard_about : null,
     },
     settings: {
       show_important: Boolean(row.show_important),

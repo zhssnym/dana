@@ -7,6 +7,14 @@ single use (take() removes), and bounded (records expire; every take() sweeps).
 import { randomBytes } from 'node:crypto'
 
 /** Long enough to finish Google's consent screen. */
+export interface SignupSource {
+  /** utm_source or ?ref. */
+  tag: string | undefined
+  campaign: string | undefined
+  /** The external referrer host. */
+  referrer: string | undefined
+}
+
 const PENDING_TTL_MS = 10 * 60 * 1000
 
 export interface PendingAuthorization {
@@ -15,6 +23,8 @@ export interface PendingAuthorization {
   codeVerifier: string
   /** Already validated; absent means none was reported. */
   timezone: string | undefined
+  /** First-touch tags from the landing page; stored only on a new account. */
+  source?: SignupSource
   createdAt: number
 }
 

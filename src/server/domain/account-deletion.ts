@@ -206,6 +206,13 @@ export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
 /** Every CASCADE foreign key to users(id). The guard test checks this list against the schema both ways. */
 export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
   {
+    fk: 'feedback_user_id_fkey',
+    table: 'feedback',
+    disposition: 'deleted',
+    where: 'step 5, in this file',
+    why: 'Feedback holds words and screenshots the person wrote. The scrub keeps the users row, so the cascade never fires; step 5 deletes the rows.',
+  },
+  {
     fk: 'folders_archived_by_fkey',
     table: 'folders',
     disposition: 'retained',
@@ -448,6 +455,7 @@ export async function deleteAccountData(
     sql`DELETE FROM direct_conversations
          WHERE user_a_id = ${userId} OR user_b_id = ${userId}`,
   )
+  await tx.execute(sql`DELETE FROM feedback WHERE user_id = ${userId}`)
 
   // 6. Remove any My Day entries that outlived steps 3 and 4.
   const myDayEntries = await rowsOf(
