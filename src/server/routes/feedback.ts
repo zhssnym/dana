@@ -8,7 +8,7 @@ import type { Request, Response, Router } from 'express'
 import type { DbClient } from '../../../db/client.js'
 import { patchFeedbackBody, postFeedbackBody, putHeardAboutBody } from '../../shared/feedback.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
-import { createFeedback, listFeedback, setFeedbackDone } from '../domain/feedback.js'
+import { createFeedback, listFeedback, setFeedbackStatus } from '../domain/feedback.js'
 import { isOperator, operatorEmails } from '../domain/stats.js'
 import { sendError } from '../http/errors.js'
 import { parseBody } from '../http/parse-body.js'
@@ -66,7 +66,7 @@ export function createFeedbackRouter(options: {
     if (id === null) return
     const body = parseBody(patchFeedbackBody, req, res, securityLog)
     if (body === null) return
-    if (!(await setFeedbackDone(db, id, body.done))) { sendError(res, 404, 'not_found', 'Not found.'); return }
+    if (!(await setFeedbackStatus(db, id, body.status))) { sendError(res, 404, 'not_found', 'Not found.'); return }
     res.status(204).end()
   })
 

@@ -32,7 +32,7 @@ export async function createFeedback(db: Db, userId: string, body: PostFeedbackB
 
 export async function listFeedback(db: Db): Promise<FeedbackItem[]> {
   const rows = await rowsOf(db, sql`
-    SELECT fb.id, fb.kind, fb.content, fb.context, fb.done_at IS NOT NULL AS done,
+    SELECT fb.id, fb.kind, fb.content, fb.context, fb.status,
       to_char(fb.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
       u.email, u.display_name,
       COALESCE((SELECT json_agg(json_build_object('id', f.id, 'name', f.name, 'mime', f.mime,
@@ -40,7 +40,7 @@ export async function listFeedback(db: Db): Promise<FeedbackItem[]> {
                   FROM feedback_files ff JOIN files f ON f.id = ff.file_id
                  WHERE ff.feedback_id = fb.id), '[]'::json) AS files
       FROM feedback fb JOIN users u ON u.id = fb.user_id
-     ORDER BY fb.done_at IS NOT NULL, fb.created_at DESC
+     ORDER BY fb.created_at DESC
      LIMIT 500`)
   const json = (value: unknown): unknown => (typeof value === 'string' ? JSON.parse(value) : value)
   return rows.map((row) => ({
@@ -49,15 +49,14 @@ export async function listFeedback(db: Db): Promise<FeedbackItem[]> {
     email: typeof row.email === 'string' ? row.email : null,
     display_name: typeof row.display_name === 'string' ? row.display_name : null,
     created_at: String(row.created_at),
-    done: row.done === true,
+    status: String(row.status) as FeedbackItem['status'],
     content: json(row.content) as FeedbackItem['content'],
     context: json(row.context) as FeedbackItem['context'],
     files: json(row.files) as FeedbackItem['files'],
   }))
 }
 
-export async function setFeedbackDone(db: Db, id: string, done: boolean): Promise<boolean> {
-  const rows = await rowsOf(db, sql`
-    UPDATE feedback SET done_at = ${done ? sql`now()` : sql`NULL`} WHERE id = ${id} RETURNING id`)
+export async function setFeedbackStatus(db: Db, id: string, status: FeedbackItem['status']): Promise<boolean> {
+  const rows = await rowsOf(db, sql`UPDATE feedback SET status = ${status} WHERE id = ${id} RETURNING id`)
   return rows.length > 0
 }

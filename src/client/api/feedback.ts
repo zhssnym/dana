@@ -3,7 +3,7 @@ import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query'
 import { z } from 'zod'
 
 import { getFeedbackResponse } from '../../shared/feedback.js'
-import type { GetFeedbackResponse, PostFeedbackBody } from '../../shared/feedback.js'
+import type { FeedbackStatus, GetFeedbackResponse, PostFeedbackBody } from '../../shared/feedback.js'
 import { ApiError, getPlain, mutateApi } from './http.js'
 
 const FEEDBACK_KEY = ['feedback'] as const
@@ -20,10 +20,15 @@ export function useFeedback(): UseQueryResult<GetFeedbackResponse> {
   })
 }
 
-export function useSetFeedbackDone(): UseMutationResult<void, Error, { id: string, done: boolean }> {
+/** Moves the card at once; a refusal puts the server's answer back. */
+export function useSetFeedbackStatus(): UseMutationResult<void, Error, { id: string, status: FeedbackStatus }> {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, done }) => mutateApi(null, { method: 'PATCH', path: `/feedback/${id}`, body: { done } }),
+    mutationFn: ({ id, status }) => mutateApi(null, { method: 'PATCH', path: `/feedback/${id}`, body: { status } }),
+    onMutate: ({ id, status }) => {
+      client.setQueryData<GetFeedbackResponse>(FEEDBACK_KEY, (old) =>
+        old === undefined ? old : { items: old.items.map((item) => (item.id === id ? { ...item, status } : item)) })
+    },
     onSettled: () => client.invalidateQueries({ queryKey: FEEDBACK_KEY }),
   })
 }

@@ -29,7 +29,11 @@ export const postFeedbackBody = z.object({
 })
 export type PostFeedbackBody = z.infer<typeof postFeedbackBody>
 
-export const patchFeedbackBody = z.object({ done: z.boolean() })
+/** The board's columns, in order. */
+export const FEEDBACK_STATUSES = ['new', 'doing', 'done', 'wont'] as const
+export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number]
+
+export const patchFeedbackBody = z.object({ status: z.enum(FEEDBACK_STATUSES) })
 
 export const feedbackFile = z.object({
   id: z.uuid(),
@@ -46,13 +50,13 @@ export const feedbackItem = z.object({
   email: z.string().nullable(),
   display_name: z.string().nullable(),
   created_at: z.iso.datetime(),
-  done: z.boolean(),
+  status: z.enum(FEEDBACK_STATUSES),
   content: postContent,
   context: feedbackContext,
   files: z.array(feedbackFile),
 })
 export type FeedbackItem = z.infer<typeof feedbackItem>
 
-/** Operators only. Open items first, newest first. */
+/** Operators only. Newest first. */
 export const getFeedbackResponse = z.object({ items: z.array(feedbackItem) })
 export type GetFeedbackResponse = z.infer<typeof getFeedbackResponse>

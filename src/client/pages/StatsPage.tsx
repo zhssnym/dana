@@ -6,12 +6,10 @@ import { useState } from 'react'
 
 import type { GetStatsResponse, StatsPerson, StatsSource } from '../../shared/stats.js'
 import { ApiError } from '../api/http.js'
-import { useFeedback, useSetFeedbackDone } from '../api/feedback.js'
 import { useStats } from '../api/stats.js'
 import { HEARD_ABOUT_LABELS } from '../components/feedback/HeardAboutDialog.js'
 import type { HeardAbout } from '../../shared/feedback.js'
-import { PostView } from '../components/thread/PostView.js'
-import { Button } from '../components/ui/button.js'
+import { FeedbackBoard } from '../components/feedback/FeedbackBoard.js'
 import { Segmented } from '../components/ui/segmented.js'
 import { Screen } from '../components/settings/screen.js'
 import { InlineError, SkeletonList } from '../components/state-patterns.js'
@@ -216,11 +214,13 @@ interface Column {
   readonly show: (person: StatsPerson) => React.ReactNode
   readonly numeric?: boolean
   readonly hide?: string
+  /** Long text wraps instead of widening the table. */
+  readonly wrap?: boolean
 }
 
 const COLUMNS: readonly Column[] = [
   { key: 'source', label: 'Source', value: (p) => p.source, show: (p) => p.source, hide: 'max-sm:hidden' },
-  { key: 'heard', label: 'Heard about Dana', value: (p) => heardLabel(p.heard_about), show: (p) => heardLabel(p.heard_about), hide: 'max-md:hidden' },
+  { key: 'heard', label: 'Heard about Dana', value: (p) => heardLabel(p.heard_about), show: (p) => heardLabel(p.heard_about), hide: 'max-lg:hidden', wrap: true },
   { key: 'joined', label: 'Joined', value: (p) => p.joined_on, show: (p) => dayLabel(p.joined_on), hide: 'max-sm:hidden' },
   { key: 'active', label: 'Last active', value: (p) => p.last_active_on ?? '', show: (p) => (p.last_active_on === null ? 'Not in 30 days' : dayLabel(p.last_active_on)) },
   { key: 'pages', label: 'Pages', value: (p) => p.pages_total, show: (p) => count.format(p.pages_total), numeric: true },
@@ -260,28 +260,26 @@ function People({ people }: { readonly people: readonly StatsPerson[] }): React.
   }
 
   return (
-    // Wider than the page column: the shell's scroll region is a container, so 100cqw is its full width.
-    <section aria-label="Everyone"
-      className="relative left-1/2 flex w-[calc(100cqw-2rem)] -translate-x-1/2 flex-col gap-2 md:w-[calc(100cqw-5rem)]">
+    <section aria-label="Everyone" className="flex flex-col gap-2">
       <h2 className="text-sm font-section text-foreground">Everyone</h2>
       <p className="text-xs text-muted-foreground">Click a column name to sort. Click again to reverse.</p>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs text-muted-foreground">
-              {header(EMAIL, 'w-full min-w-40 py-1.5 pr-4')}
-              {COLUMNS.map((col) => header(col, cn('py-1.5 pr-4', col.numeric === true && 'text-right', col.hide)))}
+              {header(EMAIL, 'w-full min-w-32 py-1.5 pr-3')}
+              {COLUMNS.map((col) => header(col, cn('py-1.5 pr-3', col.numeric === true && 'text-right', col.hide)))}
             </tr>
           </thead>
           <tbody>
             {rows.map((person, index) => (
               <tr key={person.email ?? `no-email-${String(index)}`}>
                 <th scope="row" title={person.email ?? undefined}
-                  className="max-w-0 min-w-40 truncate py-1.5 pr-4 text-left font-normal text-foreground">
+                  className="max-w-0 min-w-32 truncate py-1.5 pr-3 text-left font-normal text-foreground">
                   {EMAIL.show(person)}
                 </th>
                 {COLUMNS.map((col) => (
-                  <td key={col.key} className={cn('py-1.5 pr-4 whitespace-nowrap',
+                  <td key={col.key} className={cn('py-1.5 pr-3', col.wrap === true ? 'max-w-40' : 'whitespace-nowrap',
                     col.numeric === true ? 'text-right text-foreground tabular-nums' : 'text-muted-foreground', col.hide)}>
                     {col.show(person)}
                   </td>
@@ -473,42 +471,6 @@ function Stats({ stats }: { readonly stats: GetStatsResponse }): React.JSX.Eleme
   )
 }
 
-const KIND_WORD = { bug: 'Problem', idea: 'Idea', other: 'Other' } as const
-
-function Feedback(): React.JSX.Element {
-  const feedback = useFeedback()
-  const setDone = useSetFeedbackDone()
-  if (feedback.isPending) return <SkeletonList />
-  if (feedback.isError) return <InlineError onRetry={() => { void feedback.refetch() }} />
-  if (feedback.data.items.length === 0) return <p className="px-2 text-sm text-muted-foreground">No feedback yet.</p>
-  return (
-    <ul className="flex flex-col gap-6 px-2">
-      {feedback.data.items.map((item) => (
-        <li key={item.id} className={cn('flex flex-col gap-2 border-b border-border pb-6', item.done && 'opacity-60')}>
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span className="font-section text-foreground">{KIND_WORD[item.kind]}</span>
-            <span>{item.display_name ?? item.email ?? 'No name'}{item.email === null ? '' : ` (${item.email})`}</span>
-            <span className="tabular-nums">{new Date(item.created_at).toLocaleString()}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto"
-              disabled={setDone.isPending}
-              onClick={() => setDone.mutate({ id: item.id, done: !item.done })}
-            >
-              {item.done ? 'Mark as open' : 'Mark as done'}
-            </Button>
-          </div>
-          <PostView content={item.content} body={null} files={item.files} />
-          <p className="text-xs break-all text-muted-foreground">
-            {item.context.path} · {item.context.viewport} · {item.context.theme} · {item.context.user_agent}
-          </p>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
 export function StatsPage(): React.JSX.Element {
   const stats = useStats()
   const [view, setView] = useState<'numbers' | 'feedback'>('numbers')
@@ -524,7 +486,10 @@ export function StatsPage(): React.JSX.Element {
         onValueChange={setView}
         className="mx-2 mb-8 self-start"
       />
-      {view === 'feedback' ? <Feedback /> : (
+      {view === 'feedback' ? (
+        // The board is wider than the page column; the shell's scroll region is a container, so 100cqw is its width.
+        <div className="relative left-1/2 w-[calc(100cqw-2rem)] -translate-x-1/2 md:w-[calc(100cqw-5rem)]"><FeedbackBoard /></div>
+      ) : (
         <>
           {stats.isError ? <InlineError onRetry={() => { void stats.refetch() }} /> : null}
           {stats.data === undefined ? null : <Stats stats={stats.data} />}
