@@ -47,14 +47,6 @@ export function SidebarFoot({
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   return (
     <SidebarFooter className="border-t border-border p-2" onContextMenu={onContextMenu}>
-      <button
-        type="button"
-        className="flex h-(--shell-sidebar-row-height) w-full items-center gap-2 rounded-md px-2 text-sm text-muted-foreground outline-none hover:bg-(--sidebar-row-hover) hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring max-md:h-(--row-height) [&_svg]:size-4 [&_svg]:shrink-0"
-        onClick={() => setFeedbackOpen(true)}
-      >
-        <Megaphone strokeWidth={1.75} aria-hidden="true" />
-        Send feedback
-      </button>
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       <div className="flex items-center gap-1">
         <FootTip label={<>Search <kbd data-slot="kbd" className="font-sans opacity-70">{SEARCH_KEYS}</kbd></>}>
@@ -73,6 +65,11 @@ export function SidebarFoot({
           >
             <Settings strokeWidth={1.75} aria-hidden="true" />
           </Link>
+        </FootTip>
+        <FootTip label="Send feedback">
+          <button type="button" aria-label="Send feedback" className={FOOT_BUTTON} onClick={() => setFeedbackOpen(true)}>
+            <Megaphone strokeWidth={1.75} aria-hidden="true" />
+          </button>
         </FootTip>
         <FootTip label="Trash">
           <Link
