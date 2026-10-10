@@ -21,13 +21,13 @@ function MemberReference({ folderId, userId, picker, onOpen }: { readonly folder
   }
   const member = details.data
   const name = member.user.display_name ?? 'Someone'
-  const responsibility = documentToText(member.responsibility.content).trim()
-  return <div className="inline-flex max-w-full items-center gap-[var(--space-inline)] py-[var(--space-row)]">
-    <Link to={`${paths.folder(folderId)}?team=full&member=${encodeURIComponent(userId)}`} onClick={onOpen} className="inline-flex min-w-0 items-center gap-[var(--space-inline)] rounded-sm text-foreground no-underline outline-none hover:underline focus-visible:outline focus-visible:outline-ring">
-      <PersonFace id={userId} name={name} image={member.user.avatar_url} />
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-medium text-foreground">{name}</span>
-        {responsibility === '' ? null : <span className="block truncate text-xs text-muted-foreground">{responsibility}</span>}
+  const detail = member.bio?.trim() || documentToText(member.responsibility.content).trim()
+  return <div className="flex w-full min-w-0 items-center gap-[var(--space-inline)] py-[var(--space-row)]">
+    <Link to={`${paths.folder(folderId)}?member=${encodeURIComponent(userId)}`} onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-[var(--space-inline)] rounded-sm text-foreground no-underline! outline-none focus-visible:outline focus-visible:outline-ring">
+      <PersonFace id={userId} name={name} image={member.user.avatar_url} className="size-[var(--row-height)] data-[size=sm]:size-[var(--row-height)]" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium text-foreground hover:underline">{name}</span>
+        {detail === '' ? null : <span className="block truncate text-xs text-muted-foreground">{detail}</span>}
       </span>
     </Link>
     <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} memberImage={member.user.avatar_url} compact />
