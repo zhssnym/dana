@@ -18,6 +18,7 @@ import {
   useBundle,
   useAllPages,
   useFolders,
+  useFolder,
   useMe,
   usePendingInvites,
   useShelves,
@@ -142,8 +143,11 @@ function useThreadOpen(): boolean {
 /* The window bar's left end: a page's trail, a task's page trail and title, or a place's name. */
 function TopTrail(): React.JSX.Element {
   const { pathname, search } = useLocation()
+  const searchParams = new URLSearchParams(search)
+  const teamFull = searchParams.get('team') === 'full'
+  const memberId = searchParams.get('member')
   /* An open thread is `?discussion=<id>` on its page; the trail names it. */
-  const discussionId = pathname.startsWith(FOLDER_PREFIX) ? new URLSearchParams(search).get('discussion') : null
+  const discussionId = pathname.startsWith(FOLDER_PREFIX) ? searchParams.get('discussion') : null
   const discussion = useDiscussion(discussionId ?? '', discussionId !== null)
   const taskId = pathname.startsWith(TASK_PREFIX) ? pathname.slice(TASK_PREFIX.length) : null
   const task = useTask(taskId)
@@ -153,7 +157,8 @@ function TopTrail(): React.JSX.Element {
   const allPages = useAllPages(pageId !== null)
   const tab = allPages.data?.find((page) => page.id === pageId)
   const trailId =
-    tab !== undefined && tab.tab_position !== null && discussionId === null ? tab.project_id : pageId
+    tab !== undefined && tab.tab_position !== null && (discussionId === null || teamFull) ? tab.project_id : pageId
+  const team = useFolder(trailId ?? '', teamFull && trailId !== null)
 
   let trail: React.JSX.Element | null = null
   if (pageId !== null && trailId !== null) {
@@ -161,10 +166,18 @@ function TopTrail(): React.JSX.Element {
     list.delete('discussion')
     list.delete('outcome')
     const listTo = list.size === 0 ? pathname : `${pathname}?${list.toString()}`
+    const teamList = new URLSearchParams(search)
+    teamList.delete('member')
+    const teamTo = `${pathname}?${teamList.toString()}`
+    const teamName = team.data?.name ?? 'Project'
+    const memberName = team.data?.members.find((member) => member.user.id === memberId)?.user.display_name ?? 'Teammate'
     trail = (
       <BreadcrumbTrail
         folderId={trailId}
-        {...(discussionId !== null ? { current: discussion.data?.title ?? '', folderTo: listTo } : {})}
+        {...(teamFull ? { extra: [
+          { name: `${teamName}'s Team`, ...(memberId === null ? {} : { to: teamTo }) },
+          ...(memberId === null ? [] : [{ name: memberName }]),
+        ] } : discussionId !== null ? { current: discussion.data?.title ?? '', folderTo: listTo } : {})}
       />
     )
   } else if (taskId !== null) {
