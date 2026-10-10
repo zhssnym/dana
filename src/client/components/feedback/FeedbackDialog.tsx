@@ -5,9 +5,11 @@ import { FEEDBACK_KINDS } from '../../../shared/feedback.js'
 import type { FeedbackContext, FeedbackKind } from '../../../shared/feedback.js'
 import type { PostContent } from '../../../shared/comments.js'
 import { sendFeedback } from '../../api/feedback.js'
+import { Maximize2, Minimize2 } from '../../lib/icons.js'
 import { Button } from '../ui/button.js'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog.js'
 import { Segmented } from '../ui/segmented.js'
+import { cn } from '../ui/utils.js'
 
 const PostEditor = lazy(() => import('../thread/PostEditor.js'))
 
@@ -46,6 +48,7 @@ export function FeedbackDialog({ open, onOpenChange }: {
 }): React.JSX.Element {
   const [draft, setDraft] = useState(readDraft)
   const [sent, setSent] = useState(false)
+  const [large, setLarge] = useState(false)
 
   function change(patch: Partial<Draft>): void {
     setDraft((previous) => {
@@ -57,9 +60,31 @@ export function FeedbackDialog({ open, onOpenChange }: {
 
   return (
     <Dialog open={open} onOpenChange={(next) => { onOpenChange(next); if (!next) setSent(false) }}>
-      <DialogContent className="w-[min(640px,calc(100vw-32px))]">
+      <DialogContent
+        className={cn(
+          large
+            ? 'w-[min(1100px,calc(100vw-32px))] [&_.dana-post-editor]:min-h-[55vh] [&_.dana-post-editor]:max-h-[65vh]'
+            : 'w-[min(640px,calc(100vw-32px))]',
+        )}
+      >
         <DialogHeader>
-          <DialogTitle>Send feedback</DialogTitle>
+          <div className="flex items-center justify-between gap-2">
+            <DialogTitle>Send feedback</DialogTitle>
+            {sent ? null : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground"
+                aria-label={large ? 'Make smaller' : 'Make larger'}
+                title={large ? 'Make smaller' : 'Make larger'}
+                aria-pressed={large}
+                onClick={() => setLarge(!large)}
+              >
+                {large ? <Minimize2 strokeWidth={1.75} aria-hidden="true" /> : <Maximize2 strokeWidth={1.75} aria-hidden="true" />}
+              </Button>
+            )}
+          </div>
           <DialogDescription>
             {sent
               ? 'Thank you. We read every message.'
