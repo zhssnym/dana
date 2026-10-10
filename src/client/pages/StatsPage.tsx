@@ -207,44 +207,210 @@ function HeardAboutTable({ rows }: { readonly rows: GetStatsResponse['heard_abou
   )
 }
 
+type SortKey = 'email' | 'source' | 'heard' | 'joined' | 'active' | 'pages' | 'tasks'
+
+interface Column {
+  readonly key: SortKey
+  readonly label: string
+  readonly value: (person: StatsPerson) => string | number
+  readonly show: (person: StatsPerson) => React.ReactNode
+  readonly numeric?: boolean
+  readonly hide?: string
+}
+
+const COLUMNS: readonly Column[] = [
+  { key: 'source', label: 'Source', value: (p) => p.source, show: (p) => p.source, hide: 'max-sm:hidden' },
+  { key: 'heard', label: 'Heard about Dana', value: (p) => heardLabel(p.heard_about), show: (p) => heardLabel(p.heard_about), hide: 'max-md:hidden' },
+  { key: 'joined', label: 'Joined', value: (p) => p.joined_on, show: (p) => dayLabel(p.joined_on), hide: 'max-sm:hidden' },
+  { key: 'active', label: 'Last active', value: (p) => p.last_active_on ?? '', show: (p) => (p.last_active_on === null ? 'Not in 30 days' : dayLabel(p.last_active_on)) },
+  { key: 'pages', label: 'Pages', value: (p) => p.pages_total, show: (p) => count.format(p.pages_total), numeric: true },
+  { key: 'tasks', label: 'Tasks', value: (p) => p.tasks_total, show: (p) => count.format(p.tasks_total), numeric: true },
+]
+
+const EMAIL: Column = { key: 'email', label: 'Email', value: (p) => p.email ?? '', show: (p) => p.email ?? 'No email' }
+
 function People({ people }: { readonly people: readonly StatsPerson[] }): React.JSX.Element {
+  // Null keeps the server order: most recently active first.
+  const [sort, setSort] = useState<{ key: SortKey, up: boolean } | null>(null)
+  const column = [EMAIL, ...COLUMNS].find((found) => found.key === sort?.key)
+  const rows = column === undefined || sort === null ? people : [...people].sort((a, b) => {
+    const x = column.value(a)
+    const y = column.value(b)
+    const order = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y))
+    return sort.up ? order : -order
+  })
+
+  function header(col: Column, className: string): React.JSX.Element {
+    const active = sort?.key === col.key
+    return (
+      <th scope="col" key={col.key} className={className}
+        aria-sort={active ? (sort.up ? 'ascending' : 'descending') : 'none'}>
+        <button
+          type="button"
+          className={cn('inline-flex items-center gap-1 rounded-sm font-normal whitespace-nowrap hover:text-foreground',
+            active && 'text-foreground')}
+          // Numbers sort highest first on the first click; text sorts A to Z.
+          onClick={() => setSort(active ? { key: col.key, up: !sort.up } : { key: col.key, up: col.numeric !== true })}
+        >
+          {col.label}
+          <span aria-hidden="true" className={cn(!active && 'invisible')}>{sort?.up === true ? '↑' : '↓'}</span>
+        </button>
+      </th>
+    )
+  }
+
   return (
-    <section aria-label="Everyone" className="flex flex-col gap-2">
+    // Wider than the page column: the shell's scroll region is a container, so 100cqw is its full width.
+    <section aria-label="Everyone"
+      className="relative left-1/2 flex w-[calc(100cqw-2rem)] -translate-x-1/2 flex-col gap-2 md:w-[calc(100cqw-5rem)]">
       <h2 className="text-sm font-section text-foreground">Everyone</h2>
+      <p className="text-xs text-muted-foreground">Click a column name to sort. Click again to reverse.</p>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs text-muted-foreground">
-              <th scope="col" className="w-full py-1.5 pr-4 font-normal">Email</th>
-              <th scope="col" className="py-1.5 pr-4 font-normal whitespace-nowrap max-sm:hidden">Source</th>
-              <th scope="col" className="py-1.5 pr-4 font-normal whitespace-nowrap max-md:hidden">Heard about Dana</th>
-              <th scope="col" className="py-1.5 pr-4 font-normal whitespace-nowrap max-sm:hidden">Joined</th>
-              <th scope="col" className="py-1.5 pr-4 font-normal whitespace-nowrap">Last active</th>
-              <th scope="col" className="py-1.5 text-right font-normal whitespace-nowrap">Work pages</th>
+              {header(EMAIL, 'w-full min-w-40 py-1.5 pr-4')}
+              {COLUMNS.map((col) => header(col, cn('py-1.5 pr-4', col.numeric === true && 'text-right', col.hide)))}
             </tr>
           </thead>
           <tbody>
-            {people.map((person, index) => (
+            {rows.map((person, index) => (
               <tr key={person.email ?? `no-email-${String(index)}`}>
                 <th scope="row" title={person.email ?? undefined}
-                  className="max-w-0 truncate py-1.5 pr-4 text-left font-normal text-foreground">
-                  {person.email ?? 'No email'}
+                  className="max-w-0 min-w-40 truncate py-1.5 pr-4 text-left font-normal text-foreground">
+                  {EMAIL.show(person)}
                 </th>
-                <td className="py-1.5 pr-4 whitespace-nowrap text-muted-foreground max-sm:hidden">{person.source}</td>
-                <td className="py-1.5 pr-4 whitespace-nowrap text-muted-foreground max-md:hidden">{heardLabel(person.heard_about)}</td>
-                <td className="py-1.5 pr-4 whitespace-nowrap text-muted-foreground tabular-nums max-sm:hidden">
-                  {dayLabel(person.joined_on)}
-                </td>
-                <td className="py-1.5 pr-4 whitespace-nowrap text-muted-foreground tabular-nums">
-                  {person.last_active_on === null ? 'Not in 30 days' : dayLabel(person.last_active_on)}
-                </td>
-                <td className="py-1.5 text-right text-foreground tabular-nums">{count.format(person.work_pages)}</td>
+                {COLUMNS.map((col) => (
+                  <td key={col.key} className={cn('py-1.5 pr-4 whitespace-nowrap',
+                    col.numeric === true ? 'text-right text-foreground tabular-nums' : 'text-muted-foreground', col.hide)}>
+                    {col.show(person)}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
     </section>
+  )
+}
+
+const ACTION_WORD: Record<string, string> = {
+  task_created: 'Made a task',
+  task_completed: 'Completed a task',
+  page_created: 'Made a page',
+  edit: 'Changed a task or page',
+  comment: 'Wrote a comment',
+  message: 'Sent a private message',
+  upload: 'Uploaded a file',
+  invite: 'Invited someone',
+}
+
+/** Plain bars; each bar's number shows on hover and to screen readers. */
+function Bars({ values, labels, label, tall = false }: {
+  readonly values: readonly number[]
+  readonly labels: readonly string[]
+  readonly label: string
+  readonly tall?: boolean
+}): React.JSX.Element {
+  const top = Math.max(1, ...values)
+  return (
+    <figure className="flex flex-col gap-1" aria-label={label}>
+      <div className={cn('flex items-end gap-0.5 border-b border-border', tall ? 'h-32' : 'h-20')}>
+        {values.map((value, index) => (
+          <div key={labels[index]} className="flex h-full flex-1 items-end" title={`${labels[index] ?? ''}: ${count.format(value)}`}>
+            <div className="w-full rounded-t-sm bg-primary" style={{ height: `${String((value / top) * 100)}%` }} />
+            <span className="sr-only">{labels[index]}: {value}</span>
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
+        <span>{labels[0]}</span>
+        <span>{labels[labels.length - 1]}</span>
+      </div>
+    </figure>
+  )
+}
+
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const percent = (part: number, whole: number): string => (whole === 0 ? '–' : `${String(Math.round((part / whole) * 100))}%`)
+
+function Usage({ stats }: { readonly stats: GetStatsResponse }): React.JSX.Element {
+  const usage = stats.usage
+  return (
+    <>
+      <section aria-label="What people do" className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 className="text-sm font-section text-foreground">What people do, last 30 days</h2>
+          <p className="text-sm text-muted-foreground tabular-nums">
+            <span className="text-foreground">{count.format(stats.totals.pages)}</span> pages and{' '}
+            <span className="text-foreground">{count.format(stats.totals.tasks)}</span> tasks in all
+          </p>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-xs text-muted-foreground">
+              <th scope="col" className="w-full py-1.5 pr-4 font-normal">Action</th>
+              <th scope="col" className="py-1.5 pr-4 text-right font-normal whitespace-nowrap">Times</th>
+              <th scope="col" className="py-1.5 text-right font-normal whitespace-nowrap">People</th>
+            </tr>
+          </thead>
+          <tbody>
+            {usage.actions.map((row) => (
+              <tr key={row.what}>
+                <th scope="row" className="py-1.5 pr-4 text-left font-normal text-foreground">{ACTION_WORD[row.what] ?? row.what}</th>
+                <td className="py-1.5 pr-4 text-right text-foreground tabular-nums">{count.format(row.times)}</td>
+                <td className="py-1.5 text-right text-muted-foreground tabular-nums">{count.format(row.people)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-label="People who did something each day" className="flex flex-col gap-2">
+        <h2 className="text-sm font-section text-foreground">People who did something each day</h2>
+        <Bars tall label="People who did something each day, last 30 days"
+          values={usage.days.map((day) => day.people)} labels={usage.days.map((day) => dayLabel(day.day))} />
+      </section>
+
+      <div className="grid gap-x-12 gap-y-12 md:grid-cols-2">
+        <section aria-label="Time of day" className="flex flex-col gap-2">
+          <h2 className="text-sm font-section text-foreground">Time of day</h2>
+          <Bars label="Actions by hour, in each person's own time zone"
+            values={usage.hours} labels={usage.hours.map((_, hour) => `${String(hour).padStart(2, '0')}:00`)} />
+        </section>
+        <section aria-label="Day of the week" className="flex flex-col gap-2">
+          <h2 className="text-sm font-section text-foreground">Day of the week</h2>
+          <Bars label="Actions by day of the week" values={usage.weekdays} labels={WEEKDAYS} />
+        </section>
+      </div>
+
+      <section aria-label="Do new people come back" className="flex flex-col gap-2">
+        <h2 className="text-sm font-section text-foreground">Do new people come back?</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                <th scope="col" className="w-full py-1.5 pr-4 font-normal">Joined in the week of</th>
+                <th scope="col" className="py-1.5 pr-4 text-right font-normal whitespace-nowrap">Joined</th>
+                <th scope="col" className="py-1.5 pr-4 text-right font-normal whitespace-nowrap">Came back after day one</th>
+                <th scope="col" className="py-1.5 text-right font-normal whitespace-nowrap">Used it in the last 7 days</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...usage.cohorts].reverse().map((row) => (
+                <tr key={row.week_start}>
+                  <th scope="row" className="py-1.5 pr-4 text-left font-normal whitespace-nowrap text-foreground">{weekLabel(row.week_start)}</th>
+                  <td className="py-1.5 pr-4 text-right text-foreground tabular-nums">{count.format(row.joined)}</td>
+                  <td className="py-1.5 pr-4 text-right text-foreground tabular-nums">{percent(row.came_back, row.joined)}</td>
+                  <td className="py-1.5 text-right text-foreground tabular-nums">{percent(row.active_week, row.joined)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
   )
 }
 
@@ -289,6 +455,8 @@ function Stats({ stats }: { readonly stats: GetStatsResponse }): React.JSX.Eleme
         </section>
       </div>
 
+      <Usage stats={stats} />
+
       <div className="grid gap-x-12 gap-y-12 md:grid-cols-2">
         <Sources sources={stats.sources} />
         <HeardAboutTable rows={stats.heard_about} />
@@ -299,7 +467,7 @@ function Stats({ stats }: { readonly stats: GetStatsResponse }): React.JSX.Eleme
       <p className="text-xs text-muted-foreground">
         Active means signed in and used Dana in that window; people who signed out are not counted
         until they return, and show as not active in 30 days. Work pages leave out each person’s Desk,
-        the sample workspace and anything archived or in the trash. Weeks start on Monday, UTC. Source is the first tagged link (utm_source or ref), then an invite, then the site that linked to Dana, else direct; unknown means the person joined before Dana kept this.
+        the sample workspace and anything archived or in the trash. Weeks start on Monday, UTC. Actions are tasks and pages made, changed or completed, comments, private messages, uploads and invites; the sample workspace is left out. Pages and Tasks count everything a person made that is not in the trash. Source is the first tagged link (utm_source or ref), then an invite, then the site that linked to Dana, else direct; unknown means the person joined before Dana kept this.
       </p>
     </div>
   )
@@ -348,7 +516,7 @@ export function StatsPage(): React.JSX.Element {
   // No heading until the server answers, so a non-operator sees nothing before "not found".
   if (stats.isPending) return <SkeletonList />
   return (
-    <Screen title="Stats" description="Accounts with an email, and how much each uses Dana. No page names or content.">
+    <Screen title="Stats" description="Accounts with an email, and how each uses Dana. Counts only: no page names or content.">
       <Segmented
         label="Show"
         value={view}
