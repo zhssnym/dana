@@ -478,6 +478,8 @@ export function StatsPage(): React.JSX.Element {
   // No heading until the server answers, so a non-operator sees nothing before "not found".
   if (stats.isPending) return <SkeletonList />
   return (
+    // Full width, wider than the page column: the shell's scroll region is a container, so 100cqw is its width.
+    <div className="relative left-1/2 w-[calc(100cqw-2rem)] -translate-x-1/2 md:w-[calc(100cqw-5rem)]">
     <Screen title="Stats" description="Accounts with an email, and how each uses Dana. Counts only: no page names or content.">
       <Segmented
         label="Show"
@@ -486,15 +488,13 @@ export function StatsPage(): React.JSX.Element {
         onValueChange={setView}
         className="mx-2 mb-8 self-start"
       />
-      {view === 'feedback' ? (
-        // The board is wider than the page column; the shell's scroll region is a container, so 100cqw is its width.
-        <div className="relative left-1/2 w-[calc(100cqw-2rem)] -translate-x-1/2 md:w-[calc(100cqw-5rem)]"><FeedbackBoard /></div>
-      ) : (
+      {view === 'feedback' ? <FeedbackBoard /> : (
         <>
           {stats.isError ? <InlineError onRetry={() => { void stats.refetch() }} /> : null}
           {stats.data === undefined ? null : <Stats stats={stats.data} />}
         </>
       )}
     </Screen>
+    </div>
   )
 }

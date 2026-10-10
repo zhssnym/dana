@@ -6,7 +6,6 @@ import { FEEDBACK_STATUSES } from '../../../shared/feedback.js'
 import type { FeedbackItem, FeedbackStatus } from '../../../shared/feedback.js'
 import { useFeedback, useSetFeedbackStatus } from '../../api/feedback.js'
 import { swallowNextClick, useSortableList } from '../../lib/use-sortable-list.js'
-import { fileSrc } from '../../lib/thread.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
 import { PostView } from '../thread/PostView.js'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog.js'
@@ -29,20 +28,18 @@ function columnAt(zones: Zones, point: { x: number, y: number }): FeedbackStatus
   return null
 }
 
+/** Every card is the same size: the first line is the title, the next lines a short preview. */
 function Card({ item }: { readonly item: FeedbackItem }): React.JSX.Element {
-  const text = postPlainText(item.content)
-  const image = item.files.find((file) => file.mime.startsWith('image/'))
+  const [title = '', ...rest] = postPlainText(item.content).split('\n')
   return (
-    <div className="flex flex-col gap-2 rounded-(--radius-card) border border-border bg-background p-3 text-sm hover:border-quiet-foreground">
+    <div className="flex h-36 flex-col gap-1 rounded-(--radius-card) border border-border bg-background p-3 text-sm hover:border-quiet-foreground">
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span className="font-section text-foreground">{KIND_WORD[item.kind]}</span>
+        <span>{KIND_WORD[item.kind]}</span>
         <span className="tabular-nums">{when(item.created_at)}</span>
       </div>
-      {text === '' ? null : <p className="line-clamp-4 break-words whitespace-pre-line text-foreground">{text}</p>}
-      {image === undefined ? null : (
-        <img src={fileSrc(image.id)} alt="" draggable={false} className="max-h-32 w-full rounded-sm border border-border object-cover object-top" />
-      )}
-      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+      <p className="line-clamp-2 break-words font-section text-foreground">{title === '' ? 'Files only' : title}</p>
+      <p className="line-clamp-1 break-words text-muted-foreground">{rest.join(' ')}</p>
+      <div className="mt-auto flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="min-w-0 truncate">{item.display_name ?? item.email ?? 'No name'}</span>
         {item.files.length > 0 ? <span className="shrink-0 tabular-nums">{item.files.length} {item.files.length === 1 ? 'file' : 'files'}</span> : null}
       </div>
