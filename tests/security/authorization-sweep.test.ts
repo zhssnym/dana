@@ -554,6 +554,13 @@ enumeration.
 */
 const TABLE = new Map<string, Row>([
   [
+    'PATCH /api/v1/feedback/:id',
+    {
+      attempt: () => ({ path: '/feedback/00000000-0000-4000-8000-000000000000', body: { status: 'done' } }),
+      stranger: { expected: 404, rule: '#625: only operators in DANA_OPERATORS can change feedback' },
+    },
+  ],
+  [
     'GET /api/v1/direct-conversations/:id/messages',
     {
       attempt: (fx) => ({ path: `/direct-conversations/${fx.conversationId}/messages` }),

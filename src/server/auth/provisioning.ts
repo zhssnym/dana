@@ -12,6 +12,7 @@ import type { Executor } from '../database.js'
 import { inTransaction, rowsOf } from '../database.js'
 import { recordAccessTransition } from '../domain/folder-access.js'
 import { createSampleWorkspace } from '../sample/workspace.js'
+import type { SignupSource } from './pending.js'
 import { sameZone, writeTimezone } from './timezone-sync.js'
 
 /*
@@ -30,6 +31,7 @@ export interface GoogleIdentity {
 export interface ProvisionOptions {
   /** Write the sample workspace in this transaction (7.20). */
   sample?: boolean
+  source?: SignupSource | undefined
 }
 
 /**
@@ -100,6 +102,7 @@ export async function provisionUser(
   reportedTimezone: string | undefined,
   options: ProvisionOptions = {},
 ): Promise<ProvisionedUser> {
+  const source = options.source
   return inTransaction(db, async (tx) => {
     // Refused before the insert; see isEmailCollision.
     if (isEmailCollision(await emailStanding(tx, identity))) {
@@ -108,13 +111,21 @@ export async function provisionUser(
 
     const inserted = await rowsOf(
       tx,
-      sql`INSERT INTO users (google_sub, email, display_name, avatar_url, timezone)
+      // Source order: a tagged link, then a pending invite, then the referrer host, else direct.
+      sql`INSERT INTO users (google_sub, email, display_name, avatar_url, timezone, signup_source, signup_campaign)
           VALUES (
             ${identity.sub},
             ${identity.email.toLowerCase()},
             ${identity.displayName},
             ${identity.avatarUrl},
-            ${reportedTimezone ?? 'UTC'}
+            ${reportedTimezone ?? 'UTC'},
+            COALESCE(
+              ${source?.tag ?? null}::text,
+              (SELECT 'invite' FROM invites
+                WHERE email = ${identity.email.toLowerCase()} AND status = 'pending' LIMIT 1),
+              ${source?.referrer ?? null}::text,
+              'direct'),
+            ${source?.campaign ?? null}::text
           )
           ON CONFLICT (google_sub) DO NOTHING
           RETURNING id, timezone`,

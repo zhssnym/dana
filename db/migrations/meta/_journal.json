@@ -449,6 +449,27 @@
       "when": 1795200000000,
       "tag": "0077_team_profile_overview",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1795300000000,
+      "tag": "0078_signup_source_feedback",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1795400000000,
+      "tag": "0079_heard_about",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1795500000000,
+      "tag": "0080_feedback_status",
+      "breakpoints": true
     }
   ]
 }

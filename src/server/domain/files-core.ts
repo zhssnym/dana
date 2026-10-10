@@ -10,6 +10,7 @@ import { SWEEP_BATCH, inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import type { SecurityLogger } from '../security/log.js'
 import { accessOf, mayPerform, visibleFolder } from './folder-access.js'
+import { operatorEmails } from './operators.js'
 import {
   AUDIO_MIMES,
   FOLDERLESS_UPLOAD_KINDS,
@@ -267,14 +268,24 @@ export async function createFile(
 
 /*
 Who may read a stored file, as one SQL predicate over `files f`, shared by serving and every cover gate.
-Folder-scoped: its members. Folder-less avatar: any signed-in account. Any other folder-less file: its owner only.
+Folder-scoped: its members. Folder-less avatar: any signed-in account. Any other folder-less file: its owner only,
+and operators when it is attached to feedback.
 Do not rewrite the folder-less arm as a list of kinds. A correlated EXISTS, so callers need only `files f`.
  */
 export function readableFileScope(viewerId: string): SQL {
   return sql`(
     (f.folder_id IS NULL AND (f.kind = 'avatar' OR f.owner_id = ${viewerId}))
     OR ${visibleFolder(sql`f.folder_id`, viewerId)}
+    OR ${feedbackFileForOperator(viewerId)}
   )`
+}
+
+function feedbackFileForOperator(viewerId: string): SQL {
+  const operators = [...operatorEmails(process.env.DANA_OPERATORS)]
+  if (operators.length === 0) return sql`false`
+  return sql`EXISTS (
+    SELECT 1 FROM feedback_files ff JOIN users ou ON ou.id = ${viewerId} AND ou.deleted_at IS NULL
+     WHERE ff.file_id = f.id AND ou.email IN (${sql.join(operators.map((email) => sql`${email}`), sql`, `)}))`
 }
 
 export interface ServedFile {
@@ -602,6 +613,7 @@ function fileIsUnreferenced(): SQL {
     AND NOT EXISTS (SELECT 1 FROM folders fo WHERE fo.cover_file_id = f.id)
     AND NOT EXISTS (SELECT 1 FROM shelves s WHERE s.cover_file_id = f.id)
     AND NOT EXISTS (SELECT 1 FROM user_page_covers u WHERE u.file_id = f.id)
+    AND NOT EXISTS (SELECT 1 FROM feedback_files ff WHERE ff.file_id = f.id)
   )`
 }
 

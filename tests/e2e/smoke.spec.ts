@@ -33,6 +33,9 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
     // /app lands on Today.
     await expect(page).toHaveURL(/\/app\/today$/)
     await expect(page.getByRole('navigation').first()).toBeVisible()
+    // An account that has not answered gets "How did you hear about Dana?" once.
+    const skip = page.getByRole('dialog', { name: 'How did you hear about Dana?' }).getByRole('button', { name: 'Skip' })
+    await skip.waitFor({ timeout: 5_000 }).then(() => skip.click(), () => undefined)
   })
 
   const title = `smoke task ${Date.now()}`

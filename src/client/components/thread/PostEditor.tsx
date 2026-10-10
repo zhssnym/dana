@@ -43,8 +43,8 @@ function touchFirst(): boolean {
 }
 
 export interface PostEditorProps {
-  /** Where an upload is stored (the thread's folder). */
-  readonly folderId: string
+  /** Where an upload is stored (the thread's folder); null keeps it the writer's own. */
+  readonly folderId: string | null
   /** Editing an existing post: its content, or its plain body when older. */
   readonly initial?: { readonly content: PostContent | null | undefined; readonly body: string | null; readonly files: readonly CommentFile[] }
   readonly placeholder?: string
@@ -56,11 +56,14 @@ export interface PostEditorProps {
   readonly onSubmit: (content: PostContent) => Promise<unknown>
   readonly onCancel?: () => void
   readonly label?: string
+  /** A new post's saved writing, and each change to it (null when empty). */
+  readonly draft?: PostContent | null
+  readonly onDraft?: (content: PostContent | null) => void
   /**
    * A new post's own button row, in place of the inline Send. `submit` resolves once the
    * post is on the server or refused.
    */
-  readonly renderActions?: (api: { readonly submit: () => Promise<boolean>; readonly empty: boolean; readonly busy: boolean }) => React.ReactNode
+  readonly renderActions?: (api: { readonly submit: () => Promise<boolean>; readonly empty: boolean; readonly busy: boolean; readonly attach: React.ReactNode }) => React.ReactNode
 }
 
 export default function PostEditor({
@@ -73,11 +76,13 @@ export default function PostEditor({
   onSubmit,
   onCancel,
   label = 'Write a post',
+  draft,
+  onDraft,
   renderActions,
 }: PostEditorProps): React.JSX.Element {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [empty, setEmpty] = useState(initial === undefined)
+  const [empty, setEmpty] = useState(initial === undefined && (draft ?? null) === null)
   const editing = initial !== undefined
   const [coarse] = useState(touchFirst)
 
@@ -97,7 +102,7 @@ export default function PostEditor({
     schema: postSchema,
     dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: placeholder, default: '' } },
     initialContent: (initial === undefined
-      ? undefined
+      ? (draft ?? null) === null ? undefined : editorBlocksOf(draft!.blocks)
       : initial.content
         ? editorBlocksOf(initial.content.blocks, initial.files)
         : editorBlocksOfBody(initial.body)) as never,
@@ -254,7 +259,9 @@ export default function PostEditor({
         aria-label={label}
         onChange={() => {
           try {
-            setEmpty(postContentOf(editor.document as unknown as LooseBlock[]) === null)
+            const content = postContentOf(editor.document as unknown as LooseBlock[])
+            setEmpty(content === null)
+            onDraft?.(content)
           } catch {
             setEmpty(false)
           }
@@ -263,7 +270,7 @@ export default function PostEditor({
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
         <FilePanelController filePanel={(props) => <CanvasFilePanel {...props} onUpload={upload} />} />
         <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={SLASH} />
-        <MentionSuggestions editor={editor as unknown as CanvasEditor} folderId={folderId} />
+        {folderId === null ? null : <MentionSuggestions editor={editor as unknown as CanvasEditor} folderId={folderId} />}
       </BlockNoteView>
     </div>
   )
@@ -378,7 +385,7 @@ export default function PostEditor({
       </div>
       )}
       {!editing && error !== '' ? <p role="alert" className="mt-1 px-1 text-xs text-destructive">{error}</p> : null}
-      {!editing && renderActions !== undefined ? renderActions({ submit, empty, busy }) : null}
+      {!editing && renderActions !== undefined ? renderActions({ submit, empty, busy, attach: attachButton }) : null}
     </div>
   )
 }
