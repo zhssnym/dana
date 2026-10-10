@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
 import { cn } from '../components/ui/utils.js'
-import { ChevronDown, History, Pencil } from '../lib/icons.js'
+import { ChevronDown, History, PanelRight, Pencil } from '../lib/icons.js'
 import { documentToText, textToDocument } from '../lib/responsibility-text.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
@@ -56,6 +56,7 @@ export function MemberDetails({
   userId,
   viewerId,
   fullPage = false,
+  onOpenSidePanel,
   ask,
   onRemove,
 }: {
@@ -64,6 +65,7 @@ export function MemberDetails({
   /** Who is looking, so their own row confirms before lowering itself. */
   readonly viewerId: string | null
   readonly fullPage?: boolean
+  readonly onOpenSidePanel?: () => void
   readonly ask: AskConfirm
   /** Remove this member, the list row's own act; absent where not offered. */
   readonly onRemove?: ((name: string) => void) | undefined
@@ -92,7 +94,7 @@ export function MemberDetails({
 
   return (
     <div className="flex flex-col gap-[var(--space-group)]">
-      <header className={cn('flex items-center gap-[var(--person-card-padding)] border-b border-border pb-[var(--space-group)]', fullPage && 'flex-wrap sm:flex-nowrap')}>
+      <header className={cn('flex items-center gap-[var(--person-card-padding)]', fullPage && 'flex-wrap sm:flex-nowrap')}>
           <PersonFace
             id={member.user.id}
             name={name}
@@ -104,8 +106,11 @@ export function MemberDetails({
             <Heading className={cn('font-title text-foreground', fullPage ? 'break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)]' : 'truncate text-sm')}>{name}</Heading>
             {fullPage ? <p className="mt-[var(--space-row)] text-sm text-muted-foreground">Team member</p> : null}
           </div>
-          <div className={cn(fullPage && 'flex w-full justify-end sm:w-auto')}>
-            <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} memberImage={member.user.avatar_url} prominent={fullPage} />
+          <div className={cn('flex items-center gap-[var(--space-inline)]', fullPage && 'w-full justify-end sm:w-auto')}>
+            <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} memberImage={member.user.avatar_url} />
+            {onOpenSidePanel === undefined ? null : <Button variant="ghost" size="icon" aria-label="Open in side panel" title="Open in side panel" className="text-muted-foreground" onClick={onOpenSidePanel}>
+              <PanelRight className="size-[var(--icon-size-compact)]" strokeWidth={1.75} aria-hidden="true" />
+            </Button>}
           </div>
       </header>
 
@@ -146,20 +151,28 @@ export function MemberDetails({
         )}
       </section>
 
-      <section aria-label="Details" className="border-t border-border pt-[var(--space-inline)]">
+      <section aria-label="Details">
         <h2 className={`${HEADING} mb-[var(--space-inline)]`}>Details</h2>
-        <div className="flex min-h-[var(--row-height)] flex-wrap items-center gap-[var(--space-inline)] border-t border-border py-[var(--space-inline)]">
+        <div className="flex min-h-[var(--row-height)] flex-wrap items-center gap-[var(--space-inline)] py-[var(--space-inline)]">
           <span className="min-w-0 flex-1 text-sm text-muted-foreground">Access and authorities</span>
           <AccessMenu folderId={folderId} userId={userId} access={member.access}
             mayChange={member.viewer_may_change_access} self={userId === viewerId}
             ask={ask} onRemove={onRemove === undefined || member.is_owner ? undefined : () => onRemove(name)} />
           <p className="w-full text-xs text-muted-foreground">{ACCESS_SCOPE[member.access]}</p>
+          {member.viewer_may_change_self_edit_grant ? (
+            <label className="flex w-full cursor-pointer items-center gap-[var(--space-inline)] text-xs text-muted-foreground">
+              <Checkbox checked={member.can_edit_own_responsibilities} disabled={grant.isPending} onCheckedChange={(checked) => grant.mutate({ folderId, userId, enabled: checked })} />
+              Can edit their own responsibilities
+            </label>
+          ) : member.can_edit_own_responsibilities ? (
+            <p className="w-full text-xs text-muted-foreground">Can edit their own responsibilities</p>
+          ) : null}
         </div>
-        <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)] border-t border-border py-[var(--space-inline)] text-sm">
+        <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)] py-[var(--space-inline)] text-sm">
           <span className="flex-1 text-muted-foreground">Joined</span>
           <span className="text-foreground">{formatRelativeDay(member.joined_at, presenterToday())}</span>
         </div>
-        <div className="border-t border-border py-[var(--space-inline)]">
+        <div className="pt-[var(--space-inline)]">
         <Responsibilities
           folderId={folderId}
           userId={userId}
@@ -169,21 +182,7 @@ export function MemberDetails({
           onStale={() => { void details.refetch() }}
         />
         </div>
-        {member.viewer_may_change_self_edit_grant ? (
-          <label className="flex min-h-[var(--row-height)] cursor-pointer items-start gap-[var(--space-inline)] py-[var(--space-inline)] text-xs text-muted-foreground">
-            <Checkbox
-              checked={member.can_edit_own_responsibilities}
-              disabled={grant.isPending}
-              onCheckedChange={(checked) => {
-                grant.mutate({ folderId, userId, enabled: checked })
-              }}
-            />
-            Can edit their own responsibilities
-          </label>
-        ) : member.can_edit_own_responsibilities ? (
-          <p className="py-[var(--space-inline)] text-xs text-muted-foreground">Can edit their own responsibilities</p>
-        ) : null}
-      <section aria-label="History" className="border-t border-border py-[var(--space-inline)]">
+      <section aria-label="History" className="pt-[var(--space-group)]">
         <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)]">
           <History className="size-[var(--icon-size-compact)] text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
           <h3 className={`${HEADING} flex-1`}>History</h3>
@@ -433,7 +432,7 @@ function Responsibilities({
       ) : empty ? (
         <p className="text-sm text-muted-foreground">No responsibilities.</p>
       ) : collapsible && !expanded ? (
-        <p className="truncate text-sm text-foreground"><Runs content={content.blocks[0]!.content} /></p>
+        <p className="line-clamp-2 break-words text-sm text-foreground [overflow-wrap:anywhere]"><Runs content={content.blocks[0]!.content} /></p>
       ) : (
         <div className="flex flex-col gap-1 text-sm text-foreground">
           {content.blocks.map((block, index) =>

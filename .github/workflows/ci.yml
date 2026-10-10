@@ -39,13 +39,14 @@ jobs:
           node -e "const f=require('fs'),h=require('crypto').createHash('sha256').update(process.version).update(f.readFileSync('package-lock.json')).digest('hex');let s='';try{s=f.readFileSync('node_modules/.lock-sha','utf8').trim()}catch{}process.exit(s===h?0:1)" && echo node_modules matches package-lock.json, skipping npm ci && exit /b 0
           call npm ci || exit /b 1
           node -e "const f=require('fs'),h=require('crypto').createHash('sha256').update(process.version).update(f.readFileSync('package-lock.json')).digest('hex');f.writeFileSync('node_modules/.lock-sha',h)"
-      - name: Lint, typecheck, build and test (Postgres), in parallel
+      - name: Lint, typecheck, build, then test (Postgres)
         run: |
           if "%TEST_DATABASE_URL%"=="" (
             echo TEST_DATABASE_URL is unset or empty, so the suite would silently fall back to PGlite and report a green that never touched Postgres. Set it in the runner installation .env file and restart the runner.
             exit /b 1
           )
-          npx concurrently -n lint,typecheck,build,test "npm run lint" "npm run typecheck" "npm run build" "npm test"
+          call npm run gate || exit /b 1
+          npm test -- --maxWorkers=4
       - name: Playwright
         env:
           DANA_E2E_PREBUILT: '1'

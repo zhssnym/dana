@@ -2,7 +2,7 @@
 A project's page: the root's header, its tab row, and the tab's body. Each tab
 is its own page (`/app/folders/<id>`); a sub-page draws its own header and no tab row.
 */
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 
@@ -79,6 +79,7 @@ function FolderPageBody({
   const id = folderId ?? routeId
   const navigate = useNavigate()
   const [search, setSearch] = useSearchParams()
+  const initialTeamRoute = useRef(search.get('team') === 'full' || search.has(MEMBER_PARAM))
   /* Set when this page is trashed so its reads stop and nothing refetches a 404.
      Keyed by id: the delete lands on the parent, drawn without a remount. */
   const [leftId, setLeftId] = useState<string | null>(null)
@@ -97,6 +98,11 @@ function FolderPageBody({
   const mutations = useFolderMutations()
   const { patch, transfer, createTab, duplicate } = mutations
   const [sharing, setSharing] = useTeamPanelState(headId)
+  useEffect(() => {
+    if (!initialTeamRoute.current || herePage === undefined) return
+    initialTeamRoute.current = false
+    setSharing(true)
+  }, [herePage, setSharing])
   const [historyOpen, setHistoryOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
   const [transferTo, setTransferTo] = useState<string | null>(null)
