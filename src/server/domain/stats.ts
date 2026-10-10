@@ -62,9 +62,14 @@ export async function readStats(db: Db, sessionTtlDays: number): Promise<GetStat
       FROM users u WHERE ${counted}
      GROUP BY 1 ORDER BY people DESC, source`)
 
+  const heard = await rowsOf(db, sql`
+    SELECT u.heard_about AS answer, count(*) AS people
+      FROM users u WHERE ${counted} AND u.heard_about IS NOT NULL
+     GROUP BY 1 ORDER BY people DESC, answer`)
+
   const people = await rowsOf(db, sql`
     WITH pages AS (${workPages})
-    SELECT u.email, COALESCE(u.signup_source, 'unknown') AS source,
+    SELECT u.email, COALESCE(u.signup_source, 'unknown') AS source, u.heard_about,
       to_char(u.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS joined_on,
       (SELECT to_char((max(s.expires_at) - ${ttl}) AT TIME ZONE 'UTC', 'YYYY-MM-DD')
          FROM sessions s WHERE s.user_id = u.id AND s.expires_at > now()) AS last_active_on,
@@ -88,9 +93,11 @@ export async function readStats(db: Db, sessionTtlDays: number): Promise<GetStat
       people: num(row.people),
       active_month: num(row.active_month),
     })),
+    heard_about: heard.map((row) => ({ answer: String(row.answer), people: num(row.people) })),
     people_list: people.map((row) => ({
       email: typeof row.email === 'string' ? row.email : null,
       source: String(row.source),
+      heard_about: typeof row.heard_about === 'string' ? row.heard_about : null,
       joined_on: String(row.joined_on),
       last_active_on: typeof row.last_active_on === 'string' ? row.last_active_on : null,
       work_pages: num(row.work_pages),

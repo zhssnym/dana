@@ -2,6 +2,14 @@ import { z } from 'zod'
 
 import { postContent } from './comments.js'
 
+/** The answers to "How did you hear about Dana?". `skipped` means the person chose not to say. */
+export const HEARD_ABOUT = [
+  'friend', 'whatsapp', 'google', 'ai', 'instagram', 'tiktok', 'youtube',
+  'x', 'reddit', 'linkedin', 'facebook', 'invite', 'other', 'skipped',
+] as const
+export type HeardAbout = (typeof HEARD_ABOUT)[number]
+export const putHeardAboutBody = z.object({ answer: z.enum(HEARD_ABOUT) })
+
 export const FEEDBACK_KINDS = ['bug', 'idea', 'other'] as const
 export type FeedbackKind = (typeof FEEDBACK_KINDS)[number]
 

@@ -23,6 +23,8 @@ export const statsSource = z.object({
 export const statsPerson = z.object({
   email: z.string().nullable(),
   source: z.string(),
+  /** Their own answer to "How did you hear about Dana?"; null when not answered yet. */
+  heard_about: z.string().nullable(),
   /** YYYY-MM-DD, UTC. */
   joined_on: z.string(),
   /** YYYY-MM-DD, UTC; null when no live session (signed out, or idle 30 days). */
@@ -39,6 +41,8 @@ export const getStatsResponse = z.object({
   weeks: z.array(statsWeek),
   /** Most people first. */
   sources: z.array(statsSource),
+  /** Answers to "How did you hear about Dana?", most first. */
+  heard_about: z.array(z.object({ answer: z.string(), people: z.number().int() })),
   /** Accounts with an email, most recently active first. */
   people_list: z.array(statsPerson),
 })

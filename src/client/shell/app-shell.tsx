@@ -27,6 +27,7 @@ import {
 } from '../api/queries.js'
 import { SearchOverlay } from '../components/search-overlay.js'
 import { ShortcutsSheet } from '../components/help-sheet.js'
+import { HeardAboutDialog } from '../components/feedback/HeardAboutDialog.js'
 import { TaskSurfaceHost } from '../components/task-surface-host.js'
 /* Publishes the folder table for the lifted pickers' `folderLibrary()`; mounted once here. */
 import { FolderLibraryMemory } from '../lib/folder-library.js'
@@ -389,6 +390,7 @@ export function AppShell(): React.JSX.Element {
       <div className="relative z-50">
         <SearchOverlay />
         <ShortcutsSheet />
+        <HeardAboutDialog />
       </div>
       <div
         className="flex h-svh flex-col overflow-hidden bg-background"

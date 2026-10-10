@@ -39,6 +39,8 @@ export const meResponse = z.object({
     display_name: z.string().nullable(),
     avatar_url: z.string().nullable(),
     timezone: ianaTimezone,
+    /** The answer to "How did you hear about Dana?"; null until asked. */
+    heard_about: z.string().nullable(),
   }),
   settings,
   pending_invite_count: z.int().nonnegative(),

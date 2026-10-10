@@ -8,6 +8,8 @@ import type { GetStatsResponse, StatsPerson, StatsSource } from '../../shared/st
 import { ApiError } from '../api/http.js'
 import { useFeedback, useSetFeedbackDone } from '../api/feedback.js'
 import { useStats } from '../api/stats.js'
+import { HEARD_ABOUT_LABELS } from '../components/feedback/HeardAboutDialog.js'
+import type { HeardAbout } from '../../shared/feedback.js'
 import { PostView } from '../components/thread/PostView.js'
 import { Button } from '../components/ui/button.js'
 import { Segmented } from '../components/ui/segmented.js'
@@ -176,6 +178,35 @@ function Sources({ sources }: { readonly sources: readonly StatsSource[] }): Rea
   )
 }
 
+const heardLabel = (answer: string | null): string =>
+  answer === null ? 'Not asked yet' : HEARD_ABOUT_LABELS[answer as HeardAbout] ?? answer
+
+function HeardAboutTable({ rows }: { readonly rows: GetStatsResponse['heard_about'] }): React.JSX.Element {
+  return (
+    <section aria-label="How they heard about Dana" className="flex flex-col gap-2">
+      <h2 className="text-sm font-section text-foreground">How they heard about Dana</h2>
+      {rows.length === 0 ? <p className="text-sm text-muted-foreground">No answers yet.</p> : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-xs text-muted-foreground">
+              <th scope="col" className="w-full py-1.5 pr-4 font-normal">Their answer</th>
+              <th scope="col" className="py-1.5 text-right font-normal whitespace-nowrap">People</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.answer}>
+                <th scope="row" className="py-1.5 pr-4 text-left font-normal text-foreground">{heardLabel(row.answer)}</th>
+                <td className="py-1.5 text-right text-foreground tabular-nums">{count.format(row.people)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  )
+}
+
 function People({ people }: { readonly people: readonly StatsPerson[] }): React.JSX.Element {
   return (
     <section aria-label="Everyone" className="flex flex-col gap-2">
@@ -186,6 +217,7 @@ function People({ people }: { readonly people: readonly StatsPerson[] }): React.
             <tr className="border-b border-border text-left text-xs text-muted-foreground">
               <th scope="col" className="w-full py-1.5 pr-4 font-normal">Email</th>
               <th scope="col" className="py-1.5 pr-4 font-normal whitespace-nowrap max-sm:hidden">Source</th>
+              <th scope="col" className="py-1.5 pr-4 font-normal whitespace-nowrap max-md:hidden">Heard about Dana</th>
               <th scope="col" className="py-1.5 pr-4 font-normal whitespace-nowrap max-sm:hidden">Joined</th>
               <th scope="col" className="py-1.5 pr-4 font-normal whitespace-nowrap">Last active</th>
               <th scope="col" className="py-1.5 text-right font-normal whitespace-nowrap">Work pages</th>
@@ -199,6 +231,7 @@ function People({ people }: { readonly people: readonly StatsPerson[] }): React.
                   {person.email ?? 'No email'}
                 </th>
                 <td className="py-1.5 pr-4 whitespace-nowrap text-muted-foreground max-sm:hidden">{person.source}</td>
+                <td className="py-1.5 pr-4 whitespace-nowrap text-muted-foreground max-md:hidden">{heardLabel(person.heard_about)}</td>
                 <td className="py-1.5 pr-4 whitespace-nowrap text-muted-foreground tabular-nums max-sm:hidden">
                   {dayLabel(person.joined_on)}
                 </td>
@@ -256,7 +289,10 @@ function Stats({ stats }: { readonly stats: GetStatsResponse }): React.JSX.Eleme
         </section>
       </div>
 
-      <Sources sources={stats.sources} />
+      <div className="grid gap-x-12 gap-y-12 md:grid-cols-2">
+        <Sources sources={stats.sources} />
+        <HeardAboutTable rows={stats.heard_about} />
+      </div>
 
       <People people={stats.people_list} />
 

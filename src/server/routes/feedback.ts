@@ -1,11 +1,12 @@
 /*
-POST /feedback: any signed-in person. GET and PATCH: operators in DANA_OPERATORS only;
+POST /feedback and PUT /me/heard-about: any signed-in person. GET and PATCH: operators in DANA_OPERATORS only;
 everyone else gets 404, as on /stats.
 */
+import { sql } from 'drizzle-orm'
 import type { Request, Response, Router } from 'express'
 
 import type { DbClient } from '../../../db/client.js'
-import { patchFeedbackBody, postFeedbackBody } from '../../shared/feedback.js'
+import { patchFeedbackBody, postFeedbackBody, putHeardAboutBody } from '../../shared/feedback.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
 import { createFeedback, listFeedback, setFeedbackDone } from '../domain/feedback.js'
 import { isOperator, operatorEmails } from '../domain/stats.js'
@@ -39,6 +40,15 @@ export function createFeedbackRouter(options: {
       return
     }
     res.status(201).json({ id })
+  })
+
+  router.put('/me/heard-about', requireSession, requireCsrf, mutationLimit, async (req: Request, res: Response) => {
+    const db = database(res)
+    if (db === null) return
+    const body = parseBody(putHeardAboutBody, req, res, securityLog)
+    if (body === null) return
+    await db.execute(sql`UPDATE users SET heard_about = ${body.answer} WHERE id = ${viewer(req)}`)
+    res.status(204).end()
   })
 
   router.get('/feedback', requireSession, async (req: Request, res: Response) => {
