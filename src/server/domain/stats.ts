@@ -5,6 +5,9 @@ import { sql } from 'drizzle-orm'
 import type { Db } from '../../../db/client.js'
 import type { GetStatsResponse } from '../../shared/stats.js'
 import { rowsOf } from '../database.js'
+import { operatorEmails } from './operators.js'
+
+export { operatorEmails }
 
 const WEEKS = 12
 
@@ -51,9 +54,17 @@ export async function readStats(db: Db, sessionTtlDays: number): Promise<GetStat
           WHERE p.created_at >= w.start AND p.created_at < w.start + interval '1 week') AS new_work_pages
       FROM w ORDER BY w.start`)
 
+  const sources = await rowsOf(db, sql`
+    SELECT COALESCE(u.signup_source, 'unknown') AS source, count(*) AS people,
+      count(*) FILTER (WHERE EXISTS (
+        SELECT 1 FROM sessions s WHERE s.user_id = u.id
+           AND s.expires_at - ${ttl} > now() - interval '30 days')) AS active_month
+      FROM users u WHERE ${counted}
+     GROUP BY 1 ORDER BY people DESC, source`)
+
   const people = await rowsOf(db, sql`
     WITH pages AS (${workPages})
-    SELECT u.email,
+    SELECT u.email, COALESCE(u.signup_source, 'unknown') AS source,
       to_char(u.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS joined_on,
       (SELECT to_char((max(s.expires_at) - ${ttl}) AT TIME ZONE 'UTC', 'YYYY-MM-DD')
          FROM sessions s WHERE s.user_id = u.id AND s.expires_at > now()) AS last_active_on,
@@ -72,20 +83,19 @@ export async function readStats(db: Db, sessionTtlDays: number): Promise<GetStat
       new_people: num(row.new_people),
       new_work_pages: num(row.new_work_pages),
     })),
+    sources: sources.map((row) => ({
+      source: String(row.source),
+      people: num(row.people),
+      active_month: num(row.active_month),
+    })),
     people_list: people.map((row) => ({
       email: typeof row.email === 'string' ? row.email : null,
+      source: String(row.source),
       joined_on: String(row.joined_on),
       last_active_on: typeof row.last_active_on === 'string' ? row.last_active_on : null,
       work_pages: num(row.work_pages),
     })),
   }
-}
-
-/** `DANA_OPERATORS`: a comma-separated list of emails allowed to read the stats. */
-export function operatorEmails(raw: string | undefined): ReadonlySet<string> {
-  return new Set(
-    (raw ?? '').split(',').map((email) => email.trim().toLowerCase()).filter((email) => email !== ''),
-  )
 }
 
 export async function isOperator(db: Db, userId: string, operators: ReadonlySet<string>): Promise<boolean> {

@@ -93,6 +93,13 @@ const MAX_EMAIL = 320
 const MAX_DISPLAY_NAME = 200
 const MAX_AVATAR_URL = 2000
 
+/** A source tag from the landing page: lower case, a safe alphabet, at most 100 characters. */
+function signupTag(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const tag = value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 100)
+  return tag === '' ? undefined : tag
+}
+
 function clamp(value: unknown, limit: number): string | null {
   if (typeof value !== 'string' || value === '') return null
   return value.length <= limit ? value : value.slice(0, limit)
@@ -178,7 +185,9 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     const codeChallenge = await calculatePKCECodeChallenge(codeVerifier)
 
     // The zone rides only the pending record, never a redirect target (7.1, 11.6).
-    const id = pending.create({ state, nonce, codeVerifier, timezone })
+    const id = pending.create({ state, nonce, codeVerifier, timezone, source: {
+      tag: signupTag(req.query.src), campaign: signupTag(req.query.cmp), referrer: signupTag(req.query.ref),
+    } })
     setPendingCookie(res, id)
 
     const authorizationUrl = buildAuthorizationUrl(configuration, {
@@ -265,6 +274,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     try {
       user = await provisionUser(db, identity, record.timezone, {
         sample: options.sampleWorkspace === true,
+        source: record.source,
       })
       await syncTimezone(db, user, record.timezone)
     } catch (error) {

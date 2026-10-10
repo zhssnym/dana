@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 /*
 The operators' stats (GET /stats): counts across every account, and one row
-per account with its email, the day it joined, the day it was last active and
+per account with its email, where it came from, the day it joined, the day it was last active and
 how many work pages it has. No page's name or content crosses the wire. The
 Privacy page says operators see exactly this; change both together.
 */
@@ -13,8 +13,16 @@ export const statsWeek = z.object({
   new_work_pages: z.number().int(),
 })
 
+/** How a person first came: a link tag, `invite`, a referrer host, `direct`, or `unknown` (joined before tracking). */
+export const statsSource = z.object({
+  source: z.string(),
+  people: z.number().int(),
+  active_month: z.number().int(),
+})
+
 export const statsPerson = z.object({
   email: z.string().nullable(),
+  source: z.string(),
   /** YYYY-MM-DD, UTC. */
   joined_on: z.string(),
   /** YYYY-MM-DD, UTC; null when no live session (signed out, or idle 30 days). */
@@ -29,10 +37,13 @@ export const getStatsResponse = z.object({
   work_pages: z.object({ total: z.number().int(), new_this_week: z.number().int() }),
   /** The last 12 weeks, oldest first, the current week last. */
   weeks: z.array(statsWeek),
+  /** Most people first. */
+  sources: z.array(statsSource),
   /** Accounts with an email, most recently active first. */
   people_list: z.array(statsPerson),
 })
 
 export type StatsWeek = z.infer<typeof statsWeek>
+export type StatsSource = z.infer<typeof statsSource>
 export type StatsPerson = z.infer<typeof statsPerson>
 export type GetStatsResponse = z.infer<typeof getStatsResponse>

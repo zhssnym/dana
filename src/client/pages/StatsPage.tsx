@@ -4,9 +4,13 @@
  */
 import { useState } from 'react'
 
-import type { GetStatsResponse, StatsPerson } from '../../shared/stats.js'
+import type { GetStatsResponse, StatsPerson, StatsSource } from '../../shared/stats.js'
 import { ApiError } from '../api/http.js'
+import { useFeedback, useSetFeedbackDone } from '../api/feedback.js'
 import { useStats } from '../api/stats.js'
+import { PostView } from '../components/thread/PostView.js'
+import { Button } from '../components/ui/button.js'
+import { Segmented } from '../components/ui/segmented.js'
 import { Screen } from '../components/settings/screen.js'
 import { InlineError, SkeletonList } from '../components/state-patterns.js'
 import { cn } from '../components/ui/utils.js'
@@ -146,6 +150,32 @@ function Share({ label, value, of }: {
   )
 }
 
+function Sources({ sources }: { readonly sources: readonly StatsSource[] }): React.JSX.Element {
+  return (
+    <section aria-label="Where people came from" className="flex flex-col gap-2">
+      <h2 className="text-sm font-section text-foreground">Where people came from</h2>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-left text-xs text-muted-foreground">
+            <th scope="col" className="w-full py-1.5 pr-4 font-normal">Source</th>
+            <th scope="col" className="py-1.5 pr-4 text-right font-normal whitespace-nowrap">People</th>
+            <th scope="col" className="py-1.5 text-right font-normal whitespace-nowrap">Active in 30 days</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sources.map((row) => (
+            <tr key={row.source}>
+              <th scope="row" className="max-w-0 truncate py-1.5 pr-4 text-left font-normal text-foreground">{row.source}</th>
+              <td className="py-1.5 pr-4 text-right text-foreground tabular-nums">{count.format(row.people)}</td>
+              <td className="py-1.5 text-right text-muted-foreground tabular-nums">{count.format(row.active_month)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  )
+}
+
 function People({ people }: { readonly people: readonly StatsPerson[] }): React.JSX.Element {
   return (
     <section aria-label="Everyone" className="flex flex-col gap-2">
@@ -155,6 +185,7 @@ function People({ people }: { readonly people: readonly StatsPerson[] }): React.
           <thead>
             <tr className="border-b border-border text-left text-xs text-muted-foreground">
               <th scope="col" className="w-full py-1.5 pr-4 font-normal">Email</th>
+              <th scope="col" className="py-1.5 pr-4 font-normal whitespace-nowrap max-sm:hidden">Source</th>
               <th scope="col" className="py-1.5 pr-4 font-normal whitespace-nowrap max-sm:hidden">Joined</th>
               <th scope="col" className="py-1.5 pr-4 font-normal whitespace-nowrap">Last active</th>
               <th scope="col" className="py-1.5 text-right font-normal whitespace-nowrap">Work pages</th>
@@ -167,6 +198,7 @@ function People({ people }: { readonly people: readonly StatsPerson[] }): React.
                   className="max-w-0 truncate py-1.5 pr-4 text-left font-normal text-foreground">
                   {person.email ?? 'No email'}
                 </th>
+                <td className="py-1.5 pr-4 whitespace-nowrap text-muted-foreground max-sm:hidden">{person.source}</td>
                 <td className="py-1.5 pr-4 whitespace-nowrap text-muted-foreground tabular-nums max-sm:hidden">
                   {dayLabel(person.joined_on)}
                 </td>
@@ -224,26 +256,76 @@ function Stats({ stats }: { readonly stats: GetStatsResponse }): React.JSX.Eleme
         </section>
       </div>
 
+      <Sources sources={stats.sources} />
+
       <People people={stats.people_list} />
 
       <p className="text-xs text-muted-foreground">
         Active means signed in and used Dana in that window; people who signed out are not counted
         until they return, and show as not active in 30 days. Work pages leave out each person’s Desk,
-        the sample workspace and anything archived or in the trash. Weeks start on Monday, UTC.
+        the sample workspace and anything archived or in the trash. Weeks start on Monday, UTC. Source is the first tagged link (utm_source or ref), then an invite, then the site that linked to Dana, else direct; unknown means the person joined before Dana kept this.
       </p>
     </div>
   )
 }
 
+const KIND_WORD = { bug: 'Problem', idea: 'Idea', other: 'Other' } as const
+
+function Feedback(): React.JSX.Element {
+  const feedback = useFeedback()
+  const setDone = useSetFeedbackDone()
+  if (feedback.isPending) return <SkeletonList />
+  if (feedback.isError) return <InlineError onRetry={() => { void feedback.refetch() }} />
+  if (feedback.data.items.length === 0) return <p className="px-2 text-sm text-muted-foreground">No feedback yet.</p>
+  return (
+    <ul className="flex flex-col gap-6 px-2">
+      {feedback.data.items.map((item) => (
+        <li key={item.id} className={cn('flex flex-col gap-2 border-b border-border pb-6', item.done && 'opacity-60')}>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span className="font-section text-foreground">{KIND_WORD[item.kind]}</span>
+            <span>{item.display_name ?? item.email ?? 'No name'}{item.email === null ? '' : ` (${item.email})`}</span>
+            <span className="tabular-nums">{new Date(item.created_at).toLocaleString()}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto"
+              disabled={setDone.isPending}
+              onClick={() => setDone.mutate({ id: item.id, done: !item.done })}
+            >
+              {item.done ? 'Mark as open' : 'Mark as done'}
+            </Button>
+          </div>
+          <PostView content={item.content} body={null} files={item.files} />
+          <p className="text-xs break-all text-muted-foreground">
+            {item.context.path} · {item.context.viewport} · {item.context.theme} · {item.context.user_agent}
+          </p>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export function StatsPage(): React.JSX.Element {
   const stats = useStats()
+  const [view, setView] = useState<'numbers' | 'feedback'>('numbers')
   if (stats.error instanceof ApiError && stats.error.status === 404) return <NotFoundPage />
   // No heading until the server answers, so a non-operator sees nothing before "not found".
   if (stats.isPending) return <SkeletonList />
   return (
     <Screen title="Stats" description="Accounts with an email, and how much each uses Dana. No page names or content.">
-      {stats.isError ? <InlineError onRetry={() => { void stats.refetch() }} /> : null}
-      {stats.data === undefined ? null : <Stats stats={stats.data} />}
+      <Segmented
+        label="Show"
+        value={view}
+        options={[{ value: 'numbers', label: 'Numbers' }, { value: 'feedback', label: 'Feedback' }]}
+        onValueChange={setView}
+        className="mx-2 mb-8 self-start"
+      />
+      {view === 'feedback' ? <Feedback /> : (
+        <>
+          {stats.isError ? <InlineError onRetry={() => { void stats.refetch() }} /> : null}
+          {stats.data === undefined ? null : <Stats stats={stats.data} />}
+        </>
+      )}
     </Screen>
   )
 }

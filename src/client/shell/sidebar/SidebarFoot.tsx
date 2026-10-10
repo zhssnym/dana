@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import type { ReactElement } from 'react'
 import { Link } from 'react-router'
-import { Search, Settings, Trash2 } from '../../lib/icons.js'
+import { MessageSquare, Search, Settings, Trash2 } from '../../lib/icons.js'
+import { FeedbackDialog } from '../../components/feedback/FeedbackDialog.js'
 import { SidebarFooter, SidebarTrigger } from '../../components/ui/sidebar.js'
 import { NotificationsBell } from '../../components/notifications-bell.js'
 import { MessagesButton } from '../../components/direct-message/MessagesButton.js'
@@ -42,8 +44,18 @@ export function SidebarFoot({
   readonly onOpenSearch: () => void
   readonly onContextMenu: (event: React.MouseEvent) => void
 }): React.JSX.Element {
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   return (
     <SidebarFooter className="border-t border-border p-2" onContextMenu={onContextMenu}>
+      <button
+        type="button"
+        className="flex h-(--control-height) w-full items-center gap-2 rounded-md border border-border px-2 text-sm text-foreground outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4 [&_svg]:text-muted-foreground"
+        onClick={() => setFeedbackOpen(true)}
+      >
+        <MessageSquare strokeWidth={1.75} aria-hidden="true" />
+        Send feedback
+      </button>
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       <div className="flex items-center gap-1">
         <FootTip label={<>Search <kbd data-slot="kbd" className="font-sans opacity-70">{SEARCH_KEYS}</kbd></>}>
           <button type="button" aria-label="Search" aria-keyshortcuts={IS_MAC ? 'Meta+K' : 'Control+K'} className={FOOT_BUTTON} onClick={onOpenSearch}>

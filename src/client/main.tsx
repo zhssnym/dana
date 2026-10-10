@@ -17,9 +17,12 @@ import { TooltipProvider } from './components/ui/tooltip.js'
 import { Router } from './Router.js'
 import { installSearchShortcut } from './shell/overlays.js'
 import { installNativeContextMenuGuard } from './lib/native-context-menu.js'
+import { rememberSignupSource } from './lib/signup-source.js'
 import { getFoldersResponse } from '../shared/folders.js'
 import { getInvitesPendingResponse } from '../shared/invites.js'
 import { meResponse } from '../shared/me.js'
+
+rememberSignupSource()
 
 const queryClient = createQueryClient()
 // The mutation cache invalidates through this handle (see queryClient.ts).

@@ -31,7 +31,7 @@ const PAGE_COPY = {
         body: [
           'Running the product you see: your lists, your calendar, sharing, invitations, and reminder emails. This is the service you ask for when you sign in.',
           'Keeping Dana secure and working: limiting abuse and fixing errors. Dana has a legitimate interest in this.',
-          'Knowing who uses Dana. The people who run Dana can see a list of accounts: each email address, the day it joined, the day it last used Dana, and how many work pages it has. That list shows no page names and nothing you wrote. Dana uses your data for nothing else.',
+          'Knowing who uses Dana. The people who run Dana can see a list of accounts: each email address, where it first came from (the site or tagged link that sent you, or an invite), the day it joined, the day it last used Dana, and how many work pages it has. That list shows no page names and nothing you wrote. When you send feedback, they also see what you wrote and attached, the page you were on, your screen size and your browser. Dana uses your data for nothing else.',
           'Dana shows your name and email to people you share a folder with, connect with, or invite; that is what sharing means here.',
         ],
       },
