@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ReactElement } from 'react'
 import { Link } from 'react-router'
-import { MessageSquare, Search, Settings, Trash2 } from '../../lib/icons.js'
+import { Megaphone, Search, Settings, Trash2 } from '../../lib/icons.js'
 import { FeedbackDialog } from '../../components/feedback/FeedbackDialog.js'
 import { SidebarFooter, SidebarTrigger } from '../../components/ui/sidebar.js'
 import { NotificationsBell } from '../../components/notifications-bell.js'
@@ -49,10 +49,10 @@ export function SidebarFoot({
     <SidebarFooter className="border-t border-border p-2" onContextMenu={onContextMenu}>
       <button
         type="button"
-        className="flex h-(--control-height) w-full items-center gap-2 rounded-md border border-border px-2 text-sm text-foreground outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4 [&_svg]:text-muted-foreground"
+        className="flex h-(--shell-sidebar-row-height) w-full items-center gap-2 rounded-md px-2 text-sm text-muted-foreground outline-none hover:bg-(--sidebar-row-hover) hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring max-md:h-(--row-height) [&_svg]:size-4 [&_svg]:shrink-0"
         onClick={() => setFeedbackOpen(true)}
       >
-        <MessageSquare strokeWidth={1.75} aria-hidden="true" />
+        <Megaphone strokeWidth={1.75} aria-hidden="true" />
         Send feedback
       </button>
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
