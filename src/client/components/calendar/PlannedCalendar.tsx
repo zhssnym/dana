@@ -19,6 +19,7 @@ import { shiftedSchedule } from '../../parts/schedule.js'
 import { InlineError } from '../state-patterns.js'
 import { Button } from '../ui/button.js'
 import { Segmented } from '../ui/segmented.js'
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip.js'
 import { useIsMobile } from '../ui/use-mobile.js'
 import { cn } from '../ui/utils.js'
 import { formatClockTime } from '../../lib/dates.js'
@@ -328,14 +329,21 @@ function DayCell({
           onClick={onReveal}
         />
       ) : onCreate === undefined ? null : (
-        <button
-          type="button"
-          className="absolute inset-0 z-0 rounded-none text-left outline-none transition-colors hover:bg-muted/70"
-          aria-label={`New task on ${formatDueDate(date, today)}`}
-          onClick={() => {
-            setDrafting(true)
-          }}
-        />
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                className="absolute inset-0 z-0 rounded-none text-left outline-none transition-colors hover:bg-muted/70"
+                aria-label={`New task on ${formatDueDate(date, today)}`}
+                onClick={() => {
+                  setDrafting(true)
+                }}
+              />
+            }
+          />
+          <TooltipContent side="top" align="end">Add a new task</TooltipContent>
+        </Tooltip>
       )}
 
       <div
