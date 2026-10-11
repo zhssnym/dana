@@ -4,6 +4,10 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip"
 
 import { cn } from "./utils.js"
 
+// Use one visual treatment for both Base UI tooltips and legacy title-backed hints.
+const TOOLTIP_SURFACE_CLASS =
+  "inline-flex w-fit max-w-xs items-center gap-1.5 rounded-md bg-foreground px-2 py-1 text-xs text-background has-data-[slot=kbd]:pr-1 **:data-[slot=kbd]:rounded-sm motion-float"
+
 // The first tooltip waits so sweeping across icons does not flicker; neighbours then open
 // at once.
 function TooltipProvider({
@@ -54,7 +58,7 @@ function TooltipContent({
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
           className={cn(
-            "inline-flex w-fit max-w-xs items-center gap-1.5 rounded-md bg-foreground px-2 py-1 text-xs text-background has-data-[slot=kbd]:pr-1 **:data-[slot=kbd]:rounded-sm motion-float",
+            TOOLTIP_SURFACE_CLASS,
             className
           )}
           {...props}
@@ -66,4 +70,4 @@ function TooltipContent({
   )
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, TOOLTIP_SURFACE_CLASS }
