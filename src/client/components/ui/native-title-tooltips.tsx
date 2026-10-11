@@ -50,8 +50,8 @@ export function NativeTitleTooltips(): React.JSX.Element | null {
   const popup = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const root = document.getElementById('root')
-    if (root === null) return undefined
+    // Menus and dialogs render portals directly in body, outside #root.
+    const root = document.body
 
     let hovered: Element | null = null
     let focused: Element | null = null
