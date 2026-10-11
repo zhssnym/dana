@@ -115,3 +115,26 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
       .toEqual({ stored: true, section: true })
   })
 })
+
+
+test('tooltip: Work actions use the same styled hint as the sidebar', async ({ page }) => {
+  await signIn(page)
+  await page.goto(`/app/folders/${seedIds.groceries}`)
+
+  const skip = page.getByRole('dialog', { name: 'How did you hear about Dana?' }).getByRole('button', { name: 'Skip' })
+  await skip.waitFor({ timeout: 5_000 }).then(() => skip.click(), () => undefined)
+
+  const filter = page.getByRole('button', { name: 'Filter tasks' })
+  await expect(filter).toBeVisible()
+  await filter.hover()
+  await expect(filter).not.toHaveAttribute('title', /.+/)
+  const filterTip = page.locator('[data-slot="tooltip-content"]').filter({ hasText: 'Filter tasks' })
+  await expect(filterTip).toBeVisible()
+  await expect(filterTip).toHaveClass(/bg-foreground/)
+
+  const settings = page.getByRole('link', { name: 'Settings', exact: true }).last()
+  await settings.hover()
+  const settingsTip = page.locator('[data-slot="tooltip-content"]').filter({ hasText: 'Settings' })
+  await expect(settingsTip).toBeVisible()
+  await expect(settingsTip).toHaveClass(/bg-foreground/)
+})
