@@ -138,3 +138,35 @@ test('tooltip: Work actions use the same styled hint as the sidebar', async ({ p
   await expect(settingsTip).toBeVisible()
   await expect(settingsTip).toHaveClass(/bg-foreground/)
 })
+
+
+test('calendar: day plus shows Add a new task hint and still creates a draft', async ({ page }) => {
+  await signIn(page)
+  await page.goto(`/app/folders/${seedIds.groceries}`)
+
+  const skip = page.getByRole('dialog', { name: 'How did you hear about Dana?' }).getByRole('button', { name: 'Skip' })
+  await skip.waitFor({ timeout: 5_000 }).then(() => skip.click(), () => undefined)
+
+  await page.getByRole('button', { name: /^Work view:/ }).click()
+  await page.getByRole('menuitemradio', { name: 'Calendar' }).click()
+
+  const calendar = page.getByRole('grid', { name: 'Work calendar' })
+  await expect(calendar).toBeVisible()
+  const day = calendar.getByRole('gridcell').first()
+  const create = day.getByRole('button', { name: /^New task on / })
+  await expect(create).toBeVisible()
+  await expect(create).not.toHaveAttribute('title', /.+/)
+
+  // The plus is decorative and lets pointer events pass through to the day action.
+  // Move onto its visual position, not just the center of the cell.
+  const plus = day.locator('svg[aria-hidden="true"]').first()
+  const bounds = await plus.boundingBox()
+  expect(bounds).not.toBeNull()
+  await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2)
+  const hint = page.locator('[data-slot="tooltip-content"]').filter({ hasText: 'Add a new task' })
+  await expect(hint).toBeVisible()
+  await expect(hint).toHaveClass(/bg-foreground/)
+
+  await page.mouse.click(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2)
+  await expect(day.getByRole('textbox', { name: /^New task on / })).toBeVisible()
+})
