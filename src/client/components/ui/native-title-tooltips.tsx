@@ -118,14 +118,24 @@ export function NativeTitleTooltips(): React.JSX.Element | null {
     const keyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') dismiss()
     }
+    const normalize = (element: Element): void => {
+      if (!element.hasAttribute('title')) return
+      labelOf(element)
+      if (element === hovered || element === focused) show(element)
+    }
     const observer = new MutationObserver((records) => {
       for (const record of records) {
-        if (!(record.target instanceof Element)) continue
-        const element = record.target
-        const changed = element.hasAttribute('title')
-        if (!changed) continue
-        labelOf(element)
-        if (element === hovered || element === focused) show(element)
+        if (record.type === 'attributes') {
+          if (record.target instanceof Element) normalize(record.target)
+          continue
+        }
+        // React inserts complete subtrees. A title on the inserted node or one
+        // of its descendants must not wait until the first user hover.
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue
+          normalize(node)
+          for (const element of node.querySelectorAll('[title]')) normalize(element)
+        }
       }
     })
 
