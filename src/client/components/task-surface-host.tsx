@@ -7,6 +7,7 @@ import { useLocation, useNavigate } from 'react-router'
 import { paths } from '../routes.js'
 import { onOpenTask } from './task-open.js'
 import { usePrefetchTaskOnIntent } from './task-surface.js'
+import { TaskContextMenuHost } from './task-context-menu.js'
 
 /** The old peek parameter; read only to redirect. */
 const TASK_PARAM = 'task'
@@ -40,5 +41,5 @@ export function TaskSurfaceHost(): ReactNode {
     void navigate(paths.task(encodeURIComponent(legacy)), { replace: true })
   }, [legacy, navigate])
 
-  return null
+  return <TaskContextMenuHost />
 }
