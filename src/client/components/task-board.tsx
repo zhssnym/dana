@@ -166,6 +166,7 @@ function BoardCard({
       ref={wiring.itemRef}
       {...wiring.listProps}
       data-task-id={task.id}
+      data-task-title={task.title}
       // A list item, not a button: the card sits inside `TaskList`'s `role="list"`, and
       // AC-228 addresses cards as list items. tabIndex and Enter/Space keep it operable.
       role="listitem"

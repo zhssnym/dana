@@ -30,6 +30,7 @@ export function TaskRow(props: TaskRowProps) {
     <div
       /* The peek steps through rows in the order they are drawn. */
       data-task-id={props.id}
+      data-task-title={task.title}
       /* `row-keys.ts` makes this row the list's Tab stop. */
       data-row-key=""
       onKeyDown={(event) => {
