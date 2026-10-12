@@ -209,8 +209,10 @@ export function BreadcrumbTrail({
                 <span aria-current="page" className={cn(CRUMB, 'max-w-none text-foreground')} title={crumb.name}>
                   <span className="truncate">{crumb.name || 'Untitled'}</span>
                 </span>
-              ) : crumb.id === null && crumb.to === undefined ? (
-                // Virtual locations have no invented URL or parent record.
+              ) : (crumb.id === null && crumb.to === undefined) ||
+                  (folderTo === undefined && crumb.id !== null && paths.folder(crumb.id) === pathname && crumb.to === undefined) ? (
+                // Virtual locations and the current project's identity have no
+                // useful destination. Never link the root Work crumb to itself.
                 <span className={cn(CRUMB, 'text-muted-foreground')} title={crumb.name}>
                   <span className="truncate">{crumb.name || 'Untitled'}</span>
                 </span>
