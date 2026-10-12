@@ -53,7 +53,6 @@ import { createViewsRouter } from './routes/views.js'
 import { createWorkshopRouter } from './routes/workshop.js'
 import { startReminderScheduler } from './scheduler/index.js'
 import { originOf } from './security/csp-report.js'
-import { removeEverySampleWorkspace } from './sample/workspace.js'
 import { createRateLimits } from './security/rate-limit.js'
 import type { RateLimits } from './security/rate-limit.js'
 import { createSecurityLogger } from './security/log.js'
@@ -525,16 +524,6 @@ async function main(): Promise<void> {
   const server = app.listen(port, () => {
     runtimeBootLog.operation('info', 'server_listening', { port })
   })
-
-  // One-time cleanup of the retired sample workspace (7.20). Remove with src/server/sample/.
-  void removeEverySampleWorkspace(dbClient.db, fileStore).then(
-    (count) => {
-      if (count > 0) runtimeBootLog.operation('info', 'sample_workspaces_removed', { count })
-    },
-    (err: Error) => {
-      runtimeBootLog.operation('error', 'sample_workspaces_removal_failed', { reason: err.name })
-    },
-  )
 
   // Started after listen, so a port that will not bind fails the deploy before
   // a pass sends anything. Assumes a single instance (11.1).

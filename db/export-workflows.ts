@@ -42,7 +42,6 @@ const transactional = db as unknown as { transaction<T>(run: (tx: Db & { rollbac
 const projects = await rowsOf(
   db,
   sql`SELECT f.id, f.name, f.owner_id, f.archived_at IS NOT NULL AS archived,
-             EXISTS (SELECT 1 FROM sample_objects s WHERE s.kind = 'folder' AND s.id = f.id) AS sample,
              COALESCE(u.email, u.id::text) AS owner_email
       FROM folders f JOIN users u ON u.id = f.owner_id
       WHERE f.project_id = f.id AND f.deleted_at IS NULL
@@ -108,7 +107,7 @@ for (const project of projects) {
   mkdirSync(dir, { recursive: true })
   writeFileSync(path.join(dir, `${safe(name)}-${id.slice(0, 8)}.dana.json`), JSON.stringify(saved.file, null, 2))
   report.push(
-    [owner, name, project.sample === true ? 'sample' : project.archived === true ? 'archived' : 'live', pageItems, openTasks, saved.withheldTasks, saved.omitted, valid.success ? 'ok' : valid.error.issues[0]?.message].join('\t'),
+    [owner, name, project.archived === true ? 'archived' : 'live', pageItems, openTasks, saved.withheldTasks, saved.omitted, valid.success ? 'ok' : valid.error.issues[0]?.message].join('\t'),
   )
 }
 writeFileSync(path.join(outDir, 'report.tsv'), ['owner\tproject\tstate\tpage_items\topen_tasks\twithheld_tasks\tomitted_blocks\timport_check', ...report].join('\n'))

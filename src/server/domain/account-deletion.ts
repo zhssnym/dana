@@ -1,7 +1,6 @@
 // 8.10 account deletion, steps 1 to 6c, inside the caller's transaction (the auth module runs steps 7 and 8).
 // Step 7 scrubs the users row instead of deleting it, so no ON DELETE clause on users(id) ever fires:
 // every table keyed to users needs an entry below and, if swept, a statement in step 6c.
-import { notSamplePerson } from '../sample/people.js'
 import { sql } from 'drizzle-orm'
 
 import { deleteFolderRow, runRClean, transferOwnership } from './folders.js'
@@ -325,13 +324,6 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     why: "4.14's row is one recipient's copy, so every row keyed to this account is that account's own notification history and nobody else's. Events are untouched: events_actor_id_fkey is RESTRICT and other people's notifications about this account's acts are their history, not this account's.",
   },
   {
-    fk: 'sample_objects_user_id_fkey',
-    table: 'sample_objects',
-    disposition: 'deleted',
-    where: 'step 6c, in this file',
-    why: "4.21's bookkeeping marks which of this account's own objects came from the sample workspace. Its id column carries no foreign key at all, so once step 3 and this step have taken the shelves, folders, tasks and views it names, every row left is a mark on something that no longer exists.",
-  },
-  {
     fk: 'shelves_user_id_fkey',
     table: 'shelves',
     disposition: 'deleted',
@@ -408,8 +400,7 @@ export async function deleteAccountData(
     sql`SELECT id FROM folders f
         WHERE f.owner_id = ${userId} AND NOT f.is_default AND f.id = f.project_id
           AND EXISTS (SELECT 1 FROM folder_members m
-                       WHERE m.folder_id = f.id AND m.user_id <> ${userId}
-                         AND ${notSamplePerson(sql`m.user_id`)})
+                       WHERE m.folder_id = f.id AND m.user_id <> ${userId})
         ORDER BY f.id`,
   )
   for (const row of transferable) {
@@ -503,10 +494,6 @@ export async function deleteAccountData(
     await rowsOf(
       tx,
       sql`DELETE FROM notifications WHERE user_id = ${userId} RETURNING 1 AS one`,
-    ),
-    await rowsOf(
-      tx,
-      sql`DELETE FROM sample_objects WHERE user_id = ${userId} RETURNING 1 AS one`,
     ),
     await rowsOf(
       tx,

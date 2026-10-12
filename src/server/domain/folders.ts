@@ -1,6 +1,5 @@
 // Folders and membership (7.4, 5.3, 5.4, R-CLEAN, 8.8, 8.9, 8.11). Every query is scoped to the viewer
 // or to a folder whose access the caller resolved. Results are discriminated unions; routes map statuses.
-import { notSamplePerson } from '../sample/people.js'
 import { randomUUID } from 'node:crypto'
 
 import { sql } from 'drizzle-orm'
@@ -858,8 +857,7 @@ export async function otherMemberCount(
   const found = await rowsOf(
     db,
     sql`SELECT count(*)::int AS n FROM folder_members
-        WHERE folder_id = ${projectIdOf(folderId)} AND user_id <> ${excludingUserId}
-          AND ${notSamplePerson(sql`user_id`)}`,
+        WHERE folder_id = ${projectIdOf(folderId)} AND user_id <> ${excludingUserId}`,
   )
   return Number(found[0]?.n ?? 0)
 }
@@ -1002,7 +1000,6 @@ export async function transferOwnership(
     tx,
     sql`SELECT user_id FROM folder_members
         WHERE folder_id = ${folderId} AND user_id <> ${departingOwnerId}
-          AND ${notSamplePerson(sql`user_id`)}
         ORDER BY created_at ASC, user_id ASC
         LIMIT 1`,
   )
@@ -1190,7 +1187,6 @@ export async function ownedSharedFolders(
     sql`SELECT f.id, f.name,
                EXISTS (SELECT 1 FROM folder_members s
                         WHERE s.folder_id = f.id AND s.user_id <> ${ownerId}
-                          AND ${notSamplePerson(sql`s.user_id`)}
                           AND s.access = 'full_control') AS heir
         FROM folders f
         WHERE f.owner_id = ${ownerId} AND NOT f.is_default
@@ -1198,8 +1194,7 @@ export async function ownedSharedFolders(
           -- Step 8: every page follows its project's owner, so only the project is named.
           AND f.id = f.project_id
           AND EXISTS (SELECT 1 FROM folder_members m
-                       WHERE m.folder_id = f.id AND m.user_id <> ${ownerId}
-                         AND ${notSamplePerson(sql`m.user_id`)})
+                       WHERE m.folder_id = f.id AND m.user_id <> ${ownerId})
         ORDER BY lower(f.name) ASC, f.id ASC`,
   )
   return found.map((row) => ({
