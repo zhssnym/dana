@@ -196,3 +196,67 @@ test('navigation: a root Work tab and standalone places always show a breadcrumb
   await expect(page).toHaveURL(/\/app\/settings$/)
   await expect(breadcrumb.locator('[aria-current="page"]')).toHaveText('Settings')
 })
+
+
+test('calendar: Upcoming expands overlapping ranges and opens a previously hidden Task', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/app/scheduled')
+
+  const skip = page.getByRole('dialog', { name: 'How did you hear about Dana?' }).getByRole('button', { name: 'Skip' })
+  await skip.waitFor({ timeout: 5_000 }).then(() => skip.click(), () => undefined)
+
+  const showCalendar = page.getByRole('button', { name: 'Show as calendar' })
+  if (await showCalendar.isVisible()) await showCalendar.click()
+  await page.getByRole('radiogroup', { name: 'Calendar zoom' }).getByRole('radio', { name: 'Month' }).click()
+
+  const calendar = page.getByRole('grid', { name: 'Upcoming calendar' })
+  const midMonth = calendar.locator('[data-date$="-15"]').first()
+  await expect(midMonth).toBeVisible()
+  const date = await midMonth.getAttribute('data-date')
+  expect(date).not.toBeNull()
+  const month = date!.slice(0, 7)
+
+  // Three ranges covering the same week, with no need for extra single-day rows.
+  const csrf = (await page.context().cookies()).find((cookie) => cookie.name === 'dana_csrf')?.value
+  expect(csrf).toBeTruthy()
+  const ids: string[] = []
+  for (let index = 0; index < 3; index += 1) {
+    const response = await page.request.post('/api/v1/tasks', {
+      headers: { 'X-CSRF-Token': csrf! },
+      data: {
+        folder_id: seedIds.groceries,
+        title: `Calendar expansion regression ${String(index + 1)}`,
+        start_date: `${month}-12`,
+        due_date: `${month}-18`,
+      },
+    })
+    expect(response.status(), await response.text()).toBe(201)
+    const task = (await response.json()) as { id: string }
+    ids.push(task.id)
+  }
+
+  // A full reload also verifies server persistence rather than client-only rows.
+  await page.reload()
+  const listToggle = page.getByRole('button', { name: 'Show as calendar' })
+  if (await listToggle.isVisible()) await listToggle.click()
+  await page.getByRole('radiogroup', { name: 'Calendar zoom' }).getByRole('radio', { name: 'Month' }).click()
+
+  const day = page.getByRole('grid', { name: 'Upcoming calendar' }).locator(`[data-date="${date!}"]`)
+  const weekRow = day.locator('xpath=../..')
+  const visibleRangeCount = async (): Promise<number> => {
+    const visible = await Promise.all(ids.map(async (id) =>
+      weekRow.locator(`button[data-task-id="${id}"]`).count()))
+    return visible.filter((count) => count > 0).length
+  }
+  await expect(day.getByRole('button', { name: /^\\+\\d+ more$/ })).toBeVisible()
+  expect(await visibleRangeCount()).toBe(2)
+
+  await day.getByRole('button', { name: /^\\+\\d+ more$/ }).click()
+  await expect.poll(visibleRangeCount).toBe(3)
+  await expect(day.getByRole('button', { name: /^\\+\\d+ more$/ })).toHaveCount(0)
+
+  const opened = weekRow.locator(`button[data-task-id="${ids[2]}"]`)
+  await opened.click()
+  await expect(page).toHaveURL(new RegExp(`/app/tasks/${ids[2]}$`))
+  await expect(page.getByText('Calendar expansion regression 3').first()).toBeVisible()
+})
