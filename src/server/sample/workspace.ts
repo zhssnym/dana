@@ -1,6 +1,7 @@
-// The sample workspace (7.20): written inside account provisioning, removed in one act.
-// Every object it makes is registered in sample_objects; cascading children are not.
+// The retired sample workspace (7.20). New accounts no longer get it; boot removes what is left.
+// Every object it made is registered in sample_objects; cascading children are not.
 // Removal keeps what became the person's: moved tasks and shared pages stay; pages they wrote into go to Trash.
+// createSampleWorkspace stays only so the removal tests can build a sample. Remove this folder after the cleanup.
 import { randomUUID } from 'node:crypto'
 
 import { sql } from 'drizzle-orm'
@@ -10,7 +11,6 @@ import type { Db } from '../../../db/client.js'
 import { allowedIn } from '../../shared/block-kinds.js'
 import { documentTransaction } from '../../shared/page-document.js'
 import type { DocumentOperation } from '../../shared/page-document.js'
-import type { SampleCounts, SampleStatus } from '../../shared/sample.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from '../domain/events.js'
@@ -27,7 +27,8 @@ import {
 } from '../domain/page-tree.js'
 import { upsertReminder } from '../domain/tasks.js'
 import { appendChecklist } from '../domain/task-document.js'
-import { destroyFolders, destroyTasks } from '../domain/trash.js'
+import { destroyFolders, destroyTasks, removeObjects } from '../domain/trash.js'
+import type { ObjectStore } from '../files/store.js'
 import { today } from '../time/today.js'
 import { SAMPLE_PEOPLE, SAMPLE_WORKSPACE } from './content.js'
 import type {
@@ -558,12 +559,12 @@ async function writeDocPages(ctx: SampleContext, folder: SampleFolder, folderId:
   }
 }
 
-/** Writes the whole sample on the caller's transaction, so a fault takes the new account down with it. */
+/** Writes the whole sample on the caller's transaction. Used only by tests now. */
 export async function createSampleWorkspace(
   tx: Executor,
   userId: string,
   zone: string,
-): Promise<SampleCounts> {
+): Promise<void> {
   const me = await rowsOf(tx, sql`SELECT display_name FROM users WHERE id = ${userId}::uuid`)
   const ctx: SampleContext = {
     tx,
@@ -677,37 +678,6 @@ export async function createSampleWorkspace(
     )
     await register(tx, userId, 'view', String(made[0]?.id))
   }
-
-  return countLive(tx, userId)
-}
-
-/** The registered objects that still exist, by kind. */
-async function countLive(db: Executor, userId: string): Promise<SampleCounts> {
-  const rows = await rowsOf(
-    db,
-    sql`SELECT
-          (SELECT count(*)::int FROM sample_objects s JOIN shelves o ON o.id = s.id
-            WHERE s.user_id = ${userId}::uuid AND s.kind = 'shelf') AS shelves,
-          (SELECT count(*)::int FROM sample_objects s JOIN folders o ON o.id = s.id
-            WHERE s.user_id = ${userId}::uuid AND s.kind = 'folder') AS folders,
-          (SELECT count(*)::int FROM sample_objects s JOIN tasks o ON o.id = s.id
-            WHERE s.user_id = ${userId}::uuid AND s.kind = 'task') AS tasks,
-          (SELECT count(*)::int FROM sample_objects s JOIN user_views o ON o.id = s.id
-            WHERE s.user_id = ${userId}::uuid AND s.kind = 'view') AS views`,
-  )
-  const row = rows[0]
-  return {
-    shelves: Number(row?.shelves ?? 0),
-    folders: Number(row?.folders ?? 0),
-    tasks: Number(row?.tasks ?? 0),
-    views: Number(row?.views ?? 0),
-  }
-}
-
-export async function sampleStatus(db: Executor, userId: string): Promise<SampleStatus> {
-  const counts = await countLive(db, userId)
-  const present = counts.shelves + counts.folders + counts.tasks + counts.views > 0
-  return { present, counts }
 }
 
 export interface SampleRemoval {
@@ -927,36 +897,16 @@ export async function removeSampleWorkspace(
   })
 }
 
-export type RestoreSampleResult =
-  | { kind: 'restored'; status: SampleStatus }
-  | { kind: 'shelf_name_taken' }
-
-/** POST /sample: recreate the workspace. Idempotent while it is present, so undo and a double press land once. */
-export async function restoreSampleWorkspace(
+/** Removes every account's sample, one account per transaction. Idempotent: the register is empty after. */
+export async function removeEverySampleWorkspace(
   db: Db,
-  userId: string,
-): Promise<RestoreSampleResult> {
-  try {
-    const status = await inTransaction(db, async (tx) => {
-      const locked = await rowsOf(
-        tx,
-        sql`SELECT timezone FROM users WHERE id = ${userId}::uuid FOR UPDATE`,
-      )
-      const current = await sampleStatus(tx, userId)
-      if (current.present) return current
-      await tx.execute(sql`DELETE FROM sample_objects WHERE user_id = ${userId}::uuid`)
-      const counts = await createSampleWorkspace(
-        tx,
-        userId,
-        String(locked[0]?.timezone ?? 'UTC'),
-      )
-      return { present: true, counts }
-    })
-    return { kind: 'restored', status }
-  } catch (error) {
-    // The person already has a shelf named like one of the sample's (4.18 unique).
-    const message = String((error as { message?: string })?.message ?? error)
-    if (/23505|unique/i.test(message)) return { kind: 'shelf_name_taken' }
-    throw error
+  fileStore: ObjectStore | undefined,
+): Promise<number> {
+  const users = await rowsOf(db, sql`SELECT DISTINCT user_id FROM sample_objects`)
+  for (const row of users) {
+    const removal = await removeSampleWorkspace(db, String(row.user_id))
+    // Rows are committed, so the bytes go now.
+    await removeObjects(fileStore, removal.fileIds)
   }
+  return users.length
 }

@@ -34,7 +34,7 @@ export default defineConfig({
     carries the reasoning, and spec 11.10 the contract.
     */
     globalSetup: ['./tests/support/postgres-leg-global.ts'],
-    setupFiles: ['./tests/support/vitest-setup.ts', './tests/support/postgres-leg-setup.ts'],
+    setupFiles: ['./tests/support/postgres-leg-setup.ts'],
     include: [
       'src/**/*.test.{ts,tsx}',
       'db/**/*.test.{ts,tsx}',

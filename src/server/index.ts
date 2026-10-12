@@ -45,7 +45,6 @@ import { createInvitesRouter } from './routes/invites.js'
 import { createLabelsRouter } from './routes/labels.js'
 import { createReferencesRouter } from './routes/references.js'
 import { createBacklinksRouter } from './routes/backlinks.js'
-import { createSampleRouter } from './routes/sample.js'
 import { createTasksRouter } from './routes/tasks.js'
 import { createStatsRouter } from './routes/stats.js'
 import { createTrashRouter } from './routes/trash.js'
@@ -53,6 +52,7 @@ import { createViewsRouter } from './routes/views.js'
 import { createWorkshopRouter } from './routes/workshop.js'
 import { startReminderScheduler } from './scheduler/index.js'
 import { originOf } from './security/csp-report.js'
+import { removeEverySampleWorkspace } from './sample/workspace.js'
 import { createRateLimits } from './security/rate-limit.js'
 import type { RateLimits } from './security/rate-limit.js'
 import { createSecurityLogger } from './security/log.js'
@@ -81,8 +81,6 @@ export interface AppOptions {
    * env, so a test harness that sets APP_ORIGIN is not redirected.
    */
   appOrigin?: string
-  /** Write the sample workspace at a new account's first sign-in (7.20). */
-  sampleWorkspace?: boolean
 }
 
 /** Test default. main() passes resolveObjectStore() (R2 in production) instead. */
@@ -253,13 +251,7 @@ export function createApp(options: AppOptions = {}): express.Express {
       securityLog,
       // DELETE /me removes the account's files after commit (8.10 step 6a).
       fileStore,
-      sampleWorkspace: options.sampleWorkspace ?? process.env.DANA_SAMPLE_WORKSPACE !== 'off',
     }),
-  )
-
-  app.use(
-    '/api/v1',
-    createSampleRouter({ dbClient: options.dbClient, rateLimits, fileStore }),
   )
 
   app.use(
@@ -531,6 +523,16 @@ async function main(): Promise<void> {
   const server = app.listen(port, () => {
     runtimeBootLog.operation('info', 'server_listening', { port })
   })
+
+  // One-time cleanup of the retired sample workspace (7.20). Remove with src/server/sample/.
+  void removeEverySampleWorkspace(dbClient.db, fileStore).then(
+    (count) => {
+      if (count > 0) runtimeBootLog.operation('info', 'sample_workspaces_removed', { count })
+    },
+    (err: Error) => {
+      runtimeBootLog.operation('error', 'sample_workspaces_removal_failed', { reason: err.name })
+    },
+  )
 
   // Started after listen, so a port that will not bind fails the deploy before
   // a pass sends anything. Assumes a single instance (11.1).

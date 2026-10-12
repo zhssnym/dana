@@ -11,7 +11,6 @@ import type { Db } from '../../../db/client.js'
 import type { Executor } from '../database.js'
 import { inTransaction, rowsOf } from '../database.js'
 import { recordAccessTransition } from '../domain/folder-access.js'
-import { createSampleWorkspace } from '../sample/workspace.js'
 import { sameZone, writeTimezone } from './timezone-sync.js'
 
 /*
@@ -25,11 +24,6 @@ export interface GoogleIdentity {
   email: string
   displayName: string | null
   avatarUrl: string | null
-}
-
-export interface ProvisionOptions {
-  /** Write the sample workspace in this transaction (7.20). */
-  sample?: boolean
 }
 
 /**
@@ -98,7 +92,6 @@ export async function provisionUser(
   db: Db,
   identity: GoogleIdentity,
   reportedTimezone: string | undefined,
-  options: ProvisionOptions = {},
 ): Promise<ProvisionedUser> {
   return inTransaction(db, async (tx) => {
     // Refused before the insert; see isEmailCollision.
@@ -167,11 +160,6 @@ export async function provisionUser(
     })
 
     await tx.execute(sql`INSERT INTO user_settings (user_id) VALUES (${userId})`)
-
-    // Same transaction, so a fault leaves no half-made account.
-    if (options.sample === true) {
-      await createSampleWorkspace(tx, userId, String(winner.timezone))
-    }
 
     return { id: userId, timezone: String(winner.timezone), created: true }
   })

@@ -45,7 +45,7 @@ function LocalPreviewLogin(): React.JSX.Element {
       await mutateApi(null, {
         method: 'POST',
         path: '/auth/dev-login',
-        body: { sub: 'dana-local-preview', name: 'Preview', sample: true },
+        body: { sub: 'dana-local-preview', name: 'Preview' },
       })
       window.location.assign(paths.today)
     } catch {

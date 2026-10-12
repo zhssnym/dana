@@ -29,8 +29,6 @@ import type {
   TransferOwnershipResponse,
 } from '../../shared/folders.js'
 import { getSettingsResponse } from '../../shared/bundle.js'
-import { SAMPLE_KEPT_HEADER, SAMPLE_TRASHED_HEADER, sampleStatus } from '../../shared/sample.js'
-import type { SampleStatus } from '../../shared/sample.js'
 import type {
   GetSettingsResponse,
   PatchSettingsBody,
@@ -885,37 +883,5 @@ export function useImportWorkflowFile(): UseMutationResult<
         body,
         params: { tz: requestTimezone() },
       }),
-  })
-}
-
-/** The 204's headers name the sample folders left standing (shared) and those moved to Trash (written in). */
-export function useRemoveSample(): UseMutationResult<
-  { kept: string[]; trashed: string[] },
-  Error,
-  void
-> {
-  return useMutation({
-    mutationFn: async () => {
-      const names = (raw: string | null): string[] =>
-        raw === null || raw === '' ? [] : decodeURIComponent(raw).split('\n')
-      let kept: string[] = []
-      let trashed: string[] = []
-      await mutateApi(null, {
-        method: 'DELETE',
-        path: '/sample',
-        onHeaders: (headers) => {
-          kept = names(headers.get(SAMPLE_KEPT_HEADER))
-          trashed = names(headers.get(SAMPLE_TRASHED_HEADER))
-        },
-      })
-      return { kept, trashed }
-    },
-  })
-}
-
-/** POST /sample: the workspace again, idempotent while it is present. */
-export function useRestoreSample(): UseMutationResult<SampleStatus, Error, void> {
-  return useMutation({
-    mutationFn: () => mutateApi(sampleStatus, { method: 'POST', path: '/sample' }),
   })
 }

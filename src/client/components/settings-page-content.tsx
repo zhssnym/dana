@@ -85,16 +85,9 @@ function ViewerRow() {
 export function SettingsPageContent({
   previewState,
   onDeleteAccount,
-  sample,
-  onRemoveSample,
-  onRestoreSample,
 }: {
   previewState?: string | null
   onDeleteAccount?: () => void
-  // Drawn only once the page knows whether the sample is present.
-  sample?: { present: boolean; busy: boolean; tasks: number; folders: number } | null
-  onRemoveSample?: () => void
-  onRestoreSample?: () => void
 }) {
   const theme = useTheme()
   const clock = useTimeFormat()
@@ -196,21 +189,6 @@ export function SettingsPageContent({
               description="Work and pages removed from active views"
               control={<Button render={<Link to={paths.archivedWork} />}>Manage archived work</Button>}
             />
-            {sample ? (
-              <StackingRow
-                label="Sample workspace"
-                description={sample.present ? 'To show you around.' : undefined}
-                control={
-                  // The client cannot tell removed from never had, so one neutral label.
-                  <Button
-                    disabled={sample.busy}
-                    onClick={sample.present ? onRemoveSample : onRestoreSample}
-                  >
-                    {sample.present ? 'Remove' : 'Add sample pages'}
-                  </Button>
-                }
-              />
-            ) : null}
           </SettingsSection>
 
           {/* Destructive, so last and in a card of its own. */}

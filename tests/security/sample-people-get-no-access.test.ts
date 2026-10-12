@@ -18,7 +18,9 @@ import type { AuthTestApp } from '../support/auth-harness.js'
 import { Cast, expectStatus } from '../support/folders-harness.js'
 import { deleteAccount } from '../support/sharing-harness.js'
 import { rows } from '../support/helpers.js'
+import { inTransaction } from '../../src/server/database.js'
 import { SAMPLE_PEOPLE } from '../../src/server/sample/content.js'
+import { createSampleWorkspace } from '../../src/server/sample/workspace.js'
 
 let app: AuthTestApp
 const cast = new Cast(['departing'], 'ac1176')
@@ -36,7 +38,7 @@ describe('sample people never inherit a page', () => {
   test('deleting an account that kept its sample leaves no page owned by a sample person', async () => {
     const [departing] = await cast.of(app)
     if (departing === undefined) throw new Error('cast must produce one actor')
-    expectStatus(await departing.browser.json('/sample', 'POST', {}), 200, 'the sample workspace is made (7.20)')
+    await inTransaction(app.db, (tx) => createSampleWorkspace(tx, departing.id, 'UTC'))
 
     const before = await rows(
       app.db,
