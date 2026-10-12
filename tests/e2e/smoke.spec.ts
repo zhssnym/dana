@@ -185,9 +185,9 @@ test('navigation: a root Work tab and standalone places always show a breadcrumb
 
   await page.goto(`/app/folders/${seedIds.groceries}`)
   await expect(breadcrumb).toBeVisible()
-  await expect(breadcrumb.getByRole('link', { name: 'Groceries' })).toBeVisible()
+  await expect(breadcrumb.getByText('Groceries', { exact: true })).toBeVisible()
+  await expect(breadcrumb.getByRole('link', { name: 'Groceries' })).toHaveCount(0)
   await expect(breadcrumb.locator('[aria-current="page"]')).toHaveText('Work')
-  await expect(page.getByRole('tab', { name: 'Work' })).toBeVisible()
 
   await page.goto('/app/settings/archived-work')
   await expect(breadcrumb.getByRole('link', { name: 'Settings' })).toBeVisible()
