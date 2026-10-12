@@ -39,7 +39,7 @@ import {
 import type { Zoom } from './grid.js'
 import { cellsByDate } from './order.js'
 import type { CellEvent } from './order.js'
-import { readCalendarDrag, weekRanges } from './ranges.js'
+import { expandedMonthWeekSteps, MONTH_CELL_LINES, MONTH_RANGE_LANES, readCalendarDrag, weekRanges } from './ranges.js'
 import type { CalendarDrag, WeekRange } from './ranges.js'
 import { CALENDAR_ZOOMS } from '../../../shared/bundle.js'
 import {
@@ -48,9 +48,6 @@ import {
   setCalendarZoom,
   useCalendarZoom,
 } from '../../lib/calendar-zoom.js'
-
-// Three lines per month cell; the last becomes "+N more" when the day holds more.
-const MONTH_CELL_LINES = 3
 
 function identityStyle(id: string): React.CSSProperties {
   // FNV-1a gives each task a stable hue; a second hash slice picks one of three tones
@@ -658,14 +655,16 @@ export function PlannedCalendar({
     }
     return rows
   }, [dates, columns])
-  const ranges = useMemo(() => weeks.map((week) => weekRanges(previewReal, week, zoom === 'month' ? 2 + (weekSteps[week[0] ?? ''] ?? 0) : Infinity)), [weeks, previewReal, zoom, weekSteps])
+  const ranges = useMemo(() => weeks.map((week) => weekRanges(previewReal, week, zoom === 'month' ? MONTH_RANGE_LANES + (weekSteps[week[0] ?? ''] ?? 0) : Infinity)), [weeks, previewReal, zoom, weekSteps])
 
   function expandWeek(week: readonly string[]): void {
     const key = week[0]
     if (key === undefined) return
-    const full = weekRanges(previewReal, week)
-    const needed = full.lanes + Math.max(0, ...week.map((day) => cells.get(day)?.length ?? 0))
-    setWeekSteps((was) => ({ ...was, [key]: Math.max(was[key] ?? 0, needed - MONTH_CELL_LINES) }))
+    const cellCounts = new Map(week.map((day) => [day, cells.get(day)?.length ?? 0] as const))
+    setWeekSteps((was) => ({
+      ...was,
+      [key]: expandedMonthWeekSteps(previewReal, week, cellCounts, was[key] ?? 0),
+    }))
   }
 
   function resizeWeek(pointer: ReactPointerEvent<HTMLButtonElement>, key: string): void {

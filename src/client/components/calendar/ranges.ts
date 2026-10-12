@@ -43,6 +43,29 @@ export function weekRanges(tasks: readonly TaskCard[], week: readonly string[], 
   return { visible, lanes: laneEnds.length, hidden }
 }
 
+// Month cells have three content lines, but reserve at most two for ranges by default.
+// Keep these together: expanding a busy week must satisfy both limits.
+export const MONTH_CELL_LINES = 3
+export const MONTH_RANGE_LANES = 2
+
+/** Minimum extra row steps that reveal every range and single-day event in a week. */
+export function expandedMonthWeekSteps(
+  tasks: readonly TaskCard[],
+  week: readonly string[],
+  cellCounts: ReadonlyMap<string, number>,
+  previousSteps: number,
+): number {
+  const lanes = weekRanges(tasks, week).lanes
+  const busiestDay = week.reduce((max, date) => Math.max(max, cellCounts.get(date) ?? 0), 0)
+  return Math.max(
+    0,
+    previousSteps,
+    // Three overlapping ranges need one extra step even with no single-day events.
+    lanes - MONTH_RANGE_LANES,
+    lanes + busiestDay - MONTH_CELL_LINES,
+  )
+}
+
 export type CalendarDrag = {
   readonly taskId: string
   readonly action: 'move' | 'start' | 'due'
