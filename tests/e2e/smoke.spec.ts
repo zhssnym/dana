@@ -13,7 +13,7 @@ test.describe.configure({ timeout: 120_000 })
 /** 11.10's session source for this leg: the development login, seed account. */
 async function signIn(page: Page): Promise<void> {
   const response = await page.request.post('/api/v1/auth/dev-login', {
-    data: { sub: 'seed-google-sub-hassan', sample: false },
+    data: { sub: 'seed-google-sub-hassan' },
   })
   expect(
     response.status(),

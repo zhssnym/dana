@@ -18,8 +18,6 @@ interface DevLoginBody {
   sub?: unknown
   name?: unknown
   timezone?: unknown
-  /** 7.20: `false` or `true` overrides the app's sample-workspace default. */
-  sample?: unknown
 }
 
 export async function handleDevLogin(
@@ -27,7 +25,6 @@ export async function handleDevLogin(
   req: Request,
   res: Response,
   establish: (res: Response, userId: string) => Promise<void>,
-  sampleDefault = true,
 ): Promise<void> {
   // Query params too, so a plain HTML form can name the account.
   const body = { ...(req.query as object), ...((req.body ?? {}) as object) } as DevLoginBody
@@ -45,20 +42,12 @@ export async function handleDevLogin(
       ? body.timezone
       : undefined
 
-  const sample =
-    body.sample === true || body.sample === 'true'
-      ? true
-      : body.sample === false || body.sample === 'false'
-        ? false
-        : sampleDefault
-
   let user
   try {
     user = await provisionUser(
       db,
       { sub, email, displayName: name, avatarUrl: null },
       timezone,
-      { sample },
     )
   } catch (error) {
     /*

@@ -1,14 +1,13 @@
 /*
 Given a task, a block or a comment the person wrote into a sample
-page, when they DELETE /sample, then that page's sample tree goes to Trash (a thread on a
-project's Discussion tab counts as the project's)
-with their writing in it, the response names it in X-Dana-Sample-Trashed,
-the register is empty, and the undo's fresh sample has no live duplicate of
-it. An untouched sample is destroyed whole, with nothing sent to Trash.
+page, when the retired sample is removed (boot does this for every account),
+then that page's sample tree goes to Trash (a thread on a project's Discussion
+tab counts as the project's) with their writing in it, the removal names it,
+and the register is empty. An untouched sample is destroyed whole, with
+nothing sent to Trash.
 
-Data loss: removal destroys past Trash, and the undo writes a fresh sample,
-not what was removed. Before, a person who tried the product by writing in
-one of Maya's pages lost it for good on one press of Remove.
+Data loss: removal destroys past Trash. Before, a person who tried the product
+by writing in one of Maya's pages lost it for good.
 
 Asserted on stored rows. Spec: 7.20.
 */
@@ -19,7 +18,8 @@ import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
 import { Cast, expectStatus } from '../support/folders-harness.js'
 import { rows } from '../support/helpers.js'
-import { SAMPLE_TRASHED_HEADER } from '../../src/shared/sample.js'
+import { inTransaction } from '../../src/server/database.js'
+import { createSampleWorkspace, removeSampleWorkspace } from '../../src/server/sample/workspace.js'
 
 let app: AuthTestApp
 const cast = new Cast(['tryer', 'writer', 'looker', 'starter'], 'ac1380')
@@ -49,24 +49,15 @@ async function sampleFolders(userId: string): Promise<Record<string, unknown>[]>
   )
 }
 
-function trashedNames(response: { headers: Record<string, unknown> }): string[] {
-  const header = response.headers[SAMPLE_TRASHED_HEADER]
-  return header === undefined ? [] : decodeURIComponent(String(header)).split('\n')
-}
-
-async function liveByName(userId: string, name: string): Promise<number> {
-  const found = await rows(
-    app.db,
-    sql`SELECT count(*)::int AS n FROM folders
-        WHERE owner_id = ${userId}::uuid AND name = ${name} AND deleted_at IS NULL`,
-  )
-  return Number(found[0]?.n)
-}
-
 async function withSample(actor: Actor | undefined): Promise<Actor> {
   if (actor === undefined) throw new Error('cast must produce the actor')
-  expectStatus(await actor.browser.json('/sample', 'POST', {}), 200, 'the sample workspace is made (7.20)')
+  await inTransaction(app.db, (tx) => createSampleWorkspace(tx, actor.id, 'UTC'))
   return actor
+}
+
+/** Removes the actor's sample and returns the names it sent to Trash. */
+async function removeSample(actor: Actor): Promise<string[]> {
+  return (await removeSampleWorkspace(app.db, actor.id)).trashedFolders
 }
 
 describe('removing the sample keeps the person’s own work', () => {
@@ -84,9 +75,7 @@ describe('removing the sample keeps the person’s own work', () => {
     expectStatus(made, 201, 'the own task is created in a sample page')
     const taskId = (made.json() as { id: string }).id
 
-    const removed = await tryer.browser.json('/sample', 'DELETE')
-    expectStatus(removed, 204, 'the sample is removed (7.20)')
-    expect(trashedNames(removed)).toEqual([String(target.name)])
+    expect(await removeSample(tryer)).toEqual([String(target.name)])
 
     const task = await rows(app.db, sql`SELECT folder_id FROM tasks WHERE id = ${taskId}::uuid`)
     expect(task[0]?.folder_id).toBe(String(target.id))
@@ -119,9 +108,6 @@ describe('removing the sample keeps the person’s own work', () => {
       sql`SELECT count(*)::int AS n FROM sample_objects WHERE user_id = ${tryer.id}::uuid`,
     )
     expect(register[0]?.n).toBe(0)
-
-    expectStatus(await tryer.browser.json('/sample', 'POST', {}), 200, 'the undo writes the sample afresh')
-    expect(await liveByName(tryer.id, String(target.name))).toBe(1)
   })
 
   test('a comment and an edited paragraph on sample pages go to Trash, not past it', async () => {
@@ -152,9 +138,7 @@ describe('removing the sample keeps the person’s own work', () => {
     )
     expect(edited.length).toBe(1)
 
-    const removed = await writer.browser.json('/sample', 'DELETE')
-    expectStatus(removed, 204, 'the sample is removed (7.20)')
-    expect(trashedNames(removed).sort()).toEqual([String(parent.name), String(other.name)].sort())
+    expect((await removeSample(writer)).sort()).toEqual([String(parent.name), String(other.name)].sort())
 
     const comment = await rows(
       app.db,
@@ -179,9 +163,7 @@ describe('removing the sample keeps the person’s own work', () => {
       expect((await looker.browser.api(`/folders/${String(row.id)}/page`)).status).toBe(200)
     }
 
-    const removed = await looker.browser.json('/sample', 'DELETE')
-    expectStatus(removed, 204, 'the sample is removed (7.20)')
-    expect(trashedNames(removed)).toEqual([])
+    expect(await removeSample(looker)).toEqual([])
     const left = await rows(
       app.db,
       sql`SELECT id FROM folders WHERE id IN (${sql.join(
@@ -217,9 +199,7 @@ describe('removing the sample keeps the person’s own work', () => {
     })
     expect(started.status).toBe(201)
 
-    const removed = await starter.browser.json('/sample', 'DELETE')
-    expectStatus(removed, 204, 'the sample is removed (7.20)')
-    expect(trashedNames(removed)).toEqual([String(tab[0].project)])
+    expect(await removeSample(starter)).toEqual([String(tab[0].project)])
     const thread = await rows(
       app.db,
       sql`SELECT f.deleted_at FROM discussions d JOIN folders f ON f.id = d.folder_id

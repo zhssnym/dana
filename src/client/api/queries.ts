@@ -6,8 +6,6 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import type { QueryClient, UseInfiniteQueryResult, UseQueryResult } from '@tanstack/react-query'
 
 import { getSettingsResponse } from '../../shared/bundle.js'
-import { sampleStatus } from '../../shared/sample.js'
-import type { SampleStatus } from '../../shared/sample.js'
 import type { GetSettingsResponse } from '../../shared/bundle.js'
 import { getConnectionsResponse } from '../../shared/connections.js'
 import { discussionSchema } from '../../shared/consultation.js'
@@ -306,13 +304,6 @@ export function useBundle(): UseQueryResult<GetSettingsResponse> {
   return useQuery({
     queryKey: queryKeys.bundle(),
     queryFn: () => getPlain(getSettingsResponse, '/settings'),
-  })
-}
-
-export function useSample(): UseQueryResult<SampleStatus> {
-  return useQuery({
-    queryKey: queryKeys.sample(),
-    queryFn: () => getPlain(sampleStatus, '/sample'),
   })
 }
 

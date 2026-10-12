@@ -5,47 +5,18 @@ import { mutateApi } from '../api/http.js'
 import { useBundle } from '../api/queries.js'
 import { SettingsPageContent } from '../components/settings-page-content.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
-import { SAMPLE_COPY, useSampleActs } from '../onboarding/sample.js'
 import { paths } from '../routes.js'
 
 export function SettingsPage(): React.JSX.Element {
   const bundle = useBundle()
-  const sample = useSampleActs()
   const [deleting, setDeleting] = useState(false)
-  /* Removal lives here alone, behind a question. */
-  const [removingSample, setRemovingSample] = useState(false)
 
   return (
     <>
       <SettingsPageContent
-        sample={
-          sample.present === undefined
-            ? null
-            : {
-                present: sample.present,
-                busy: sample.busy,
-                tasks: sample.counts?.tasks ?? 0,
-                folders: sample.counts?.folders ?? 0,
-              }
-        }
-        onRemoveSample={() => setRemovingSample(true)}
-        onRestoreSample={sample.restore}
         previewState={bundle.isPending ? 'loading' : bundle.isError ? 'error' : null}
         onDeleteAccount={() => setDeleting(true)}
       />
-      {removingSample ? (
-        <ConfirmDialog
-          message={SAMPLE_COPY.confirm}
-          description={SAMPLE_COPY.confirmDetail}
-          confirmLabel={SAMPLE_COPY.confirmLabel}
-          cancelLabel="Cancel"
-          onCancel={() => setRemovingSample(false)}
-          onContinue={() => {
-            setRemovingSample(false)
-            sample.remove()
-          }}
-        />
-      ) : null}
       {deleting ? (
         <ConfirmDialog
           message="Delete your Dana account?"

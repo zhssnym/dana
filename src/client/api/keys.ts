@@ -44,7 +44,6 @@ export const queryKeys = {
   /* One key for all place covers, because the read returns the whole set. */
   placeCovers: () => ['place-covers'] as const,
   placeDescriptions: () => ['place-descriptions'] as const,
-  sample: () => ['sample'] as const,
 
   folderLabels: (id: string) => ['folders', id, 'labels'] as const,
   labels: (folderId: string | null, state: 'active' | 'all') =>
