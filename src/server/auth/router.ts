@@ -68,8 +68,6 @@ export interface AuthRouterOptions {
   securityLog?: SecurityLogger
   /** DELETE /me removes the account's stored objects after the 8.10 transaction commits. */
   fileStore?: ObjectStore
-  /** 7.20: write the sample workspace at a new account's first sign-in. */
-  sampleWorkspace?: boolean
 }
 
 /*
@@ -84,7 +82,6 @@ interface DevLoginModule {
     req: Request,
     res: Response,
     establish: (res: Response, userId: string) => Promise<void>,
-    sampleDefault?: boolean,
   ): Promise<void>
 }
 
@@ -273,7 +270,6 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     let user
     try {
       user = await provisionUser(db, identity, record.timezone, {
-        sample: options.sampleWorkspace === true,
         source: record.source,
       })
       await syncTimezone(db, user, record.timezone)
@@ -420,7 +416,6 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
         req,
         res,
         (target, userId) => establishSession(db, target, userId),
-        options.sampleWorkspace === true,
       )
     })
   }

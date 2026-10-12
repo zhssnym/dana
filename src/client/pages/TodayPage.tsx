@@ -3,7 +3,6 @@ import type { TaskCard } from '../../shared/tasks.js'
 
 import { useFocusView } from '../api/queries.js'
 import { NEW_TASK_ROW_PHONE, QuickAdd } from '../components/quick-add.js'
-import { SampleStrip } from '../onboarding/SampleStrip.js'
 import { StarterOffer, useMayBeFresh } from '../onboarding/StarterOffer.js'
 import { PLACES } from '../views/place-pages.js'
 import { PlaceGroup, PlaceHead, usePlace } from '../views/usePlace.js'
@@ -108,7 +107,6 @@ export function TodayPage(): React.JSX.Element {
 
   return (
     <div ref={keys} className="space-y-6">
-      <SampleStrip />
       <PlaceHead place={place} controls={null} />
 
       {/* Rows bleed their padding into the gutter so checkbox, heading and title share one left edge. */}

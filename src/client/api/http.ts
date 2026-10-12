@@ -55,7 +55,6 @@ interface RequestOptions {
   readonly params?: QueryParams
   readonly body?: unknown
   readonly csrf: boolean
-  readonly onHeaders?: (headers: Headers) => void
 }
 
 function urlOf(path: string, params: QueryParams | undefined): string {
@@ -93,7 +92,6 @@ async function send(options: RequestOptions): Promise<unknown> {
     throw new OfflineError()
   }
   reportReachable()
-  options.onHeaders?.(response.headers)
 
   if (response.status === 204) return undefined
   const text = await response.text()
@@ -155,8 +153,6 @@ interface MutateOptions {
   readonly path: string
   readonly params?: QueryParams
   readonly body?: unknown
-  /** Only DELETE /sample reads a header on its 204. */
-  readonly onHeaders?: (headers: Headers) => void
 }
 
 /** Any write; this function adds the CSRF header. Pass no schema for a 204 with no body. */

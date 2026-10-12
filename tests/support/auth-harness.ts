@@ -90,9 +90,6 @@ export interface AppOptions {
     get(id: string): Promise<Buffer | null>
     remove(id: string): Promise<void>
   }
-  /** 7.20's sample workspace at first sign-in, off under this suite by its
-   * setup file. */
-  sampleWorkspace?: boolean
   /**
    * The 10.5 logger, so a criterion can read the lines the application wrote
    * rather than the ones a route module would write in isolation (issue #104,
@@ -243,7 +240,6 @@ const AUTH_BASE = '/api/v1'
 export async function startAuthTestApp(
   options: {
     fileStore?: AppOptions['fileStore']
-    sampleWorkspace?: boolean
     securityLog?: SecurityLogger
     /**
      * A real limiter set, for a criterion that is measuring 10.4 rather than
@@ -294,8 +290,6 @@ export async function startAuthTestApp(
     ...(options.securityLog === undefined ? {} : { securityLog: options.securityLog }),
     ...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
     ...(options.fileStore === undefined ? {} : { fileStore: options.fileStore }),
-    // Item 60: off for every file but the one that measures the sample.
-    ...(options.sampleWorkspace === undefined ? {} : { sampleWorkspace: options.sampleWorkspace }),
   })
   server.on('request', app)
 
