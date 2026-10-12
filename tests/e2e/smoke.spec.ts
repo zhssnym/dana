@@ -248,12 +248,12 @@ test('calendar: Upcoming expands overlapping ranges and opens a previously hidde
       weekRow.locator(`button[data-task-id="${id}"]`).count()))
     return visible.filter((count) => count > 0).length
   }
-  await expect(day.getByRole('button', { name: /^\\+\\d+ more$/ })).toBeVisible()
+  await expect(day.getByRole('button', { name: /^\+\d+ more$/ })).toBeVisible()
   expect(await visibleRangeCount()).toBe(2)
 
-  await day.getByRole('button', { name: /^\\+\\d+ more$/ }).click()
+  await day.getByRole('button', { name: /^\+\d+ more$/ }).click()
   await expect.poll(visibleRangeCount).toBe(3)
-  await expect(day.getByRole('button', { name: /^\\+\\d+ more$/ })).toHaveCount(0)
+  await expect(day.getByRole('button', { name: /^\+\d+ more$/ })).toHaveCount(0)
 
   const opened = weekRow.locator(`button[data-task-id="${ids[2]}"]`)
   await opened.click()
