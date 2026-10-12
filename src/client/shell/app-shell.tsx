@@ -22,6 +22,7 @@ import {
   useMe,
   usePendingInvites,
   useShelves,
+  useShelf,
   useTask,
   useDiscussion,
 } from '../api/queries.js'
@@ -59,6 +60,7 @@ import { DirectMessageCenter } from '../components/direct-message/DirectMessageC
 import { DOCK_PAGE_MIN, DOCK_SIDEBAR_ROOM, useChatDock } from '../state/chat-dock.js'
 import { WindowBar, WindowBarActions, WindowBarLead } from '../components/window-bar.js'
 import { BreadcrumbTrail } from '../components/breadcrumb-trail.js'
+import { resolveBreadcrumbLocation } from './breadcrumb-location.js'
 import {
   clampSidebarWidth,
   clearSidebarWidth,
@@ -141,57 +143,44 @@ function useThreadOpen(): boolean {
   return pathname.startsWith(FOLDER_PREFIX) && new URLSearchParams(search).has('discussion')
 }
 
-/* The window bar's left end: a page's trail, a task's page trail and title, or a place's name. */
+/* The window bar's left end follows the active primary surface, not the source
+   of a link or an open sidebar. All screens use one location resolver. */
 function TopTrail(): React.JSX.Element {
   const { pathname, search } = useLocation()
-  const searchParams = new URLSearchParams(search)
-  const teamFull = searchParams.get('team') === 'full'
-  const memberId = searchParams.get('member')
-  /* An open thread is `?discussion=<id>` on its page; the trail names it. */
-  const discussionId = pathname.startsWith(FOLDER_PREFIX) ? searchParams.get('discussion') : null
+  const query = new URLSearchParams(search)
+  const pageId = pathname.startsWith(FOLDER_PREFIX) ? pathname.slice(FOLDER_PREFIX.length) : null
+  const page = useFolder(pageId ?? '', pageId !== null)
+  const teamFull = query.get('team') === 'full' && pageId !== null
+  const projectId = page.data?.project_id ?? null
+  const team = useFolder(projectId ?? '', teamFull && projectId !== null)
+  const discussionId = pageId === null ? null : query.get('discussion')
   const discussion = useDiscussion(discussionId ?? '', discussionId !== null)
   const taskId = pathname.startsWith(TASK_PREFIX) ? pathname.slice(TASK_PREFIX.length) : null
   const task = useTask(taskId)
-
-  /* A tab draws its project's trail; its own crumb would repeat the tab row. */
-  const pageId = pathname.startsWith(FOLDER_PREFIX) ? pathname.slice(FOLDER_PREFIX.length) : null
-  const allPages = useAllPages(pageId !== null)
-  const tab = allPages.data?.find((page) => page.id === pageId)
-  const trailId =
-    tab !== undefined && tab.tab_position !== null && (discussionId === null || teamFull) ? tab.project_id : pageId
-  const team = useFolder(trailId ?? '', teamFull && trailId !== null)
-
-  let trail: React.JSX.Element | null = null
-  if (pageId !== null && trailId !== null) {
-    const list = new URLSearchParams(search)
-    list.delete('discussion')
-    list.delete('outcome')
-    const listTo = list.size === 0 ? pathname : `${pathname}?${list.toString()}`
-    const teamList = new URLSearchParams(search)
-    teamList.delete('member')
-    const teamTo = `${pathname}?${teamList.toString()}`
-    const teamName = team.data?.name ?? 'Project'
-    const memberName = team.data?.members.find((member) => member.user.id === memberId)?.user.display_name ?? 'Teammate'
-    trail = (
-      <BreadcrumbTrail
-        folderId={trailId}
-        {...(teamFull ? { extra: [
-          { name: `${teamName}'s Team`, ...(memberId === null ? {} : { to: teamTo }) },
-          ...(memberId === null ? [] : [{ name: memberName }]),
-        ] } : discussionId !== null ? { current: discussion.data?.title ?? '', folderTo: listTo } : {})}
-      />
-    )
-  } else if (taskId !== null) {
-    trail = task.data === undefined ? null : (
-      <BreadcrumbTrail folderId={task.data.folder.id} current={task.data.title} />
-    )
-  }
+  const shelfId = pathname.startsWith('/app/shelves/') ? pathname.slice('/app/shelves/'.length) : null
+  const shelf = useShelf(shelfId ?? '', shelfId !== null)
+  const location = resolveBreadcrumbLocation({
+    pathname,
+    search,
+    page: page.data,
+    task: task.data,
+    shelf: shelf.data,
+    discussion: discussion.data,
+    team: team.data,
+  })
+  const trail = location === null ? null : (
+    <BreadcrumbTrail
+      folderId={location.folderId}
+      {...(location.current === undefined ? {} : { current: location.current })}
+      {...(location.extra === undefined ? {} : { extra: location.extra })}
+    />
+  )
   /* With the sidebar hidden on a laptop, its show control sits bottom-left, where the sidebar opens from. */
   const { isMobile, state } = useSidebar()
   return (
     <>
       {/* A phone's open thread draws its own back and title there instead. */}
-      <WindowBarLead>{isMobile && discussionId !== null ? null : trail}</WindowBarLead>
+      <WindowBarLead>{isMobile && location?.mobileThread === true ? null : trail}</WindowBarLead>
       {isMobile || state === 'expanded' ? null : (
         <Tooltip>
           <TooltipTrigger
