@@ -130,6 +130,8 @@ function CalendarEvent({
   return (
     <button
       type="button"
+      data-task-id={event.taskId}
+      data-task-title={event.title}
       onPointerDown={movable ? (pointer) => onPointerStart(pointer, event.taskId, 'move', event.date) : undefined}
       className={cn(
         '@container relative flex w-full gap-1.5 overflow-hidden rounded-sm border px-1.5 text-left text-foreground transition-[background-color,border-color] focus-visible:outline-none',
@@ -193,6 +195,8 @@ function RangeBar({ range, week, zoom, editable, onPointerStart, suppressOpenUnt
   >
     <button
       type="button"
+      data-task-id={task.id}
+      data-task-title={task.title}
       aria-label={`${task.title}, ${task.start_date ?? ''} to ${task.due_date ?? ''}`}
       title={`${task.title}, ${task.start_date ?? ''} to ${task.due_date ?? ''}`}
       className={cn(

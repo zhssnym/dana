@@ -160,6 +160,7 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
     return (
       <div
         data-canvas-task-id={taskId}
+        data-task-title={known.title}
         data-thread-state={state}
         {...(state === 'done' || state === 'dropped' ? { 'data-canvas-task-done': '' } : {})}
         {...(bridge.freeform && completedListed !== undefined && state === 'done' && !bridge.flights.has(taskId) ? { 'data-freeform-completed-source': '' } : {})}
@@ -211,7 +212,7 @@ export function FreeformCompletedTask({ task }: { readonly task: TaskCard }): Re
   const thread = useContext(ThreadContext)
   const [expanded, setExpanded] = useState(false)
   if (bridge === null) return <></>
-  return <div className="min-w-0" role="listitem">
+  return <div className="min-w-0" role="listitem" data-canvas-task-id={task.id} data-task-title={task.title}>
     <ThreadRow task={task} state="done" bridge={bridge} thread={thread} expanded={expanded} onExpand={() => setExpanded((open) => !open)} />
     {expanded ? <div data-freeform-task-details="" role="region" aria-label={`${task.title} details`} className="ml-7 border-l border-border py-3 pl-4">
       <Suspense fallback={<p className="text-sm text-muted-foreground">Loading task…</p>}><FreeformTaskDetails taskId={task.id} /></Suspense>
