@@ -170,3 +170,29 @@ test('calendar: day plus shows Add a new task hint and still creates a draft', a
   await page.mouse.click(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2)
   await expect(day.getByRole('textbox', { name: /^New task on / })).toBeVisible()
 })
+
+
+test('navigation: a root Work tab and standalone places always show a breadcrumb', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/app/today')
+  const skip = page.getByRole('dialog', { name: 'How did you hear about Dana?' }).getByRole('button', { name: 'Skip' })
+  await skip.waitFor({ timeout: 5_000 }).then(() => skip.click(), () => undefined)
+
+  const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' })
+  await expect(breadcrumb).toBeVisible()
+  await expect(breadcrumb.getByText('Today', { exact: true })).toBeVisible()
+  await expect(breadcrumb.locator('[aria-current="page"]')).toHaveText('Today')
+
+  await page.goto(`/app/folders/${seedIds.groceries}`)
+  await expect(breadcrumb).toBeVisible()
+  await expect(breadcrumb.getByRole('link', { name: 'Groceries' })).toBeVisible()
+  await expect(breadcrumb.locator('[aria-current="page"]')).toHaveText('Work')
+  await expect(page.getByRole('tab', { name: 'Work' })).toBeVisible()
+
+  await page.goto('/app/settings/archived-work')
+  await expect(breadcrumb.getByRole('link', { name: 'Settings' })).toBeVisible()
+  await expect(breadcrumb.locator('[aria-current="page"]')).toHaveText('Archived work')
+  await breadcrumb.getByRole('link', { name: 'Settings' }).click()
+  await expect(page).toHaveURL(/\/app\/settings$/)
+  await expect(breadcrumb.locator('[aria-current="page"]')).toHaveText('Settings')
+})
