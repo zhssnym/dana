@@ -258,5 +258,5 @@ test('calendar: Upcoming expands overlapping ranges and opens a previously hidde
   const opened = weekRow.locator(`button[data-task-id="${ids[2]}"]`)
   await opened.click()
   await expect(page).toHaveURL(new RegExp(`/app/tasks/${ids[2]}$`))
-  await expect(page.getByText('Calendar expansion regression 3').first()).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'title' })).toHaveValue('Calendar expansion regression 3')
 })
