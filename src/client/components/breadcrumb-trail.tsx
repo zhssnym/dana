@@ -19,6 +19,7 @@ import { cn } from './ui/utils.js'
 interface Crumb {
   readonly id: string | null
   readonly name: string
+  readonly to?: string
 }
 
 // Furthest history entry this tab reached, for browsers without the Navigation API.
@@ -130,11 +131,13 @@ export function BreadcrumbTrail({
   folderId,
   current,
   folderTo,
+  extra,
   className,
 }: {
   readonly folderId: string | null
   readonly current?: string | null
   readonly folderTo?: string
+  readonly extra?: readonly { name: string; to?: string }[]
   readonly className?: string
 }): React.JSX.Element | null {
   const { pathname } = useLocation()
@@ -148,9 +151,10 @@ export function BreadcrumbTrail({
   }
   const hasCurrent = current !== undefined && current !== null
   if (hasCurrent) crumbs.push({ id: null, name: current })
+  for (const segment of extra ?? []) crumbs.push({ id: null, ...segment })
   if (folderId !== null && detail === undefined) return null
-  // A root page alone is already the page's heading, so the trail shows only below the root.
-  if (crumbs.length < 2) return null
+  // Even a single root is a location. Keep the top bar oriented on every page.
+  if (crumbs.length === 0) return null
 
   const last = crumbs.length - 1
   const folded = crumbs.length > 3 ? crumbs.slice(1, crumbs.length - 2) : []
@@ -190,8 +194,13 @@ export function BreadcrumbTrail({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-56">
                     {folded.map((hidden) => (
-                      <DropdownMenuItem key={hidden.id ?? hidden.name} render={<Link to={paths.folder(hidden.id ?? '')} />}>
-                        <span className="truncate">{hidden.name}</span>
+                      <DropdownMenuItem
+                        key={hidden.id ?? hidden.name}
+                        {...(hidden.to !== undefined || hidden.id !== null
+                          ? { render: <Link to={hidden.to ?? paths.folder(hidden.id!)} /> }
+                          : { disabled: true })}
+                      >
+                        <span className="truncate">{hidden.name || 'Untitled'}</span>
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -200,12 +209,19 @@ export function BreadcrumbTrail({
                 <span aria-current="page" className={cn(CRUMB, 'max-w-none text-foreground')} title={crumb.name}>
                   <span className="truncate">{crumb.name || 'Untitled'}</span>
                 </span>
+              ) : (crumb.id === null && crumb.to === undefined) ||
+                  (folderTo === undefined && crumb.id !== null && paths.folder(crumb.id) === pathname && crumb.to === undefined) ? (
+                // Virtual locations and the current project's identity have no
+                // useful destination. Never link the root Work crumb to itself.
+                <span className={cn(CRUMB, 'text-muted-foreground')} title={crumb.name}>
+                  <span className="truncate">{crumb.name || 'Untitled'}</span>
+                </span>
               ) : (
                 <Link
-                  to={folderTo !== undefined && crumb.id === folderId ? folderTo : paths.folder(crumb.id ?? '')}
+                  to={crumb.to ?? (folderTo !== undefined && crumb.id === folderId ? folderTo : paths.folder(crumb.id!))}
                   // Going to the page already under a peek replaces the entry. Leaving a thread
                   // (`folderTo`) pushes, so Back returns to it.
-                  replace={folderTo === undefined && paths.folder(crumb.id ?? '') === pathname}
+                  replace={folderTo === undefined && crumb.id !== null && paths.folder(crumb.id) === pathname}
                   title={crumb.name}
                   className={cn(CRUMB, 'text-muted-foreground hover:bg-accent hover:text-foreground')}
                 >

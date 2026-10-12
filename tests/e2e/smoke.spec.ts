@@ -33,6 +33,9 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
     // /app lands on Today.
     await expect(page).toHaveURL(/\/app\/today$/)
     await expect(page.getByRole('navigation').first()).toBeVisible()
+    // An account that has not answered gets "How did you hear about Dana?" once.
+    const skip = page.getByRole('dialog', { name: 'How did you hear about Dana?' }).getByRole('button', { name: 'Skip' })
+    await skip.waitFor({ timeout: 5_000 }).then(() => skip.click(), () => undefined)
   })
 
   const title = `smoke task ${Date.now()}`
@@ -111,4 +114,85 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
       })
       .toEqual({ stored: true, section: true })
   })
+})
+
+
+test('tooltip: Work actions use the same styled hint as the sidebar', async ({ page }) => {
+  await signIn(page)
+  await page.goto(`/app/folders/${seedIds.groceries}`)
+
+  const skip = page.getByRole('dialog', { name: 'How did you hear about Dana?' }).getByRole('button', { name: 'Skip' })
+  await skip.waitFor({ timeout: 5_000 }).then(() => skip.click(), () => undefined)
+
+  const filter = page.getByRole('button', { name: 'Filter tasks' })
+  await expect(filter).toBeVisible()
+  await filter.hover()
+  await expect(filter).not.toHaveAttribute('title', /.+/)
+  const filterTip = page.locator('[data-slot="tooltip-content"]').filter({ hasText: 'Filter tasks' })
+  await expect(filterTip).toBeVisible()
+  await expect(filterTip).toHaveClass(/bg-foreground/)
+
+  const settings = page.getByRole('link', { name: 'Settings', exact: true }).last()
+  await settings.hover()
+  const settingsTip = page.locator('[data-slot="tooltip-content"]').filter({ hasText: 'Settings' })
+  await expect(settingsTip).toBeVisible()
+  await expect(settingsTip).toHaveClass(/bg-foreground/)
+})
+
+
+test('calendar: day plus shows Add a new task hint and still creates a draft', async ({ page }) => {
+  await signIn(page)
+  await page.goto(`/app/folders/${seedIds.groceries}`)
+
+  const skip = page.getByRole('dialog', { name: 'How did you hear about Dana?' }).getByRole('button', { name: 'Skip' })
+  await skip.waitFor({ timeout: 5_000 }).then(() => skip.click(), () => undefined)
+
+  await page.getByRole('button', { name: /^Work view:/ }).click()
+  await page.getByRole('menuitemradio', { name: 'Calendar' }).click()
+
+  const calendar = page.getByRole('grid', { name: 'Work calendar' })
+  await expect(calendar).toBeVisible()
+  const day = calendar.getByRole('gridcell').first()
+  const create = day.getByRole('button', { name: /^New task on / })
+  await expect(create).toBeVisible()
+  await expect(create).not.toHaveAttribute('title', /.+/)
+
+  // The plus is decorative and lets pointer events pass through to the day action.
+  // Move onto its visual position, not just the center of the cell.
+  const plus = day.locator('svg[aria-hidden="true"]').first()
+  const bounds = await plus.boundingBox()
+  expect(bounds).not.toBeNull()
+  await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2)
+  const hint = page.locator('[data-slot="tooltip-content"]').filter({ hasText: 'Add a new task' })
+  await expect(hint).toBeVisible()
+  await expect(hint).toHaveClass(/bg-foreground/)
+
+  await page.mouse.click(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2)
+  await expect(day.getByRole('textbox', { name: /^New task on / })).toBeVisible()
+})
+
+
+test('navigation: a root Work tab and standalone places always show a breadcrumb', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/app/today')
+  const skip = page.getByRole('dialog', { name: 'How did you hear about Dana?' }).getByRole('button', { name: 'Skip' })
+  await skip.waitFor({ timeout: 5_000 }).then(() => skip.click(), () => undefined)
+
+  const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' })
+  await expect(breadcrumb).toBeVisible()
+  await expect(breadcrumb.getByText('Today', { exact: true })).toBeVisible()
+  await expect(breadcrumb.locator('[aria-current="page"]')).toHaveText('Today')
+
+  await page.goto(`/app/folders/${seedIds.groceries}`)
+  await expect(breadcrumb).toBeVisible()
+  await expect(breadcrumb.getByText('Groceries', { exact: true })).toBeVisible()
+  await expect(breadcrumb.getByRole('link', { name: 'Groceries' })).toHaveCount(0)
+  await expect(breadcrumb.locator('[aria-current="page"]')).toHaveText('Work')
+
+  await page.goto('/app/settings/archived-work')
+  await expect(breadcrumb.getByRole('link', { name: 'Settings' })).toBeVisible()
+  await expect(breadcrumb.locator('[aria-current="page"]')).toHaveText('Archived work')
+  await breadcrumb.getByRole('link', { name: 'Settings' }).click()
+  await expect(page).toHaveURL(/\/app\/settings$/)
+  await expect(breadcrumb.locator('[aria-current="page"]')).toHaveText('Settings')
 })

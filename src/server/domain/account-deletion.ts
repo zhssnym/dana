@@ -206,6 +206,13 @@ export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
 /** Every CASCADE foreign key to users(id). The guard test checks this list against the schema both ways. */
 export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
   {
+    fk: 'feedback_user_id_fkey',
+    table: 'feedback',
+    disposition: 'deleted',
+    where: 'step 5, in this file',
+    why: 'Feedback holds words and screenshots the person wrote. The scrub keeps the users row, so the cascade never fires; step 5 deletes the rows.',
+  },
+  {
     fk: 'folders_archived_by_fkey',
     table: 'folders',
     disposition: 'retained',
@@ -246,6 +253,20 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     disposition: 'deleted',
     where: 'step 5, through direct_messages_conversation_id_fkey',
     why: 'Only a participant can send a message. Step 5 removes every conversation containing the account, and the conversation foreign key then removes every message it authored.',
+  },
+  {
+    fk: 'folder_members_bio_author_id_fkey',
+    table: 'folder_members',
+    disposition: 'retained',
+    where: '',
+    why: 'A teammate overview can be written by a different project member. Their account deletion scrubs their name but keeps the project membership and its writing attribution for the remaining team. Removing that membership follows the existing member cleanup.',
+  },
+  {
+    fk: 'folder_members_bio_last_editor_id_fkey',
+    table: 'folder_members',
+    disposition: 'retained',
+    where: '',
+    why: 'The last editor of a teammate overview can belong to another account. Account deletion scrubs that account name while the project overview and editor reference remain with the current membership. Member removal deletes the profile row.',
   },
   {
     fk: 'folder_members_user_id_fkey',
@@ -434,6 +455,7 @@ export async function deleteAccountData(
     sql`DELETE FROM direct_conversations
          WHERE user_a_id = ${userId} OR user_b_id = ${userId}`,
   )
+  await tx.execute(sql`DELETE FROM feedback WHERE user_id = ${userId}`)
 
   // 6. Remove any My Day entries that outlived steps 3 and 4.
   const myDayEntries = await rowsOf(

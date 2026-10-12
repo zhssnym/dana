@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
 import type { InfiniteData, UseMutationResult } from '@tanstack/react-query'
 import type { GetDoneResponse, GetFolderTasksOpenResponse } from '../../shared/views.js'
+import type { RichContent } from '../../shared/rich-content.js'
 import { todayInBrowserZone } from './tz.js'
 
 
@@ -333,14 +334,14 @@ export function useSetSelfEditGrant(): UseMutationResult<
 export function useSaveMemberBio(): UseMutationResult<
   void,
   Error,
-  { readonly folderId: string; readonly userId: string; readonly bio: string | null }
+  { readonly folderId: string; readonly userId: string; readonly content: RichContent | null; readonly baseUpdatedAt: string | null }
 > {
   return useMutation({
-    mutationFn: ({ folderId, userId, bio }) =>
+    mutationFn: ({ folderId, userId, content, baseUpdatedAt }) =>
       mutateApi(null, {
         method: 'PATCH',
         path: `/folders/${folderId}/members/${userId}/bio`,
-        body: { bio },
+        body: { content, base_updated_at: baseUpdatedAt },
       }),
   })
 }

@@ -14,12 +14,16 @@ import { getPlain } from './api/http.js'
 import { queryKeys } from './api/keys.js'
 import { createQueryClient, setQueryClient } from './api/queryClient.js'
 import { TooltipProvider } from './components/ui/tooltip.js'
+import { NativeTitleTooltips } from './components/ui/native-title-tooltips.js'
 import { Router } from './Router.js'
 import { installSearchShortcut } from './shell/overlays.js'
 import { installNativeContextMenuGuard } from './lib/native-context-menu.js'
+import { rememberSignupSource } from './lib/signup-source.js'
 import { getFoldersResponse } from '../shared/folders.js'
 import { getInvitesPendingResponse } from '../shared/invites.js'
 import { meResponse } from '../shared/me.js'
+
+rememberSignupSource()
 
 const queryClient = createQueryClient()
 // The mutation cache invalidates through this handle (see queryClient.ts).
@@ -64,6 +68,7 @@ createRoot(rootElement).render(
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Router />
+        <NativeTitleTooltips />
       </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>,

@@ -8,6 +8,7 @@ import { useLocation } from 'react-router'
 
 import { Button } from '../components/ui/button.js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu.js'
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip.js'
 import { CalendarDays, GitCommitVertical, List, SquareKanban } from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
 
@@ -121,19 +122,25 @@ export function WorkViewControl({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground"
-            aria-label={`Work view: ${active.label}`}
-            title="Work view"
-          />
-        }
-      >
-        <ActiveIcon aria-hidden="true" />
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <DropdownMenuTrigger
+          render={
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground"
+                  aria-label={`Work view: ${active.label}`}
+                />
+              }
+            />
+          }
+        >
+          <ActiveIcon aria-hidden="true" />
+        </DropdownMenuTrigger>
+        <TooltipContent>Work view</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end" className="w-44" aria-label="Work view">
         <DropdownMenuRadioGroup value={view} onValueChange={(value: unknown) => {
           const selected = OPTIONS.find((option) => option.value === value)

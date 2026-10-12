@@ -11,6 +11,7 @@ import { Button } from '../components/ui/button.js'
 import { paths } from '../routes.js'
 import { obfuscatedEmail } from '../components/obfuscated-email.js'
 import { Laptop } from '../lib/icons.js'
+import { signupSourceQuery } from '../lib/signup-source.js'
 
 function GoogleGlyph(): React.JSX.Element {
   return (
@@ -64,7 +65,7 @@ function LocalPreviewLogin(): React.JSX.Element {
 }
 
 export function LandingPage(): React.JSX.Element {
-  const signInHref = `/api/v1/auth/google?tz=${encodeURIComponent(browserTimezone())}`
+  const signInHref = `/api/v1/auth/google?tz=${encodeURIComponent(browserTimezone())}${signupSourceQuery()}`
   /* The auth callback returns here with ?signin=failed on any refusal but the unverified page. */
   const signInFailed =
     typeof window !== 'undefined' &&

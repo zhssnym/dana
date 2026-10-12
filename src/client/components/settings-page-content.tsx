@@ -4,7 +4,6 @@
 import { useEffect, useRef } from 'react'
 import { Link } from 'react-router'
 
-import { SUPPORT_EMAIL } from '../../shared/support.js'
 import { paths } from '../routes.js'
 import { signOut } from '../shell/session.js'
 import { ImagePlus } from '../lib/icons.js'
@@ -204,15 +203,6 @@ export function SettingsPageContent({
             />
           </SettingsSection>
 
-          <p className="mt-4 text-xs text-muted-foreground">
-            Something wrong? Write to{' '}
-            <a
-              href={`mailto:${SUPPORT_EMAIL}`}
-              className="text-foreground underline-offset-4 hover:underline"
-            >
-              {SUPPORT_EMAIL}
-            </a>
-          </p>
         </>
       )}
 

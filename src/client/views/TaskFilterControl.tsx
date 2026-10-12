@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '../components/ui/button.js'
 import { Calendar } from '../components/ui/calendar.js'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '../components/ui/popover.js'
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip.js'
 import { cn } from '../components/ui/utils.js'
 import { LabelChip } from '../components/label-chip.js'
 import {
@@ -234,19 +235,25 @@ export function TaskFilterControl({
           if (!next) setPanel('root')
         }}
       >
-        <PopoverTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className={taskFilterActive(filter) ? 'bg-accent text-foreground' : 'text-muted-foreground'}
-              aria-label="Filter tasks"
-              title="Filter tasks"
-            />
-          }
-        >
-          <Filter aria-hidden="true" />
-        </PopoverTrigger>
+        <Tooltip>
+          <PopoverTrigger
+            render={
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className={taskFilterActive(filter) ? 'bg-accent text-foreground' : 'text-muted-foreground'}
+                    aria-label="Filter tasks"
+                  />
+                }
+              />
+            }
+          >
+            <Filter aria-hidden="true" />
+          </PopoverTrigger>
+          <TooltipContent>Filter tasks</TooltipContent>
+        </Tooltip>
         <PopoverContent align="end" className="relative w-[18rem] max-sm:max-h-[var(--available-height)] max-sm:overflow-y-auto p-1">
           <FilterHeader
             title="Filter tasks"

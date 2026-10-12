@@ -31,6 +31,7 @@ import { createConsultationInputRouter } from './routes/consultation-input.js'
 import { createCoverPhotosRouter } from './routes/cover-photos.js'
 import { createConversationRouter } from './routes/conversation.js'
 import { createDirectMessagesRouter } from './routes/direct-messages.js'
+import { createFeedbackRouter } from './routes/feedback.js'
 import {
   CSP_REPORT_PATH,
   createCspReportRouter,
@@ -331,6 +332,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   )
 
   app.use('/api/v1', createDirectMessagesRouter({ dbClient: options.dbClient, rateLimits, securityLog }))
+  app.use('/api/v1', createFeedbackRouter({ dbClient: options.dbClient, rateLimits, securityLog }))
 
   // Must stay behind the views router (see above).
   app.use(

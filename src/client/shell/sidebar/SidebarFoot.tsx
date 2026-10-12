@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import type { ReactElement } from 'react'
 import { Link } from 'react-router'
-import { Search, Settings, Trash2 } from '../../lib/icons.js'
+import { Megaphone, Search, Settings, Trash2 } from '../../lib/icons.js'
+import { FeedbackDialog } from '../../components/feedback/FeedbackDialog.js'
 import { SidebarFooter, SidebarTrigger } from '../../components/ui/sidebar.js'
 import { NotificationsBell } from '../../components/notifications-bell.js'
 import { MessagesButton } from '../../components/direct-message/MessagesButton.js'
@@ -42,8 +44,10 @@ export function SidebarFoot({
   readonly onOpenSearch: () => void
   readonly onContextMenu: (event: React.MouseEvent) => void
 }): React.JSX.Element {
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   return (
     <SidebarFooter className="border-t border-border p-2" onContextMenu={onContextMenu}>
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       <div className="flex items-center gap-1">
         <FootTip label={<>Search <kbd data-slot="kbd" className="font-sans opacity-70">{SEARCH_KEYS}</kbd></>}>
           <button type="button" aria-label="Search" aria-keyshortcuts={IS_MAC ? 'Meta+K' : 'Control+K'} className={FOOT_BUTTON} onClick={onOpenSearch}>
@@ -61,6 +65,11 @@ export function SidebarFoot({
           >
             <Settings strokeWidth={1.75} aria-hidden="true" />
           </Link>
+        </FootTip>
+        <FootTip label="Send feedback">
+          <button type="button" aria-label="Send feedback" className={FOOT_BUTTON} onClick={() => setFeedbackOpen(true)}>
+            <Megaphone strokeWidth={1.75} aria-hidden="true" />
+          </button>
         </FootTip>
         <FootTip label="Trash">
           <Link

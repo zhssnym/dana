@@ -19,6 +19,7 @@ import { shiftedSchedule } from '../../parts/schedule.js'
 import { InlineError } from '../state-patterns.js'
 import { Button } from '../ui/button.js'
 import { Segmented } from '../ui/segmented.js'
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip.js'
 import { useIsMobile } from '../ui/use-mobile.js'
 import { cn } from '../ui/utils.js'
 import { formatClockTime } from '../../lib/dates.js'
@@ -129,6 +130,8 @@ function CalendarEvent({
   return (
     <button
       type="button"
+      data-task-id={event.taskId}
+      data-task-title={event.title}
       onPointerDown={movable ? (pointer) => onPointerStart(pointer, event.taskId, 'move', event.date) : undefined}
       className={cn(
         '@container relative flex w-full gap-1.5 overflow-hidden rounded-sm border px-1.5 text-left text-foreground transition-[background-color,border-color] focus-visible:outline-none',
@@ -192,6 +195,8 @@ function RangeBar({ range, week, zoom, editable, onPointerStart, suppressOpenUnt
   >
     <button
       type="button"
+      data-task-id={task.id}
+      data-task-title={task.title}
       aria-label={`${task.title}, ${task.start_date ?? ''} to ${task.due_date ?? ''}`}
       title={`${task.title}, ${task.start_date ?? ''} to ${task.due_date ?? ''}`}
       className={cn(
@@ -328,14 +333,21 @@ function DayCell({
           onClick={onReveal}
         />
       ) : onCreate === undefined ? null : (
-        <button
-          type="button"
-          className="absolute inset-0 z-0 rounded-none text-left outline-none transition-colors hover:bg-muted/70"
-          aria-label={`New task on ${formatDueDate(date, today)}`}
-          onClick={() => {
-            setDrafting(true)
-          }}
-        />
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                className="absolute inset-0 z-0 rounded-none text-left outline-none transition-colors hover:bg-muted/70"
+                aria-label={`New task on ${formatDueDate(date, today)}`}
+                onClick={() => {
+                  setDrafting(true)
+                }}
+              />
+            }
+          />
+          <TooltipContent side="top" align="end">Add a new task</TooltipContent>
+        </Tooltip>
       )}
 
       <div

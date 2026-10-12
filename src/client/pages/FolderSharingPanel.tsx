@@ -18,15 +18,18 @@ import {
   useResendInvite,
 } from '../api/mutations.js'
 import { Avatar, AvatarFallback } from '../components/ui/avatar.js'
-import { ContextPageHeader } from '../components/context-page-header.js'
+import { AddCoverAction, PageCover } from '../components/page-cover.js'
+import { usePageHasCover } from '../components/page-head.js'
 import { Button } from '../components/ui/button.js'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu.js'
 import { Input } from '../components/ui/input.js'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../components/ui/sheet.js'
 import { cn } from '../components/ui/utils.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
 import { mayDraw } from '../lib/folder-authority.js'
 import type { FolderViewerFacts } from '../lib/folder-authority.js'
-import { ArrowLeft, ChevronDown, Maximize2, PanelRight, Plus, UsersRound } from '../lib/icons.js'
+import { ChevronDown, Maximize2, MoreHorizontal, PanelRight, Plus, UsersRound } from '../lib/icons.js'
+import { FOLDER_PREFIX } from '../lib/page-identity.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
 import { DOCK_DEFAULT_WIDTH, dockWidthBounds, useChatDockWidth } from '../state/chat-dock.js'
@@ -72,11 +75,14 @@ function pressedHistoryBack(event: Event): boolean {
  */
 function workspaceTabInteraction(event: Event): boolean {
   const target = event instanceof FocusEvent ? event.relatedTarget : event.target
+  const teamLink = target instanceof Element
+    ? target.closest<HTMLAnchorElement>('[aria-label="Breadcrumb"] a[href*="team=full"]')
+    : null
   return (
     target instanceof Element &&
-    target.closest(
+    (teamLink !== null || target.closest(
       '[role="tab"], [aria-label="Open tab"], [aria-label="Search Dana to open a tab"], [aria-label="Go back"], [aria-label="Go forward"], #dana-open-tab-results',
-    ) !== null
+    ) !== null)
   )
 }
 
@@ -144,6 +150,9 @@ export function FolderSharingPanel({
   const mayChange = viewer !== null && mayDraw(viewer, 'member.access.change')
   const mayAdd = viewer !== null && mayDraw(viewer, 'member.add')
   const mayInvite = viewer !== null && mayDraw(viewer, 'invite.create')
+  const mayEditCover = viewer !== null && mayDraw(viewer, 'folder.profile.edit')
+  const coverKey = `${FOLDER_PREFIX}${folder.id}`
+  const hasCover = usePageHasCover(coverKey)
   const removeMember = useRemoveFolderMember()
   const invite = useCreateInvite()
   const cancel = useCancelInvite()
@@ -170,11 +179,11 @@ export function FolderSharingPanel({
   const chosenWidth = useChatDockWidth()
   const bounds = dockWidthBounds(windowWidth)
   const teamMinWidth = Math.min(bounds.max, Math.max(bounds.min, DOCK_DEFAULT_WIDTH))
-  const sidebarWidth = Math.min(bounds.max, Math.max(teamMinWidth, chosenWidth))
+  const sidebarWidth = windowWidth < 768 ? windowWidth : Math.min(bounds.max, Math.max(teamMinWidth, chosenWidth))
   const fullPage = view === 'full'
   const SectionHeading = fullPage ? 'h2' : 'h3'
 
-  useReserveRightEdge(sidebarWidth, !fullPage)
+  useReserveRightEdge(sidebarWidth, !fullPage && windowWidth >= 768)
 
   const setOpenMember = (id: string | null): void => {
     if (id !== null) {
@@ -293,6 +302,16 @@ export function FolderSharingPanel({
       ? null
       : folder.members.find((member) => member.user.id === openMember)?.user.display_name ?? 'Someone'
   const viewLabel = fullPage ? 'Open in side panel' : 'Open full page'
+  const transferAction = onTransfer === undefined ? null : (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Team options" title="Team options" className="text-muted-foreground" />}>
+        <MoreHorizontal strokeWidth={1.75} aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={onTransfer}>Transfer ownership</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 
   const changePresentation = (): void => {
     if (fullPage) {
@@ -319,8 +338,7 @@ export function FolderSharingPanel({
     }, { replace: true })
   }
 
-  const desktopFull = fullPage && windowWidth >= 768
-  const fullPageStyle: React.CSSProperties = desktopFull
+  const fullPageStyle: React.CSSProperties = fullPage
     ? workspaceRect === null
       ? {
           top: 0,
@@ -382,7 +400,7 @@ export function FolderSharingPanel({
         side="right"
         showCloseButton={!fullPage}
         className={cn(
-          'sm:max-w-none transition-[width,max-width,left,top,height] motion-reduce:transition-none',
+          'outline-none sm:max-w-none transition-[width,max-width,left,top,height] motion-reduce:transition-none',
           fullPage ? 'border-l-0 shadow-none' : 'w-[var(--sharing-panel-width)]',
         )}
         style={fullPage ? { ...fullPageStyle, backgroundColor: 'var(--background)' } : {
@@ -391,7 +409,7 @@ export function FolderSharingPanel({
         }}
         overlayClassName="hidden"
       >
-        {fullPage ? null : (
+        {fullPage || windowWidth < 768 ? null : (
           <ResizeEdge width={sidebarWidth} min={teamMinWidth} max={bounds.max} label="Resize Team" />
         )}
         <section
@@ -400,45 +418,7 @@ export function FolderSharingPanel({
           tabIndex={-1}
           className="flex min-h-0 flex-1 flex-col outline-none"
         >
-          {fullPage ? (
-            <div className="shrink-0 pt-5 md:pt-6">
-              <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-4 md:px-10">
-                {openMember !== null ? (
-                  <div className="flex items-center justify-between border-b border-border pb-[var(--space-inline)]">
-                    <button type="button" className="inline-flex items-center gap-[var(--space-inline)] rounded-sm text-sm text-muted-foreground hover:text-foreground" onClick={() => setOpenMember(null)}>
-                      <ArrowLeft className="size-[var(--icon-size-compact)]" strokeWidth={1.75} aria-hidden="true" /> Team
-                    </button>
-                    <Button type="button" variant="ghost" size="icon" aria-label="Open in side panel" title="Open in side panel" onClick={changePresentation}>
-                      <PanelRight className="size-[var(--icon-size-compact)]" strokeWidth={1.75} aria-hidden="true" />
-                    </Button>
-                  </div>
-                ) : (
-                <ContextPageHeader
-                  parent={shared}
-                  title="Team"
-                  icon={UsersRound}
-                  heading={(
-                    <SheetTitle render={<h1 />} className="truncate text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title">Team</SheetTitle>
-                  )}
-                  onBack={changePresentation}
-                  actions={(
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Open in side panel"
-                      title="Open in side panel"
-                      className="text-muted-foreground hover:text-foreground"
-                      onClick={changePresentation}
-                    >
-                      <PanelRight className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                    </Button>
-                  )}
-                />
-                )}
-              </div>
-            </div>
-          ) : (
+          {fullPage ? null : (
           <SheetHeader className="h-12 shrink-0 flex-row items-center gap-2 border-b border-border px-3 py-0 pr-14">
             <span
               aria-hidden="true"
@@ -447,22 +427,23 @@ export function FolderSharingPanel({
               <UsersRound className="size-4" strokeWidth={1.75} />
             </span>
             <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              <SheetTitle className="shrink-0 text-sm font-title">Team</SheetTitle>
+              <SheetTitle className="sr-only">Team</SheetTitle>
               {openMember === null ? (
-                <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground" title={shared}>
-                  {shared}
-                </p>
+                <>
+                  <span className="shrink-0 text-sm font-title text-foreground">Team</span>
+                  <span aria-hidden="true" className="text-quiet-foreground">/</span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground" title={shared}>{shared}</span>
+                </>
               ) : (
                 <>
-                  <span aria-hidden="true" className="shrink-0 text-quiet-foreground">/</span>
                   <button
                     type="button"
-                    className="shrink-0 rounded-sm text-sm text-muted-foreground hover:text-foreground"
+                    className="shrink-0 rounded-sm text-sm font-title text-foreground hover:underline"
                     onClick={() => {
                       setOpenMember(null)
                     }}
                   >
-                    Members
+                    Team
                   </button>
                   <span aria-hidden="true" className="shrink-0 text-quiet-foreground">/</span>
                   <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
@@ -471,6 +452,7 @@ export function FolderSharingPanel({
                 </>
               )}
             </div>
+            {openMember === null ? transferAction : null}
             <Button
               type="button"
               variant="ghost"
@@ -492,16 +474,33 @@ export function FolderSharingPanel({
           <div
             className={cn(
               'min-h-0 flex-1 overflow-y-auto',
-              fullPage ? 'py-[var(--space-group)]' : 'px-3 py-4',
+              fullPage ? '@container pb-[var(--space-group)]' : 'px-3 py-4',
             )}
           >
-            <div className={cn('w-full', fullPage ? 'mx-auto max-w-[var(--shell-content-max)] px-4 md:px-10' : null)}>
+            <div className={cn('w-full', fullPage ? 'mx-auto max-w-[var(--shell-content-max)] px-4 md:px-10' : null, fullPage && openMember !== null && 'pt-[var(--space-group)]')}>
+            {fullPage && openMember === null && hasCover ? <PageCover storageName={coverKey} readOnly={!mayEditCover} /> : null}
+            {fullPage && openMember === null ? (
+              <header className="group/head pb-[var(--space-group)] pt-[var(--space-group)]">
+                {mayEditCover && !hasCover ? <AddCoverAction storageName={coverKey} /> : null}
+                <div className="flex min-w-0 items-center gap-2">
+                  <UsersRound className="size-7 shrink-0 text-foreground" strokeWidth={1.5} aria-hidden="true" />
+                  <SheetTitle render={<h1 />} className="min-w-0 flex-1 truncate text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title">Team</SheetTitle>
+                  {transferAction}
+                  <Button type="button" variant="ghost" size="icon" aria-label="Open in side panel" title="Open in side panel" className="text-muted-foreground" onClick={changePresentation}>
+                    <PanelRight className="size-[var(--icon-size-compact)]" strokeWidth={1.75} aria-hidden="true" />
+                  </Button>
+                </div>
+              </header>
+            ) : null}
+            {fullPage && openMember !== null ? <SheetTitle className="sr-only">{openMemberName}</SheetTitle> : null}
             {openMember !== null ? (
               <MemberDetails
+                key={`${folder.id}:${openMember}`}
                 folderId={folder.id}
                 userId={openMember}
                 viewerId={viewerId}
                 fullPage={fullPage}
+                onOpenSidePanel={fullPage ? changePresentation : undefined}
                 ask={confirm.ask}
                 onRemove={
                   mayRemove && openMember !== viewerId
@@ -735,13 +734,6 @@ export function FolderSharingPanel({
               </div>
             )}
 
-            {onTransfer === undefined ? null : (
-              <div className={cn('mt-[var(--space-group)] flex flex-col items-start', fullPage && 'border-t border-border pt-3')}>
-                <Button variant="ghost" size="sm" className="font-normal text-muted-foreground" onClick={onTransfer}>
-                  Transfer ownership…
-                </Button>
-              </div>
-            )}
             </>
             )}
             </div>
