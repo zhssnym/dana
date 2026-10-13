@@ -207,6 +207,9 @@ export function SettingsPageContent({
                   Terms of Service
                 </Link>
               </div>
+              <p className="mt-[var(--space-inline)] text-xs text-muted-foreground">
+                © 2026 Imranullah Wafa and Hassan Shahir. All rights reserved.
+              </p>
             </div>
           </SettingsSection>
 
