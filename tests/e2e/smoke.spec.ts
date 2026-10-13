@@ -260,3 +260,81 @@ test('calendar: Upcoming expands overlapping ranges and opens a previously hidde
   await expect(page).toHaveURL(new RegExp(`/app/tasks/${ids[2]}$`))
   await expect(page.getByRole('textbox', { name: 'title' })).toHaveValue('Calendar expansion regression 3')
 })
+
+
+test('calendar: Upcoming resizes Start and Due dates with task edge grips', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/app/scheduled')
+
+  const skip = page.getByRole('dialog', { name: 'How did you hear about Dana?' }).getByRole('button', { name: 'Skip' })
+  await skip.waitFor({ timeout: 5_000 }).then(() => skip.click(), () => undefined)
+
+  const showCalendar = page.getByRole('button', { name: 'Show as calendar' })
+  if (await showCalendar.isVisible()) await showCalendar.click()
+  await page.getByRole('radiogroup', { name: 'Calendar zoom' }).getByRole('radio', { name: 'Month' }).click()
+
+  // The preceding test creates busy ranges this month. Use the following month
+  // so this test proves the edge controls without relying on expansion.
+  await page.getByRole('button', { name: 'Next', exact: true }).click()
+  let calendar = page.getByRole('grid', { name: 'Upcoming calendar' })
+  const midMonth = calendar.locator('[data-date$="-15"]').first()
+  await expect(midMonth).toBeVisible()
+  const week = midMonth.locator('xpath=../..')
+  const dates = await week.locator('[role="gridcell"][data-date]').evaluateAll((cells) =>
+    cells.map((cell) => cell.getAttribute('data-date') ?? ''),
+  )
+  expect(dates).toHaveLength(7)
+  const startDate = dates[1]!
+  const originalDue = dates[3]!
+  const extendedDue = dates[5]!
+
+  const csrf = (await page.context().cookies()).find((cookie) => cookie.name === 'dana_csrf')?.value
+  expect(csrf).toBeTruthy()
+  const create = async (title: string, start_date: string | null, due_date: string): Promise<string> => {
+    const response = await page.request.post('/api/v1/tasks', {
+      headers: { 'X-CSRF-Token': csrf! },
+      data: { title, folder_id: seedIds.groceries, start_date, due_date },
+    })
+    expect(response.status(), await response.text()).toBe(201)
+    return ((await response.json()) as { id: string }).id
+  }
+
+  const dueOnly = await create('Upcoming drag Start edge', null, originalDue)
+  const ranged = await create('Upcoming drag Due edge', startDate, originalDue)
+  await page.reload()
+  const toggle = page.getByRole('button', { name: 'Show as calendar' })
+  if (await toggle.isVisible()) await toggle.click()
+  await page.getByRole('radiogroup', { name: 'Calendar zoom' }).getByRole('radio', { name: 'Month' }).click()
+  await page.getByRole('button', { name: 'Next', exact: true }).click()
+  calendar = page.getByRole('grid', { name: 'Upcoming calendar' })
+
+  const dragGripToDay = async (grip: ReturnType<typeof calendar.locator>, date: string): Promise<void> => {
+    await expect(grip).toBeVisible()
+    const from = await grip.boundingBox()
+    const target = await calendar.locator('[role="gridcell"][data-date="' + date + '"]').boundingBox()
+    expect(from).not.toBeNull()
+    expect(target).not.toBeNull()
+    await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(target!.x + target!.width / 2, target!.y + target!.height / 2, { steps: 12 })
+    await page.mouse.up()
+  }
+  const savedDates = async (id: string): Promise<{ start_date: string | null; due_date: string | null }> => {
+    const response = await page.request.get('/api/v1/tasks/' + id)
+    expect(response.status()).toBe(200)
+    const task = (await response.json()) as { start_date: string | null; due_date: string | null }
+    return { start_date: task.start_date, due_date: task.due_date }
+  }
+
+  // A due-only task can gain Start by pulling its left edge, without opening the task.
+  const chip = calendar.locator('button[data-task-id="' + dueOnly + '"]')
+  await dragGripToDay(chip.locator('[data-calendar-resize="start"]'), startDate)
+  await expect.poll(() => savedDates(dueOnly)).toEqual({ start_date: startDate, due_date: originalDue })
+  await expect(page).toHaveURL(/\/app\/scheduled$/)
+
+  // A multi-day range can extend its Due from the right grip; its Start stays put.
+  const range = calendar.locator('button[data-task-id="' + ranged + '"]').locator('xpath=..')
+  await dragGripToDay(range.locator('[data-calendar-resize="due"]'), extendedDue)
+  await expect.poll(() => savedDates(ranged)).toEqual({ start_date: startDate, due_date: extendedDue })
+  await expect(page).toHaveURL(/\/app\/scheduled$/)
+})
