@@ -190,6 +190,26 @@ export function SettingsPageContent({
             />
           </SettingsSection>
 
+          <SettingsSection title="About">
+            <div className="rounded-[var(--radius-card)] border border-border bg-card p-[var(--space-inline)]">
+              <p className="text-sm font-section text-foreground">Dana</p>
+              <p className="mt-[var(--space-inline)] text-sm text-foreground">
+                A place to plan, shape, and collaborate on work.
+              </p>
+              <p className="mt-[var(--space-inline)] text-xs text-muted-foreground">
+                Created by its co-founders. Operated by Wafa Graphics.
+              </p>
+              <div className="mt-[var(--space-inline)] flex flex-wrap gap-[var(--space-inline)] border-t border-border pt-[var(--space-inline)] text-xs">
+                <Link to={paths.privacy} className="text-muted-foreground underline underline-offset-2 hover:text-foreground">
+                  Privacy Policy
+                </Link>
+                <Link to={paths.terms} className="text-muted-foreground underline underline-offset-2 hover:text-foreground">
+                  Terms of Service
+                </Link>
+              </div>
+            </div>
+          </SettingsSection>
+
           {/* Destructive, so last and in a card of its own. */}
           <SettingsSection aria-label="Delete account">
             <StackingRow
