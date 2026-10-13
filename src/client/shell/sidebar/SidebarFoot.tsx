@@ -106,38 +106,38 @@ export function SidebarFoot({
       </div>
       <SidebarFooter className="border-t border-border p-2" onContextMenu={onContextMenu}>
         <div className="flex items-center gap-1">
-        <FootTip label={<>Search <kbd data-slot="kbd" className="font-sans opacity-70">{SEARCH_KEYS}</kbd></>}>
-          <button type="button" aria-label="Search" aria-keyshortcuts={IS_MAC ? 'Meta+K' : 'Control+K'} className={FOOT_BUTTON} onClick={onOpenSearch}>
-            <Search strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        </FootTip>
-        <NotificationsBell side="top" className={FOOT_BUTTON} />
-        <MessagesButton className={FOOT_BUTTON} />
-        <FootTip label="Settings">
-          <Link
-            to={paths.settings}
-            aria-label="Settings"
-            aria-current={currentPath.startsWith(paths.settings) ? 'page' : undefined}
-            className={FOOT_BUTTON}
-          >
-            <Settings strokeWidth={1.75} aria-hidden="true" />
-          </Link>
-        </FootTip>
-        <FootTip label="Trash">
-          <Link
-            to={paths.trash}
-            aria-label="Trash"
-            aria-current={currentPath === paths.trash ? 'page' : undefined}
-            className={FOOT_BUTTON}
-          >
-            <Trash2 strokeWidth={1.75} aria-hidden="true" />
-          </Link>
-        </FootTip>
-        <span className="min-w-0 flex-1" />
-        <FootTip label={isMobile ? 'Close sidebar' : 'Collapse sidebar'}>
-          <SidebarTrigger className={FOOT_BUTTON} />
-        </FootTip>
-      </div>
+          <FootTip label={<>Search <kbd data-slot="kbd" className="font-sans opacity-70">{SEARCH_KEYS}</kbd></>}>
+            <button type="button" aria-label="Search" aria-keyshortcuts={IS_MAC ? 'Meta+K' : 'Control+K'} className={FOOT_BUTTON} onClick={onOpenSearch}>
+              <Search strokeWidth={1.75} aria-hidden="true" />
+            </button>
+          </FootTip>
+          <NotificationsBell side="top" className={FOOT_BUTTON} />
+          <MessagesButton className={FOOT_BUTTON} />
+          <FootTip label="Settings">
+            <Link
+              to={paths.settings}
+              aria-label="Settings"
+              aria-current={currentPath.startsWith(paths.settings) ? 'page' : undefined}
+              className={FOOT_BUTTON}
+            >
+              <Settings strokeWidth={1.75} aria-hidden="true" />
+            </Link>
+          </FootTip>
+          <FootTip label="Trash">
+            <Link
+              to={paths.trash}
+              aria-label="Trash"
+              aria-current={currentPath === paths.trash ? 'page' : undefined}
+              className={FOOT_BUTTON}
+            >
+              <Trash2 strokeWidth={1.75} aria-hidden="true" />
+            </Link>
+          </FootTip>
+          <span className="min-w-0 flex-1" />
+          <FootTip label={isMobile ? 'Close sidebar' : 'Collapse sidebar'}>
+            <SidebarTrigger className={FOOT_BUTTON} />
+          </FootTip>
+        </div>
       </SidebarFooter>
     </>
   )
