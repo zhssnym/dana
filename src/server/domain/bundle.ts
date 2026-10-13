@@ -125,6 +125,7 @@ function bundleFrom(row: Record<string, unknown>): SettingsBundle {
     clock: String(row.clock) as SettingsBundle['clock'],
     task_open: String(row.task_open) as SettingsBundle['task_open'],
     calendar_zoom: zoomFrom(row.calendar_zoom),
+    feedback_reminder_dismissed: row.feedback_reminder_dismissed === true,
     pinned_views: derivePins(row),
     sidebar_order: Array.isArray(order) ? order.map(String) : [],
     arrangements:
@@ -148,7 +149,7 @@ function focusFrom(value: unknown): FocusListKey[] {
   )
 }
 
-const BUNDLE_COLUMNS = sql`theme, row_density, clock, task_open, calendar_zoom,
+const BUNDLE_COLUMNS = sql`theme, row_density, clock, task_open, calendar_zoom, feedback_reminder_dismissed,
   pinned_views, sidebar_order, arrangements, focus_lists, focus_appearance,
   show_important, show_all, show_done`
 
@@ -185,6 +186,9 @@ export async function writeBundle(
     }
     if (patch.calendar_zoom !== undefined) {
       sets.push(sql`calendar_zoom = ${patch.calendar_zoom}`)
+    }
+    if (patch.feedback_reminder_dismissed !== undefined) {
+      sets.push(sql`feedback_reminder_dismissed = ${patch.feedback_reminder_dismissed}`)
     }
     if (patch.pinned_views !== undefined) {
       const pins = patch.pinned_views.includes('desk')

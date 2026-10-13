@@ -338,3 +338,34 @@ test('calendar: Upcoming resizes Start and Due dates with task edge grips', asyn
   await expect.poll(() => savedDates(ranged)).toEqual({ start_date: startDate, due_date: extendedDue })
   await expect(page).toHaveURL(/\/app\/scheduled$/)
 })
+
+
+test('feedback: beta reminder collapses without hiding feedback and stays collapsed after reload', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/app/today')
+  const skip = page.getByRole('dialog', { name: 'How did you hear about Dana?' }).getByRole('button', { name: 'Skip' })
+  await skip.waitFor({ timeout: 5_000 }).then(() => skip.click(), () => undefined)
+
+  const sidebar = page.getByRole('navigation', { name: 'Pages' })
+  await expect(sidebar.getByText('Help shape Dana')).toBeVisible()
+  await expect(sidebar.getByRole('button', { name: 'Send feedback' })).toHaveCount(0)
+
+  await sidebar.getByRole('button', { name: 'Share feedback' }).click()
+  const feedback = page.getByRole('dialog', { name: 'Send feedback' })
+  await expect(feedback).toBeVisible()
+  await feedback.getByRole('button', { name: 'Close' }).click()
+
+  await sidebar.getByRole('button', { name: 'Collapse feedback reminder' }).click()
+  await expect(sidebar.getByRole('button', { name: 'Feedback', exact: true })).toBeVisible()
+  await expect(sidebar.getByText('Help shape Dana')).toHaveCount(0)
+  await expect.poll(async () => {
+    const response = await page.request.get('/api/v1/settings')
+    return ((await response.json()) as { feedback_reminder_dismissed: boolean }).feedback_reminder_dismissed
+  }).toBe(true)
+
+  await page.reload()
+  await expect(sidebar.getByRole('button', { name: 'Feedback', exact: true })).toBeVisible()
+  await expect(sidebar.getByText('Help shape Dana')).toHaveCount(0)
+  await sidebar.getByRole('button', { name: 'Feedback', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Send feedback' })).toBeVisible()
+})
