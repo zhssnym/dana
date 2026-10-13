@@ -131,7 +131,7 @@ function CalendarEvent({
       data-task-title={event.title}
       onPointerDown={movable ? (pointer) => onPointerStart(pointer, event.taskId, 'move', event.date) : undefined}
       className={cn(
-        '@container relative flex w-full gap-1.5 overflow-hidden rounded-sm border px-1.5 text-left text-foreground transition-[background-color,border-color] focus-visible:outline-none',
+        'group/calendar-event @container relative flex w-full gap-1.5 overflow-hidden rounded-sm border px-1.5 text-left text-foreground transition-[background-color,border-color] focus-visible:outline-none',
         movable && 'cursor-grab active:cursor-grabbing touch-none select-none',
         compact ? 'min-h-5 items-center text-xs' : 'min-h-7 items-start py-1.5 text-xs leading-4',
         !completed && !abandoned && !ghost && 'hover:border-primary',
@@ -171,7 +171,12 @@ function CalendarEvent({
       )}
       {edge !== null && movable ? <span
         aria-hidden="true"
-        className={cn('absolute inset-y-0 z-10 w-3 cursor-ew-resize before:absolute before:inset-y-1 before:w-0.5 before:bg-foreground/25 before:opacity-0 hover:before:opacity-100', edge === 'start' ? 'left-0 before:left-0.5' : 'right-0 before:right-0.5')}
+        data-calendar-resize={edge}
+        className={cn(
+          'absolute inset-y-0 z-10 w-5 cursor-ew-resize touch-none before:absolute before:inset-y-1 before:w-0.5 before:rounded-full before:bg-foreground/50 before:opacity-0 before:transition-opacity',
+          'hover:before:opacity-100 group-hover/calendar-event:before:opacity-70 group-focus-within/calendar-event:before:opacity-70 [@media(hover:none)]:before:opacity-70',
+          edge === 'start' ? 'left-0 before:left-1' : 'right-0 before:right-1',
+        )}
         onPointerDown={(pointer) => {
           pointer.stopPropagation()
           onPointerStart(pointer, event.taskId, edge, event.date)
@@ -216,12 +221,14 @@ function RangeBar({ range, week, zoom, editable, onPointerStart, suppressOpenUnt
     </button>
     {movable && range.begins ? <span
       aria-hidden="true"
-      className="absolute inset-y-0 left-0 w-3 cursor-ew-resize touch-none before:absolute before:inset-y-1 before:left-1 before:w-0.5 before:bg-foreground/30 before:opacity-0 hover:before:opacity-100 group-hover/range:before:opacity-100"
+      data-calendar-resize="start"
+      className="absolute inset-y-0 left-0 w-5 cursor-ew-resize touch-none before:absolute before:inset-y-1 before:left-1.5 before:w-0.5 before:rounded-full before:bg-foreground/50 before:opacity-0 before:transition-opacity hover:before:opacity-100 group-hover/range:before:opacity-70 [@media(hover:none)]:before:opacity-70"
       onPointerDown={(pointer) => { pointer.stopPropagation(); onPointerStart(pointer, task.id, 'start', task.start_date ?? '') }}
     /> : null}
     {movable && range.ends ? <span
       aria-hidden="true"
-      className="absolute inset-y-0 right-0 w-3 cursor-ew-resize touch-none before:absolute before:inset-y-1 before:right-1 before:w-0.5 before:bg-foreground/30 before:opacity-0 hover:before:opacity-100 group-hover/range:before:opacity-100"
+      data-calendar-resize="due"
+      className="absolute inset-y-0 right-0 w-5 cursor-ew-resize touch-none before:absolute before:inset-y-1 before:right-1.5 before:w-0.5 before:rounded-full before:bg-foreground/50 before:opacity-0 before:transition-opacity hover:before:opacity-100 group-hover/range:before:opacity-70 [@media(hover:none)]:before:opacity-70"
       onPointerDown={(pointer) => { pointer.stopPropagation(); onPointerStart(pointer, task.id, 'due', task.due_date ?? '') }}
     /> : null}
   </div>
