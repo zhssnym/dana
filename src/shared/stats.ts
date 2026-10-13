@@ -57,7 +57,7 @@ export const getStatsResponse = z.object({
   /** People with a request in the last day, 7 days, 30 days. */
   active: z.object({ day: z.number().int(), week: z.number().int(), month: z.number().int() }),
   work_pages: z.object({ total: z.number().int(), new_this_week: z.number().int() }),
-  /** Every live page and task made by counted people, sample and Desk left out. */
+  /** Every live page and task made by counted people, Desk left out. */
   totals: z.object({ pages: z.number().int(), tasks: z.number().int() }),
   /** The last 12 weeks, oldest first, the current week last. */
   weeks: z.array(statsWeek),

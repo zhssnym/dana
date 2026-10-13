@@ -142,9 +142,6 @@ export type OperationLogEvent =
   | 'boot_failed'
   /** A route marked for removal was called; `reason` names it. */
   | 'retired_route_hit'
-  /** The one-time cleanup of the retired sample workspace, with the account `count`. */
-  | 'sample_workspaces_removed'
-  | 'sample_workspaces_removal_failed'
 
 export interface SecurityLogger {
   authEvent(event: AuthLogEvent, fields?: AuthLogFields): void

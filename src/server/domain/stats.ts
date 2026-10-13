@@ -13,18 +13,14 @@ const WEEKS = 12
 
 const workPages = sql`
   SELECT f.owner_id, f.created_at FROM folders f
-   WHERE f.kind = 'work' AND NOT f.is_default AND f.deleted_at IS NULL AND f.archived_at IS NULL
-     AND NOT EXISTS (SELECT 1 FROM sample_objects s WHERE s.kind = 'folder' AND s.id = f.id)`
+   WHERE f.kind = 'work' AND NOT f.is_default AND f.deleted_at IS NULL AND f.archived_at IS NULL`
 
-// Accounts without an email (sample people) are not counted.
+// Accounts without an email are not counted.
 const counted = sql`u.deleted_at IS NULL AND u.email IS NOT NULL`
 
 const num = (value: unknown): number => Number(value ?? 0)
 
-/*
-One row per thing a counted person did: (user_id, at, what). Built from rows Dana already keeps.
-Sample workspace objects are left out, so playing with the sample is not counted as use.
-*/
+// One row per thing a counted person did: (user_id, at, what). Built from rows Dana already keeps.
 const actions = sql`
   SELECT e.actor_id AS user_id, e.created_at AS at,
          CASE WHEN e.subject_kind = 'task' AND e.verb = 'created' THEN 'task_created'
@@ -33,23 +29,19 @@ const actions = sql`
               ELSE 'edit' END AS what
     FROM events e
    WHERE e.subject_kind <> 'comment'
-     AND NOT EXISTS (SELECT 1 FROM sample_objects so WHERE so.id = e.subject_id)
   UNION ALL SELECT c.author_id, c.created_at, 'comment' FROM comments c
-   WHERE NOT EXISTS (SELECT 1 FROM sample_objects so WHERE so.id = c.folder_id)
   UNION ALL SELECT m.author_id, m.created_at, 'message' FROM direct_messages m
   UNION ALL SELECT f.owner_id, f.created_at, 'upload' FROM files f
-   WHERE f.kind <> 'avatar' AND NOT EXISTS (SELECT 1 FROM sample_objects so WHERE so.id = f.folder_id)
+   WHERE f.kind <> 'avatar'
   UNION ALL SELECT i.inviter_id, i.created_at, 'invite' FROM invites i`
 
-// Every live page and task a person made, sample workspace and each Desk left out.
+// Every live page and task a person made, each Desk left out.
 const allPages = sql`
   SELECT f.owner_id FROM folders f
-   WHERE NOT f.is_default AND f.deleted_at IS NULL
-     AND NOT EXISTS (SELECT 1 FROM sample_objects s WHERE s.id = f.id)`
+   WHERE NOT f.is_default AND f.deleted_at IS NULL`
 const allTasks = sql`
   SELECT t.created_by FROM tasks t
-   WHERE t.deleted_at IS NULL
-     AND NOT EXISTS (SELECT 1 FROM sample_objects s WHERE s.id = t.id)`
+   WHERE t.deleted_at IS NULL`
 
 const ACTION_ORDER = ['task_created', 'task_completed', 'page_created', 'edit', 'comment', 'message', 'upload', 'invite']
 

@@ -280,14 +280,6 @@ export async function seed(): Promise<void> {
     INSERT INTO user_page_covers (user_id, place, file_id, preset, focal_y)
     VALUES (${seedIds.nadia}, 'today', NULL, 'dusk', 40)
   `)
-  // Nadia's rows marked as sample objects. No browser test signs in as her.
-  await db.execute(sql`
-    INSERT INTO sample_objects (user_id, kind, id) VALUES
-      (${seedIds.nadia}, 'task', ${seedIds.taskNadiaDraft}),
-      (${seedIds.nadia}, 'folder', ${seedIds.nadiaStudio}),
-      (${seedIds.nadia}, 'shelf', ${seedIds.shelfNadiaReading}),
-      (${seedIds.nadia}, 'view', ${seedIds.viewNadiaThisWeek})
-  `)
 
   await client.close()
 }
