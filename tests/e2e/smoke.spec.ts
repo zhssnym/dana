@@ -330,6 +330,10 @@ test('calendar: Upcoming resizes Start and Due dates with task edge grips', asyn
   const chip = calendar.locator('button[data-task-id="' + dueOnly + '"]')
   await dragGripToDay(chip.locator('[data-calendar-resize="start"]'), startDate)
   await expect.poll(() => savedDates(dueOnly)).toEqual({ start_date: startDate, due_date: originalDue })
+  // The first write turns a single-day chip into a range and reorders its lane.
+  // Wait for that new bar before dragging the other range.
+  await expect(calendar.locator('button[data-task-id="' + dueOnly + '"]').locator('xpath=..')
+    .locator('[data-calendar-resize="due"]')).toBeVisible()
   await expect(page).toHaveURL(/\/app\/scheduled$/)
 
   // A multi-day range can extend its Due from the right grip; its Start stays put.
