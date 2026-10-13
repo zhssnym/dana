@@ -464,8 +464,8 @@ function Stats({ stats }: { readonly stats: GetStatsResponse }): React.JSX.Eleme
 
       <p className="text-xs text-muted-foreground">
         Active means signed in and used Dana in that window; people who signed out are not counted
-        until they return, and show as not active in 30 days. Work pages leave out each person’s Desk,
-        the sample workspace and anything archived or in the trash. Weeks start on Monday, UTC. Actions are tasks and pages made, changed or completed, comments, private messages, uploads and invites; the sample workspace is left out. Pages and Tasks count everything a person made that is not in the trash. Source is the first tagged link (utm_source or ref), then an invite, then the site that linked to Dana, else direct; unknown means the person joined before Dana kept this.
+        until they return, and show as not active in 30 days. Work pages leave out each person’s Desk
+        and anything archived or in the trash. Weeks start on Monday, UTC. Actions are tasks and pages made, changed or completed, comments, private messages, uploads and invites. Pages and Tasks count everything a person made that is not in the trash. Source is the first tagged link (utm_source or ref), then an invite, then the site that linked to Dana, else direct; unknown means the person joined before Dana kept this.
       </p>
     </div>
   )
