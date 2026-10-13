@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import type { ReactElement } from 'react'
 import { Link } from 'react-router'
-import { Megaphone, Search, Settings, Trash2 } from '../../lib/icons.js'
+import { ArrowUpRight, Megaphone, Search, Settings, Trash2, X } from '../../lib/icons.js'
 import { FeedbackDialog } from '../../components/feedback/FeedbackDialog.js'
+import { usePatchBundle } from '../../api/mutations.js'
+import { useBundle } from '../../api/queries.js'
 import { SidebarFooter, SidebarTrigger } from '../../components/ui/sidebar.js'
 import { NotificationsBell } from '../../components/notifications-bell.js'
 import { MessagesButton } from '../../components/direct-message/MessagesButton.js'
@@ -45,10 +47,65 @@ export function SidebarFoot({
   readonly onContextMenu: (event: React.MouseEvent) => void
 }): React.JSX.Element {
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [dismissedHere, setDismissedHere] = useState(false)
+  const bundle = useBundle()
+  const patchBundle = usePatchBundle()
+  const reminderCollapsed = dismissedHere || bundle.data?.feedback_reminder_dismissed !== false
+
+  const collapseReminder = (): void => {
+    setDismissedHere(true)
+    patchBundle.mutate(
+      { feedback_reminder_dismissed: true },
+      { onError: () => setDismissedHere(false) },
+    )
+  }
+
   return (
-    <SidebarFooter className="border-t border-border p-2" onContextMenu={onContextMenu}>
+    <>
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
-      <div className="flex items-center gap-1">
+      <div className="px-2 pb-2" onContextMenu={onContextMenu}>
+        {reminderCollapsed ? (
+          <button
+            type="button"
+            aria-label="Feedback"
+            className="flex h-(--row-height) w-full items-center gap-2 rounded-md px-2 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+            onClick={() => setFeedbackOpen(true)}
+          >
+            <Megaphone strokeWidth={1.75} aria-hidden="true" />
+            Feedback
+          </button>
+        ) : (
+          <section aria-label="Beta feedback" className="rounded-md border border-sidebar-border bg-background p-3">
+            <div className="flex items-center justify-between gap-1">
+              <h2 className="flex min-w-0 items-center gap-2 text-sm font-section">
+                <Megaphone strokeWidth={1.75} aria-hidden="true" />
+                Help shape Dana
+              </h2>
+              <button
+                type="button"
+                aria-label="Collapse feedback reminder"
+                className="flex size-(--control-height) shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                onClick={collapseReminder}
+              >
+                <X strokeWidth={1.75} aria-hidden="true" />
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              You're an early tester. Your feedback helps us make Dana better.
+            </p>
+            <button
+              type="button"
+              className="mt-2 flex items-center gap-1 text-xs font-section text-foreground hover:text-primary"
+              onClick={() => setFeedbackOpen(true)}
+            >
+              Share feedback
+              <ArrowUpRight strokeWidth={1.75} aria-hidden="true" />
+            </button>
+          </section>
+        )}
+      </div>
+      <SidebarFooter className="border-t border-border p-2" onContextMenu={onContextMenu}>
+        <div className="flex items-center gap-1">
         <FootTip label={<>Search <kbd data-slot="kbd" className="font-sans opacity-70">{SEARCH_KEYS}</kbd></>}>
           <button type="button" aria-label="Search" aria-keyshortcuts={IS_MAC ? 'Meta+K' : 'Control+K'} className={FOOT_BUTTON} onClick={onOpenSearch}>
             <Search strokeWidth={1.75} aria-hidden="true" />
@@ -66,11 +123,6 @@ export function SidebarFoot({
             <Settings strokeWidth={1.75} aria-hidden="true" />
           </Link>
         </FootTip>
-        <FootTip label="Send feedback">
-          <button type="button" aria-label="Send feedback" className={FOOT_BUTTON} onClick={() => setFeedbackOpen(true)}>
-            <Megaphone strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        </FootTip>
         <FootTip label="Trash">
           <Link
             to={paths.trash}
@@ -86,6 +138,7 @@ export function SidebarFoot({
           <SidebarTrigger className={FOOT_BUTTON} />
         </FootTip>
       </div>
-    </SidebarFooter>
+      </SidebarFooter>
+    </>
   )
 }
