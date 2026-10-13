@@ -477,6 +477,13 @@
       "when": 1795600000000,
       "tag": "0081_remove_sample_people",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1795700000000,
+      "tag": "0082_feedback_reminder",
+      "breakpoints": true
     }
   ]
 }
