@@ -130,7 +130,7 @@ export async function syncMentions(tx: Executor, input: MentionSource): Promise<
     (
       await rowsOf(
         tx,
-        sql`SELECT user_id FROM folder_members
+        sql`SELECT user_id FROM visible_folder_members
              WHERE folder_id = (SELECT project_id FROM folders WHERE id = ${input.pageFolderId}::uuid)
                AND user_id IN (${list})`,
       )

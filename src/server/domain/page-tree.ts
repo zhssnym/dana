@@ -169,6 +169,11 @@ export async function moveFolder(
   const oldParent =
     priorParent === null || priorParent === undefined ? null : String(priorParent)
   const projectId = String(before[0]?.project_id)
+  const sourceProfile = await rowsOf(tx, sql`SELECT 1 FROM profile_doc_roots
+    WHERE root_folder_id = ${projectId}::uuid`)
+  if (sourceProfile.length) {
+    return { kind: 'not_movable', reason: 'A profile Doc stays in its profile.' }
+  }
   const isTab = before[0]?.tab_position !== null && before[0]?.tab_position !== undefined
   const isRoot = projectId === folderId
 
@@ -211,6 +216,11 @@ export async function moveFolder(
     return { kind: 'not_movable', reason: 'A Discussion page holds threads, not pages.' }
   }
   const targetProject = String(target[0]?.project_id)
+  const targetProfile = await rowsOf(tx, sql`SELECT 1 FROM profile_doc_roots
+    WHERE root_folder_id = ${targetProject}::uuid`)
+  if (targetProfile.length) {
+    return { kind: 'not_movable', reason: 'A page cannot move into a profile Doc.' }
+  }
   /* A page's people are its project's, so a move into another project is allowed only when
   both have the same owner and the same people at the same presets. */
   if (targetProject !== projectId && !(await samePeople(tx, projectId, targetProject))) {
@@ -521,7 +531,7 @@ export async function trashPageSubtree(
     const id = String(row.id)
     const members = await rowsOf(
       tx,
-      sql`SELECT m.user_id FROM folders f JOIN folder_members m ON m.folder_id = f.project_id
+      sql`SELECT m.user_id FROM folders f JOIN visible_folder_members m ON m.folder_id = f.project_id
            WHERE f.id = ${id}::uuid`,
     )
     await recordEvent(tx, {

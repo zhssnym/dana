@@ -121,7 +121,7 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
    if(isMediaKind(block.block_kind)&&!(BLOCK_FILE_KINDS[block.block_kind] as readonly string[]).includes(String(file.kind)))throw new DocumentRefusal('file_kind_mismatch',`This ${block.block_kind} block names a file uploaded as ${String(file.kind)}. Upload it again as the kind you mean to insert.`)
   }
   if(block.block_kind==='person'){
-   const member=await rowsOf(tx,sql`SELECT 1 AS present FROM folder_members m JOIN folders f ON f.project_id=m.folder_id WHERE f.id=${folderId}::uuid AND m.user_id=${block.text}::uuid`)
+   const member=await rowsOf(tx,sql`SELECT 1 AS present FROM visible_folder_members m JOIN folders f ON f.project_id=m.folder_id WHERE f.id=${folderId}::uuid AND m.user_id=${block.text}::uuid`)
    if(member.length===0)throw new DocumentRefusal('not_found','This person is not on the Team.')
   }
   // A `page` block's reference was judged by `pageTreeRules` above.
@@ -140,6 +140,7 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
   if(made.kind==='forbidden')throw new DocumentRefusal('not_convertible',made.reason)
   if(made.kind==='too_deep')throw new DocumentRefusal('not_convertible','Pages nest 20 levels deep at most.')
   if(made.kind==='default_parent')throw new DocumentRefusal('not_convertible','A default folder holds no sub-pages.')
+  if(made.kind==='profile_doc_kind')throw new DocumentRefusal('not_convertible','A profile Doc holds Doc pages only.')
   if(made.kind==='folder_cap')throw new DocumentRefusal('not_convertible','You have reached the folder limit.')
  }
  for(const id of original)if(!blocks.has(id))await tx.execute(sql`DELETE FROM page_blocks WHERE id=${id}::uuid`)

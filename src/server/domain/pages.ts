@@ -19,7 +19,7 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { readableFileScope } from './files.js'
-import { accessOf, mayPerform, visibleFolder } from './folder-access.js'
+import { accessOf, lockProfileDocForWrite, mayPerform, visibleFolder } from './folder-access.js'
 import { shelfView } from './shelves.js'
 import { applyShelfDocument, shelfDocumentMetadata, ShelfDocumentRefusal } from './shelf-document.js'
 import { initialKeys } from './fractional-index.js'
@@ -185,6 +185,7 @@ export async function putPage(
   blocks: readonly PageBlockWrite[],
 ): Promise<PutPageResult> {
   return inTransaction(db, async (tx) => {
+    if (home.folderId !== null) await lockProfileDocForWrite(tx, home.folderId)
     /* The insert writes `home.folderId` as given, so check visibility here even though routes gate first. */
     if (!(await homeIsVisible(tx, home, viewerId))) {
       return { kind: 'not_found' } as const
@@ -444,6 +445,8 @@ export async function actOnFolderPage(
   body: PageActionBody,
 ): Promise<PageActionResult> {
   return inTransaction<PageActionResult>(db, async (tx) => {
+    if (body.action === 'document_transaction' && touchesPageTree(body)) await lockPageTree(tx)
+    await lockProfileDocForWrite(tx, folderId)
     const facts = await accessOf(tx, viewerId, folderId)
     if (facts === null) return { kind: 'not_found' }
     const decision = mayPerform(facts, 'folder.section.manage')
@@ -451,7 +454,6 @@ export async function actOnFolderPage(
       return { kind: 'forbidden', reason: decision.reason }
     }
     // Creating, trashing or re-homing a sub-page takes the tree lock before the folder row.
-    if (body.action === 'document_transaction' && touchesPageTree(body)) await lockPageTree(tx)
     await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${folderId}::uuid FOR UPDATE`)
     if (body.action === 'document_transaction') {
       const mutation = await applyDocument(tx, viewerId, folderId, body)

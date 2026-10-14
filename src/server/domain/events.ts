@@ -157,6 +157,11 @@ export async function listNotifications(
         LEFT JOIN comments c
           ON e.subject_kind = 'comment' AND c.id = e.subject_id
         WHERE n.user_id = ${viewerId}
+          AND (e.folder_id IS NULL OR EXISTS (
+            SELECT 1 FROM folders f
+            JOIN visible_folder_members m ON m.folder_id = f.project_id
+            WHERE f.id = e.folder_id AND f.deleted_at IS NULL AND f.archived_at IS NULL
+              AND m.user_id = ${viewerId}::uuid))
         ORDER BY n.created_at DESC, n.id DESC
         LIMIT ${LIST_CAP + 1}`,
   )

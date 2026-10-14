@@ -33,6 +33,7 @@ import { listViews, readBundle } from './bundle.js'
 import { postContentOrNull } from './comments.js'
 import { listPlaceCovers } from './covers.js'
 import { listPlaceDescriptions } from './place-descriptions.js'
+import { visibleFolder } from './folder-access.js'
 
 function toIso(value: unknown): string {
   return value instanceof Date
@@ -293,6 +294,8 @@ export async function exportForViewer(
         LEFT JOIN folder_members m
           ON m.folder_id = f.project_id AND m.user_id = ${viewerId}
         WHERE f.owner_id = ${viewerId}
+          AND (NOT EXISTS (SELECT 1 FROM profile_doc_roots r WHERE r.root_folder_id = f.project_id)
+               OR ${visibleFolder(sql`f.id`, viewerId, { trashed: 'any' })})
         ORDER BY f.created_at ASC, f.id ASC
         LIMIT ${FETCH}`,
   )
@@ -513,6 +516,9 @@ export async function exportForViewer(
                c.created_at, c.edited_at
         FROM comments c
         WHERE c.author_id = ${viewerId}
+          AND (c.folder_id IS NULL OR NOT EXISTS (
+            SELECT 1 FROM folders cf JOIN profile_doc_roots r ON r.root_folder_id = cf.project_id
+            WHERE cf.id = c.folder_id) OR ${visibleFolder(sql`c.folder_id`, viewerId)})
         ORDER BY c.created_at ASC, c.id ASC
         LIMIT ${FETCH}`,
   )
@@ -638,8 +644,11 @@ export async function exportForViewer(
     db,
     sql`SELECT id, kind, name, mime, bytes, width, height, duration_ms,
                created_at
-        FROM files
+        FROM files fi
         WHERE owner_id = ${viewerId}
+          AND (fi.folder_id IS NULL OR NOT EXISTS (
+            SELECT 1 FROM folders ff JOIN profile_doc_roots r ON r.root_folder_id = ff.project_id
+            WHERE ff.id = fi.folder_id) OR ${visibleFolder(sql`fi.folder_id`, viewerId)})
         ORDER BY created_at ASC, id ASC
         LIMIT ${FETCH}`,
   )
