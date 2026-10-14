@@ -35,8 +35,3 @@ To do the tests, run `npm test`.
 
 Read `AGENTS.md` first. It gives the commands, the steps to ship a change, and the traps
 to look for. The rules that the code does not show are in `docs/`.
-
-## Team
-
-- Hassan: the project, the back end and the infrastructure. He builds Dana with Claude Code.
-- Imran: product and design.
