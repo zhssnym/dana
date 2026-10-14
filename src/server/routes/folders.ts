@@ -76,6 +76,8 @@ import {
   setSelfEditGrant,
 } from '../domain/responsibility.js'
 import { readFolderDependencies } from '../domain/task-dependencies.js'
+import { profileArea, putProfileContentBody } from '../../shared/member-profile.js'
+import { profileSectionsOf, writeProfileSection } from '../domain/member-profile.js'
 import type { GetFolderDependenciesResponse } from '../../shared/task-dependencies.js'
 import { inTransaction } from '../database.js'
 import { moveFolder, visibleAncestors } from '../domain/page-tree.js'
@@ -1038,6 +1040,10 @@ export function createFoldersRouter(
         memberId: ids.memberId,
         selfEditGranted: member.canEditOwnResponsibilities,
       }
+      const profile = await profileSectionsOf(
+        db, projectId, ids.memberId, viewer(req),
+        mayPerform(access, 'responsibility.manage').allowed,
+      )
       const body: GetFolderMemberDetailsResponse = {
         user: member.user,
         is_owner: member.isOwner,
@@ -1060,6 +1066,9 @@ export function createFoldersRouter(
           mayPerform(access, 'responsibility.manage', target).allowed ||
           mayPerform(access, 'responsibility.edit.own', target).allowed,
         responsibility: member.responsibility,
+        profile_project: profile.project,
+        profile_shared: profile.shared,
+        profile_file_names: profile.file_names,
         assigned_open_task_count: member.assignedOpenTaskCount,
         history: {
           responsibility_path: `/folders/${ids.folderId}/members/${ids.memberId}/responsibility/history`,
@@ -1126,6 +1135,46 @@ export function createFoldersRouter(
         return
       }
       res.status(204).end()
+    },
+  )
+
+  /*
+   * Two contextual composer areas. A profile never grants a separate read scope:
+   * every current project member may read, but only Full control edits project
+   * content and only the member edits their own shared content.
+   */
+  router.put(
+    '/folders/:id/members/:userId/profile-content/:area',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const ids = memberOfPath(req, res)
+      if (ids === null) return
+      const access = await gate(req, res, ids.folderId, 'folder.read')
+      if (access === null) return
+      const projectId = await projectFor(db, res, ids.folderId)
+      if (projectId === null) return
+      const parsedArea = profileArea.safeParse(req.params.area)
+      if (!parsedArea.success) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const parsed = parseBody(putProfileContentBody, req, res, securityLog)
+      if (parsed === null) return
+      const result = await writeProfileSection(
+        db, projectId, ids.memberId, viewer(req), parsedArea.data,
+        parsed.content, parsed.base_revision,
+      )
+      switch (result) {
+        case 'not_found': sendError(res, 404, 'not_found', 'Not found.'); return
+        case 'forbidden': sendError(res, 403, 'forbidden', 'You cannot edit this profile area.'); return
+        case 'invalid_file': sendError(res, 422, 'validation_failed', 'A file must belong to this project and match its kind.'); return
+        case 'stale': sendError(res, 409, 'conflict', 'This content has changed. Reload before saving.'); return
+        case 'written': res.status(204).end(); return
+      }
     },
   )
 
