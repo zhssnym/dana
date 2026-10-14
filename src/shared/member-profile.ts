@@ -8,19 +8,19 @@ export const PROFILE_AREAS = ['project', 'shared'] as const
 export const profileArea = z.enum(PROFILE_AREAS)
 export type ProfileArea = z.infer<typeof profileArea>
 
-const textBlock = z.object({
-  kind: z.enum(['paragraph', 'bullet', 'numbered']),
-  content: richContent,
-}).strict()
-
-const fileBlock = z.object({
-  kind: z.enum(['file', 'image']),
-  file_id: z.uuid(),
-}).strict()
+// Literal variants preserve discriminated narrowing in TypeScript as well as
+// runtime validation. Grouped z.enum kinds validate, but do not narrow fully.
+const textBlock = (kind: 'paragraph' | 'bullet' | 'numbered') =>
+  z.object({ kind: z.literal(kind), content: richContent }).strict()
+const mediaBlock = (kind: 'file' | 'image') =>
+  z.object({ kind: z.literal(kind), file_id: z.uuid() }).strict()
 
 export const profileContent = z.object({
   version: z.literal(1),
-  blocks: z.array(z.discriminatedUnion('kind', [textBlock, fileBlock])).max(120),
+  blocks: z.array(z.discriminatedUnion('kind', [
+    textBlock('paragraph'), textBlock('bullet'), textBlock('numbered'),
+    mediaBlock('file'), mediaBlock('image'),
+  ])).max(120),
 }).strict().superRefine((content, ctx) => {
   if (new TextEncoder().encode(JSON.stringify(content)).length > 64 * 1024)
     ctx.addIssue({ code: 'custom', message: 'Profile content must be at most 64 KB.' })
