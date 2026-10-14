@@ -205,6 +205,13 @@ export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
 /** Every CASCADE foreign key to users(id). The guard test checks this list against the schema both ways. */
 export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
   {
+    fk: 'member_profile_sections_editor_fkey',
+    table: 'member_profile_sections',
+    disposition: 'retained',
+    where: '',
+    why: 'A project-scoped content section may have been edited by another project member. Account deletion scrubs the author identity without removing the teammate’s current project content. Removing the membership deletes its own sections, not the canonical linked files.',
+  },
+  {
     fk: 'feedback_user_id_fkey',
     table: 'feedback',
     disposition: 'deleted',

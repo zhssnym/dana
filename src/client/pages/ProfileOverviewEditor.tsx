@@ -30,7 +30,7 @@ export default function ProfileOverviewEditor({ initial, text, onSave, onCancel 
   const [error, setError] = useState('')
   const editor = useCreateBlockNote({
     schema,
-    dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: 'A short introduction', default: 'A short introduction' } },
+    dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: 'A short bio', default: 'A short bio' } },
     initialContent: [{ type: 'paragraph', content: contentOf(text, initial) }] as never,
   })
 
@@ -48,7 +48,7 @@ export default function ProfileOverviewEditor({ initial, text, onSave, onCancel 
       ? null
       : { version: 1, runs }
     if (content !== null && content.runs.map((run) => run.text).join('').trim().length > 500) {
-      setError('Keep the overview under 500 characters.')
+      setError('Keep the bio under 500 characters.')
       return
     }
     setSaving(true)
@@ -64,12 +64,12 @@ export default function ProfileOverviewEditor({ initial, text, onSave, onCancel 
 
   return <div className="flex flex-col gap-[var(--space-inline)]">
     <div className="dana-writing-canvas min-h-[var(--row-height)] rounded-md border border-input px-[var(--space-inline)] py-[var(--space-inline)] focus-within:border-ring"
-      style={{ '--dana-canvas-placeholder': JSON.stringify('A short introduction') } as React.CSSProperties}
+      style={{ '--dana-canvas-placeholder': JSON.stringify('A short bio') } as React.CSSProperties}
       onKeyDownCapture={(event) => {
         if (event.key === 'Enter' && !event.shiftKey) event.preventDefault()
       }}>
       <BlockNoteView editor={editor} theme={theme} formattingToolbar={false} slashMenu={false}
-        sideMenu={false} filePanel={false} aria-label="Overview">
+        sideMenu={false} filePanel={false} aria-label="Bio">
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
       </BlockNoteView>
     </div>

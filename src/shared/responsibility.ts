@@ -8,6 +8,7 @@ import { z } from 'zod'
 
 import { richContent } from './rich-content.js'
 import { folderAccessPreset } from './folder-access.js'
+import { profileStanding } from './member-profile.js'
 
 /** Payload version. A reader refuses a version it does not know. */
 export const RESPONSIBILITY_DOCUMENT_VERSION = 1
@@ -227,6 +228,11 @@ export const folderMemberDetails = z.object({
   viewer_may_edit_responsibility: z.boolean(),
 
   responsibility: responsibilityStanding,
+  profile_project: profileStanding,
+  profile_shared: profileStanding,
+  profile_file_names: z.record(z.string(), z.string()),
+  profile_may_upload_file: z.boolean(),
+  profile_may_upload_image: z.boolean(),
 
   /* Pending Tasks assigned to this member; informational, never Responsibility truth. */
   assigned_open_task_count: z.int().nonnegative(),
