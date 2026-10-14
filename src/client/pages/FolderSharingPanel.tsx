@@ -500,7 +500,7 @@ export function FolderSharingPanel({
                 userId={openMember}
                 viewerId={viewerId}
                 fullPage={fullPage}
-                onOpenSidePanel={fullPage ? changePresentation : undefined}
+                onOpenFullPage={!fullPage ? changePresentation : undefined}
                 ask={confirm.ask}
                 onRemove={
                   mayRemove && openMember !== viewerId
