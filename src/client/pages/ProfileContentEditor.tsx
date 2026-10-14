@@ -54,11 +54,13 @@ function initialBlocks(content: ProfileContent, names: Readonly<Record<string,st
 }
 
 export default function ProfileContentEditor({
-  folderId, initial, names, onSave, onCancel,
+  folderId, initial, names, canUploadFile, canUploadImage, onSave, onCancel,
 }: {
   readonly folderId: string
   readonly initial: ProfileContent
   readonly names: Readonly<Record<string, string>>
+  readonly canUploadFile: boolean
+  readonly canUploadImage: boolean
   readonly onSave: (content: ProfileContent) => Promise<void>
   readonly onCancel: () => void
 }): React.JSX.Element {
@@ -75,7 +77,9 @@ export default function ProfileContentEditor({
     } },
     initialContent: (initial.blocks.length ? initialBlocks(initial, names) : [{type:'paragraph', content:''}]) as never,
     uploadFile: async (file) => {
-      const kind = (RASTER_MIMES as readonly string[]).includes(file.type) ? 'image' : 'file'
+      const image = (RASTER_MIMES as readonly string[]).includes(file.type)
+      const kind = image && canUploadImage ? 'image' : 'file'
+      if (kind === 'file' && !canUploadFile) throw new Error('Your project Access does not allow this upload.')
       const result = await uploadDanaFile(kind, folderId, file)
       return { props: { url: `/api/v1/files/${result.id}`, name: file.name } }
     },
@@ -88,7 +92,9 @@ export default function ProfileContentEditor({
   }, [])
 
   async function upload(file: File): Promise<{url:string;name:string}> {
-    const kind = (RASTER_MIMES as readonly string[]).includes(file.type) ? 'image' : 'file'
+    const image = (RASTER_MIMES as readonly string[]).includes(file.type)
+    const kind = image && canUploadImage ? 'image' : 'file'
+    if (kind === 'file' && !canUploadFile) throw new Error('Your project Access does not allow this upload.')
     const result = await uploadDanaFile(kind, folderId, file)
     return { url: `/api/v1/files/${result.id}`, name: file.name }
   }
@@ -97,7 +103,8 @@ export default function ProfileContentEditor({
     setUploading(true)
     setError('')
     try {
-      const kind = (RASTER_MIMES as readonly string[]).includes(file.type) ? 'image' : 'file'
+      const image = (RASTER_MIMES as readonly string[]).includes(file.type)
+      const kind = image && canUploadImage ? 'image' : 'file'
       const props = await upload(file)
       editor.insertBlocks([{ type: kind, props }], editor.document.at(-1)!, 'after')
     } catch (failure) {
@@ -111,6 +118,7 @@ export default function ProfileContentEditor({
     if (uploading || saving) return
     const blocks: AreaBlock[] = []
     let invalidFile = false
+    let nested = false
     function append(nodes: readonly CanvasBlock[]): void {
       for (const block of nodes) {
         if (block.type === 'file' || block.type === 'image') {
@@ -128,10 +136,15 @@ export default function ProfileContentEditor({
         } else {
           invalidFile = true
         }
+        if (block.children.length) nested = true
         append(block.children as CanvasBlock[])
       }
     }
     append(editor.document as CanvasBlock[])
+    if (nested) {
+      setError('Nested lists are not supported here. Remove the indentation before saving.')
+      return
+    }
     if (invalidFile) {
       setError('Upload or remove the unfinished file blocks before saving.')
       return
@@ -159,9 +172,12 @@ export default function ProfileContentEditor({
         sideMenu={false} aria-label="Profile content" >
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
         <FilePanelController filePanel={(props) =>
-          <CanvasFilePanel {...props} onUpload={(kind, file) =>
-            uploadDanaFile(kind, folderId, file).then((result) =>
-              ({url:`/api/v1/files/${result.id}`,name:file.name}))} />} />
+          <CanvasFilePanel {...props} onUpload={(kind, file) => {
+            if (kind === 'image' ? !canUploadImage : !canUploadFile)
+              return Promise.reject(new Error('Your project Access does not allow this upload.'))
+            return uploadDanaFile(kind, folderId, file).then((result) =>
+              ({url:`/api/v1/files/${result.id}`,name:file.name}))
+          }} />} />
       </BlockNoteView>
     </div>
     <input ref={fileInput} type="file" className="sr-only" aria-label="Attach a file"
@@ -171,9 +187,13 @@ export default function ProfileContentEditor({
         if (file) void attach(file)
       }}/>
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <Button variant="ghost" size="sm" disabled={uploading || saving} onClick={() => fileInput.current?.click()}>
-        {uploading ? 'Uploading…' : 'Attach file'}
-      </Button>
+      {canUploadFile || canUploadImage ? (
+        <Button variant="ghost" size="sm" disabled={uploading || saving} onClick={() => fileInput.current?.click()}>
+          {uploading ? 'Uploading…' : 'Attach file'}
+        </Button>
+      ) : (
+        <span className="text-xs text-muted-foreground">Add links, or ask for upload access.</span>
+      )}
       <div className="flex items-center gap-2">
         <Button variant="ghost" disabled={saving} onClick={onCancel}>Cancel</Button>
         <Button disabled={saving || uploading} onClick={() => {void save()}}>{saving ? 'Saving…' : 'Save'}</Button>
