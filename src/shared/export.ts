@@ -6,6 +6,7 @@ people appear only as display names.
 import { z } from 'zod'
 import { pageRichContent } from './page-document.js'
 import { richContent } from './rich-content.js'
+import { profileContent } from './member-profile.js'
 
 import { CALENDAR_ZOOMS } from './bundle.js'
 import { postContent } from './comments.js'
@@ -17,7 +18,7 @@ Bump on every shape change: a reader must refuse a version it does not know,
 because an older schema strips new keys silently. Pick the next number from
 the open branches, not this file, so two branches never share one number.
 */
-export const EXPORT_VERSION = 14
+export const EXPORT_VERSION = 15
 
 /** 10.3's per-collection row cap; a cut collection is named in `truncated`. */
 export const EXPORT_ROW_CAP = 1000
@@ -29,6 +30,7 @@ export const EXPORT_COLLECTIONS = [
   'folders.members',
   'responsibilities',
   'team_bios',
+  'profile_sections',
   'responsibilities.revisions',
   'folders.tasks',
   'folders.tasks.steps',
@@ -356,6 +358,18 @@ export const exportTeamBio = z.object({
   updated_at: z.string().nullable(),
 })
 
+/** One member's contextual content. Project-owned or this user's self-authored area. */
+export const exportProfileSection = z.object({
+  project: z.object({ id: z.uuid(), name: z.string() }),
+  member_id: z.uuid(),
+  member_name: z.string().nullable(),
+  area: z.enum(['project', 'shared']),
+  content: profileContent,
+  revision: z.number().int().nonnegative(),
+  updated_at: z.string().nullable(),
+  updated_by: z.string().nullable(),
+})
+
 export const exportDocument = z.object({
   format: z.literal(EXPORT_FORMAT),
   version: z.literal(EXPORT_VERSION),
@@ -366,6 +380,7 @@ export const exportDocument = z.object({
   tasks_elsewhere: z.array(exportForeignTask),
   responsibilities: z.array(exportResponsibility),
   team_bios: z.array(exportTeamBio),
+  profile_sections: z.array(exportProfileSection),
   comments: z.array(exportComment),
   direct_messages: z.array(exportDirectMessage),
   shelves: z.array(exportShelf),
