@@ -31,7 +31,8 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
 import { cn } from '../components/ui/utils.js'
-import { ChevronDown, History, PanelRight, Pencil } from '../lib/icons.js'
+import { ChevronDown, History, MoreHorizontal, Pencil, Maximize2 } from '../lib/icons.js'
+import { ProfileContentArea } from './ProfileContentArea.js'
 import { documentToText, textToDocument } from '../lib/responsibility-text.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
@@ -56,7 +57,7 @@ export function MemberDetails({
   userId,
   viewerId,
   fullPage = false,
-  onOpenSidePanel,
+  onOpenFullPage,
   ask,
   onRemove,
 }: {
@@ -65,13 +66,14 @@ export function MemberDetails({
   /** Who is looking, so their own row confirms before lowering itself. */
   readonly viewerId: string | null
   readonly fullPage?: boolean
-  readonly onOpenSidePanel?: () => void
+  readonly onOpenFullPage?: () => void
   readonly ask: AskConfirm
   /** Remove this member, the list row's own act; absent where not offered. */
   readonly onRemove?: ((name: string) => void) | undefined
 }): React.JSX.Element {
   const details = useFolderMember(folderId, userId)
   const [showHistory, setShowHistory] = useState(false)
+  const [copyError, setCopyError] = useState('')
   const history = useFolderMemberHistory(folderId, userId, showHistory)
   const grant = useSetSelfEditGrant()
   const saveBio = useSaveMemberBio()
@@ -92,116 +94,163 @@ export function MemberDetails({
   const Heading = fullPage ? 'h1' : 'h3'
   const hasBio = (member.bio?.trim().length ?? 0) > 0
 
+  const canRemove = onRemove !== undefined && !member.is_owner
+  function copyProfileLink(): void {
+    const url = new URL(window.location.href)
+    url.searchParams.set('member', userId)
+    url.searchParams.set('team', 'full')
+    void navigator.clipboard.writeText(url.toString())
+      .then(() => setCopyError(''))
+      .catch(() => setCopyError('Could not copy the profile link.'))
+  }
+
   return (
-    <div className="flex flex-col gap-[var(--space-group)]">
-      <header className={cn('flex items-center gap-[var(--person-card-padding)]', fullPage && 'flex-wrap sm:flex-nowrap')}>
-          <PersonFace
-            id={member.user.id}
-            name={name}
-            initials={initialsOf(name)}
-            image={member.user.avatar_url}
-            className={fullPage ? 'size-[var(--team-profile-avatar-size)] data-[size=sm]:size-[var(--team-profile-avatar-size)]' : undefined}
-          />
-          <div className="min-w-0 flex-1">
-            <Heading className={cn('font-title text-foreground', fullPage ? 'break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)]' : 'truncate text-sm')}>{name}</Heading>
-            {fullPage ? <p className="mt-[var(--space-row)] text-sm text-muted-foreground">Team member</p> : null}
-          </div>
-          <div className={cn('flex items-center gap-[var(--space-inline)]', fullPage && 'w-full justify-end sm:w-auto')}>
-            <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} memberImage={member.user.avatar_url} />
-            {onOpenSidePanel === undefined ? null : <Button variant="ghost" size="icon" aria-label="Open in side panel" title="Open in side panel" className="text-muted-foreground" onClick={onOpenSidePanel}>
-              <PanelRight className="size-[var(--icon-size-compact)]" strokeWidth={1.75} aria-hidden="true" />
-            </Button>}
-          </div>
-      </header>
-
-      <section aria-label="Overview">
-        <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)]">
-          <h2 className={`${HEADING} flex-1`}>Overview</h2>
-          {member.viewer_may_edit_bio && hasBio && !editingOverview ? <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setEditingOverview(true)}><Pencil strokeWidth={1.75} aria-hidden="true" /> Edit</Button> : null}
+    <div className={cn('flex w-full flex-col gap-[var(--space-group)]', fullPage && 'mx-auto max-w-4xl')}>
+      <header className="flex flex-wrap items-center gap-[var(--person-card-padding)]">
+        <PersonFace id={member.user.id} name={name} initials={initialsOf(name)}
+          image={member.user.avatar_url}
+          className={fullPage ? 'size-[var(--team-profile-avatar-size)] data-[size=sm]:size-[var(--team-profile-avatar-size)]' : undefined}/>
+        <div className="min-w-0 flex-1">
+          <Heading className={cn('font-title text-foreground', fullPage
+            ? 'break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)]'
+            : 'truncate text-sm')}>{name}</Heading>
+          {fullPage ? <p className="mt-0.5 text-xs text-muted-foreground">Project teammate</p> : null}
         </div>
-        {editingOverview ? (
-          <Suspense fallback={<p role="status" className="text-sm text-muted-foreground">Loading editor…</p>}>
-            <ProfileOverviewEditor key={member.bio_updated_at ?? member.bio ?? 'empty'}
-              initial={member.bio_content} text={member.bio}
-              onCancel={() => setEditingOverview(false)}
-              onSave={async (content) => {
-                await saveBio.mutateAsync({ folderId, userId, content, baseUpdatedAt: member.bio_updated_at })
-                await details.refetch()
-                setEditingOverview(false)
-              }} />
-          </Suspense>
-        ) : hasBio ? (
-          <>
-            <p className="whitespace-pre-wrap text-sm leading-[var(--text-body-line)] text-foreground">
-              {member.bio_content === null ? member.bio : <Runs content={member.bio_content} />}
-            </p>
-            {member.bio_author === null && member.bio_last_editor === null ? null : (
-              <p className="mt-[var(--space-inline)] text-xs text-muted-foreground">
-                {member.bio_author === null ? null : `Written by ${member.bio_author.display_name ?? 'Someone'}`}
-                {member.bio_last_editor === null || member.bio_last_editor.id === member.bio_author?.id
-                  ? null : `${member.bio_author === null ? '' : ' · '}Edited by ${member.bio_last_editor.display_name ?? 'Someone'}`}
-                {member.bio_updated_at === null ? null : ` · Updated ${formatRelativeDay(member.bio_updated_at, presenterToday())}`}
-              </p>
-            )}
-          </>
-        ) : member.viewer_may_edit_bio ? (
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setEditingOverview(true)}><Pencil strokeWidth={1.75} aria-hidden="true" /> Add an overview</Button>
-        ) : (
-          <p className="text-sm text-muted-foreground">No overview.</p>
-        )}
-      </section>
-
-      <section aria-label="Details">
-        <h2 className={`${HEADING} mb-[var(--space-inline)]`}>Details</h2>
-        <div className="flex min-h-[var(--row-height)] flex-wrap items-center gap-[var(--space-inline)] py-[var(--space-inline)]">
-          <span className="min-w-0 flex-1 text-sm text-muted-foreground">Access and authorities</span>
-          <AccessMenu folderId={folderId} userId={userId} access={member.access}
-            mayChange={member.viewer_may_change_access} self={userId === viewerId}
-            ask={ask} onRemove={onRemove === undefined || member.is_owner ? undefined : () => onRemove(name)} />
-          <p className="w-full text-xs text-muted-foreground">{ACCESS_SCOPE[member.access]}</p>
-          {member.viewer_may_change_self_edit_grant ? (
-            <label className="flex w-full cursor-pointer items-center gap-[var(--space-inline)] text-xs text-muted-foreground">
-              <Checkbox checked={member.can_edit_own_responsibilities} disabled={grant.isPending} onCheckedChange={(checked) => grant.mutate({ folderId, userId, enabled: checked })} />
-              Can edit their own responsibilities
-            </label>
-          ) : member.can_edit_own_responsibilities ? (
-            <p className="w-full text-xs text-muted-foreground">Can edit their own responsibilities</p>
+        <div className="flex shrink-0 items-center gap-1" aria-label="Profile actions">
+          <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} memberImage={member.user.avatar_url}/>
+          {onOpenFullPage ? (
+            <Button variant="ghost" size="icon" aria-label="Open in full page" title="Open in full page"
+              className="text-muted-foreground" onClick={onOpenFullPage}>
+              <Maximize2 className="size-[var(--icon-size-compact)]" strokeWidth={1.75} aria-hidden="true"/>
+            </Button>
           ) : null}
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="More teammate actions"
+              className="text-muted-foreground"/>}>
+              <MoreHorizontal className="size-[var(--icon-size-compact)]" strokeWidth={1.75} aria-hidden="true"/>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48">
+              <DropdownMenuItem onClick={copyProfileLink}>Copy profile link</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowHistory(true)}>View history</DropdownMenuItem>
+              {canRemove ? <DropdownMenuSeparator/> : null}
+              {canRemove ? (
+                <DropdownMenuItem variant="destructive" onClick={() => onRemove(name)}>
+                  Remove from project
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)] py-[var(--space-inline)] text-sm">
-          <span className="flex-1 text-muted-foreground">Joined</span>
-          <span className="text-foreground">{formatRelativeDay(member.joined_at, presenterToday())}</span>
-        </div>
-        <div className="pt-[var(--space-inline)]">
-        <Responsibilities
-          folderId={folderId}
-          userId={userId}
-          content={member.responsibility.content}
-          revision={member.responsibility.revision}
-          mayEdit={member.viewer_may_edit_responsibility}
-          onStale={() => { void details.refetch() }}
-        />
-        </div>
-      <section aria-label="History" className="pt-[var(--space-group)]">
-        <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)]">
-          <History className="size-[var(--icon-size-compact)] text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
-          <h3 className={`${HEADING} flex-1`}>History</h3>
-          <Button variant="ghost" size="sm" className="text-muted-foreground" aria-expanded={showHistory} onClick={() => setShowHistory((open) => !open)}>
-            {showHistory ? 'Hide' : 'Show'}
-          </Button>
-        </div>
-        {showHistory && history.data !== undefined ? (
-          <ul role="list" className="mt-[var(--space-inline)] flex flex-col">
-            {history.data.map((item) => (
-              <li key={`${item.kind}-${item.entry.id}`} className="flex items-baseline gap-[var(--space-inline)] py-[var(--space-inline)] text-sm">
+      </header>
+      {copyError ? <p role="alert" className="text-xs text-destructive">{copyError}</p> : null}
+
+      {showHistory ? (
+        <section aria-label="Profile history" className="space-y-[var(--space-inline)] border-t border-border/70 pt-[var(--space-group)]">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowHistory(false)}>Back to profile</Button>
+            <History className="size-[var(--icon-size-compact)] text-muted-foreground" aria-hidden="true"/>
+            <h2 className={HEADING}>History</h2>
+          </div>
+          {history.isPending ? <p className="text-sm text-muted-foreground">Loading history…</p> : null}
+          {history.isError ? <p role="alert" className="text-sm text-destructive">Could not load history.</p> : null}
+          {history.data?.length === 0 ? <p className="text-sm text-muted-foreground">No recorded changes.</p> : null}
+          <ul role="list" className="divide-y divide-border/60">
+            {history.data?.map((item) => (
+              <li key={`${item.kind}-${item.entry.id}`} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2 text-sm">
                 <span className="min-w-0 flex-1 text-foreground">{historySentence(item)}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">{formatRelativeDay(item.entry.effective_at, presenterToday())}</span>
+                <time dateTime={item.entry.effective_at} className="shrink-0 text-xs text-muted-foreground">
+                  {formatRelativeDay(item.entry.effective_at, presenterToday())}
+                </time>
               </li>
             ))}
           </ul>
-        ) : null}
-      </section>
-      </section>
+        </section>
+      ) : (
+        <>
+          <section aria-label="In this project" className="space-y-[var(--space-group)]">
+            <h2 className={HEADING}>In this project</h2>
+            <div className="space-y-[var(--space-group)] border-t border-border/70 pt-[var(--space-inline)]">
+              <div className="space-y-1">
+                <div className="flex min-h-[var(--row-height)] items-center gap-2">
+                  <span className="min-w-0 flex-1 text-sm text-muted-foreground">Authorities</span>
+                  <AccessMenu folderId={folderId} userId={userId} access={member.access}
+                    mayChange={member.viewer_may_change_access} self={userId === viewerId} ask={ask}/>
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground">{ACCESS_SCOPE[member.access]}</p>
+                {member.viewer_may_change_self_edit_grant ? (
+                  <label className="flex cursor-pointer items-center gap-2 py-1 text-xs text-muted-foreground">
+                    <Checkbox checked={member.can_edit_own_responsibilities} disabled={grant.isPending}
+                      onCheckedChange={(checked) => grant.mutate({folderId,userId,enabled:checked})}/>
+                    Can edit their own responsibilities
+                  </label>
+                ) : member.can_edit_own_responsibilities ? (
+                  <p className="text-xs text-muted-foreground">Can edit their own responsibilities</p>
+                ) : null}
+                <div className="flex min-h-[var(--row-height)] items-center gap-2 text-sm">
+                  <span className="min-w-0 flex-1 text-muted-foreground">Joined</span>
+                  <span className="text-foreground">{formatRelativeDay(member.joined_at, presenterToday())}</span>
+                </div>
+              </div>
+              <Responsibilities folderId={folderId} userId={userId}
+                content={member.responsibility.content} revision={member.responsibility.revision}
+                mayEdit={member.viewer_may_edit_responsibility}
+                onStale={() => {void details.refetch()}}/>
+              <ProfileContentArea folderId={folderId} userId={userId} area="project"
+                standing={member.profile_project} names={member.profile_file_names}
+                onSaved={() => details.refetch()}/>
+            </div>
+          </section>
+          <section aria-label="About the person" className="space-y-[var(--space-group)]">
+            <h2 className={HEADING}>About the person</h2>
+            <div className="space-y-[var(--space-group)] border-t border-border/70 pt-[var(--space-inline)]">
+              <section aria-label="Bio" className="space-y-[var(--space-inline)]">
+                <div className="flex min-h-[var(--row-height)] items-center gap-2">
+                  <h3 className={`${HEADING} flex-1`}>Bio</h3>
+                  {member.viewer_may_edit_bio && hasBio && !editingOverview ? (
+                    <Button variant="ghost" size="sm" className="text-muted-foreground"
+                      onClick={() => setEditingOverview(true)}>
+                      <Pencil aria-hidden="true" strokeWidth={1.75}/> Edit
+                    </Button>
+                  ) : null}
+                </div>
+                {editingOverview ? (
+                  <Suspense fallback={<p className="text-sm text-muted-foreground">Loading editor…</p>}>
+                    <ProfileOverviewEditor key={member.bio_updated_at ?? member.bio ?? 'empty'}
+                      initial={member.bio_content} text={member.bio}
+                      onCancel={() => setEditingOverview(false)}
+                      onSave={async (content) => {
+                        await saveBio.mutateAsync({folderId,userId,content,baseUpdatedAt:member.bio_updated_at})
+                        await details.refetch()
+                        setEditingOverview(false)
+                      }}/>
+                  </Suspense>
+                ) : hasBio ? (
+                  <>
+                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+                      {member.bio_content === null ? member.bio : <Runs content={member.bio_content}/>}
+                    </p>
+                    {member.bio_author || member.bio_last_editor ? (
+                      <p className="text-xs text-muted-foreground">
+                        {member.bio_author ? `Written by ${member.bio_author.display_name ?? 'Someone'}` : null}
+                        {member.bio_last_editor && member.bio_last_editor.id !== member.bio_author?.id
+                          ? `${member.bio_author ? ' · ' : ''}Edited by ${member.bio_last_editor.display_name ?? 'Someone'}` : null}
+                      </p>
+                    ) : null}
+                  </>
+                ) : member.viewer_may_edit_bio ? (
+                  <Button variant="ghost" size="sm" className="text-muted-foreground"
+                    onClick={() => setEditingOverview(true)}>
+                    <Pencil aria-hidden="true" strokeWidth={1.75}/> Add bio
+                  </Button>
+                ) : <p className="text-sm text-muted-foreground">No bio yet.</p>}
+              </section>
+              <ProfileContentArea folderId={folderId} userId={userId} area="shared"
+                standing={member.profile_shared} names={member.profile_file_names}
+                onSaved={() => details.refetch()}/>
+            </div>
+          </section>
+        </>
+      )}
     </div>
   )
 }
