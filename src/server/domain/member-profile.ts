@@ -59,7 +59,7 @@ export async function profileSectionsOf(
     const area = row.area as ProfileArea
     const content = profileContent.parse(row.content)
     for (const block of content.blocks) {
-      if (block.kind === 'file' || block.kind === 'image') files.add(block.file_id)
+      if (isFileBlock(block)) files.add(block.file_id)
     }
     result[area] = {
       content,
@@ -85,6 +85,11 @@ export async function profileSectionsOf(
     for (const file of fileRows) result.file_names[String(file.id)] = String(file.name)
   }
   return result
+}
+
+/** The content union groups text kinds; this structural guard narrows file references precisely. */
+function isFileBlock(block: ProfileContent['blocks'][number]): block is Extract<ProfileContent['blocks'][number], {file_id: string}> {
+  return 'file_id' in block
 }
 
 export type WriteProfileResult = 'written' | 'stale' | 'forbidden' | 'not_found' | 'invalid_file'
@@ -113,7 +118,7 @@ export async function writeProfileSection(
     if (area === 'project' ? viewer.access !== 'full_control' : viewerId !== memberId)
       return 'forbidden'
 
-    const linked = content.blocks.filter((block) => block.kind === 'file' || block.kind === 'image')
+    const linked = content.blocks.filter(isFileBlock)
     if (linked.length) {
       const ids = JSON.stringify([...new Set(linked.map((block) => block.file_id))])
       const rows = await rowsOf(tx, sql`
