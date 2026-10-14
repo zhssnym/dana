@@ -231,6 +231,8 @@ export const folderMemberDetails = z.object({
   profile_project: profileStanding,
   profile_shared: profileStanding,
   profile_file_names: z.record(z.string(), z.string()),
+  profile_may_upload_file: z.boolean(),
+  profile_may_upload_image: z.boolean(),
 
   /* Pending Tasks assigned to this member; informational, never Responsibility truth. */
   assigned_open_task_count: z.int().nonnegative(),
