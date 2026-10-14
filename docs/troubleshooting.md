@@ -286,10 +286,8 @@ real. Re-run at most once.
 - **You re-ran a PR's CI after a fix landed on `main`, and it fails identically.**
   `gh run rerun` replays the original `refs/pull/N/merge` commit, so it measures the old
   `main`. Close and reopen the PR to recompute the merge ref.
-- **A PR has no CI result.** CI runs on the self-hosted runner on Hassan's PC (section 12), so
-  jobs wait in the queue while that PC is off or nobody is logged in. Nothing is a required
-  check (this plan has no branch protection), so a PR with no result can still be merged. Look
-  before merging.
+- **A PR has no CI result.** Nothing is a required check (this plan has no branch
+  protection), so a PR with no result can still be merged. Look before merging.
 - **A `workflow_dispatch` run is green, but the PR isn't checked.** A dispatch builds the
   branch head, not `refs/pull/N/merge`. Close and reopen the PR to fire the real event.
 - **Reading CI.** The repository is private, so the unauthenticated API answers 404; use an
@@ -331,7 +329,7 @@ To run all the checks on a container:
    cannot run them.
 6. Poll ports with `lsof`, which containers usually have instead of `netstat` or `ss`.
 
-## 12. Hassan's Windows PC and the CI runner
+## 12. Hassan's Windows PC
 
 - PostgreSQL 18 runs as the service `postgresql-x64-18`, with binaries in
   `C:\Program Files\PostgreSQL\18\bin`, on port 5432. Tests authenticate as `dana_ci`, never
@@ -341,13 +339,5 @@ To run all the checks on a container:
   from the English documentation, not from `--help`.
 - `gh` isn't on the PATH: use `"C:\Program Files\GitHub CLI\gh.exe"`. The machine has
   `netstat` but no `lsof`.
-- The CI runner is a scheduled task, `'GitHub Actions Runner (dana)'`, that starts `run.cmd` at
-  logon. When the PC is off or nobody is logged in, jobs queue. The 40-minute timeout only
-  kills hung jobs.
-- `Stop-ScheduledTask` doesn't stop the runner, because `run.cmd` detaches; stop the
-  `Runner.Listener` and `Runner.Worker` processes instead. If you kill it mid-job, cancel the
-  stuck run, or GitHub keeps the runner marked busy and dispatches nothing.
-- A queued job with a listener but no `Runner.Worker` process is a known idle state with no
-  known cause. Don't start cancelling things that are fine.
-- A CI job takes about 7.7 GB of the PC's 15.8 GB. With several agents running tests beside it,
-  it goes red with starvation timeouts (section 4). Run agents or CI, not both.
+- CI no longer runs on this PC. The old self-hosted runner, the scheduled task
+  `'GitHub Actions Runner (dana)'`, can be removed.

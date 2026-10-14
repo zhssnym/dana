@@ -1,7 +1,8 @@
 name: CI
 
-# Runs on the self-hosted Windows runner on Hassan's PC. node_modules stays between runs.
-# TEST_DATABASE_URL comes from the runner's .env. Without it the tests use PGlite, so the job stops.
+# GitHub-hosted runner. Postgres runs as a service container. The tests use it through
+# TEST_DATABASE_URL; without it they would fall back to PGlite and report a green that never
+# touched Postgres, so the job sets it for every step.
 on:
   push:
     branches: [main]
@@ -17,41 +18,42 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
-defaults:
-  run:
-    shell: cmd
-
 jobs:
   ci:
-    runs-on: [self-hosted, windows, x64]
+    runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: dana_ci
+          POSTGRES_PASSWORD: dana_ci
+          POSTGRES_DB: dana_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dana_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://dana_ci:dana_ci@localhost:5432/dana_ci
     steps:
       - uses: actions/checkout@v4
-        with:
-          clean: false
-      - name: Clean the tree, keeping node_modules
-        run: git clean -ffdx -e node_modules
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-      - name: Install (only when package-lock.json changed)
-        run: |
-          node -e "const f=require('fs'),h=require('crypto').createHash('sha256').update(process.version).update(f.readFileSync('package-lock.json')).digest('hex');let s='';try{s=f.readFileSync('node_modules/.lock-sha','utf8').trim()}catch{}process.exit(s===h?0:1)" && echo node_modules matches package-lock.json, skipping npm ci && exit /b 0
-          call npm ci || exit /b 1
-          node -e "const f=require('fs'),h=require('crypto').createHash('sha256').update(process.version).update(f.readFileSync('package-lock.json')).digest('hex');f.writeFileSync('node_modules/.lock-sha',h)"
-      - name: Lint, typecheck, build, then test (Postgres)
-        run: |
-          if "%TEST_DATABASE_URL%"=="" (
-            echo TEST_DATABASE_URL is unset or empty, so the suite would silently fall back to PGlite and report a green that never touched Postgres. Set it in the runner installation .env file and restart the runner.
-            exit /b 1
-          )
-          call npm run gate || exit /b 1
-          npm test -- --maxWorkers=4
+          cache: npm
+      - run: npm ci
+      - name: Lint, typecheck, build
+        run: npm run gate
+      - name: Test (Postgres)
+        run: npm test -- --maxWorkers=4
       - name: Playwright
         env:
           DANA_E2E_PREBUILT: '1'
         run: |
-          call npx playwright install chromium || exit /b 1
+          npx playwright install --with-deps chromium
           npx playwright test
       - name: Failure artifacts
         if: failure()

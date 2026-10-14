@@ -37,8 +37,8 @@ npm run e2e                         # browser tests (Playwright)
    (`feat:`, `fix:`, `chore:`, `docs:`).
 2. Before you push, run `npm run gate` (about 30 seconds) and the tests for the
    code you changed.
-3. CI runs lint, typecheck, build, all tests on Postgres and a browser smoke test. CI runs
-   on Hassan's Windows PC, so CI waits when that PC is off.
+3. CI runs lint, typecheck, build, all tests on Postgres and a browser smoke test, on
+   GitHub-hosted runners.
 4. Merge with squash only when CI is green. **A merge to `main` deploys to production.**
    There is no staging.
 5. If `main` is red, repair it first.
