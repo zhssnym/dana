@@ -23,13 +23,15 @@ function RichRuns({ content }: { readonly content: RichContent }): React.JSX.Ele
 }
 
 export function ProfileContentArea({
-  folderId, userId, area, standing, names, onSaved,
+  folderId, userId, area, standing, names, canUploadFile, canUploadImage, onSaved,
 }: {
   readonly folderId: string
   readonly userId: string
   readonly area: ProfileArea
   readonly standing: ProfileStanding
   readonly names: Readonly<Record<string, string>>
+  readonly canUploadFile: boolean
+  readonly canUploadImage: boolean
   readonly onSaved: () => Promise<unknown>
 }): React.JSX.Element {
   const [editing, setEditing] = useState(false)
@@ -49,6 +51,7 @@ export function ProfileContentArea({
     </div>
     {editing ? <Suspense fallback={<p className="text-sm text-muted-foreground">Loading editor…</p>}>
       <ProfileContentEditor key={standing.revision} folderId={folderId} initial={standing.content} names={names}
+        canUploadFile={canUploadFile} canUploadImage={canUploadImage}
         onCancel={() => setEditing(false)}
         onSave={async (content: ProfileContent) => {
           await mutateApi(null, {
