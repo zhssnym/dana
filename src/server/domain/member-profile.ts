@@ -99,20 +99,18 @@ export async function writeProfileSection(
   baseRevision: number,
 ): Promise<WriteProfileResult> {
   return inTransaction(db, async (tx) => {
-    // Serialize against membership and Access changes, including removing a member.
-    const member = await rowsOf(tx, sql`
-      SELECT user_id FROM folder_members
-       WHERE folder_id = ${projectId}::uuid AND user_id = ${memberId}::uuid
-       FOR UPDATE
+    // Lock in a deterministic order. Two members editing one another must not
+    // deadlock; changing Access/removing either member also waits for this write.
+    const memberships = await rowsOf(tx, sql`
+      SELECT user_id, access FROM folder_members
+       WHERE folder_id = ${projectId}::uuid
+         AND user_id IN (${viewerId}::uuid, ${memberId}::uuid)
+       ORDER BY user_id FOR UPDATE
     `)
-    if (!member.length) return 'not_found'
-    const viewer = await rowsOf(tx, sql`
-      SELECT access FROM folder_members
-       WHERE folder_id = ${projectId}::uuid AND user_id = ${viewerId}::uuid
-       FOR UPDATE
-    `)
-    if (!viewer.length) return 'not_found'
-    if (area === 'project' ? viewer[0]?.access !== 'full_control' : viewerId !== memberId)
+    if (!memberships.some((row) => String(row.user_id) === memberId)) return 'not_found'
+    const viewer = memberships.find((row) => String(row.user_id) === viewerId)
+    if (viewer === undefined) return 'not_found'
+    if (area === 'project' ? viewer.access !== 'full_control' : viewerId !== memberId)
       return 'forbidden'
 
     const linked = content.blocks.filter((block) => block.kind === 'file' || block.kind === 'image')
