@@ -1069,6 +1069,8 @@ export function createFoldersRouter(
         profile_project: profile.project,
         profile_shared: profile.shared,
         profile_file_names: profile.file_names,
+        profile_may_upload_file: mayPerform(access, 'file.upload.comment').allowed,
+        profile_may_upload_image: mayPerform(access, 'file.upload.page').allowed,
         assigned_open_task_count: member.assignedOpenTaskCount,
         history: {
           responsibility_path: `/folders/${ids.folderId}/members/${ids.memberId}/responsibility/history`,
