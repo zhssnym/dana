@@ -3,7 +3,6 @@
  */
 import { z } from 'zod'
 import { richContent } from './rich-content.js'
-import { responsibilityActor } from './responsibility.js'
 
 export const PROFILE_AREAS = ['project', 'shared'] as const
 export const profileArea = z.enum(PROFILE_AREAS)
@@ -38,7 +37,7 @@ export const profileStanding = z.object({
   content: profileContent,
   revision: z.int().nonnegative(),
   updated_at: z.iso.datetime().nullable(),
-  updated_by: responsibilityActor.nullable(),
+  updated_by: z.object({ id: z.uuid(), display_name: z.string().nullable(), avatar_url: z.string().nullable() }).nullable(),
   may_edit: z.boolean(),
 })
 export type ProfileStanding = z.infer<typeof profileStanding>
