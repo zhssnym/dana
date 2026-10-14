@@ -104,6 +104,24 @@ test('project context and member-curated content have distinct write grants and 
     ] } },
   })
 
+  const memberExport = await member.browser.json('/me/export', 'GET')
+  expectStatus(memberExport, 200, 'member export includes curated content')
+  expect(memberExport.json()).toMatchObject({
+    version: 15,
+    profile_sections: [{
+      area: 'shared', member_id: member.id,
+      content: { blocks: [{ kind: 'paragraph', content: { runs: [{ text: 'Portfolio note' }] } }] },
+    }],
+  })
+  const ownerExport = await owner.browser.json('/me/export', 'GET')
+  expectStatus(ownerExport, 200, 'project owner export includes project-managed content')
+  expect(ownerExport.json()).toMatchObject({
+    profile_sections: [{
+      area: 'project', member_id: member.id,
+      content: { blocks: [{ kind: 'paragraph', content: { runs: [{ text: 'Backend guidelines' }] } }] },
+    }],
+  })
+
   expectStatus(await member.browser.json(`${base}/profile-content/shared`, 'PUT', payload('Stale')),
     409, 'outdated revision is rejected')
   expectStatus(await member.browser.json(`${base}/profile-content/shared`, 'PUT', {
