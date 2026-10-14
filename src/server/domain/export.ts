@@ -27,6 +27,7 @@ import type {
   ExportTask,
 } from '../../shared/export.js'
 import { richContent } from '../../shared/rich-content.js'
+import { profileContent } from '../../shared/member-profile.js'
 import { idSet, rowsOf } from '../database.js'
 import { listViews, readBundle } from './bundle.js'
 import { postContentOrNull } from './comments.js'
@@ -544,6 +545,21 @@ export async function exportForViewer(
      WHERE m.user_id = ${viewerId} AND m.bio IS NOT NULL
      ORDER BY f.name ASC, f.id ASC LIMIT ${FETCH}
   `)
+  // A member exports their own area. The project owner also exports project context,
+  // which is project-managed content even when its subject is another member.
+  const profileRows = await rowsOf(db, sql`
+    SELECT s.project_id, f.name AS project_name, s.member_id,
+           u.display_name AS member_name, s.area, s.content, s.revision,
+           s.updated_at, editor.display_name AS editor_name
+      FROM member_profile_sections s
+      JOIN folders f ON f.id = s.project_id
+      JOIN users u ON u.id = s.member_id
+      LEFT JOIN users editor ON editor.id = s.updated_by
+     WHERE (s.member_id = ${viewerId}::uuid AND s.area = 'shared')
+        OR (f.owner_id = ${viewerId}::uuid AND s.area = 'project')
+     ORDER BY f.name, s.project_id, s.member_id, s.area
+     LIMIT ${FETCH}
+  `)
   const responsibilityIds = responsibilityCurrent.map((row) => String(row.id))
   const revisionRows =
     responsibilityIds.length === 0
@@ -798,6 +814,16 @@ export async function exportForViewer(
       author: nullableString(row.bio_author_name),
       last_editor: nullableString(row.bio_editor_name),
       updated_at: row.bio_updated_at === null ? null : toIso(row.bio_updated_at),
+    })),
+    profile_sections: truncation.apply('profile_sections', profileRows).map((row) => ({
+      project: { id: String(row.project_id), name: String(row.project_name) },
+      member_id: String(row.member_id),
+      member_name: nullableString(row.member_name),
+      area: String(row.area) as 'project' | 'shared',
+      content: profileContent.parse(row.content),
+      revision: Number(row.revision),
+      updated_at: nullableIso(row.updated_at),
+      updated_by: nullableString(row.editor_name),
     })),
     comments: exportedComments,
     direct_messages: directMessages.map((row): ExportDirectMessage => ({
