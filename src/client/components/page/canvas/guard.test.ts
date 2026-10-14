@@ -5,7 +5,7 @@ Trash"); a gesture that would drop one by the way is refused like a Task's.
 A `/page` placement no save has created yet is still just a line.
 */
 import { BlockNoteEditor } from '@blocknote/core'
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import { installCanvasGuard, removingPages } from './guard.js'
 import { canvasSchema } from './schema.js'
@@ -21,10 +21,17 @@ function editorWithPage(): { editor: CanvasEditor; explain: ReturnType<typeof vi
   ] as never }) as unknown as CanvasEditor
   // The guard is a transaction hook, which runs on a mounted editor.
   editor.mount(document.createElement('div'))
+  mounted.push(editor)
   const explain = vi.fn()
   installCanvasGuard(editor, explain)
   return { editor, explain }
 }
+
+// Unmount before jsdom goes, or an editor timer touches `document` after the file ends.
+const mounted: CanvasEditor[] = []
+afterEach(() => {
+  for (const editor of mounted.splice(0)) editor.unmount()
+})
 
 describe('the canvas guard and sub-pages', () => {
   test('removing a page block is refused with the way to trash it', () => {
