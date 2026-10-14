@@ -10,9 +10,9 @@ export type ProfileArea = z.infer<typeof profileArea>
 
 // Literal variants preserve discriminated narrowing in TypeScript as well as
 // runtime validation. Grouped z.enum kinds validate, but do not narrow fully.
-const textBlock = (kind: 'paragraph' | 'bullet' | 'numbered') =>
+const textBlock = <K extends 'paragraph' | 'bullet' | 'numbered'>(kind: K) =>
   z.object({ kind: z.literal(kind), content: richContent }).strict()
-const mediaBlock = (kind: 'file' | 'image') =>
+const mediaBlock = <K extends 'file' | 'image'>(kind: K) =>
   z.object({ kind: z.literal(kind), file_id: z.uuid() }).strict()
 
 export const profileContent = z.object({
