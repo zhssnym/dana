@@ -33,7 +33,6 @@ import {
 import { cn } from '../components/ui/utils.js'
 import { ChevronDown, History, MoreHorizontal, Pencil, Maximize2 } from '../lib/icons.js'
 import { ProfileContentArea } from './ProfileContentArea.js'
-import { documentToText } from '../lib/responsibility-text.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
 import type { ConfirmLabels } from './task-rows.js'
