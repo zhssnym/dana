@@ -40,12 +40,21 @@ test('account deletion transfers managed Docs and deletes personal Docs with the
   await app.db.execute(sql`INSERT INTO files (id, owner_id, folder_id, kind, name, mime, bytes)
     VALUES (${fileId}::uuid, ${person.id}::uuid, ${personalId}::uuid,
             'file', 'private.txt', 'text/plain', 1)`)
+  await app.db.execute(sql`INSERT INTO member_profile_sections
+    (project_id, member_id, area, content, revision)
+    VALUES (${projectId}::uuid, ${manager.id}::uuid, 'project',
+            '{"version":1,"blocks":[]}'::jsonb, 1),
+           (${projectId}::uuid, ${manager.id}::uuid, 'shared',
+            '{"version":1,"blocks":[]}'::jsonb, 1)`)
 
   await inTransaction(app.db, (tx) => deleteAccountData(tx, manager.id))
   expect((await app.db.execute(sql`SELECT owner_id FROM folders WHERE id = ${managedId}::uuid`)).rows)
     .toEqual([{ owner_id: person.id }])
   expectStatus(await person.browser.json(`/folders/${managedId}/page`, 'GET'), 200,
     'successor retains the managed Doc')
+  expect((await app.db.execute(sql`SELECT area FROM member_profile_sections
+    WHERE project_id = ${projectId}::uuid AND member_id = ${manager.id}::uuid`)).rows)
+    .toEqual([{ area: 'project' }])
   const removed = await inTransaction(app.db, (tx) => deleteAccountData(tx, person.id))
   expect(removed.fileIds).toContain(fileId)
   expect((await app.db.execute(sql`SELECT 1 FROM folders

@@ -61,6 +61,13 @@ export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
     why: 'A project-managed profile Doc remains with its project after the person deletes their account. The user row remains without identity. A person-owned Doc leaves with its owned Folder.',
   },
   {
+    fk: 'member_profile_sections_subject_fkey',
+    table: 'member_profile_sections',
+    disposition: 'outlives',
+    where: '',
+    why: 'Project-managed legacy writing remains with the project after account deletion. Step 4a deletes the account owner\'s shared writing.',
+  },
+  {
     fk: 'folder_access_history_actor_id_fkey',
     table: 'folder_access_history',
     disposition: 'outlives',
@@ -469,6 +476,11 @@ export async function deleteAccountData(
   for (const row of memberships) {
     await runRClean(tx, String(row.folder_id), userId)
   }
+
+  // 4a. A person keeps shared writing after an ordinary departure. Account
+  // deletion removes it. Project-managed writing stays with the project.
+  await tx.execute(sql`DELETE FROM member_profile_sections
+    WHERE member_id = ${userId}::uuid AND area = 'shared'`)
 
   // 5. Both rosters in one statement: each pair is stored once.
   const connections = await rowsOf(

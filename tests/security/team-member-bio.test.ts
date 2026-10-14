@@ -144,4 +144,14 @@ test('project context and member-curated content have distinct write grants and 
 
   expectStatus(await removeMember(owner, folderId, member.id), 204, 'remove member')
   expectStatus(await owner.browser.json(base, 'GET'), 404, 'removed profile is not visible')
+  const retained = (await app.db.execute(sql`SELECT area, content FROM member_profile_sections
+    WHERE project_id = ${folderId}::uuid AND member_id = ${member.id}::uuid
+    ORDER BY area`)).rows
+  expect(retained).toMatchObject([
+    { area: 'project', content: { blocks: [{ content: { runs: [{ text: 'Backend guidelines' }] } }] } },
+    { area: 'shared', content: { blocks: [{ content: { runs: [{ text: 'Updated note' }] } }] } },
+  ])
+  expect((await member.browser.json('/me/export', 'GET')).json()).toMatchObject({
+    profile_sections: [{ area: 'shared', member_id: member.id }],
+  })
 })
