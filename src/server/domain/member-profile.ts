@@ -78,7 +78,8 @@ export async function profileSectionsOf(
     const fileRows = await rowsOf(db, sql`
       SELECT f.id, f.name FROM files f
       JOIN jsonb_array_elements_text(${ids}::jsonb) x(value) ON f.id = x.value::uuid
-      WHERE f.folder_id = ${projectId}::uuid
+      JOIN folders home ON home.id = f.folder_id
+      WHERE home.project_id = ${projectId}::uuid
     `)
     for (const file of fileRows) result.file_names[String(file.id)] = String(file.name)
   }
@@ -119,7 +120,8 @@ export async function writeProfileSection(
       const rows = await rowsOf(tx, sql`
         SELECT f.id, f.kind FROM files f
         JOIN jsonb_array_elements_text(${ids}::jsonb) x(value) ON f.id = x.value::uuid
-        WHERE f.folder_id = ${projectId}::uuid
+        JOIN folders home ON home.id = f.folder_id
+        WHERE home.project_id = ${projectId}::uuid
       `)
       const available = new Map(rows.map((row) => [String(row.id), String(row.kind)]))
       if (linked.some((block) => {
@@ -127,6 +129,15 @@ export async function writeProfileSection(
         return kind === undefined || (block.kind === 'image' ? kind !== 'image' && kind !== 'cover' : kind !== 'file')
       })) return 'invalid_file'
     }
+
+    const previous = await rowsOf(tx, sql`
+      SELECT revision FROM member_profile_sections
+      WHERE project_id = ${projectId}::uuid AND member_id = ${memberId}::uuid
+        AND area = ${area}
+      FOR UPDATE
+    `)
+    if (previous.length ? Number(previous[0]?.revision) !== baseRevision : baseRevision !== 0)
+      return 'stale'
 
     // Optimistic concurrency: two editors cannot silently overwrite one another.
     const payload = JSON.stringify(content)
@@ -144,10 +155,6 @@ export async function writeProfileSection(
       RETURNING revision
     `)
     if (!stored.length) return 'stale'
-    // A first write requires the empty initial revision.
-    if (Number(stored[0]?.revision) === 1 && baseRevision !== 0) {
-      throw new Error('A first profile content revision must have base revision zero.')
-    }
     return 'written'
   })
 }
