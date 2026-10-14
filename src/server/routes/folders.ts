@@ -1050,11 +1050,14 @@ export function createFoldersRouter(
         joined_at: member.joinedAt,
         bio: member.bio,
         bio_content: member.bioContent,
-        bio_author: member.bioAuthor,
-        bio_last_editor: member.bioLastEditor,
         bio_updated_at: member.bioUpdatedAt,
-        viewer_may_edit_bio:
-          ids.memberId === viewer(req) || mayPerform(access, 'responsibility.manage').allowed,
+        viewer_may_edit_bio: ids.memberId === viewer(req),
+        legacy_bio: member.legacyBio === null ? null : {
+          text: member.legacyBio,
+          content: member.legacyBioContent,
+          author: member.legacyBioAuthor,
+          last_editor: member.legacyBioLastEditor,
+        },
         access: member.access,
         viewer_may_change_access:
           mayPerform(access, 'member.access.change').allowed && !member.isOwner,
@@ -1095,7 +1098,7 @@ export function createFoldersRouter(
       if (access === null) return
       const projectId = await projectFor(db, res, ids.folderId)
       if (projectId === null) return
-      if (ids.memberId !== viewer(req) && !mayPerform(access, 'responsibility.manage').allowed) {
+      if (ids.memberId !== viewer(req)) {
         sendError(res, 403, 'forbidden', 'You cannot edit this teammate’s bio.')
         return
       }
@@ -1105,27 +1108,19 @@ export function createFoldersRouter(
         ? body.bio || null
         : body.content?.runs.map((run) => run.text).join('').trim() || null
       const content = bio === null || body.content === undefined ? null : body.content
-      const actorId = viewer(req)
       // The API sends milliseconds. Advance the stored time for edits in the same millisecond.
       const updated = await db.execute(sql`
-        UPDATE folder_members SET bio = ${bio},
+        UPDATE users SET bio = ${bio},
           bio_content = ${content === null ? null : JSON.stringify(content)}::jsonb,
-          bio_author_id = CASE WHEN ${bio === null} THEN NULL
-            WHEN bio IS NULL THEN ${actorId}::uuid ELSE bio_author_id END,
-          bio_last_editor_id = CASE WHEN ${bio === null} THEN NULL ELSE ${actorId}::uuid END,
-          bio_updated_at = CASE WHEN ${bio === null} THEN NULL ELSE GREATEST(
+          bio_updated_at = GREATEST(
             date_trunc('milliseconds', clock_timestamp()),
             COALESCE(bio_updated_at + interval '1 millisecond', '-infinity'::timestamptz)
-          ) END
-        WHERE folder_id = ${projectId}::uuid AND user_id = ${ids.memberId}::uuid
+          )
+        WHERE id = ${ids.memberId}::uuid AND deleted_at IS NULL
+          AND EXISTS (SELECT 1 FROM folder_members
+            WHERE folder_id = ${projectId}::uuid AND user_id = ${ids.memberId}::uuid)
           AND (${body.base_updated_at === undefined} OR date_trunc('milliseconds', bio_updated_at) IS NOT DISTINCT FROM ${body.base_updated_at ?? null}::timestamptz)
-          AND (${ids.memberId === actorId} OR EXISTS (
-            SELECT 1 FROM folder_members actor
-             WHERE actor.folder_id = ${projectId}::uuid
-               AND actor.user_id = ${actorId}::uuid
-               AND actor.access = 'full_control'
-          ))
-        RETURNING user_id
+        RETURNING id
       `)
       if (updated.rows.length === 0) {
         const present = await db.execute(sql`
@@ -1133,7 +1128,7 @@ export function createFoldersRouter(
            WHERE folder_id = ${projectId}::uuid AND user_id = ${ids.memberId}::uuid
         `)
         if (present.rows.length === 0) sendError(res, 404, 'not_found', 'Not found.')
-        else sendError(res, 409, 'conflict', 'This overview changed. Load it again before saving.')
+        else sendError(res, 409, 'conflict', 'This bio changed. Load it again before saving.')
         return
       }
       res.status(204).end()

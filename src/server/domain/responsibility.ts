@@ -579,9 +579,11 @@ export interface MemberDetailsRow {
   joinedAt: string
   bio: string | null
   bioContent: RichContent | null
-  bioAuthor: Person | null
-  bioLastEditor: Person | null
   bioUpdatedAt: string | null
+  legacyBio: string | null
+  legacyBioContent: RichContent | null
+  legacyBioAuthor: Person | null
+  legacyBioLastEditor: Person | null
   access: FolderAccessPreset
   canEditOwnResponsibilities: boolean
   assignedOpenTaskCount: number
@@ -603,8 +605,9 @@ export async function memberDetailsOf(
 
   const members = await rowsOf(
     executor,
-    sql`SELECT u.id, u.display_name, u.avatar_url, m.access, m.bio, m.bio_content,
-               m.bio_updated_at,
+    sql`SELECT u.id, u.display_name, u.avatar_url, u.bio, u.bio_content,
+               u.bio_updated_at, m.access, m.bio AS legacy_bio,
+               m.bio_content AS legacy_bio_content,
                author.id AS bio_author_id, author.display_name AS bio_author_name, author.avatar_url AS bio_author_avatar,
                editor.id AS bio_editor_id, editor.display_name AS bio_editor_name, editor.avatar_url AS bio_editor_avatar,
                m.can_edit_own_responsibilities, m.created_at AS joined_at,
@@ -652,17 +655,19 @@ export async function memberDetailsOf(
       joinedAt: toIso(row.joined_at),
       bio: nullableString(row.bio),
       bioContent: row.bio_content === null ? null : richContent.parse(row.bio_content),
-      bioAuthor: row.bio_author_id === null ? null : {
+      bioUpdatedAt: row.bio_updated_at === null ? null : toIso(row.bio_updated_at),
+      legacyBio: nullableString(row.legacy_bio),
+      legacyBioContent: row.legacy_bio_content === null ? null : richContent.parse(row.legacy_bio_content),
+      legacyBioAuthor: row.bio_author_id === null ? null : {
         id: String(row.bio_author_id),
         display_name: nullableString(row.bio_author_name),
         avatar_url: nullableString(row.bio_author_avatar),
       },
-      bioLastEditor: row.bio_editor_id === null ? null : {
+      legacyBioLastEditor: row.bio_editor_id === null ? null : {
         id: String(row.bio_editor_id),
         display_name: nullableString(row.bio_editor_name),
         avatar_url: nullableString(row.bio_editor_avatar),
       },
-      bioUpdatedAt: row.bio_updated_at === null ? null : toIso(row.bio_updated_at),
       access: String(row.access) as FolderAccessPreset,
       canEditOwnResponsibilities: row.can_edit_own_responsibilities === true,
       assignedOpenTaskCount: byMember.get(id) ?? 0,

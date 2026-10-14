@@ -253,7 +253,8 @@ export async function exportForViewer(
 
   const accountRows = await rowsOf(
     db,
-    sql`SELECT id, email, display_name, avatar_url, timezone, created_at
+    sql`SELECT id, email, display_name, avatar_url, bio, bio_content,
+               bio_updated_at, timezone, created_at
         FROM users
         WHERE id = ${viewerId} AND deleted_at IS NULL`,
   )
@@ -761,6 +762,9 @@ export async function exportForViewer(
       email: nullableString(accountRow.email),
       display_name: nullableString(accountRow.display_name),
       avatar_url: nullableString(accountRow.avatar_url),
+      bio: nullableString(accountRow.bio),
+      bio_content: accountRow.bio_content === null ? null : richContent.parse(accountRow.bio_content),
+      bio_updated_at: nullableIso(accountRow.bio_updated_at),
       timezone: String(accountRow.timezone),
       created_at: toIso(accountRow.created_at),
     },

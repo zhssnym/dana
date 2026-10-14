@@ -215,10 +215,14 @@ export const folderMemberDetails = z.object({
   joined_at: z.iso.datetime(),
   bio: z.string().nullable(),
   bio_content: richContent.nullable(),
-  bio_author: responsibilityActor.nullable(),
-  bio_last_editor: responsibilityActor.nullable(),
   bio_updated_at: z.iso.datetime().nullable(),
   viewer_may_edit_bio: z.boolean(),
+  legacy_bio: z.object({
+    text: z.string(),
+    content: richContent.nullable(),
+    author: responsibilityActor.nullable(),
+    last_editor: responsibilityActor.nullable(),
+  }).nullable(),
 
   access: folderAccessPreset,
   viewer_may_change_access: z.boolean(),
@@ -256,7 +260,7 @@ export const patchMemberBioBody = z.object({
   if (body.content !== null && body.content !== undefined) {
     const text = body.content.runs.map((run) => run.text).join('').trim()
     if (text.length > 500 || body.content.runs.some((run) => run.mention !== undefined)) {
-      ctx.addIssue({ code: 'custom', path: ['content'], message: 'Overview supports up to 500 characters, with bold, italic, and links.' })
+      ctx.addIssue({ code: 'custom', path: ['content'], message: 'Bio supports up to 500 characters, with bold, italic, and links.' })
     }
   }
 })
