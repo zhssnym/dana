@@ -837,6 +837,23 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'PUT /api/v1/folders/:id/members/:userId/profile-content/:area',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/members/${fx.owner.id}/profile-content/project`,
+        body: { content: { version: 1, blocks: [] }, base_revision: 0 },
+      }),
+      stranger: {
+        expected: 404,
+        rule: 'Project membership gates teammate content and never reveals profiles to outsiders.',
+      },
+      member: {
+        expected: 403,
+        rule: 'Only Full control edits the project-managed content of a teammate.',
+      },
+    },
+  ],
+  [
     'GET /api/v1/folders/:id/members/:userId/responsibility/history',
     {
       attempt: (fx) => ({
