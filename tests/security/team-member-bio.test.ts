@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { sql } from 'drizzle-orm'
 
 import { afterAll, beforeAll, expect, test } from 'vitest'
 
@@ -13,15 +14,20 @@ const cast = new Cast(['owner', 'member', 'stranger'], 'bio')
 beforeAll(async () => { app = await startAuthTestApp() }, 60_000)
 afterAll(async () => { if (app) { await cast.cleanup(app.db); await app.close() } })
 
-test('overview keeps attribution, rejects stale edits, and ends with membership', async () => {
+test('only the person edits a persistent bio; legacy project writing keeps its attribution', async () => {
   const [owner, member, stranger] = await cast.of(app) as [Actor, Actor, Actor]
   const folderId = await createFolder(owner, 'Team profiles')
   await connect(app.db, owner.id, member.id)
   await addMemberOk(owner, folderId, member.id, 'can_view')
+  const secondFolderId = await createFolder(owner, 'Another team')
+  await addMemberOk(owner, secondFolderId, member.id, 'can_view')
   const path = (id: string) => `/folders/${folderId}/members/${id}`
 
   expectStatus(await stranger.browser.json(`${path(member.id)}/bio`, 'PATCH', { bio: 'Hidden' }), 404, 'outsider')
   expectStatus(await member.browser.json(`${path(owner.id)}/bio`, 'PATCH', { bio: 'Changed' }), 403, 'another member')
+  expectStatus(await owner.browser.json(`${path(member.id)}/bio`, 'PATCH', { bio: 'Manager text' }), 403, 'Full control cannot edit Bio')
+  await app.db.execute(sql`UPDATE folder_members SET bio = 'Earlier project note', bio_author_id = ${owner.id}::uuid,
+    bio_last_editor_id = ${owner.id}::uuid WHERE folder_id = ${folderId}::uuid AND user_id = ${member.id}::uuid`)
   expectStatus(await member.browser.json(`${path(member.id)}/bio`, 'PATCH', {
     content: { version: 1, runs: [{ text: 'Works on ', bold: true }, { text: 'planning.' }] },
     base_updated_at: null,
@@ -31,19 +37,21 @@ test('overview keeps attribution, rejects stale edits, and ends with membership'
   expect(detail.json()).toMatchObject({
     bio: 'Works on planning.',
     bio_content: { version: 1, runs: [{ text: 'Works on ', bold: true }, { text: 'planning.' }] },
-    bio_author: { id: member.id },
-    bio_last_editor: { id: member.id },
+    legacy_bio: { text: 'Earlier project note', author: { id: owner.id } },
   })
   const firstUpdatedAt = (detail.json() as { bio_updated_at: string }).bio_updated_at
 
-  expectStatus(await owner.browser.json(`${path(member.id)}/bio`, 'PATCH', {
+  expectStatus(await member.browser.json(`/folders/${secondFolderId}/members/${member.id}`, 'GET'), 200, 'Bio follows the person')
+  expect((await member.browser.json(`/folders/${secondFolderId}/members/${member.id}`, 'GET')).json()).toMatchObject({
+    bio: 'Works on planning.', legacy_bio: null,
+  })
+  expectStatus(await member.browser.json(`${path(member.id)}/bio`, 'PATCH', {
     content: { version: 1, runs: [{ text: 'Coordinates planning.', italic: true }] },
     base_updated_at: firstUpdatedAt,
-  }), 204, 'Full control')
+  }), 204, 'person edits Bio')
   expect((await member.browser.json(path(member.id), 'GET')).json()).toMatchObject({
     bio: 'Coordinates planning.',
-    bio_author: { id: member.id },
-    bio_last_editor: { id: owner.id },
+    legacy_bio: { text: 'Earlier project note', author: { id: owner.id } },
   })
   expectStatus(await member.browser.json(`${path(member.id)}/bio`, 'PATCH', {
     content: { version: 1, runs: [{ text: 'Stale' }] },
@@ -51,16 +59,19 @@ test('overview keeps attribution, rejects stale edits, and ends with membership'
   }), 409, 'stale overview')
   const exported = await member.browser.json('/me/export', 'GET')
   expectStatus(exported, 200, 'member export')
-  expect(exported.json()).toMatchObject({ team_bios: [{
-    folder: { id: folderId }, bio: 'Coordinates planning.',
-    content: { version: 1, runs: [{ text: 'Coordinates planning.', italic: true }] },
-  }] })
-  expectStatus(await owner.browser.json(`${path(member.id)}/bio`, 'PATCH', { bio: 'x'.repeat(501) }), 422, 'length limit')
+  expect(exported.json()).toMatchObject({
+    account: { bio: 'Coordinates planning.', bio_content: { version: 1, runs: [{ text: 'Coordinates planning.', italic: true }] } },
+    team_bios: [{ folder: { id: folderId }, bio: 'Earlier project note' }],
+  })
+  expectStatus(await member.browser.json(`${path(member.id)}/bio`, 'PATCH', { bio: 'x'.repeat(501) }), 422, 'length limit')
   expectStatus(await member.browser.json(`${path(member.id)}/bio`, 'PATCH', {
     content: { version: 1, runs: [{ text: 'x'.repeat(501) }] },
   }), 422, 'formatted length limit')
   expectStatus(await removeMember(owner, folderId, member.id), 204, 'remove teammate')
   expectStatus(await owner.browser.json(path(member.id), 'GET'), 404, 'profile is unavailable')
+  expect((await member.browser.json('/me/export', 'GET')).json()).toMatchObject({
+    account: { bio: 'Coordinates planning.' },
+  })
 })
 
 test('project context and member-curated content have distinct write grants and revisions', async () => {
@@ -107,7 +118,7 @@ test('project context and member-curated content have distinct write grants and 
   const memberExport = await member.browser.json('/me/export', 'GET')
   expectStatus(memberExport, 200, 'member export includes curated content')
   expect(memberExport.json()).toMatchObject({
-    version: 15,
+    version: 16,
     profile_sections: [{
       area: 'shared', member_id: member.id,
       content: { blocks: [{ kind: 'paragraph', content: { runs: [{ text: 'Portfolio note' }] } }] },

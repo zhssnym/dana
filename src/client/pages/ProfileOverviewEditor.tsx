@@ -56,7 +56,7 @@ export default function ProfileOverviewEditor({ initial, text, onSave, onCancel 
     try {
       await onSave(content)
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'The overview was not saved. Try again.')
+      setError(failure instanceof Error ? failure.message : 'The bio was not saved. Try again.')
     } finally {
       setSaving(false)
     }

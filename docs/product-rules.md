@@ -35,7 +35,7 @@ Only words that have a special sense in Dana. The code name is in brackets.
 - **Access**: the preset of one member on one project. See "Permissions".
 - **Owner** (`owner_id`): the person with custody of a project. Custody is not authority.
 - **Responsibility**: a document that says what one member does in a project.
-- **Bio**: a short introduction for one member in one project. It ends when that member leaves. It is not yet a global personal profile.
+- **Bio**: a short introduction owned by the person. It remains after the person leaves a project.
 - **Connection**: a link between two people. Either can add the other to a project directly.
 - **Series**: the task rows that one repeat rule makes. The **current occurrence** is
   the one open row of the series. Only that row holds the rule.
@@ -56,15 +56,17 @@ Work and Doc can hold a Teammate block. It stores a Team member ID and reads the
 current Team profile. A removed member shows as unavailable.
 
 The Team directory opens each member's profile in the side panel or full page.
-The profile has **In this project** (Authorities, Responsibilities, Project content)
-and **About the person** (Bio, Shared by teammate). It does not have its own
+The profile has a personal Bio below the header, **In this project**
+(Authorities, Responsibilities, Project content), and **About the person**
+(earlier project Bio, Shared by teammate). It does not have its own
 page/tab hierarchy. Message and side-panel Expand are direct header actions;
 Copy profile link, History, and authorized Remove live in the overflow.
 
-Bio uses one short paragraph with bold, italic and links. The member or Full
-control can edit it. Dana records its author and last editor, so manager-written
-text is not implied to be self-authored. Earlier Bio text without an actor keeps
-no author claim. Responsibilities retain their own revisions and Access controls;
+Bio uses one short paragraph with bold, italic and links. Only the person can
+edit it. Earlier project Bio text stays on the membership as read-only context
+with its recorded author and last editor. It does not become the personal Bio.
+Earlier Bio text without an actor keeps no author claim.
+Responsibilities retain their own revisions and Access controls;
 the new edit surface is a restrained composer, not another Doc. Written
 Responsibilities never grant Access.
 

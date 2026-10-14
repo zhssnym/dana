@@ -66,6 +66,9 @@ itself. Dana has two mechanisms, and a new route needs both:
 - **DMs.** A new DM checks current shared project membership for both people. Each
   message read and write checks the two participant IDs on the conversation row.
   This participant check replaces `accessOf(...)` because a DM has no folder.
+- **Bio.** A Team member can read a person's Bio in the current project. Only that
+  person can change it. Full control and project ownership grant no Bio write access.
+  Earlier project Bio text stays on the membership with its recorded attribution.
 
 Rules for ids:
 

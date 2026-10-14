@@ -143,6 +143,34 @@ export function MemberDetails({
         </div>
       </header>
       {copyError ? <p role="alert" className="text-xs text-destructive">{copyError}</p> : null}
+      <section aria-label="Bio" className="space-y-[var(--space-inline)]">
+        {editingOverview ? (
+          <Suspense fallback={<p className="text-sm text-muted-foreground">Loading editor…</p>}>
+            <ProfileOverviewEditor key={member.bio_updated_at ?? 'empty'}
+              initial={member.bio_content} text={member.bio}
+              onCancel={() => setEditingOverview(false)}
+              onSave={async (content) => {
+                await saveBio.mutateAsync({folderId,userId,content,baseUpdatedAt:member.bio_updated_at})
+                await details.refetch()
+                setEditingOverview(false)
+              }}/>
+          </Suspense>
+        ) : (
+          <div className="flex items-start gap-2">
+            {hasBio ? (
+              <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+                {member.bio_content === null ? member.bio : <Runs content={member.bio_content}/>}
+              </p>
+            ) : <p className="min-w-0 flex-1 text-sm text-muted-foreground">No bio yet.</p>}
+            {member.viewer_may_edit_bio ? (
+              <Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground"
+                onClick={() => setEditingOverview(true)}>
+                <Pencil aria-hidden="true" strokeWidth={1.75}/> {hasBio ? 'Edit bio' : 'Add bio'}
+              </Button>
+            ) : null}
+          </div>
+        )}
+      </section>
 
       {showHistory ? (
         <section aria-label="Profile history" className="space-y-[var(--space-inline)] border-t border-border/70 pt-[var(--space-group)]">
@@ -204,47 +232,21 @@ export function MemberDetails({
           <section aria-label="About the person" className="space-y-[var(--space-group)]">
             <h2 className={HEADING}>About the person</h2>
             <div className="space-y-[var(--space-group)] border-t border-border/70 pt-[var(--space-inline)]">
-              <section aria-label="Bio" className="space-y-[var(--space-inline)]">
-                <div className="flex min-h-[var(--row-height)] items-center gap-2">
-                  <h3 className={`${HEADING} flex-1`}>Bio</h3>
-                  {member.viewer_may_edit_bio && hasBio && !editingOverview ? (
-                    <Button variant="ghost" size="sm" className="text-muted-foreground"
-                      onClick={() => setEditingOverview(true)}>
-                      <Pencil aria-hidden="true" strokeWidth={1.75}/> Edit
-                    </Button>
-                  ) : null}
-                </div>
-                {editingOverview ? (
-                  <Suspense fallback={<p className="text-sm text-muted-foreground">Loading editor…</p>}>
-                    <ProfileOverviewEditor key={member.bio_updated_at ?? member.bio ?? 'empty'}
-                      initial={member.bio_content} text={member.bio}
-                      onCancel={() => setEditingOverview(false)}
-                      onSave={async (content) => {
-                        await saveBio.mutateAsync({folderId,userId,content,baseUpdatedAt:member.bio_updated_at})
-                        await details.refetch()
-                        setEditingOverview(false)
-                      }}/>
-                  </Suspense>
-                ) : hasBio ? (
-                  <>
-                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
-                      {member.bio_content === null ? member.bio : <Runs content={member.bio_content}/>}
+              {member.legacy_bio ? (
+                <section aria-label="Earlier project bio" className="space-y-[var(--space-inline)]">
+                  <h3 className={HEADING}>Earlier project bio</h3>
+                  <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+                    {member.legacy_bio.content === null ? member.legacy_bio.text : <Runs content={member.legacy_bio.content}/>}
+                  </p>
+                  {member.legacy_bio.author || member.legacy_bio.last_editor ? (
+                    <p className="text-xs text-muted-foreground">
+                      {member.legacy_bio.author ? `Written by ${member.legacy_bio.author.display_name ?? 'Someone'}` : null}
+                      {member.legacy_bio.last_editor && member.legacy_bio.last_editor.id !== member.legacy_bio.author?.id
+                        ? `${member.legacy_bio.author ? ' · ' : ''}Edited by ${member.legacy_bio.last_editor.display_name ?? 'Someone'}` : null}
                     </p>
-                    {member.bio_author || member.bio_last_editor ? (
-                      <p className="text-xs text-muted-foreground">
-                        {member.bio_author ? `Written by ${member.bio_author.display_name ?? 'Someone'}` : null}
-                        {member.bio_last_editor && member.bio_last_editor.id !== member.bio_author?.id
-                          ? `${member.bio_author ? ' · ' : ''}Edited by ${member.bio_last_editor.display_name ?? 'Someone'}` : null}
-                      </p>
-                    ) : null}
-                  </>
-                ) : member.viewer_may_edit_bio ? (
-                  <Button variant="ghost" size="sm" className="text-muted-foreground"
-                    onClick={() => setEditingOverview(true)}>
-                    <Pencil aria-hidden="true" strokeWidth={1.75}/> Add bio
-                  </Button>
-                ) : <p className="text-sm text-muted-foreground">No bio yet.</p>}
-              </section>
+                  ) : null}
+                </section>
+              ) : null}
               <ProfileContentArea folderId={folderId} userId={userId} area="shared"
                 standing={member.profile_shared} names={member.profile_file_names}
                 canUploadFile={member.profile_may_upload_file} canUploadImage={member.profile_may_upload_image}

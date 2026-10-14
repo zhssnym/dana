@@ -142,6 +142,9 @@ export async function handleDeleteMe(
               email = NULL,
               display_name = NULL,
               avatar_url = NULL,
+              bio = NULL,
+              bio_content = NULL,
+              bio_updated_at = NULL,
               deleted_at = now()
           WHERE id = ${userId}`,
     )

@@ -828,7 +828,7 @@ const TABLE = new Map<string, Row>([
       },
       member: {
         expected: 403,
-        rule: 'A member may edit their own bio. Editing another member requires responsibility management authority.',
+        rule: 'Only the person may edit their persistent Bio. Project authority does not grant this right.',
         attempt: (fx) => ({
           path: `/folders/${fx.folderId}/members/${fx.owner.id}/bio`,
           body: { bio: 'Changed by another member' },

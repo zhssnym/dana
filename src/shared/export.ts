@@ -18,7 +18,7 @@ Bump on every shape change: a reader must refuse a version it does not know,
 because an older schema strips new keys silently. Pick the next number from
 the open branches, not this file, so two branches never share one number.
 */
-export const EXPORT_VERSION = 15
+export const EXPORT_VERSION = 16
 
 /** 10.3's per-collection row cap; a cut collection is named in `truncated`. */
 export const EXPORT_ROW_CAP = 1000
@@ -282,6 +282,9 @@ export const exportAccount = z.object({
   email: z.string().nullable(),
   display_name: z.string().nullable(),
   avatar_url: z.string().nullable(),
+  bio: z.string().nullable(),
+  bio_content: richContent.nullable(),
+  bio_updated_at: z.string().nullable(),
   timezone: z.string(),
   created_at: z.string(),
 })
