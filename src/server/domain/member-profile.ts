@@ -80,6 +80,7 @@ export async function profileSectionsOf(
       JOIN jsonb_array_elements_text(${ids}::jsonb) x(value) ON f.id = x.value::uuid
       JOIN folders home ON home.id = f.folder_id
       WHERE home.project_id = ${projectId}::uuid
+        AND home.deleted_at IS NULL AND home.archived_at IS NULL
     `)
     for (const file of fileRows) result.file_names[String(file.id)] = String(file.name)
   }
@@ -122,6 +123,7 @@ export async function writeProfileSection(
         JOIN jsonb_array_elements_text(${ids}::jsonb) x(value) ON f.id = x.value::uuid
         JOIN folders home ON home.id = f.folder_id
         WHERE home.project_id = ${projectId}::uuid
+        AND home.deleted_at IS NULL AND home.archived_at IS NULL
       `)
       const available = new Map(rows.map((row) => [String(row.id), String(row.kind)]))
       if (linked.some((block) => {
