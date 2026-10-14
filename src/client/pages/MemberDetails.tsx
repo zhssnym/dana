@@ -33,7 +33,7 @@ import {
 import { cn } from '../components/ui/utils.js'
 import { ChevronDown, History, MoreHorizontal, Pencil, Maximize2 } from '../lib/icons.js'
 import { ProfileContentArea } from './ProfileContentArea.js'
-import { documentToText, textToDocument } from '../lib/responsibility-text.js'
+import { documentToText } from '../lib/responsibility-text.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
 import type { ConfirmLabels } from './task-rows.js'
@@ -43,6 +43,7 @@ export type AskConfirm = (message: string, run: () => void, labels?: ConfirmLabe
 
 const HEADING = 'text-sm font-section text-foreground'
 const ProfileOverviewEditor = lazy(() => import('./ProfileOverviewEditor.js'))
+const ProfileResponsibilitiesEditor = lazy(() => import('./ProfileResponsibilitiesEditor.js'))
 const ACCESS_SCOPE: Record<FolderAccessPreset, string> = {
   full_control: 'Manage people, access, and all project work',
   can_edit: 'Edit shared work and project pages',
@@ -388,12 +389,7 @@ export function InviteAccessPicker({
 }
 
 function Responsibilities({
-  folderId,
-  userId,
-  content,
-  revision,
-  mayEdit,
-  onStale,
+  folderId, userId, content, revision, mayEdit, onStale,
 }: {
   readonly folderId: string
   readonly userId: string
@@ -403,108 +399,53 @@ function Responsibilities({
   readonly onStale: () => void
 }): React.JSX.Element {
   const save = useSaveResponsibility()
-  const [draft, setDraft] = useState<string | null>(null)
-  const [problem, setProblem] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState(false)
+  const [editing, setEditing] = useState(false)
   const empty = content === null || content.blocks.length === 0
-  const collapsible = content !== null && (content.blocks.length > 1 || documentToText(content).length > 180)
-
-  function commit(): void {
-    if (draft === null) return
-    setProblem(null)
-    save.mutate(
-      { folderId, userId, content: textToDocument(draft), baseRevision: revision },
-      {
-        onSuccess: () => {
-          setDraft(null)
-        },
-        onError: (error) => {
-          if (error instanceof ApiError && error.status === 422) setProblem(error.message)
-          // Someone saved first: the toast says so, the draft stays, and the next Save goes against theirs.
-          if (error instanceof ApiError && error.status === 409) onStale()
-        },
-      },
-    )
-  }
 
   return (
-    <section aria-label="Responsibilities">
-      <div className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)]">
+    <section aria-label="Responsibilities" className="space-y-[var(--space-inline)]">
+      <div className="flex min-h-[var(--row-height)] items-center gap-2">
         <h3 className={`${HEADING} flex-1`}>Responsibilities</h3>
-        {mayEdit && !empty && draft === null ? (
-          <Button
-            variant="ghost"
-            className="text-muted-foreground"
-            onClick={() => {
-              setDraft(documentToText(content))
-            }}
-          >
-            Edit
+        {mayEdit && !empty && !editing ? (
+          <Button variant="ghost" size="sm" className="text-muted-foreground"
+            onClick={() => setEditing(true)}>
+            <Pencil aria-hidden="true" strokeWidth={1.75}/> Edit
           </Button>
         ) : null}
-        {collapsible && draft === null ? <Button variant="ghost" size="sm" className="text-muted-foreground" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>{expanded ? 'Show less' : 'Show all'}</Button> : null}
       </div>
-      {draft !== null ? (
-        <div className="flex flex-col gap-[var(--space-inline)]">
-          <textarea
-            aria-label="Responsibilities"
-            autoFocus
-            rows={8}
-            value={draft}
-            onChange={(event) => {
-              setDraft(event.target.value)
-            }}
-            placeholder="What they look after"
-            className="w-full resize-y rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground outline-none placeholder:text-quiet-foreground focus-visible:border-ring"
-          />
-          <p className="text-xs text-muted-foreground">
-            # heading, - bullet, **bold**, _italic_, [text](link)
-          </p>
-          {problem === null ? null : <p className="text-xs text-destructive">{problem}</p>}
-          <div className="flex justify-end gap-[var(--space-inline)]">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setDraft(null)
-                setProblem(null)
-              }}
-            >
-              Cancel
-            </Button>
-            <Button disabled={save.isPending} onClick={commit}>
-              Save
-            </Button>
-          </div>
-        </div>
+      {editing ? (
+        <Suspense fallback={<p className="text-sm text-muted-foreground">Loading editor…</p>}>
+          <ProfileResponsibilitiesEditor key={revision} initial={content}
+            onCancel={() => setEditing(false)}
+            onSave={async (next) => {
+              try {
+                await save.mutateAsync({folderId,userId,content:next,baseRevision:revision})
+                onStale()
+                setEditing(false)
+              } catch (failure) {
+                if (failure instanceof ApiError && failure.status === 409) onStale()
+                throw failure
+              }
+            }}/>
+        </Suspense>
       ) : empty && mayEdit ? (
-        <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setDraft('')}><Pencil strokeWidth={1.75} aria-hidden="true" /> Add responsibilities</Button>
+        <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setEditing(true)}>
+          <Pencil aria-hidden="true" strokeWidth={1.75}/> Add responsibilities
+        </Button>
       ) : empty ? (
-        <p className="text-sm text-muted-foreground">No responsibilities.</p>
-      ) : collapsible && !expanded ? (
-        <p className="line-clamp-2 break-words text-sm text-foreground [overflow-wrap:anywhere]"><Runs content={content.blocks[0]!.content} /></p>
+        <p className="text-sm text-muted-foreground">No responsibilities yet.</p>
       ) : (
-        <div className="flex flex-col gap-1 text-sm text-foreground">
+        <div className="space-y-1 text-sm leading-relaxed text-foreground">
           {content.blocks.map((block, index) =>
             block.kind === 'heading' ? (
-              <p key={index} className="pt-1 font-medium">
-                <Runs content={block.content} />
-              </p>
+              <p key={index} className="pt-1 font-medium"><Runs content={block.content}/></p>
             ) : block.kind === 'bullet' ? (
-              <p
-                key={index}
-                className="flex gap-2"
-                style={{ paddingLeft: `calc(${String(block.depth)} * var(--space-group))` }}
-              >
+              <p key={index} className="flex gap-2 break-words"
+                style={{paddingLeft:`calc(${String(block.depth)} * var(--space-group))`}}>
                 <span aria-hidden="true" className="text-muted-foreground">•</span>
-                <span className="min-w-0">
-                  <Runs content={block.content} />
-                </span>
+                <span className="min-w-0"><Runs content={block.content}/></span>
               </p>
-            ) : (
-              <p key={index}>
-                <Runs content={block.content} />
-              </p>
-            ),
+            ) : <p key={index} className="break-words"><Runs content={block.content}/></p>
           )}
         </div>
       )}
