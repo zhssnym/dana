@@ -197,6 +197,7 @@ export function MemberDetails({
                 onStale={() => {void details.refetch()}}/>
               <ProfileContentArea folderId={folderId} userId={userId} area="project"
                 standing={member.profile_project} names={member.profile_file_names}
+                canUploadFile={member.profile_may_upload_file} canUploadImage={member.profile_may_upload_image}
                 onSaved={() => details.refetch()}/>
             </div>
           </section>
@@ -246,6 +247,7 @@ export function MemberDetails({
               </section>
               <ProfileContentArea folderId={folderId} userId={userId} area="shared"
                 standing={member.profile_shared} names={member.profile_file_names}
+                canUploadFile={member.profile_may_upload_file} canUploadImage={member.profile_may_upload_image}
                 onSaved={() => details.refetch()}/>
             </div>
           </section>
