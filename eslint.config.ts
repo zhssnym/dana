@@ -43,7 +43,7 @@ const BRICKS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['tasks', ['tasks', 'task-order', 'task-dependencies', 'task-dependency-counts']],
   ['threads', ['consultation', 'consultation-hooks', 'consultation-input', 'comments']],
   ['views', ['references', 'backlinks', 'bundle', 'covers', 'place-descriptions']],
-  ['flows', ['acts', 'export', 'account-deletion', 'trash', 'archive']],
+  ['flows', ['acts', 'export', 'account-deletion', 'trash', 'archive', 'legacy-profile-migration']],
 ]
 
 /* Named exceptions, each with the step that removes it. */

@@ -143,6 +143,10 @@ export async function writeProfileSection(
     `)
     if (previous.length ? Number(previous[0]?.revision) !== baseRevision : baseRevision !== 0)
       return 'stale'
+    const migrated = await rowsOf(tx, sql`SELECT 1 FROM profile_doc_migrations
+      WHERE source_project_id = ${projectId}::uuid
+        AND source_member_id = ${memberId}::uuid AND source_area = ${area}`)
+    if (migrated.length) return 'stale'
 
     // Optimistic concurrency: two editors cannot silently overwrite one another.
     const payload = JSON.stringify(content)

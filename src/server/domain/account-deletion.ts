@@ -219,6 +219,13 @@ export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
 /** Every CASCADE foreign key to users(id). The guard test checks this list against the schema both ways. */
 export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
   {
+    fk: 'profile_doc_migrations_editor_fkey',
+    table: 'profile_doc_migrations',
+    disposition: 'retained',
+    where: '',
+    why: 'The migration keeps the last editor of project-managed source writing as provenance. Step 4a deletes a departing account\'s shared source and migration snapshot.',
+  },
+  {
     fk: 'member_profile_sections_editor_fkey',
     table: 'member_profile_sections',
     disposition: 'retained',
@@ -481,6 +488,8 @@ export async function deleteAccountData(
   // deletion removes it. Project-managed writing stays with the project.
   await tx.execute(sql`DELETE FROM member_profile_sections
     WHERE member_id = ${userId}::uuid AND area = 'shared'`)
+  await tx.execute(sql`DELETE FROM profile_doc_migrations
+    WHERE source_member_id = ${userId}::uuid AND source_area = 'shared'`)
 
   // 5. Both rosters in one statement: each pair is stored once.
   const connections = await rowsOf(
