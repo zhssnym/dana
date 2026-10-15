@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 
 import { useFolders } from '../../../api/queries.js'
 import { folderMark } from '../../../parts/presenters.js'
+import { useProfilePageContext } from './profile-page-context.js'
 
 const ROW = 'flex h-8 w-full min-w-0 items-center gap-2 rounded-sm px-1 text-left no-underline outline-none'
 
@@ -12,14 +13,17 @@ const ROW = 'flex h-8 w-full min-w-0 items-center gap-2 rounded-sm px-1 text-lef
  */
 export function CanvasPage({ folderId }: { readonly folderId: string }): React.JSX.Element {
   const folders = useFolders()
+  const profile = useProfilePageContext()
   const navigate = useNavigate()
-  const folder = folders.data?.find((candidate) => candidate.id === folderId)
+  const profilePage = profile?.pages.find((candidate) => candidate.id === folderId)
+  const folder = profilePage ?? folders.data?.find((candidate) => candidate.id === folderId)
   if (folder === undefined) {
-    if (folders.isPending) return <div contentEditable={false} data-canvas-page-id={folderId} aria-busy="true" className="h-8" />
+    if (folders.isPending || profile?.pending === true)
+      return <div contentEditable={false} data-canvas-page-id={folderId} aria-busy="true" className="h-8" />
     return <p contentEditable={false} data-canvas-page-id={folderId} className={`${ROW} text-sm text-muted-foreground`}>Page you can't open</p>
   }
   const mark = folderMark(folder)
-  const path = `/app/folders/${folderId}`
+  const path = profilePage === undefined ? `/app/folders/${folderId}` : profile?.href(folderId) ?? `/app/folders/${folderId}`
   return (
     <a
       contentEditable={false}
@@ -28,7 +32,8 @@ export function CanvasPage({ folderId }: { readonly folderId: string }): React.J
       onClick={(event) => {
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return
         event.preventDefault()
-        void navigate(path)
+        if (profilePage !== undefined) profile?.open(folderId)
+        else void navigate(path)
       }}
       className={`${ROW} transition-colors hover:bg-muted`}
     >

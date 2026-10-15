@@ -18,7 +18,7 @@ import { Tab, TabList } from './ui/tabs.js'
 import { cn } from './ui/utils.js'
 
 type TabPage = Pick<Folder, 'id' | 'project_id' | 'kind' | 'name' | 'tab_position'> &
-  Partial<Pick<Folder, 'is_default'>>
+  Partial<Pick<Folder, 'is_default'>> & { readonly may_manage?: boolean }
 
 function isDeskRow(tabs: readonly TabPage[]): boolean {
   return tabs.some((tab) => tab.id === tab.project_id && tab.is_default === true)
@@ -38,9 +38,11 @@ export function addableKinds(tabs: readonly TabPage[]): PageKind[] {
 export function AddTabMenu({
   tabs,
   onAdd,
+  profile = false,
 }: {
   readonly tabs: readonly TabPage[]
   readonly onAdd: (kind: PageKind) => void
+  readonly profile?: boolean
 }): React.JSX.Element {
   return (
     <DropdownMenu>
@@ -52,7 +54,7 @@ export function AddTabMenu({
         <Plus strokeWidth={1.75} aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-auto">
-        {addableKinds(tabs).map((kind) => (
+        {(profile ? ['doc'] as const : addableKinds(tabs)).map((kind) => (
           <DropdownMenuItem key={kind} onClick={() => onAdd(kind)}>
             {DEFAULT_TAB_NAMES[kind]}
           </DropdownMenuItem>
@@ -92,6 +94,7 @@ export function FolderTabs<T extends TabPage>({
   onRename,
   onDelete,
   tools,
+  profile = false,
 }: {
   readonly tabs: readonly T[]
   readonly activeId: string
@@ -102,16 +105,17 @@ export function FolderTabs<T extends TabPage>({
   readonly onRename: (tab: T, name: string) => void
   readonly onDelete: (tab: T) => void
   readonly tools?: React.ReactNode
+  readonly profile?: boolean
 }): React.JSX.Element | null {
   const { search } = useLocation()
-  const desk = isDeskRow(tabs)
+  const desk = profile || isDeskRow(tabs)
   const deskRoot = desk ? tabs.find((tab) => tab.id === tab.project_id) : undefined
   const activeStored = tabs.find((tab) => tab.id === activeId)
   const query = new URLSearchParams(search)
-  const discussionFullScreen =
+  const discussionFullScreen = !profile && (
     activeStored?.kind === 'discussion' ||
     query.has('discussion') ||
-    (query.get('conversation') === 'open' && !desk)
+    (query.get('conversation') === 'open' && !desk))
   // Keep the stored Discussion page, but never show it as a tab.
   const visibleTabs = tabs.filter((tab) => tab.kind !== 'discussion')
   const rowTabs: readonly T[] = desk
@@ -120,8 +124,9 @@ export function FolderTabs<T extends TabPage>({
         ...visibleTabs.filter((tab) => tab.id !== deskRoot?.id),
       ]
     : visibleTabs
-  const rowEditable = editable || desk
+  const rowEditable = editable || (desk && !profile)
   const mayMove = (tab: T): boolean => rowEditable && (!desk || tab.id !== deskRoot?.id)
+    && (!profile || tab.may_manage === true)
 
   const [drag, setDrag] = useState<TabDrag | null>(null)
   const dragRef = useRef<TabDrag | null>(null)
@@ -205,7 +210,7 @@ export function FolderTabs<T extends TabPage>({
   if (discussionFullScreen) return null
 
   // The add control stays even when a hidden Discussion page leaves one visible tab.
-  if (rowTabs.length < 2) {
+  if (rowTabs.length < 2 && !profile) {
     if (!rowEditable && tools === undefined) return null
     return (
       <div className="flex min-w-0 items-end justify-end gap-2 border-b border-border">
@@ -229,7 +234,9 @@ export function FolderTabs<T extends TabPage>({
   }
 
   // The root's tab is the project: no rename or delete here.
-  const hasMenu = (tab: T): boolean => rowEditable && tab.id !== tab.project_id
+  const hasMenu = (tab: T): boolean => rowEditable && (profile
+    ? tab.id !== deskRoot?.id : tab.id !== tab.project_id)
+    && (!profile || tab.may_manage === true)
 
   const openMenu = (tab: T, x: number, y: number): void => {
     menuFor.current = tab.id
@@ -263,7 +270,7 @@ export function FolderTabs<T extends TabPage>({
           const lifted = drag?.lifted === true && drag.id === tab.id
           const lineBefore = drag?.lifted === true && drag.gap === index
           const lineAfter = drag?.lifted === true && drag.gap === rowTabs.length && index === rowTabs.length - 1
-          const label = tabLabel(tab)
+          const label = profile ? (tab.id === deskRoot?.id ? 'Overview' : tab.name) : tabLabel(tab)
           if (renamingId === tab.id) {
             return (
               <TabNameField
@@ -407,7 +414,7 @@ export function FolderTabs<T extends TabPage>({
         })}
       </TabList>
       {/* Outside the scroller, so a narrow screen never clips it. */}
-      {rowEditable ? <AddTabMenu tabs={rowTabs} onAdd={onAdd} /> : null}
+      {rowEditable ? <AddTabMenu tabs={rowTabs} onAdd={onAdd} profile={profile} /> : null}
       <div className="min-w-0 flex-1" aria-hidden="true" />
       {tools === undefined ? null : (
         <div className="flex shrink-0 items-center border-l border-border pl-2 pb-0.5">{tools}</div>

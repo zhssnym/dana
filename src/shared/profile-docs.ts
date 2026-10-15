@@ -38,3 +38,16 @@ export const profileDocRoot = z.object({
 })
 export type ProfileDocRoot = z.infer<typeof profileDocRoot>
 export const getProfileDocsResponse = z.object({ roots: z.array(profileDocRoot) })
+export const getProfileDocSharingResponse = z.object({
+  grants: z.array(profileDocGrant.extend({ display_name: z.string().nullable() })),
+})
+export const postProfileDocResponse = z.object({ id: z.uuid() })
+export const migrateProfileDocsResponse = z.object({
+  migrated: z.int().nonnegative(),
+  retained: z.int().nonnegative(),
+})
+export const patchProfileDocPositionBody = z.object({
+  before_id: z.uuid().nullable(),
+  after_id: z.uuid().nullable(),
+}).refine((value) => value.before_id !== value.after_id || value.before_id === null,
+  'Choose two different neighboring tabs.')

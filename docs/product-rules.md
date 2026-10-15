@@ -313,6 +313,10 @@ Trash:
 - After 30 days the scheduler purges the item. A page purge removes its members, tasks,
   checklists, Today entries, reminders, `pending` invites and files. File bytes go after commit.
 - Dana purges events after 90 days.
+- Contribution activity uses 90 UTC calendar days, including today. It counts
+  recorded task creation and outcomes, comment creation, and page creation, edits and
+  renames in the current Team when the viewer can still open the source. Repeated edits
+  to one page on one day count once. Deleted sources and unsupported events do not count.
 
 Archive:
 

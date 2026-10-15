@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -397,6 +397,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   // Present only after a build; npm run dev serves the client from Vite.
   if (options.clientDist !== undefined) {
     const clientIndex = path.join(options.clientDist, 'index.html')
+    const clientHtml = readFileSync(clientIndex)
     /*
     AC-956: a signed-in visit to bare / redirects to /app before the page is
     sent. no-store so the 302 is not cached past sign-out; a failed session
@@ -420,7 +421,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     }
     app.use(express.static(options.clientDist))
     app.get('/{*splat}', (_req: Request, res: Response) => {
-      res.sendFile(clientIndex)
+      res.type('html').send(clientHtml)
     })
   }
 
