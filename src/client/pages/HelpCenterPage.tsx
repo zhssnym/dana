@@ -376,6 +376,7 @@ export function HelpCenterPage(): React.JSX.Element {
         <div className="mx-auto flex max-w-[var(--help-layout-width)] flex-wrap items-center justify-between gap-4 px-5 py-6 text-xs text-muted-foreground sm:px-8">
           <span>Dana Help Center</span>
           <span className="flex items-center gap-4">
+            <Link to={paths.updates} className="hover:text-foreground">What's new</Link>
             <a href="/privacy" className="hover:text-foreground">Privacy</a>
             <a href="/terms" className="hover:text-foreground">Terms</a>
             <a href={paths.home} className="hover:text-foreground">Open Dana</a>

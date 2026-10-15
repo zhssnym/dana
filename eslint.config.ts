@@ -152,7 +152,7 @@ export default tseslint.config(
   eslint.configs.recommended,
   // Maintenance scripts run on Node 24, not in a browser.
   {
-    files: ['scripts/help/**/*.mjs'],
+    files: ['scripts/help/**/*.mjs', 'scripts/updates/**/*.mjs'],
     languageOptions: {
       globals: {
         process: 'readonly',
