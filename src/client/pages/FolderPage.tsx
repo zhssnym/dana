@@ -6,7 +6,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 
-import { useConnections } from '../api/queries.js'
+import { useConnections, usePageFacetDocument, usePageFacets } from '../api/queries.js'
+import { mutateApi } from '../api/http.js'
+import { getPageFacetsResponse } from '../../shared/page-facets.js'
+import { queryKeys } from '../api/keys.js'
+import { mayDraw } from '../lib/folder-authority.js'
 import { usePageHasCover } from '../components/page-head.js'
 import { FolderCoverDialog } from '../components/folder-head.js'
 import { FOLDER_PREFIX } from '../lib/page-identity.js'
@@ -35,6 +39,7 @@ import { folderPageAuthority } from './folder-page/folder-page-authority.js'
 import { FolderDiscussionButton } from './folder-page/FolderDiscussionButton.js'
 import { FolderHead } from './folder-page/FolderHead.js'
 import { FolderMoreMenu } from './folder-page/FolderMoreMenu.js'
+import { PageFacetStrip } from './folder-page/PageFacetStrip.js'
 import { FolderTabRow } from './folder-page/FolderTabRow.js'
 import { FolderTeamPanel } from './folder-page/FolderTeamPanel.js'
 import { FolderWorkBody } from './folder-page/FolderWorkBody.js'
@@ -88,6 +93,14 @@ function FolderPageBody({
     here, herePage, kind, onTab, headId, atProject, folder, folderOk, writes, open, page, allPages, tabs, projectName,
   } = useFolderReads(id, leaving)
   const cache = useQueryClient()
+  const [activeFacetId, setActiveFacetId] = useState<string | null>(null)
+  const [facetError, setFacetError] = useState('')
+  useEffect(() => { setActiveFacetId(null); setFacetError('') }, [id])
+  const isNestedPage = folder.data?.parent_folder_id != null
+  const pageFacets = usePageFacets(id, isNestedPage && kind !== 'discussion')
+  const selectedFacet = pageFacets.data?.facets.find((facet) => facet.id === activeFacetId)
+  const independentFacetId = selectedFacet?.content_page_id === null ? selectedFacet.id : null
+  const independentPage = usePageFacetDocument(id, independentFacetId)
   const basis = useRowBasis()
   const [taskFilter, setTaskFilter] = useTaskFilter(id)
   const labelDefinitions = useLabels(id, 'all', folderOk && kind === 'work')
@@ -116,7 +129,8 @@ function FolderPageBody({
   const scheduled = open.data?.scheduled ?? []
   const unscheduled = open.data?.unscheduled ?? []
   const { openRows, completedReady, completedRows, filterRows } = useFolderRows({
-    id, writes, kind, workView, scheduled, unscheduled, items: page.data?.items,
+    id, writes, kind: independentFacetId === null ? kind : 'work', workView, scheduled, unscheduled,
+    items: independentFacetId === null ? page.data?.items : independentPage.data?.items,
   })
   const context: RowContext = {
     ...basis,
@@ -134,6 +148,24 @@ function FolderPageBody({
   const { facts, gates, sharedPageEditable, tabsEditable } = folderPageAuthority({
     detail, members, viewerId: basis.viewerId, headId, isDefault,
   })
+  const canCreateFacet = isNestedPage && facts !== null && mayDraw(facts, 'facet.create')
+  const addFacet = async (): Promise<void> => {
+    if (!canCreateFacet) return
+    setFacetError('')
+    try {
+      const updated = await mutateApi(getPageFacetsResponse, {
+        method: 'POST',
+        path: `/pages/${id}/facets`,
+        body: { name: 'Untitled' },
+      })
+      const existing = new Set(pageFacets.data?.facets.map((facet) => facet.id) ?? [])
+      const made = updated.facets.find((facet) => !existing.has(facet.id))
+      cache.setQueryData(queryKeys.pageFacets(id), updated)
+      if (made !== undefined) setActiveFacetId(made.id)
+    } catch (error) {
+      setFacetError(error instanceof Error ? error.message : 'Could not add this Facet.')
+    }
+  }
   const { filterPeople, filterLabels, filteringTasks, canCreateInFilter } = useTaskFilterOptions({
     members, filterRows, labels: labelDefinitions.data, taskFilter, kind, gates,
   })
@@ -209,6 +241,7 @@ function FolderPageBody({
         duplicate={duplicate}
         navigate={navigate}
         acts={acts}
+        {...(canCreateFacet ? { onAddFacet: () => { void addFacet() } } : {})}
       />
     </>
   )
@@ -254,6 +287,14 @@ function FolderPageBody({
               />
             ) : undefined}
           />
+          {isNestedPage ? <PageFacetStrip
+            facets={pageFacets.data?.facets ?? []}
+            activeId={activeFacetId ?? pageFacets.data?.facets[0]?.id ?? null}
+            onSelect={(facet) => setActiveFacetId(facet.id)}
+            onAdd={() => { void addFacet() }}
+            editable={canCreateFacet}
+          /> : null}
+          {facetError ? <p role="alert" className="text-sm text-destructive">{facetError}</p> : null}
         </div>
 
         {herePage === undefined ? null : kind === null ? (
@@ -274,6 +315,8 @@ function FolderPageBody({
         ) : (
           <FolderWorkBody
             id={id}
+            facetId={independentFacetId}
+            facetPage={independentPage}
             kind={kind}
             tabs={tabs}
             open={open}

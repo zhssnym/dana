@@ -108,6 +108,70 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
 })
 
 
+
+test('nested Page: add a Facet and edit it in the existing Work canvas', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/app/today')
+  const skip = page.getByRole('dialog', { name: 'How did you hear about Dana?' }).getByRole('button', { name: 'Skip' })
+  await skip.waitFor({ timeout: 5_000 }).then(() => skip.click(), () => undefined)
+  const csrf = (await page.context().cookies()).find((cookie) => cookie.name === 'dana_csrf')?.value
+  expect(csrf).toBeTruthy()
+
+  const root = await page.request.post('/api/v1/folders', {
+    headers: { 'X-CSRF-Token': csrf! },
+    data: { name: 'Facet browser test root', kind: 'work' },
+  })
+  expect(root.status(), await root.text()).toBe(201)
+  const rootId = ((await root.json()) as { id: string }).id
+  const child = await page.request.post('/api/v1/folders', {
+    headers: { 'X-CSRF-Token': csrf! },
+    data: { name: 'Facet browser test child', parent_folder_id: rootId },
+  })
+  expect(child.status(), await child.text()).toBe(201)
+  const childId = ((await child.json()) as { id: string }).id
+
+  await page.goto(`/app/folders/${childId}`)
+  await expect(page.getByRole('tablist', { name: 'Page Facets' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'More actions' }).last().click()
+  await page.getByRole('menuitem', { name: 'Add Facet' }).click()
+  const tabs = page.getByRole('tablist', { name: 'Page Facets' })
+  await expect(tabs).toBeVisible()
+  await expect(tabs.getByRole('tab', { name: 'Main' })).toBeVisible()
+  await expect(tabs.getByRole('tab', { name: 'Untitled' })).toHaveAttribute('aria-selected', 'true')
+
+  const facets = (await (await page.request.get(`/api/v1/pages/${childId}/facets`)).json()) as {
+    facets: { id: string; name: string }[]
+  }
+  const newFacetId = facets.facets.find((facet) => facet.name === 'Untitled')?.id
+  expect(newFacetId).toBeTruthy()
+
+  const message = `Facet browser writing ${Date.now()}`
+  const editor = page.locator('.dana-writing-canvas .bn-editor').first()
+  await expect(editor).toBeVisible()
+  // Until #686 removes the old footer, it can overlap the editor's click target.
+  // Focus the actual contenteditable writing surface, not that trailing task input.
+  await editor.focus()
+  await expect(editor).toBeFocused()
+  await page.keyboard.type(message)
+  await expect(editor).toContainText(message)
+  await expect.poll(async () => {
+    const response = await page.request.get(
+      `/api/v1/pages/${childId}/facets/${newFacetId}/document`,
+    )
+    return JSON.stringify(await response.json()).includes(message)
+  }).toBe(true)
+
+  await tabs.getByRole('tab', { name: 'Main' }).click()
+  await expect(page.locator('.dana-writing-canvas')).not.toContainText(message)
+  await tabs.getByRole('tab', { name: 'Untitled' }).click()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+  await page.reload()
+  await page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Untitled' }).click()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+})
+
+
 test('tooltip: Work actions use the same styled hint as the sidebar', async ({ page }) => {
   await signIn(page)
   await page.goto(`/app/folders/${seedIds.groceries}`)

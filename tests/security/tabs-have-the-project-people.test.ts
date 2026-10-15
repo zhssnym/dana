@@ -50,9 +50,39 @@ describe("a project's tabs have its people", () => {
     expectStatus(await owner.browser.json(`/folders/${project}/tabs`, 'POST', { kind: 'usual' }), 201, 'the usual project')
     const results = String((await rows(app.db, sql`
       SELECT id FROM folders WHERE project_id = ${project}::uuid AND name = 'Results'`))[0]?.id)
+    const facets = await rows(app.db, sql`
+      SELECT pf.id, pf.page_id, pf.content_folder_id, pf.name
+        FROM page_facets pf
+       WHERE pf.content_folder_id IN (${project}::uuid, ${results}::uuid)
+       ORDER BY pf.name
+    `)
+    expect(facets).toHaveLength(2)
+    expect(facets).toEqual(expect.arrayContaining([
+      expect.objectContaining({ page_id: project, content_folder_id: project, name: 'Main' }),
+      expect.objectContaining({ page_id: project, content_folder_id: results, name: 'Results' }),
+    ]))
+    expect(facets.every((facet) => facet.id !== facet.content_folder_id)).toBe(true)
+    const resultsFacet = facets.find((facet) => facet.content_folder_id === results)
+    expect(resultsFacet).toBeDefined()
+
     const sub = await owner.browser.json('/folders', 'POST', { name: 'ac1523 sub', parent_folder_id: results })
     expectStatus(sub, 201, 'a sub-page under Results')
     const subId = (sub.json() as { id: string }).id
+    expect(await rows(app.db, sql`
+      SELECT f.containing_facet_id, pf.page_id AS home_page_id, pf.name AS home_name
+        FROM folders f JOIN page_facets pf ON pf.content_folder_id = f.id
+       WHERE f.id = ${subId}::uuid
+    `)).toEqual([{
+      containing_facet_id: resultsFacet?.id,
+      home_page_id: subId,
+      home_name: 'Main',
+    }])
+    await inTransaction(app.db, (tx) => tx.execute(sql`
+      UPDATE folders SET name = 'Resources' WHERE id = ${results}::uuid
+    `))
+    expect(await rows(app.db, sql`
+      SELECT name FROM page_facets WHERE id = ${resultsFacet?.id}::uuid
+    `)).toEqual([{ name: 'Resources' }])
     await connect(app.db, owner.id, member.id)
     await connect(app.db, owner.id, third.id)
 
@@ -85,6 +115,20 @@ describe("a project's tabs have its people", () => {
     expectStatus(await member.browser.json(`/folders/${subId}/my-membership`, 'DELETE'), 204, 'leaving from the sub-page')
     expect(await rows(app.db, sql`SELECT user_id FROM folder_members
       WHERE folder_id = ${project}::uuid AND user_id = ${member.id}::uuid`)).toEqual([])
+
+    const purpose = String((await rows(app.db, sql`
+      SELECT id FROM folders WHERE project_id = ${project}::uuid AND name = 'Purpose'`))[0]?.id)
+    const purposeFacet = (await rows(app.db, sql`
+      SELECT id FROM page_facets WHERE content_folder_id = ${purpose}::uuid
+    `))[0]?.id
+    expectStatus(
+      await owner.browser.json(`/folders/${subId}/location`, 'PATCH', { parent_folder_id: purpose }),
+      200,
+      'moved the nested Page between Facets',
+    )
+    expect(await rows(app.db, sql`
+      SELECT containing_facet_id FROM folders WHERE id = ${subId}::uuid
+    `)).toEqual([{ containing_facet_id: purposeFacet }])
   }, 60_000)
 
   test("a removed owner's pages all follow the project's heir", async () => {
@@ -99,6 +143,16 @@ describe("a project's tabs have its people", () => {
     await addMemberOk(leaver, project, viewer.id, 'can_view')
     const sub = await leaver.browser.json('/folders', 'POST', { name: 'ac1523 heir sub', parent_folder_id: project })
     expectStatus(sub, 201, 'a sub-page')
+    const subId = (sub.json() as { id: string }).id
+    expect(await rows(app.db, sql`
+      SELECT f.parent_folder_id, b.folder_id AS home_folder_id
+        FROM folders f JOIN page_blocks b ON b.ref_folder_id = f.id AND b.kind = 'page'
+       WHERE f.id = ${subId}::uuid
+    `)).toEqual([{ parent_folder_id: project, home_folder_id: project }])
+    expect(await rows(app.db, sql`
+      SELECT id FROM folders WHERE project_id = ${project}::uuid
+        AND name = 'Pages' AND tab_position IS NOT NULL
+    `)).toEqual([])
 
     // 8.10 step 2's automatic transfer: the interactive DELETE /me refuses a
     // shared project first, so this is the forced-removal path it keeps.

@@ -605,6 +605,60 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'GET /api/v1/pages/:id/facets',
+    {
+      attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets` }),
+      stranger: {
+        expected: 404,
+        rule: '#671 and 10.2: Facet identities and placement belong to a Page. A non-member must not learn either, so the access gate returns 404.',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/pages/:id/facets/:facetId/document',
+    {
+      attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets/${fx.tabId}/document` }),
+      stranger: {
+        expected: 404,
+        rule: '#671 and 10.2: a Facet document is visible only to someone who can read its owning Page.',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/pages/:id/facets/:facetId/document/actions',
+    {
+      attempt: (fx) => ({
+        path: `/pages/${fx.folderId}/facets/${fx.tabId}/document/actions`,
+        body: { action: 'document_transaction', mutation_id: crypto.randomUUID(), base_revision: 'unknown', operations: [] },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '#671 and 10.2: an outsider cannot learn whether a Facet document can be edited.',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/pages/:id/facets',
+    {
+      attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets`, body: { name: 'Private attempt' } }),
+      stranger: { expected: 404, rule: '#671 and 10.2: only Page members may create shared Facets.' },
+    },
+  ],
+  [
+    'PATCH /api/v1/pages/:id/facets/:facetId',
+    {
+      attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets/${fx.tabId}`, body: { name: 'Private attempt' } }),
+      stranger: { expected: 404, rule: '#671 and 10.2: Page access is checked before the target Facet.' },
+    },
+  ],
+  [
+    'PUT /api/v1/pages/:id/facets/order',
+    {
+      attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets/order`, body: { order: [] } }),
+      stranger: { expected: 404, rule: '#671 and 10.2: a non-member cannot reorder Page Facets.' },
+    },
+  ],
+  [
     'GET /api/v1/folders/:id/profile-pages',
     {
       attempt: (fx) => ({ path: `/folders/${fx.profileRootId}/profile-pages` }),
