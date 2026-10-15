@@ -43,7 +43,7 @@ const noCompleted: Rows['tasks'] = []
 /** One cache and one recovery draft per document, never shared across Facets. */
 export function canvasDocumentKey(folderId: string, facetId?: string) {
   return facetId === undefined ? queryKeys.folderPage(folderId)
-    : ['page-facet-document', folderId, facetId] as const
+    : queryKeys.pageFacetDocument(folderId, facetId)
 }
 
 interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
