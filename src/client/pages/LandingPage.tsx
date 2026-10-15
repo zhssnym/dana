@@ -108,8 +108,6 @@ export function LandingPage(): React.JSX.Element {
 
         <p className="mt-6 text-xs text-muted-foreground">
           By continuing, you accept the{' '}
-          <a href="/help" className="rounded-sm underline underline-offset-2 hover:text-foreground">Help</a>{' '}
-          · {' '}
           <a href="/terms" className="rounded-sm underline underline-offset-2 hover:text-foreground">
             Terms
           </a>
@@ -118,6 +116,9 @@ export function LandingPage(): React.JSX.Element {
             Privacy
           </a>{' '}
           page says what Dana stores and why.
+        </p>
+        <p className="mt-4 text-xs text-muted-foreground">
+          New here? <a href="/help" className="underline underline-offset-2 hover:text-foreground">Read the Help Center</a>.
         </p>
       </div>
     </main>
