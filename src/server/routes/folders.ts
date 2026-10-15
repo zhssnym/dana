@@ -87,7 +87,7 @@ import type { GetFolderDependenciesResponse } from '../../shared/task-dependenci
 import { inTransaction } from '../database.js'
 import { moveFolder, visibleAncestors } from '../domain/page-tree.js'
 import { addTab } from '../domain/project-tabs.js'
-import { createPageFacet, pageFacetsOf, renamePageFacet, reorderPageFacets } from '../domain/page-facets.js'
+import { createPageFacet, pageFacetsOf, renamePageFacet, reorderPageFacets, restorePageFacet, trashPageFacet } from '../domain/page-facets.js'
 import type { FacetWriteResult } from '../domain/page-facets.js'
 import { createPageFacetBody, renamePageFacetBody, reorderPageFacetsBody } from '../../shared/page-facets.js'
 import { retiredRoute } from '../observability/retired-route.js'
@@ -355,6 +355,15 @@ export function createFoldersRouter(
     res.status(200).json(await pageFacetsOf(db, pageId))
   })
 
+  router.get('/pages/:id/facets/trash', requireSession, async (req: Request, res: Response) => {
+    const db = database(res)
+    if (db === null) return
+    const pageId = parsedId(res, req.params.id)
+    if (pageId === null) return
+    if ((await gate(req, res, pageId, 'facet.delete')) === null) return
+    res.status(200).json(await pageFacetsOf(db, pageId, true))
+  })
+
   const replyFacetWrite = async (
     res: Response, db: Db, pageId: string, outcome: FacetWriteResult, okStatus: number,
   ): Promise<void> => {
@@ -373,6 +382,12 @@ export function createFoldersRouter(
         return
       case 'conflict':
         sendError(res, 409, 'conflict', 'The Facet list changed or reached its limit. Reload and try again.')
+        return
+      case 'last_facet':
+        sendError(res, 409, 'conflict', 'A Page must keep at least one Facet.')
+        return
+      case 'legacy_content':
+        sendError(res, 409, 'conflict', 'This existing Facet is not deletable until legacy Page conversion is complete.')
         return
     }
   }
@@ -403,6 +418,34 @@ export function createFoldersRouter(
       const body = parseBody(renamePageFacetBody, req, res, securityLog)
       if (body === null) return
       const outcome = await renamePageFacet(db, viewer(req), pageId, facetId, body.name)
+      await replyFacetWrite(res, db, pageId, outcome, 200)
+    },
+  )
+
+  router.delete('/pages/:id/facets/:facetId', requireSession, requireCsrf, mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const pageId = parsedId(res, req.params.id)
+      if (pageId === null) return
+      if ((await gate(req, res, pageId, 'facet.delete')) === null) return
+      const facetId = parsedId(res, req.params.facetId)
+      if (facetId === null) return
+      const outcome = await trashPageFacet(db, viewer(req), pageId, facetId)
+      await replyFacetWrite(res, db, pageId, outcome, 200)
+    },
+  )
+
+  router.post('/pages/:id/facets/:facetId/restore', requireSession, requireCsrf, mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const pageId = parsedId(res, req.params.id)
+      if (pageId === null) return
+      if ((await gate(req, res, pageId, 'facet.delete')) === null) return
+      const facetId = parsedId(res, req.params.facetId)
+      if (facetId === null) return
+      const outcome = await restorePageFacet(db, viewer(req), pageId, facetId)
       await replyFacetWrite(res, db, pageId, outcome, 200)
     },
   )
