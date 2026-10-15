@@ -2,16 +2,19 @@
 
 The one release-history source is feed.json. Dana builds its public /updates pages
 from this file. Vite also publishes the exact same JSON at /updates/feed.json for
-the future in-app menu (#680). No database, CMS, or manual announcement per PR.
+the in-app Help & Updates menu (#680). The client refreshes this public feed
+when focused and periodically, without a full app reload. No database, CMS, or manual announcement per PR.
 
 ## Entry format
 
 Each entry has one stable ID of the form pr-123, a date when it first entered the
 public history (UTC), kind (feature, improvement, fix), a plain title, a short
 description, PR number, and the merged Git commit. Historical backfill entries use
-historical=true. They appear separately and do not create unread notifications.
+historical=true. They appear in the same continuous public list as new entries,
+but never count as unread or display an invented release date.
 
-Group daily updates by publication date. Do not claim a PR became public on its
+Keep newest entries first; the public archive is one continuous list, not
+separate "new" and "earlier" categories. Do not claim a PR became public on its
 merge date. The code must be confirmed in production before a new entry is written.
 
 Correct an inaccurate published entry in feed.json with a normal, reviewed PR.

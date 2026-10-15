@@ -1,3 +1,4 @@
+import { PublicInfoShell } from '../components/public/PublicInfoShell.js'
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 
@@ -305,6 +306,10 @@ function HelpArticleView({ slug }: { readonly slug: string }): React.JSX.Element
             <Link to={paths.help} className="hover:text-foreground">Help</Link>
             <ChevronRight className="size-3.5" aria-hidden="true" />
             <Link to={topicUrl(article.section)} className="hover:text-foreground">{article.section}</Link>
+            <Link to={paths.help + '?search=1'} className="ml-auto inline-flex items-center gap-1.5 rounded-sm text-muted-foreground hover:text-foreground">
+              <Search className="size-3.5" aria-hidden="true" />
+              Search help
+            </Link>
           </nav>
           <header className="border-b border-border pb-8">
             <h1 className="font-title text-[length:var(--text-title-size)] leading-[var(--text-title-line)]">{article.title}</h1>
@@ -352,37 +357,8 @@ export function HelpCenterPage(): React.JSX.Element {
   const { slug } = useParams()
   const [params] = useSearchParams()
   return (
-    <main className="min-h-svh bg-background text-foreground">
-      <header className="border-b border-border">
-        <div className="mx-auto flex max-w-[var(--help-layout-width)] items-center justify-between gap-4 px-5 py-4 sm:px-8">
-          <Link to={paths.help} className="flex items-center gap-3 font-title text-sm text-foreground hover:text-primary">
-            <img src="/dana-mark.svg" alt="" className="size-7 shrink-0" />
-            <span>Dana <span className="ml-1 font-normal text-muted-foreground">Help Center</span></span>
-          </Link>
-          <nav aria-label="Help actions" className="flex items-center gap-5">
-            {slug ? (
-              <Link to={paths.help + '?search=1'} className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground">
-                <Search className="size-4" aria-hidden="true" /> Search help
-              </Link>
-            ) : null}
-            <a href={paths.home} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
-              Open Dana <ArrowUpRight className="size-4" aria-hidden="true" />
-            </a>
-          </nav>
-        </div>
-      </header>
+    <PublicInfoShell section="help">
       {slug === undefined ? <HelpHome key={params.get('section') ?? 'all'} /> : <HelpArticleView slug={slug} />}
-      <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-[var(--help-layout-width)] flex-wrap items-center justify-between gap-4 px-5 py-6 text-xs text-muted-foreground sm:px-8">
-          <span>Dana Help Center</span>
-          <span className="flex items-center gap-4">
-            <Link to={paths.updates} className="hover:text-foreground">What's new</Link>
-            <a href="/privacy" className="hover:text-foreground">Privacy</a>
-            <a href="/terms" className="hover:text-foreground">Terms</a>
-            <a href={paths.home} className="hover:text-foreground">Open Dana</a>
-          </span>
-        </div>
-      </footer>
-    </main>
+    </PublicInfoShell>
   )
 }
