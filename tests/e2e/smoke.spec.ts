@@ -184,6 +184,26 @@ test('nested Page: add a Facet and edit it in the existing Work canvas', async (
   await expect(page.locator('.dana-writing-canvas')).not.toContainText(message)
   await reorderedTabs.getByRole('tab', { name: 'Untitled' }).click()
   await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+
+  // Facet rename changes metadata only: the saved writing stays on its Facet.
+  await reorderedTabs.getByRole('tab', { name: 'Untitled' }).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Rename' }).click()
+  const nameField = page.getByRole('textbox', { name: 'Name of Untitled' })
+  await nameField.fill('Notes')
+  await nameField.press('Enter')
+  await expect(reorderedTabs.getByRole('tab', { name: 'Notes' })).toBeVisible()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+  await expect.poll(async () => {
+    const response = await page.request.get(`/api/v1/pages/${childId}/facets`)
+    const data = (await response.json()) as {
+      facets: { id: string; name: string }[]
+    }
+    return data.facets.find((facet) => facet.id === newFacetId)?.name
+  }).toBe('Notes')
+
+  await page.reload()
+  await page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Notes' }).click()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
 })
 
 
