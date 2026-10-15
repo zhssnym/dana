@@ -638,6 +638,27 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'GET /api/v1/pages/:id/facets/trash',
+    {
+      attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets/trash` }),
+      stranger: { expected: 404, rule: '#671: a stranger cannot discover deleted Facet identities.' },
+    },
+  ],
+  [
+    'DELETE /api/v1/pages/:id/facets/:facetId',
+    {
+      attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets/${fx.tabId}` }),
+      stranger: { expected: 404, rule: '#671: Trash first gates Page membership before checking the Facet.' },
+    },
+  ],
+  [
+    'POST /api/v1/pages/:id/facets/:facetId/restore',
+    {
+      attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets/${fx.tabId}/restore` }),
+      stranger: { expected: 404, rule: '#671: a stranger cannot restore or discover a deleted Facet.' },
+    },
+  ],
+  [
     'POST /api/v1/pages/:id/facets',
     {
       attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets`, body: { name: 'Private attempt' } }),

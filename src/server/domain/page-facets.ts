@@ -13,13 +13,16 @@ import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 
 // The route verifies Page access before calling this reader.
-export async function pageFacetsOf(db: Executor, pageId: string): Promise<GetPageFacetsResponse> {
+export async function pageFacetsOf(
+  db: Executor, pageId: string, trashed = false,
+): Promise<GetPageFacetsResponse> {
   const rows = await rowsOf(db, sql`
     SELECT p.containing_facet_id, pf.id, pf.name, pf.position,
            pf.content_folder_id AS content_page_id
       FROM folders p
       LEFT JOIN page_facets pf
         ON pf.page_id = p.id
+       AND ${trashed ? sql`pf.deleted_at IS NOT NULL` : sql`pf.deleted_at IS NULL`}
        AND (pf.content_folder_id IS NULL OR EXISTS (
          SELECT 1 FROM folders content
           WHERE content.id = pf.content_folder_id
@@ -47,6 +50,8 @@ export type FacetWriteResult =
   | { kind: 'forbidden'; reason: string }
   | { kind: 'invalid' }
   | { kind: 'conflict' }
+  | { kind: 'last_facet' }
+  | { kind: 'legacy_content' }
 
 async function mayEditFacets(
   tx: Executor,
@@ -69,7 +74,7 @@ export async function createPageFacet(
     const denied = await mayEditFacets(tx, actorId, pageId, 'facet.create')
     if (denied !== null) return denied
     const facets = await rowsOf(tx, sql`
-      SELECT id, position FROM page_facets WHERE page_id = ${pageId}::uuid
+      SELECT id, position FROM page_facets WHERE page_id = ${pageId}::uuid AND deleted_at IS NULL
       ORDER BY position COLLATE "C", id`)
     if (facets.length >= 200) return { kind: 'conflict' }
     const index = afterId === undefined ? facets.length :
@@ -95,7 +100,7 @@ export async function renamePageFacet(
     if (denied !== null) return denied
     const updated = await rowsOf(tx, sql`
       UPDATE page_facets SET name = ${name}
-      WHERE id = ${facetId}::uuid AND page_id = ${pageId}::uuid
+      WHERE id = ${facetId}::uuid AND page_id = ${pageId}::uuid AND deleted_at IS NULL
       RETURNING id`)
     return updated.length ? { kind: 'ok' } : { kind: 'not_found' }
   })
@@ -108,7 +113,7 @@ export async function reorderPageFacets(
     const denied = await mayEditFacets(tx, actorId, pageId, 'facet.reorder')
     if (denied !== null) return denied
     const existing = await rowsOf(tx, sql`
-      SELECT id FROM page_facets WHERE page_id = ${pageId}::uuid`)
+      SELECT id FROM page_facets WHERE page_id = ${pageId}::uuid AND deleted_at IS NULL`)
     const ids = new Set(existing.map((row) => String(row.id)))
     if (order.length !== ids.size || new Set(order).size !== order.length ||
         order.some((id) => !ids.has(id))) return { kind: 'conflict' }
@@ -120,7 +125,55 @@ export async function reorderPageFacets(
         SELECT (entry->>0)::uuid AS id, entry->>1 AS position
         FROM jsonb_array_elements(${placements}::jsonb) entry
       ) p
-      WHERE pf.id = p.id AND pf.page_id = ${pageId}::uuid`)
+      WHERE pf.id = p.id AND pf.page_id = ${pageId}::uuid AND pf.deleted_at IS NULL`)
+    return { kind: 'ok' }
+  })
+}
+
+/** Trash is a reversible presentation change. IDs, writing, Tasks and child
+ * Page ownership stay exactly where they were. Legacy-backed Facets must not
+ * be hidden while old URLs and /folders writers still address them directly. */
+export async function trashPageFacet(
+  db: Db, actorId: string, pageId: string, facetId: string,
+): Promise<FacetWriteResult> {
+  return inTransaction(db, async (tx) => {
+    const denied = await mayEditFacets(tx, actorId, pageId, 'facet.delete')
+    if (denied !== null) return denied
+    const rows = await rowsOf(tx, sql`
+      SELECT content_folder_id FROM page_facets
+       WHERE id = ${facetId}::uuid AND page_id = ${pageId}::uuid
+         AND deleted_at IS NULL FOR UPDATE`)
+    if (!rows.length) return { kind: 'not_found' }
+    const count = await rowsOf(tx, sql`
+      SELECT count(*)::int AS count FROM page_facets
+       WHERE page_id = ${pageId}::uuid AND deleted_at IS NULL`)
+    if (Number(count[0]?.count ?? 0) <= 1) return { kind: 'last_facet' }
+    if (rows[0]?.content_folder_id !== null) return { kind: 'legacy_content' }
+    await tx.execute(sql`
+      UPDATE page_facets SET deleted_at = now()
+       WHERE id = ${facetId}::uuid AND page_id = ${pageId}::uuid`)
+    return { kind: 'ok' }
+  })
+}
+
+export async function restorePageFacet(
+  db: Db, actorId: string, pageId: string, facetId: string,
+): Promise<FacetWriteResult> {
+  return inTransaction(db, async (tx) => {
+    const denied = await mayEditFacets(tx, actorId, pageId, 'facet.delete')
+    if (denied !== null) return denied
+    const rows = await rowsOf(tx, sql`
+      SELECT id FROM page_facets
+       WHERE id = ${facetId}::uuid AND page_id = ${pageId}::uuid
+         AND deleted_at IS NOT NULL FOR UPDATE`)
+    if (!rows.length) return { kind: 'not_found' }
+    const live = await rowsOf(tx, sql`
+      SELECT count(*)::int AS count FROM page_facets
+       WHERE page_id = ${pageId}::uuid AND deleted_at IS NULL`)
+    if (Number(live[0]?.count ?? 0) >= 200) return { kind: 'conflict' }
+    await tx.execute(sql`
+      UPDATE page_facets SET deleted_at = NULL
+       WHERE id = ${facetId}::uuid AND page_id = ${pageId}::uuid`)
     return { kind: 'ok' }
   })
 }

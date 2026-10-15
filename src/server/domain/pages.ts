@@ -102,7 +102,7 @@ async function homeIsVisible(
   if (home.folderId !== null && home.facetId !== undefined) {
     const belongs = await rowsOf(tx, sql`
       SELECT 1 AS present FROM page_facets pf
-       WHERE pf.id = ${home.facetId}::uuid
+       WHERE pf.id = ${home.facetId}::uuid AND pf.deleted_at IS NULL
          AND (pf.content_folder_id = ${home.folderId}::uuid
            OR (pf.content_folder_id IS NULL AND pf.page_id = ${home.folderId}::uuid))
        LIMIT 1`)
@@ -733,16 +733,19 @@ export async function actOnIndependentFacetPage(
     if (facts === null) return { kind: 'not_found' }
     const permission = mayPerform(facts, 'folder.section.manage')
     if (!permission.allowed) return { kind: 'forbidden', reason: permission.reason }
+    // Serialize with trash/restore and recheck the Facet under the Page lock.
+    // Otherwise a concurrent save could pass its preflight, wait for Trash,
+    // then write into a deleted Facet through a stale editor.
+    if (touchesPageTree(body)) await lockPageTree(tx)
+    await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${pageId}::uuid FOR UPDATE`)
     const existing = await rowsOf(tx, sql`
       SELECT pf.id FROM page_facets pf
         JOIN folders p ON p.id = pf.page_id
        WHERE pf.id = ${facetId}::uuid AND pf.page_id = ${pageId}::uuid
-         AND pf.content_folder_id IS NULL AND p.deleted_at IS NULL
-         AND p.archived_at IS NULL
+         AND pf.content_folder_id IS NULL AND pf.deleted_at IS NULL
+         AND p.deleted_at IS NULL AND p.archived_at IS NULL
     `)
     if (!existing.length) return { kind: 'not_found' }
-    if (touchesPageTree(body)) await lockPageTree(tx)
-    await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${pageId}::uuid FOR UPDATE`)
     const mutation = await applyDocument(tx, viewerId, pageId, body, facetId)
     const page = await pageViewIn(tx, viewerId, {
       folderId: pageId, shelfId: null, facetId,

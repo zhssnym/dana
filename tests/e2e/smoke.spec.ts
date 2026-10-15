@@ -238,6 +238,28 @@ test('nested Page: add a Facet and edit it in the existing Work canvas', async (
   await page.reload()
   await page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Notes' }).click()
   await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+
+  // Trash is reversible; switching away must not erase persisted writing.
+  await page.getByRole('tablist', { name: 'Page Facets' })
+    .getByRole('tab', { name: 'Notes' }).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Move to Trash' }).click()
+  const confirmation = page.getByRole('dialog', { name: 'Move Facet to Trash?' })
+  await expect(confirmation).toContainText('nested Pages stay saved')
+  await confirmation.getByRole('button', { name: 'Move to Trash' }).click()
+  await expect(page.getByRole('tablist', { name: 'Page Facets' })).toHaveCount(0)
+  await expect(page.locator('.dana-writing-canvas')).not.toContainText(message)
+
+  await page.getByRole('button', { name: 'More actions' }).last().click()
+  await page.getByRole('menuitem', { name: 'Deleted Facets' }).click()
+  const deleted = page.getByRole('dialog', { name: 'Deleted Facets' })
+  await expect(deleted).toContainText('Notes')
+  await deleted.getByRole('button', { name: 'Restore' }).click()
+  await expect(page.getByRole('tablist', { name: 'Page Facets' })
+    .getByRole('tab', { name: 'Notes' })).toBeVisible()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+  await page.reload()
+  await page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Notes' }).click()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
 })
 
 
