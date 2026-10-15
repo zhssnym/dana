@@ -54,3 +54,13 @@ test('search can recover from no results', async ({ page }) => {
   await page.getByRole('button', { name: 'Clear search' }).click()
   await expect(page.getByRole('heading', { name: 'Browse by topic' })).toBeVisible()
 })
+
+
+test('public build identity is uncached and never guesses a commit', async ({ request }) => {
+  const response = await request.get('/api/v1/build')
+  expect([200, 503]).toContain(response.status())
+  expect(response.headers()['cache-control']).toContain('no-store')
+  const result = await response.json()
+  if (response.ok()) expect(result.commit).toMatch(/^[a-f0-9]{40}$/)
+  else expect(result.status).toBe('unavailable')
+})
