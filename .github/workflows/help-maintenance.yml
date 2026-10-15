@@ -1,0 +1,51 @@
+name: Help maintenance
+
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+  schedule:
+    - cron: '27 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Retry previously audited commits after a configuration fix'
+        type: boolean
+        default: false
+
+concurrency:
+  group: dana-help-maintenance
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  checks: write
+  issues: write
+
+jobs:
+  inspect:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Check help sources and article links
+        run: npm run help:check
+      - name: Inspect deployed changes and propose documentation
+        run: node scripts/help/run.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          HELP_BOT_TOKEN: ${{ secrets.HELP_BOT_TOKEN }}
+          HELP_WRITER_MODEL: ${{ vars.HELP_WRITER_MODEL }}
+          HELP_FORCE: ${{ inputs.force }}
