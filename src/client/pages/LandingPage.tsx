@@ -108,6 +108,8 @@ export function LandingPage(): React.JSX.Element {
 
         <p className="mt-6 text-xs text-muted-foreground">
           By continuing, you accept the{' '}
+          <a href="/help" className="rounded-sm underline underline-offset-2 hover:text-foreground">Help</a>{' '}
+          · {' '}
           <a href="/terms" className="rounded-sm underline underline-offset-2 hover:text-foreground">
             Terms
           </a>
