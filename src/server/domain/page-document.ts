@@ -32,18 +32,19 @@ export function touchesPageTree(body:DocumentTransaction):boolean {
  return body.operations.some(op=>op.op==='create_page'||op.op==='trash_page'||(op.op==='put_block'&&op.block_kind==='page'))
 }
 const PAGE_BLOCK_RETAINED='A page block leaves only when its page goes to Trash.'
-export async function applyDocument(tx:Executor,viewerId:string,folderId:string,body:DocumentTransaction) {
+export async function applyDocument(tx:Executor,viewerId:string,folderId:string,body:DocumentTransaction,facetId?:string) {
  const hash=documentHash(body)
- const receipts=await rowsOf(tx,sql`SELECT payload_hash,committed_revision,created_task_ids FROM page_document_receipts WHERE actor_id=${viewerId}::uuid AND folder_id=${folderId}::uuid AND mutation_id=${body.mutation_id}::uuid`)
+ const receipts=await rowsOf(tx,sql`SELECT payload_hash,committed_revision,created_task_ids,page_facet_id FROM page_document_receipts WHERE actor_id=${viewerId}::uuid AND folder_id=${folderId}::uuid AND mutation_id=${body.mutation_id}::uuid`)
  const receipt=receipts[0]
  if(receipt){
+  if((receipt.page_facet_id == null ? null : String(receipt.page_facet_id)) !== (facetId ?? null))throw new DocumentRefusal('stale','This mutation belongs to another Facet.')
   if(receipt.payload_hash!==hash)throw new DocumentRefusal('stale','This retry identity already belongs to a different edit.')
   return {mutation_id:body.mutation_id,committed_revision:String(receipt.committed_revision),replayed:true,created_task_ids:receipt.created_task_ids as string[]}
  }
- const previousOutline=await positionedItems(tx,folderId)
- const metadata=await documentMetadata(tx,folderId)
+ const previousOutline=await positionedItems(tx,folderId,facetId)
+ const metadata=await documentMetadata(tx,folderId,facetId)
  if(metadata.revision!==body.base_revision)throw new DocumentRefusal('stale','The page changed. Your draft is retained; reconcile it with the current page.')
- const stored=await rowsOf(tx,sql`SELECT id,kind,text,rich_content,file_id,ref_folder_id,width_pct,page_position,position,section_block_id,list_parent_block_id,checked,toggleable FROM page_blocks WHERE folder_id=${folderId}::uuid AND (page_facet_id IS NULL OR page_facet_id=(SELECT id FROM page_facets WHERE content_folder_id=${folderId}::uuid)) FOR UPDATE`)
+ const stored=await rowsOf(tx,sql`SELECT id,kind,text,rich_content,file_id,ref_folder_id,width_pct,page_position,position,section_block_id,list_parent_block_id,checked,toggleable FROM page_blocks WHERE folder_id=${folderId}::uuid AND ${facetId===undefined?sql`(page_facet_id IS NULL OR page_facet_id=(SELECT id FROM page_facets WHERE content_folder_id=${folderId}::uuid))`:sql`page_facet_id=${facetId}::uuid`} FOR UPDATE`)
  const blocks=new Map<string,BlockOp>(stored.map(b=>[String(b.id),{op:'put_block',id:String(b.id),block_kind:b.kind as BlockOp['block_kind'],text:b.text as string|null,rich_content:b.rich_content as BlockOp['rich_content'],file_id:b.file_id as string|null,ref_folder_id:b.ref_folder_id as string|null,width_pct:b.width_pct as number|null,checked:b.checked===null||b.checked===undefined?null:Boolean(b.checked),toggleable:b.toggleable===true?true:null}]))
  const original=new Set(blocks.keys())
  const tasks=new Set(metadata.task_placements.map(t=>t.id))
@@ -51,7 +52,7 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
  const kindRows=await rowsOf(tx,sql`SELECT kind FROM folders WHERE id=${folderId}::uuid`)
  const pageKind=kindRows[0]?.kind==null?null:String(kindRows[0].kind)
  if(pageKind==='discussion')throw new DocumentRefusal('not_convertible','A Discussion page holds threads, not writing.')
- const home=pageKind==='work'?'work':'doc'
+ const home=facetId===undefined?(pageKind==='work'?'work':'doc'):'work'
  const created:Extract<DocumentOperation,{op:'create_task'}>[]=[]
  const createdPages:Extract<DocumentOperation,{op:'create_page'}>[]=[]
  const trashedPages=new Set<string>()
@@ -133,7 +134,10 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
  // All authorization and validation precede the first write.
  /* Tree writes first, so a new page's folder row exists before its `page` block is inserted. */
  for(const id of tree.toTrash)await trashFolderSubtree(tx,viewerId,id)
- for(const page of tree.toRestore)await restoreTrashedPage(tx,viewerId,page.id,page.name)
+ for(const page of tree.toRestore){
+  await restoreTrashedPage(tx,viewerId,page.id,page.name)
+  if(facetId!==undefined)await tx.execute(sql`UPDATE folders SET containing_facet_id=${facetId}::uuid WHERE id=${page.id}::uuid`)
+ }
  for(const page of createdPages){
   const made=await createSubPage(tx,viewerId,folderId,{id:page.id,name:page.title,homeBlock:false})
   if(made.kind==='parent_not_found')throw new DocumentRefusal('not_found','Folder not found.')
@@ -141,13 +145,18 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
   if(made.kind==='too_deep')throw new DocumentRefusal('not_convertible','Pages nest 20 levels deep at most.')
   if(made.kind==='default_parent')throw new DocumentRefusal('not_convertible','A default folder holds no sub-pages.')
   if(made.kind==='folder_cap')throw new DocumentRefusal('not_convertible','You have reached the folder limit.')
+  if(facetId!==undefined)await tx.execute(sql`UPDATE folders SET containing_facet_id=${facetId}::uuid WHERE id=${page.id}::uuid`)
  }
  for(const id of original)if(!blocks.has(id))await tx.execute(sql`DELETE FROM page_blocks WHERE id=${id}::uuid`)
  /* A kind that stops being a checklist loses `checked` in the same statement (page_blocks_checked_kind_check).
  `file_reclaimed_at` survives a rewrite of the same kind with no file, since the client re-sends reclaimed
  images with `file_id: null`; it clears once the block gets a file or changes kind. */
- for(const block of blocks.values())if(changed.has(block.id))await tx.execute(sql`INSERT INTO page_blocks (id,folder_id,kind,position,text,rich_content,file_id,ref_folder_id,width_pct,checked,toggleable) VALUES (${block.id}::uuid,${folderId}::uuid,${block.block_kind},0,${block.text},${block.rich_content === null ? null : JSON.stringify(block.rich_content)}::jsonb,${block.file_id}::uuid,${block.ref_folder_id}::uuid,${block.width_pct},${block.checked},${block.toggleable}) ON CONFLICT (id) DO UPDATE SET kind=EXCLUDED.kind,text=EXCLUDED.text,rich_content=EXCLUDED.rich_content,file_id=EXCLUDED.file_id,ref_folder_id=EXCLUDED.ref_folder_id,width_pct=EXCLUDED.width_pct,checked=EXCLUDED.checked,toggleable=EXCLUDED.toggleable,file_reclaimed_at=CASE WHEN EXCLUDED.file_id IS NULL AND EXCLUDED.kind=page_blocks.kind THEN page_blocks.file_reclaimed_at END,list_parent_block_id=CASE WHEN EXCLUDED.kind <> 'section' THEN page_blocks.list_parent_block_id ELSE NULL END,updated_at=now()`)
- for(const task of created){const result=await createTaskIn(tx,viewerId,{folder_id:folderId,title:task.title},{id:task.id,pagePosition:'a0'});if(result.kind!=='created')throw new DocumentRefusal('not_convertible','Task creation was refused.')}
+ for(const block of blocks.values())if(changed.has(block.id))await tx.execute(sql`INSERT INTO page_blocks (id,folder_id,page_facet_id,kind,position,text,rich_content,file_id,ref_folder_id,width_pct,checked,toggleable) VALUES (${block.id}::uuid,${folderId}::uuid,${facetId??null}::uuid,${block.block_kind},0,${block.text},${block.rich_content === null ? null : JSON.stringify(block.rich_content)}::jsonb,${block.file_id}::uuid,${block.ref_folder_id}::uuid,${block.width_pct},${block.checked},${block.toggleable}) ON CONFLICT (id) DO UPDATE SET page_facet_id=EXCLUDED.page_facet_id,kind=EXCLUDED.kind,text=EXCLUDED.text,rich_content=EXCLUDED.rich_content,file_id=EXCLUDED.file_id,ref_folder_id=EXCLUDED.ref_folder_id,width_pct=EXCLUDED.width_pct,checked=EXCLUDED.checked,toggleable=EXCLUDED.toggleable,file_reclaimed_at=CASE WHEN EXCLUDED.file_id IS NULL AND EXCLUDED.kind=page_blocks.kind THEN page_blocks.file_reclaimed_at END,list_parent_block_id=CASE WHEN EXCLUDED.kind <> 'section' THEN page_blocks.list_parent_block_id ELSE NULL END,updated_at=now()`)
+ for(const task of created){
+  const result=await createTaskIn(tx,viewerId,{folder_id:folderId,title:task.title},{id:task.id,pagePosition:'a0'})
+  if(result.kind!=='created')throw new DocumentRefusal('not_convertible','Task creation was refused.')
+  if(facetId!==undefined)await tx.execute(sql`UPDATE tasks SET page_facet_id=${facetId}::uuid WHERE id=${task.id}::uuid`)
+ }
  const keys=initialKeys(outline.length)
  // List parentage is structure: without it here, a re-nest alone would be accepted and not written.
  const structureChanged=outline.length!==previousOutline.length || outline.some((item,index)=>{const prior=previousOutline[index];return prior?.id!==item.id||prior.kind!==item.kind||prior.sectionBlockId!==item.section_block_id||prior.listParentBlockId!==item.list_parent_block_id||prior.pagePosition===null})
@@ -155,8 +164,8 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
  await syncMentions(tx,{pageFolderId:folderId,actorId:viewerId,blockIds:changed,refuse:m=>new DocumentRefusal('not_convertible',m,'rich_content')})
  const named=await rowsOf(tx,sql`SELECT name FROM folders WHERE id=${folderId}::uuid`)
  await recordEvent(tx,{actorId:viewerId,verb:'edited',subjectKind:'folder',subjectId:folderId,subjectName:String(named[0]?.name??''),folderId,detail:'edited the page'})
- const committed=await documentMetadata(tx,folderId)
- await tx.execute(sql`INSERT INTO page_document_receipts (actor_id,folder_id,mutation_id,payload_hash,committed_revision,created_task_ids) VALUES (${viewerId}::uuid,${folderId}::uuid,${body.mutation_id}::uuid,${hash},${committed.revision},${JSON.stringify(created.map(t=>t.id))}::jsonb)`)
+ const committed=await documentMetadata(tx,folderId,facetId)
+ await tx.execute(sql`INSERT INTO page_document_receipts (actor_id,folder_id,mutation_id,payload_hash,committed_revision,created_task_ids,page_facet_id) VALUES (${viewerId}::uuid,${folderId}::uuid,${body.mutation_id}::uuid,${hash},${committed.revision},${JSON.stringify(created.map(t=>t.id))}::jsonb,${facetId??null}::uuid)`)
  return {mutation_id:body.mutation_id,committed_revision:committed.revision,replayed:false,created_task_ids:created.map(t=>t.id)}
 }
 
