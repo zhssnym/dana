@@ -129,7 +129,8 @@ function FolderPageBody({
   const scheduled = open.data?.scheduled ?? []
   const unscheduled = open.data?.unscheduled ?? []
   const { openRows, completedReady, completedRows, filterRows } = useFolderRows({
-    id, writes, kind, workView, scheduled, unscheduled, items: page.data?.items,
+    id, writes, kind: independentFacetId === null ? kind : 'work', workView, scheduled, unscheduled,
+    items: independentFacetId === null ? page.data?.items : independentPage.data?.items,
   })
   const context: RowContext = {
     ...basis,
