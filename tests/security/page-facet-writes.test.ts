@@ -452,4 +452,110 @@ describe('Page Facet writes', () => {
     expectStatus(await viewer.browser.json(endpoint + '/actions', 'POST', firstBody), 403, 'viewer cannot edit')
     expectStatus(await stranger.browser.json(endpoint + '/actions', 'POST', firstBody), 404, 'stranger cannot edit')
   }, 60_000)
+  test('Trash preserves Facet writing and child Page IDs, restore recovers them and the last Facet is protected', async () => {
+    const [owner, viewer, stranger] = await cast.of(app)
+    if (!owner || !viewer || !stranger) throw new Error('Missing test actors')
+    const root = await owner.browser.json('/folders', 'POST', {
+      name: 'pf671 reversible Facet root', kind: 'work',
+    })
+    expectStatus(root, 201, 'created root Page')
+    const pageId = (root.json() as { id: string }).id
+    const main = (await owner.browser.json(`/pages/${pageId}/facets`, 'GET')).json() as FacetResponse
+    const mainId = main.facets[0]?.id
+    if (!mainId) throw new Error('Page needs Main')
+    expectStatus(await owner.browser.json(`/pages/${pageId}/facets/${mainId}`, 'DELETE'),
+      409, 'cannot delete sole Main')
+    const added = await owner.browser.json(`/pages/${pageId}/facets`, 'POST', { name: 'Notes' })
+    expectStatus(added, 201, 'added independent Notes')
+    const notesId = (added.json() as FacetResponse).facets.find((facet) => facet.name === 'Notes')?.id
+    if (!notesId) throw new Error('Notes Facet missing')
+    expectStatus(await owner.browser.json(`/pages/${pageId}/facets/${mainId}`, 'DELETE'),
+      409, 'legacy-backed Main is protected until old page routes retire')
+
+    const path = `/pages/${pageId}/facets/${notesId}`
+    const documentPath = path + '/document'
+    const before = await owner.browser.json(documentPath, 'GET')
+    expectStatus(before, 200, 'blank Notes read')
+    const revision = (before.json() as { revision: string }).revision
+    const blockId = crypto.randomUUID()
+    const taskId = crypto.randomUUID()
+    const saved = await owner.browser.json(documentPath + '/actions', 'POST', {
+      action: 'document_transaction', mutation_id: crypto.randomUUID(), base_revision: revision,
+      operations: [
+        { op: 'put_block', id: blockId, block_kind: 'paragraph', text: 'reversible writing',
+          rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null },
+        { op: 'create_task', id: taskId, title: 'reversible Task' },
+        { op: 'set_outline', items: [
+          { kind: 'block', id: blockId, section_block_id: null, list_parent_block_id: null },
+          { kind: 'task', id: taskId, section_block_id: null, list_parent_block_id: null },
+        ] },
+      ],
+    })
+    expectStatus(saved, 200, 'saved Notes Task and writing')
+    const childId = crypto.randomUUID()
+    const homeId = crypto.randomUUID()
+    const savedRevision = (saved.json() as { revision: string }).revision
+    const withChild = await owner.browser.json(documentPath + '/actions', 'POST', {
+      action: 'document_transaction', mutation_id: crypto.randomUUID(),
+      base_revision: savedRevision,
+      operations: [
+        { op: 'create_page', id: childId, block_id: homeId, title: 'Retained Notes child' },
+        { op: 'set_outline', items: [
+          { kind: 'block', id: blockId, section_block_id: null, list_parent_block_id: null },
+          { kind: 'task', id: taskId, section_block_id: null, list_parent_block_id: null },
+          { kind: 'block', id: homeId, section_block_id: null, list_parent_block_id: null },
+        ] },
+      ],
+    })
+    expectStatus(withChild, 200, 'saved nested Page')
+    const finalRevision = (withChild.json() as { revision: string }).revision
+
+    await connect(app.db, owner.id, viewer.id)
+    await connect(app.db, owner.id, stranger.id)
+    await addMemberOk(owner, pageId, viewer.id, 'can_view')
+    expectStatus(await viewer.browser.json(path, 'DELETE'), 403, 'viewer cannot Trash')
+    expectStatus(await stranger.browser.json(path, 'DELETE'), 404, 'outsider does not discover Facet')
+    const trashed = await owner.browser.json(path, 'DELETE')
+    expectStatus(trashed, 200, 'Trash keeps all content')
+    expect((trashed.json() as FacetResponse).facets.map((facet) => facet.id)).toEqual([mainId])
+    expectStatus(await owner.browser.json(path, 'DELETE'), 404, 'repeat Trash is not a second deletion')
+    const trash = await owner.browser.json(`/pages/${pageId}/facets/trash`, 'GET')
+    expectStatus(trash, 200, 'Trash listing')
+    expect((trash.json() as FacetResponse).facets.map((facet) => facet.id)).toContain(notesId)
+    expectStatus(await viewer.browser.json(`/pages/${pageId}/facets/trash`, 'GET'),
+      403, 'viewer cannot inspect Trash')
+    expectStatus(await owner.browser.json(documentPath, 'GET'), 404, 'trashed writing hidden')
+    expectStatus(await owner.browser.json(documentPath + '/actions', 'POST', {
+      action: 'document_transaction', mutation_id: crypto.randomUUID(),
+      base_revision: finalRevision, operations: [],
+    }), 404, 'stale editor cannot save to Trash')
+    expectStatus(await owner.browser.json(path, 'PATCH', { name: 'Renamed while trashed' }),
+      404, 'cannot rename trashed Facet')
+    expectStatus(await owner.browser.json(`/pages/${pageId}/facets/order`, 'PUT',
+      { order: [mainId] }), 200, 'reorder only active Facets')
+    expectStatus(await owner.browser.json(`/pages/${pageId}/facets/order`, 'PUT',
+      { order: [mainId, notesId] }), 409, 'cannot accidentally reorder trashed Facet')
+
+    expect(await rows(app.db, sql`
+      SELECT page_facet_id, folder_id FROM page_blocks WHERE id = ${blockId}::uuid
+    `)).toEqual([{ page_facet_id: notesId, folder_id: pageId }])
+    expect(await rows(app.db, sql`
+      SELECT page_facet_id, folder_id FROM tasks WHERE id = ${taskId}::uuid
+    `)).toEqual([{ page_facet_id: notesId, folder_id: pageId }])
+    expect(await rows(app.db, sql`
+      SELECT parent_folder_id, containing_facet_id FROM folders WHERE id = ${childId}::uuid
+    `)).toEqual([{ parent_folder_id: pageId, containing_facet_id: notesId }])
+
+    expectStatus(await owner.browser.json(path + '/restore', 'POST'), 200, 'restore Notes')
+    const restored = await owner.browser.json(documentPath, 'GET')
+    expectStatus(restored, 200, 'restored Facet readable')
+    const data = restored.json() as {
+      revision: string; blocks: { id: string }[]; items: { id: string }[]
+    }
+    expect(data.revision).toBe(finalRevision)
+    expect(data.blocks.map((block) => block.id)).toContain(blockId)
+    expect(data.items.map((item) => item.id)).toEqual([blockId, taskId, homeId])
+    expectStatus(await owner.browser.json(path + '/restore', 'POST'), 404, 'repeat restore refused')
+  }, 60_000)
+
 })
