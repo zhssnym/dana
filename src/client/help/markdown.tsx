@@ -64,6 +64,17 @@ function ShortcutReference(): React.JSX.Element {
   )
 }
 
+export function helpHeadingId(title: string): string {
+  return title.toLocaleLowerCase().replace(/\*\*/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+export function helpHeadings(body: string): readonly { readonly id: string; readonly title: string }[] {
+  return body.split(/\r?\n/).filter((line) => line.startsWith('## ')).map((line) => {
+    const title = line.slice(3)
+    return { title, id: helpHeadingId(title) }
+  })
+}
+
 export function HelpMarkdown({ body }: { readonly body: string }): React.JSX.Element {
   const lines = body.split(/\r?\n/)
   const blocks: ReactNode[] = []
@@ -78,12 +89,12 @@ export function HelpMarkdown({ body }: { readonly body: string }): React.JSX.Ele
       continue
     }
     if (line.startsWith('## ')) {
-      blocks.push(<h2 key={key} className="mt-8 mb-3 font-title text-[length:var(--text-h3-size)] leading-[var(--text-h3-line)]">{inline(line.slice(3))}</h2>)
+      blocks.push(<h2 key={key} id={helpHeadingId(line.slice(3))} className="scroll-mt-24 mt-10 mb-4 font-title text-[length:var(--text-h2-size)] leading-[var(--text-h2-line)]">{inline(line.slice(3))}</h2>)
       i++
       continue
     }
     if (line.startsWith('### ')) {
-      blocks.push(<h3 key={key} className="mt-5 mb-2 font-section text-sm">{inline(line.slice(4))}</h3>)
+      blocks.push(<h3 key={key} className="mt-6 mb-3 font-section text-[length:var(--text-h3-size)] leading-[var(--text-h3-line)]">{inline(line.slice(4))}</h3>)
       i++
       continue
     }
@@ -97,7 +108,7 @@ export function HelpMarkdown({ body }: { readonly body: string }): React.JSX.Ele
         entries.push(<li key={String(i)} className="pl-1">{inline(item.replace(ordered ? /^\d+\.\s/ : /^-\s/, ''))}</li>)
         i++
       }
-      const cls = 'my-3 space-y-2 pl-5 text-sm leading-6 text-foreground'
+      const cls = 'my-4 space-y-2.5 pl-5 text-sm leading-6 text-foreground'
       blocks.push(ordered ? <ol key={key} className={'list-decimal ' + cls}>{entries}</ol> : <ul key={key} className={'list-disc ' + cls}>{entries}</ul>)
       continue
     }
@@ -108,7 +119,7 @@ export function HelpMarkdown({ body }: { readonly body: string }): React.JSX.Ele
       paragraph.push(next)
       i++
     }
-    blocks.push(<p key={key} className="my-3 text-sm leading-6 text-foreground">{inline(paragraph.join(' '))}</p>)
+    blocks.push(<p key={key} className="my-4 text-sm leading-7 text-foreground">{inline(paragraph.join(' '))}</p>)
   }
   return <div>{blocks}</div>
 }
