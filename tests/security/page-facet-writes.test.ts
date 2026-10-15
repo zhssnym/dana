@@ -40,7 +40,9 @@ describe('Page Facet writes', () => {
       name: 'pf671 child', parent_folder_id: rootId,
     })
     expectStatus(nested, 201, 'nested Page')
-    const nestedId = (nested.json() as { id: string }).id
+    const nestedRecord = nested.json() as { id: string; parent_folder_id: string | null }
+    const nestedId = nestedRecord.id
+    const originalParentId = nestedRecord.parent_folder_id
 
     const rootBefore = await owner.browser.json(`/pages/${rootId}/facets`, 'GET')
     expectStatus(rootBefore, 200, 'root Facets')
@@ -96,7 +98,7 @@ describe('Page Facet writes', () => {
 
     const nestedFolder = await owner.browser.json(`/folders/${nestedId}`, 'GET')
     expectStatus(nestedFolder, 200, 'nested Page remains')
-    expect((nestedFolder.json() as { parent_folder_id: string | null }).parent_folder_id).toBe(rootId)
+    expect((nestedFolder.json() as { parent_folder_id: string | null }).parent_folder_id).toBe(originalParentId)
     expectStatus(await owner.browser.json(`/folders/${nestedId}/page`, 'GET'), 200, 'nested document remains')
 
     await connect(app.db, owner.id, viewer.id)
