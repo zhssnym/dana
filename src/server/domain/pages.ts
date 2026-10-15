@@ -74,6 +74,8 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
 export interface PageHome {
   folderId: string | null
   shelfId: string | null
+  /** Explicit Facet for a scoped read; omitted for legacy Page content. */
+  facetId?: string
 }
 
 /*
@@ -83,6 +85,7 @@ caller that forgets to gate gets nothing. EXISTS, so the scope multiplies no row
 function homeCondition(home: PageHome, viewerId: string) {
   return home.folderId !== null
     ? sql`b.folder_id = ${home.folderId}
+          AND ${home.facetId === undefined ? sql`(b.page_facet_id IS NULL OR b.page_facet_id = (SELECT id FROM page_facets WHERE content_folder_id = ${home.folderId}::uuid))` : sql`b.page_facet_id = ${home.facetId}::uuid`}
           AND ${visibleFolder(sql`b.folder_id`, viewerId)}`
     : sql`b.shelf_id = ${home.shelfId}
           AND EXISTS (SELECT 1 FROM shelves vs
@@ -96,6 +99,15 @@ async function homeIsVisible(
   home: PageHome,
   viewerId: string,
 ): Promise<boolean> {
+  if (home.folderId !== null && home.facetId !== undefined) {
+    const belongs = await rowsOf(tx, sql`
+      SELECT 1 AS present FROM page_facets pf
+       WHERE pf.id = ${home.facetId}::uuid
+         AND (pf.content_folder_id = ${home.folderId}::uuid
+           OR (pf.content_folder_id IS NULL AND pf.page_id = ${home.folderId}::uuid))
+       LIMIT 1`)
+    return belongs.length > 0 && (await accessOf(tx, viewerId, home.folderId)) !== null
+  }
   return home.folderId !== null
     ? (await accessOf(tx, viewerId, home.folderId)) !== null
     : home.shelfId !== null &&
@@ -133,6 +145,7 @@ async function pageItemsIn(
                          t.created_at AS fallback_time
                     FROM tasks t
                    WHERE t.folder_id = ${home.folderId}::uuid
+                     AND ${home.facetId === undefined ? sql`(t.page_facet_id IS NULL OR t.page_facet_id = (SELECT id FROM page_facets WHERE content_folder_id = ${home.folderId}::uuid))` : sql`t.page_facet_id = ${home.facetId}::uuid`}
                      AND t.deleted_at IS NULL
 
                      AND ${visibleFolder(sql`t.folder_id`, viewerId)}
@@ -241,7 +254,7 @@ export async function putPage(
     }
 
     if (home.folderId !== null) {
-      const modern = await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE folder_id=${home.folderId}::uuid AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR kind NOT IN ('section','paragraph','image','folder_ref') OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id AND jsonb_typeof(r.created_task_ids)='array')) LIMIT 1`)
+      const modern = await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE folder_id=${home.folderId}::uuid AND (page_facet_id IS NULL OR page_facet_id = (SELECT id FROM page_facets WHERE content_folder_id = ${home.folderId}::uuid)) AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR kind NOT IN ('section','paragraph','image','folder_ref') OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id AND jsonb_typeof(r.created_task_ids)='array')) LIMIT 1`)
       if(modern.length) return {kind:'stale',blockId:String(modern[0]?.id)} as const
     }
     /* Refuse the legacy writer on a Shelf the composer has written: it would delete blocks it cannot draw. */
@@ -353,6 +366,7 @@ async function reseedLegacyPage(tx: Executor, home: PageHome): Promise<void> {
     tx,
     sql`SELECT id, kind, position FROM page_blocks
          WHERE folder_id = ${home.folderId}::uuid
+           AND (page_facet_id IS NULL OR page_facet_id = (SELECT id FROM page_facets WHERE content_folder_id = ${home.folderId}::uuid))
          ORDER BY position, id`,
   )
   const tasks = await rowsOf(
@@ -360,6 +374,7 @@ async function reseedLegacyPage(tx: Executor, home: PageHome): Promise<void> {
     sql`SELECT t.id, t.section_block_id
           FROM tasks t
          WHERE t.folder_id = ${home.folderId}::uuid
+           AND (t.page_facet_id IS NULL OR t.page_facet_id = (SELECT id FROM page_facets WHERE content_folder_id = ${home.folderId}::uuid))
            AND t.deleted_at IS NULL
            AND t.status IN ('pending', 'abandoned')
          ORDER BY t.page_position ASC NULLS LAST, t.created_at, t.id`,
@@ -419,6 +434,7 @@ async function sectionBelongsToFolder(
     sql`SELECT 1 AS present FROM page_blocks
          WHERE id = ${sectionId}::uuid
            AND folder_id = ${folderId}::uuid
+           AND (page_facet_id IS NULL OR page_facet_id = (SELECT id FROM page_facets WHERE content_folder_id = ${folderId}::uuid))
            AND kind = 'section'`,
   )
   return rows.length > 0
@@ -457,7 +473,7 @@ export async function actOnFolderPage(
       const mutation = await applyDocument(tx, viewerId, folderId, body)
       return {kind:'written',page:{...await pageViewIn(tx,viewerId,{folderId,shelfId:null}),mutation}} as const
     }
-    const modern = await rowsOf(tx, sql`SELECT id FROM page_blocks WHERE folder_id=${folderId}::uuid AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR kind NOT IN ('section','paragraph','image','folder_ref') OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id AND jsonb_typeof(r.created_task_ids)='array')) LIMIT 1`)
+    const modern = await rowsOf(tx, sql`SELECT id FROM page_blocks WHERE folder_id=${folderId}::uuid AND (page_facet_id IS NULL OR page_facet_id = (SELECT id FROM page_facets WHERE content_folder_id = ${folderId}::uuid)) AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR kind NOT IN ('section','paragraph','image','folder_ref') OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id AND jsonb_typeof(r.created_task_ids)='array')) LIMIT 1`)
     if (modern.length && body.action !== 'update_block') return {kind:'stale',blockId:folderId} as const
     const items = await seededItems(tx, folderId)
 
@@ -500,7 +516,8 @@ export async function actOnFolderPage(
       const last = await rowsOf(
         tx,
         sql`SELECT COALESCE(max(position), -1) + 1 AS position
-              FROM page_blocks WHERE folder_id = ${folderId}::uuid`,
+              FROM page_blocks WHERE folder_id = ${folderId}::uuid
+                AND (page_facet_id IS NULL OR page_facet_id = (SELECT id FROM page_facets WHERE content_folder_id = ${folderId}::uuid))`,
       )
       await tx.execute(
         sql`INSERT INTO page_blocks
@@ -547,7 +564,8 @@ export async function actOnFolderPage(
         const blocks = await rowsOf(
           tx,
           sql`SELECT kind FROM page_blocks
-               WHERE id = ${body.item.id}::uuid AND folder_id = ${folderId}::uuid`,
+               WHERE id = ${body.item.id}::uuid AND folder_id = ${folderId}::uuid
+                 AND (page_facet_id IS NULL OR page_facet_id = (SELECT id FROM page_facets WHERE content_folder_id = ${folderId}::uuid))`,
         )
         if (blocks.length === 0) return { kind: 'not_found' }
         /* A Section is a span, not one row: moving the heading alone would leave its members behind. */
@@ -604,6 +622,7 @@ export async function actOnFolderPage(
                    section_block_id, updated_at
               FROM page_blocks
              WHERE id = ${body.block_id}::uuid AND folder_id = ${folderId}::uuid
+               AND (page_facet_id IS NULL OR page_facet_id = (SELECT id FROM page_facets WHERE content_folder_id = ${folderId}::uuid))
              FOR UPDATE`,
       )
       const block = rows[0]
@@ -752,7 +771,7 @@ async function pageViewIn(
     /* A Shelf reads its own revision. */
     ...(home.folderId === null && home.shelfId !== null
       ? await shelfDocumentMetadata(tx, home.shelfId)
-      : await documentMetadata(tx, home.folderId)),
+      : await documentMetadata(tx, home.folderId, home.facetId)),
     blocks: rows.map(blockFromRow),
     items: await pageItemsIn(tx, viewerId, home),
   }
