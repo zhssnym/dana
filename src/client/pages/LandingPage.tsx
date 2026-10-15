@@ -117,6 +117,9 @@ export function LandingPage(): React.JSX.Element {
           </a>{' '}
           page says what Dana stores and why.
         </p>
+        <p className="mt-4 text-xs text-muted-foreground">
+          New here? <a href="/help" className="underline underline-offset-2 hover:text-foreground">Read the Help Center</a>.
+        </p>
       </div>
     </main>
   )

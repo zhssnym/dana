@@ -33,8 +33,8 @@ setQueryClient(queryClient)
  * Start the chrome's reads before the first render, so the sidebar gets its data sooner. Failures are
  * swallowed: each query's observer reports them.
  */
-// Only under /app: on / (where sign-out lands), /privacy and /terms they are
-// 401s nobody reads, and each one is a red line in a visitor's console.
+// Prefetch app data only under /app. Public pages such as /help do not need it;
+// fetching signed-in data there produces unnecessary 401s.
 const inApp = window.location.pathname.startsWith('/app')
 if (inApp) {
   void queryClient.prefetchQuery({

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 
 import { onOpenShortcuts } from '../shell/overlays.js'
+import { SHORTCUT_GROUPS } from '../help/shortcuts.js'
 import {
   Dialog,
   DialogContent,
@@ -17,52 +18,6 @@ function modKey(): string {
 }
 
 export const KEYBOARD_SHORTCUTS = 'Keyboard shortcuts'
-
-// `also`: a second chord for the same act, drawn on the same line.
-type Shortcut = { readonly keys: readonly string[]; readonly also?: readonly string[]; readonly what: string }
-
-const GROUPS: readonly { readonly title: string; readonly rows: readonly Shortcut[] }[] = [
-  {
-    title: 'Anywhere',
-    rows: [
-      { keys: ['MOD', 'K'], also: ['/'], what: 'Search' },
-      { keys: ['Esc'], what: 'Close what is open' },
-    ],
-  },
-  {
-    // In a text field these keys belong to the field: Ctrl+Z undoes typing, Ctrl+B is bold.
-    title: 'Outside a text field',
-    rows: [
-      { keys: ['MOD', 'Z'], what: 'Undo the last thing you did' },
-      { keys: ['MOD', 'B'], what: 'Show or hide the sidebar' },
-      { keys: ['?'], what: 'This list' },
-    ],
-  },
-  {
-    title: 'In a list of tasks',
-    rows: [
-      { keys: ['N'], what: 'New task' },
-      { keys: ['↑', '↓'], what: 'Move between tasks' },
-      { keys: ['Enter'], what: 'Open the task' },
-      { keys: ['Space'], what: 'Complete the task' },
-    ],
-  },
-  {
-    title: 'In an open task',
-    rows: [
-      { keys: ['MOD', 'Shift', 'J'], what: 'Next task' },
-      { keys: ['MOD', 'Shift', 'K'], what: 'Previous task' },
-    ],
-  },
-  {
-    title: 'In the sidebar',
-    rows: [
-      { keys: ['↑', '↓'], what: 'Move between pages' },
-      { keys: ['←', '→'], what: 'Fold or unfold a page' },
-      { keys: ['F2'], what: 'Rename the page' },
-    ],
-  },
-]
 
 export function HelpSheet({
   open,
@@ -86,7 +41,7 @@ export function HelpSheet({
           </DialogDescription>
         </DialogHeader>
         <div className="-mx-5 mt-2 flex flex-col gap-[var(--space-group)] overflow-y-auto px-5">
-          {GROUPS.map((group) => (
+          {SHORTCUT_GROUPS.map((group) => (
             <section key={group.title} aria-label={group.title}>
               <h3 className="flex h-[var(--control-height)] items-center text-xs font-medium text-muted-foreground">
                 {group.title}
