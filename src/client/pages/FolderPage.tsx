@@ -98,7 +98,11 @@ function FolderPageBody({
   useEffect(() => { setActiveFacetId(null); setFacetError('') }, [id])
   const isNestedPage = folder.data?.parent_folder_id != null
   const pageFacets = usePageFacets(id, isNestedPage && kind !== 'discussion')
+  // The legacy-backed Main document stays the default even when another Facet
+  // is reordered before it. The selected tab and editor must resolve together.
   const selectedFacet = pageFacets.data?.facets.find((facet) => facet.id === activeFacetId)
+    ?? pageFacets.data?.facets.find((facet) => facet.content_page_id === id)
+    ?? pageFacets.data?.facets[0]
   const independentFacetId = selectedFacet?.content_page_id === null ? selectedFacet.id : null
   const independentPage = usePageFacetDocument(id, independentFacetId)
   const basis = useRowBasis()
@@ -289,7 +293,7 @@ function FolderPageBody({
           />
           {isNestedPage ? <PageFacetStrip
             facets={pageFacets.data?.facets ?? []}
-            activeId={activeFacetId ?? pageFacets.data?.facets[0]?.id ?? null}
+            activeId={selectedFacet?.id ?? null}
             onSelect={(facet) => setActiveFacetId(facet.id)}
             onAdd={() => { void addFacet() }}
             editable={canCreateFacet}
