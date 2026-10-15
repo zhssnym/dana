@@ -256,6 +256,10 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --direct-message-dot: 6px;
   --direct-message-dot-offset: 4px;
   --direct-message-layer: 65;
+  --help-hero-title-size: 36px;
+  --help-hero-title-line: 44px;
+  --help-nav-viewport-gap: 64px;
+  --help-mobile-nav-height: 50dvh;
   --help-layout-width: 1200px;
   --help-article-width: 720px;
   --help-nav-width: 232px;
