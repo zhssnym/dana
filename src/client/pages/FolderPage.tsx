@@ -35,6 +35,7 @@ import { useCurrentWorkView } from '../views/work-view.js'
 import type { WorkGroup } from '../views/WorkBoard.js'
 import type { Folder } from '../../shared/folders.js'
 import { FacetAddress } from './folder-page/FacetAddress.js'
+import { FacetRenameDialog } from './folder-page/FacetRenameDialog.js'
 import { folderActs } from './folder-page/folder-acts.js'
 import { folderPageAuthority } from './folder-page/folder-page-authority.js'
 import { FolderDiscussionButton } from './folder-page/FolderDiscussionButton.js'
@@ -96,6 +97,7 @@ function FolderPageBody({
   const cache = useQueryClient()
   const [activeFacetId, setActiveFacetId] = useState<string | null>(null)
   const [facetError, setFacetError] = useState('')
+  const [singleFacetRenameOpen, setSingleFacetRenameOpen] = useState(false)
   useEffect(() => { setActiveFacetId(null); setFacetError('') }, [id])
   const isNestedPage = folder.data?.parent_folder_id != null
   const pageFacets = usePageFacets(id, isNestedPage && kind !== 'discussion')
@@ -155,6 +157,7 @@ function FolderPageBody({
   })
   const canCreateFacet = isNestedPage && facts !== null && mayDraw(facts, 'facet.create')
   const canRenameFacet = isNestedPage && facts !== null && mayDraw(facts, 'facet.rename')
+  const singleFacet = pageFacets.data?.facets.length === 1 ? pageFacets.data.facets[0] : null
   const addFacet = async (): Promise<void> => {
     if (!canCreateFacet) return
     setFacetError('')
@@ -264,6 +267,8 @@ function FolderPageBody({
         navigate={navigate}
         acts={acts}
         {...(canCreateFacet ? { onAddFacet: () => { void addFacet() } } : {})}
+        {...(canRenameFacet && singleFacet !== null && singleFacet !== undefined
+          ? { onRenameFacet: () => setSingleFacetRenameOpen(true) } : {})}
       />
     </>
   )
@@ -366,6 +371,10 @@ function FolderPageBody({
         )}
       </PageBody>
 
+      <FacetRenameDialog open={singleFacetRenameOpen} name={singleFacet?.name ?? 'Main'}
+        onOpenChange={setSingleFacetRenameOpen}
+        onRename={(name) => { if (singleFacet !== null && singleFacet !== undefined) void renameFacet(singleFacet, name) }}
+      />
       <FolderCoverDialog storageName={coverKey} open={coverOpen} onOpenChange={setCoverOpen} />
 
       <FolderTeamPanel
