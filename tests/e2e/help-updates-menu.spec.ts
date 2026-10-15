@@ -42,7 +42,7 @@ test('Help and Updates open in new tabs; feedback stays in Dana', async ({ page 
   await page.getByRole('link', { name: 'View all updates' }).click()
   const updatesPage = await updatesPagePromise
   await updatesPage.waitForLoadState('domcontentloaded')
-  await expect(updatesPage).toHaveURL(/\/updates$/)
+  await expect(updatesPage).toHaveURL(/\/updates\/?$/)
   await expect(updatesPage.getByRole('heading', { name: "What's New" })).toBeVisible()
 })
 
