@@ -12,7 +12,7 @@ import { cn } from '../../components/ui/utils.js'
 type Facet = GetPageFacetsResponse['facets'][number]
 
 export function PageFacetStrip({
-  facets, activeId, onSelect, onAdd, editable, canRename, onRename,
+  facets, activeId, onSelect, onAdd, editable, canRename, onRename, canDelete, onDelete,
 }: {
   readonly facets: readonly Facet[]
   readonly activeId: string | null
@@ -21,6 +21,8 @@ export function PageFacetStrip({
   readonly editable: boolean
   readonly canRename: boolean
   readonly onRename: (facet: Facet, name: string) => void
+  readonly canDelete: boolean
+  readonly onDelete: (facet: Facet) => void
 }): React.JSX.Element | null {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [menu, setMenu] = useState<{ facet: Facet; x: number; y: number } | null>(null)
@@ -36,7 +38,7 @@ export function PageFacetStrip({
     setRenamingId(facet.id)
   }
   const openMenu = (facet: Facet, x: number, y: number): void => {
-    if (!canRename) return
+    if (!canRename && !(canDelete && facet.content_page_id === null)) return
     menuFor.current = facet.id
     fieldOpening.current = false
     setMenu({ facet, x, y })
@@ -56,16 +58,16 @@ export function PageFacetStrip({
         ) : (
           <button key={facet.id} type="button" role="tab" data-facet-id={facet.id}
             aria-selected={activeId === facet.id}
-            aria-haspopup={canRename ? 'menu' : undefined}
+            aria-haspopup={canRename || (canDelete && facet.content_page_id === null) ? 'menu' : undefined}
             onClick={() => onSelect(facet)}
             onDoubleClick={() => startRename(facet)}
             onContextMenu={(event) => {
-              if (!canRename) return
+              if (!canRename && !(canDelete && facet.content_page_id === null)) return
               event.preventDefault()
               openMenu(facet, event.clientX, event.clientY)
             }}
             onKeyDown={(event) => {
-              if (!canRename || (event.key !== 'ContextMenu' &&
+              if (!(canRename || (canDelete && facet.content_page_id === null)) || (event.key !== 'ContextMenu' &&
                   !(event.shiftKey && event.key === 'F10'))) return
               event.preventDefault()
               const rect = event.currentTarget.getBoundingClientRect()
@@ -102,7 +104,18 @@ export function PageFacetStrip({
             ?? true
         }}>
           {menu === null ? null : (
-            <DropdownMenuItem onClick={() => startRename(menu.facet)}>Rename</DropdownMenuItem>
+            <>
+              {canRename ? (
+                <DropdownMenuItem onClick={() => startRename(menu.facet)}>Rename</DropdownMenuItem>
+              ) : null}
+              {canDelete && menu.facet.content_page_id === null ? (
+                <DropdownMenuItem variant="destructive" onClick={() => {
+                  const target = menu.facet
+                  setMenu(null)
+                  onDelete(target)
+                }}>Move to Trash</DropdownMenuItem>
+              ) : null}
+            </>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
