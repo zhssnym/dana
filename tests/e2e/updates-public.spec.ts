@@ -9,8 +9,14 @@ test("What's New shows one continuous public feed without outdated sections", as
   await page.getByRole('link', { name: /Easier date adjustments in Calendar/ }).click()
   await expect(page).toHaveURL(/\/updates\/pr-641$/)
   await expect(page.getByRole('heading', { name: 'Easier date adjustments in Calendar' })).toBeVisible()
-  await page.getByRole('link', { name: 'Back to all updates' }).click()
-  await expect(page).toHaveURL(/\/updates$/)
+  const back = page.getByRole('navigation', { name: 'Breadcrumb' })
+    .getByRole('link', { name: "What's New" })
+  await expect(back).toHaveCount(1)
+  await expect(page.getByRole('link', { name: 'Back to all updates' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'All updates' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Technical details' })).toHaveAttribute('target', '_blank')
+  await back.click()
+  await expect(page).toHaveURL(/\/updates\/?$/)
 })
 
 test('public updates manifest matches the displayed article URL', async ({ request, page }) => {
