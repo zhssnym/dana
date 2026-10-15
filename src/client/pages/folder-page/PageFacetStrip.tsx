@@ -8,6 +8,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu.js'
 import { cn } from '../../components/ui/utils.js'
+import { moved, swallowNextClick, useSortableList } from '../../lib/use-sortable-list.js'
 
 type Facet = GetPageFacetsResponse['facets'][number]
 
@@ -33,6 +34,14 @@ export function PageFacetStrip({
   const [menu, setMenu] = useState<{ facet: Facet; x: number; y: number } | null>(null)
   const menuFor = useRef<string | null>(null)
   const fieldOpening = useRef(false)
+  const sorter = useSortableList({
+    count: facets.length,
+    axis: 'x',
+    disabled: !canReorder || renamingId !== null,
+    onReorder: (from, to) => onReorder?.(moved(facets, from, to).map((facet) => facet.id)),
+    onLift: swallowNextClick,
+    describe: (index) => facets[index]?.name ?? '',
+  })
   // Hooks run before the conditional return, so a one-Facet Page can gain a second.
   if (!alwaysShow && facets.length < 2) return null
 
@@ -63,7 +72,7 @@ export function PageFacetStrip({
     <div className="flex min-w-0 items-center gap-1 border-b border-border">
       <div role="tablist" aria-label="Page Facets"
         className="flex min-w-0 flex-1 items-end gap-1 overflow-x-auto">
-        {facets.map((facet) => renamingId === facet.id ? (
+        {facets.map((facet, index) => renamingId === facet.id ? (
           <FacetNameField key={facet.id} initial={facet.name}
             onDone={(name) => {
               setRenamingId(null)
@@ -72,6 +81,9 @@ export function PageFacetStrip({
           />
         ) : (
           <button key={facet.id} type="button" role="tab" data-facet-id={facet.id}
+            ref={sorter.setItemRef(index)}
+            data-sort-handle={canReorder || undefined}
+            onPointerDown={sorter.handleProps(index).onPointerDown}
             aria-selected={activeId === facet.id}
             aria-haspopup={canRename || canReorder || (canDelete && facet.content_page_id === null) ? 'menu' : undefined}
             onClick={() => onSelect(facet)}
@@ -93,8 +105,14 @@ export function PageFacetStrip({
               const rect = event.currentTarget.getBoundingClientRect()
               openMenu(facet, rect.left, rect.bottom)
             }}
+            style={{
+              touchAction: canReorder ? 'none' : undefined,
+              transform: sorter.itemState(index).offset === 0 ? undefined
+                : `translateX(${sorter.itemState(index).offset}px)`,
+            }}
             className={cn(
               'shrink-0 border-b-2 px-3 py-2 text-sm transition-colors',
+              sorter.itemState(index).isActive && 'z-10 cursor-grabbing opacity-60',
               activeId === facet.id
                 ? 'border-foreground font-medium text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground',
