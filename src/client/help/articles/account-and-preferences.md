@@ -2,7 +2,7 @@
 title: Account, preferences, and your data
 summary: Manage your account, display preferences, and data export.
 section: Account and settings
-related: archived-work, get-started
+related: archived-work, getting-started
 ---
 Open **Settings** from Dana's sidebar to manage your account and preferences.
 
