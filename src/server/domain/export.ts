@@ -17,6 +17,7 @@ import type {
   ExportDirectMessage,
   ExportDocument,
   ExportFacet,
+  ExportPageFacet,
   ExportFile,
   ExportFolder,
   ExportForeignTask,
@@ -152,6 +153,7 @@ function reminderFrom(row: Record<string, unknown>): ExportReminder {
 
 function blockFrom(row: Record<string, unknown>): ExportBlock {
   return {
+    page_facet_id: nullableString(row.page_facet_id),
     rich_content:(row.rich_content??null) as ExportBlock['rich_content'],
     section_block_id:nullableString(row.section_block_id),
     list_parent_block_id:nullableString(row.list_parent_block_id),
@@ -195,6 +197,7 @@ function taskFrom(
   document: ExportBlock[],
 ): ExportTask {
   return {
+    page_facet_id: nullableString(row.page_facet_id),
     section_block_id:nullableString(row.section_block_id),
     page_position:nullableString(row.page_position),
     id: String(row.id),
@@ -226,7 +229,7 @@ function taskFrom(
 }
 
 // Exported task columns. The reminder is a LEFT JOIN with exactly one mode column non-null.
-const TASK_COLUMNS = sql`t.id, t.section_block_id, t.page_position, t.title, t.notes, t.status, t.important,
+const TASK_COLUMNS = sql`t.id, t.page_facet_id, t.section_block_id, t.page_position, t.title, t.notes, t.status, t.important,
   ${START_DATE} AS start_date, ${START_TIME} AS start_time,
   ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
   t.recurrence_rule, t.series_id, t.completed_at, t.created_at, t.updated_at,
@@ -302,6 +305,17 @@ export async function exportForViewer(
   const folders = truncation.apply('folders', folderRows)
   const folderIds = folders.map((row) => String(row.id))
 
+  // Facet metadata is part of an owned Page's data, even when the Facet is
+  // in Trash. Export its identity without changing any old Folder/Task IDs.
+  const pageFacetRows = await rowsOf(db, cappedPerParent(
+    sql`pf.id, pf.page_id, pf.content_folder_id, pf.name, pf.position, pf.deleted_at`,
+    sql`FROM page_facets pf
+        JOIN folders f ON f.id = pf.page_id AND f.owner_id = ${viewerId}
+        WHERE pf.page_id IN ${idSet(folderIds)}`,
+    sql`pf.page_id`,
+    sql`pf.position COLLATE "C", pf.id`,
+  ))
+
   const memberRows = await rowsOf(
     db,
     cappedPerParent(
@@ -331,7 +345,7 @@ export async function exportForViewer(
   const folderBlockRows = await rowsOf(
     db,
     cappedPerParent(
-      sql`b.id, b.folder_id, b.kind, b.position, b.text, b.file_id,
+      sql`b.id, b.folder_id, b.page_facet_id, b.kind, b.position, b.text, b.file_id,
           b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id,
           b.list_parent_block_id, b.checked, b.page_position, b.toggleable`,
       sql`FROM page_blocks b
@@ -394,7 +408,7 @@ export async function exportForViewer(
   const taskBlockRows = await rowsOf(
     db,
     cappedPerParent(
-      sql`b.id, b.task_id, b.kind, b.position, b.text, b.file_id,
+      sql`b.id, b.task_id, b.page_facet_id, b.kind, b.position, b.text, b.file_id,
           b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id,
           b.list_parent_block_id, b.checked, b.page_position, b.toggleable`,
       sql`FROM page_blocks b
@@ -632,7 +646,7 @@ export async function exportForViewer(
   const shelfBlockRows = await rowsOf(
     db,
     cappedPerParent(
-      sql`b.id, b.shelf_id, b.kind, b.position, b.text, b.file_id,
+      sql`b.id, b.shelf_id, b.page_facet_id, b.kind, b.position, b.text, b.file_id,
           b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id,
           b.list_parent_block_id, b.checked, b.page_position, b.toggleable`,
       sql`FROM page_blocks b
@@ -767,6 +781,17 @@ export async function exportForViewer(
   })
 
   const exportedFacets: ExportFacet[] = []
+  const facetsByPage = groupBy(pageFacetRows, 'page_id')
+  const exportedPageFacets: ExportPageFacet[] = folderIds.flatMap((pageId) =>
+    truncation.apply('page_facets', facetsByPage.get(pageId) ?? []).map((facet) => ({
+      id: String(facet.id),
+      page_id: pageId,
+      content_page_id: nullableString(facet.content_folder_id),
+      name: String(facet.name),
+      position: String(facet.position),
+      trashed: facet.deleted_at !== null && facet.deleted_at !== undefined,
+    })),
+  )
 
   return {
     format: EXPORT_FORMAT,
@@ -801,6 +826,7 @@ export async function exportForViewer(
     },
     folders: exportedFolders,
     facets: exportedFacets,
+    page_facets: exportedPageFacets,
     tasks_elsewhere: exportedForeign,
     responsibilities: responsibilityCurrent.map((row) => {
       const id = String(row.id)
