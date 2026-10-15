@@ -158,7 +158,10 @@ test('nested Page: add a Facet and edit it in the existing Work canvas', async (
   const message = `Facet browser writing ${Date.now()}`
   const editor = page.locator('.dana-writing-canvas .bn-editor').first()
   await expect(editor).toBeVisible()
-  await editor.click()
+  // Until #686 removes the old footer, it can overlap the editor's click target.
+  // Focus the actual contenteditable writing surface, not that trailing task input.
+  await editor.focus()
+  await expect(editor).toBeFocused()
   await page.keyboard.type(message)
   await expect(editor).toContainText(message)
   await expect.poll(async () => {
