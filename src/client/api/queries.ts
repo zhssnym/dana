@@ -17,6 +17,8 @@ import type { GetPlaceCoversResponse } from '../../shared/covers.js'
 import { getPlaceDescriptionsResponse } from '../../shared/place-descriptions.js'
 import type { GetPlaceDescriptionsResponse } from '../../shared/place-descriptions.js'
 import { getPageResponse } from '../../shared/pages.js'
+import { getPageFacetsResponse } from '../../shared/page-facets.js'
+import type { GetPageFacetsResponse } from '../../shared/page-facets.js'
 import type { GetPageResponse } from '../../shared/pages.js'
 import type { GetConnectionsResponse } from '../../shared/connections.js'
 import { getFolderResponse, getFoldersResponse } from '../../shared/folders.js'
@@ -346,6 +348,26 @@ export function useShelf(id: string, enabled = true): UseQueryResult<Shelf> {
     queryFn: () => getPlain(shelf, `/shelves/${id}`),
     /* Off where the caller holds no shelf (`lib/page-identity.ts` on non-shelf pages). */
     enabled,
+  })
+}
+
+export function usePageFacets(id: string, enabled: boolean): UseQueryResult<GetPageFacetsResponse> {
+  return useQuery({
+    queryKey: queryKeys.pageFacets(id),
+    queryFn: () => getPlain(getPageFacetsResponse, `/pages/${id}/facets`),
+    enabled,
+  })
+}
+
+export function usePageFacetDocument(
+  pageId: string,
+  facetId: string | null,
+): UseQueryResult<GetPageResponse> {
+  return useQuery({
+    queryKey: queryKeys.pageFacetDocument(pageId, facetId ?? ''),
+    queryFn: () => getPlain(getPageResponse,
+      `/pages/${pageId}/facets/${facetId}/document`),
+    enabled: facetId !== null,
   })
 }
 
