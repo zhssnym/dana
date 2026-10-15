@@ -1,5 +1,5 @@
-// Main's Facet strip is hidden when it is the only Facet. Its header menu
-// still needs a way to rename the Facet without renaming the Page itself.
+// Main's Facet strip is hidden when it is the only Facet. The Page menu can
+// rename the selected Facet even while its metadata is being fetched.
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 
@@ -11,10 +11,11 @@ import {
 import { Input } from '../../components/ui/input.js'
 
 export function FacetRenameDialog({
-  open, name, onOpenChange, onRename,
+  open, name, ready, onOpenChange, onRename,
 }: {
   readonly open: boolean
   readonly name: string
+  readonly ready: boolean
   readonly onOpenChange: (open: boolean) => void
   readonly onRename: (name: string) => void
 }): React.JSX.Element {
@@ -29,6 +30,7 @@ export function FacetRenameDialog({
 
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault()
+    if (!ready) return
     const next = draft.replace(/\s+/g, ' ').trim()
     if (!next) {
       setError('Give this Facet a name.')
@@ -52,15 +54,16 @@ export function FacetRenameDialog({
             <label htmlFor="rename-single-facet-name" className="block text-xs font-medium text-muted-foreground">
               Facet name
             </label>
-            <Input id="rename-single-facet-name" autoFocus value={draft} maxLength={120}
+            <Input id="rename-single-facet-name" autoFocus value={draft} maxLength={120} disabled={!ready}
               aria-invalid={Boolean(error) || undefined}
               onChange={(event) => { setDraft(event.target.value); setError('') }}
             />
+            {!ready ? <p className="text-xs text-muted-foreground" role="status">Loading Facet…</p> : null}
             {error ? <p className="text-xs text-destructive" role="alert">{error}</p> : null}
           </div>
           <DialogFooter>
             <DialogClose render={<Button type="button" variant="outline" />}>Cancel</DialogClose>
-            <Button type="submit">Rename</Button>
+            <Button type="submit" disabled={!ready}>Rename</Button>
           </DialogFooter>
         </form>
       </DialogContent>
