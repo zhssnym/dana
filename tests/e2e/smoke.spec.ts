@@ -128,7 +128,7 @@ test('root Page: old Work and Doc keep their URLs beside a new independent Facet
   const addedDoc = await page.request.post(`/api/v1/folders/${rootId}/tabs`, {
     headers: { 'X-CSRF-Token': csrf! }, data: { kind: 'doc' },
   })
-  expect(addedDoc.status(), await addedDoc.text()).toBe(200)
+  expect(addedDoc.status(), await addedDoc.text()).toBe(201)
   const list = (await (await page.request.get(`/api/v1/pages/${rootId}/facets`)).json()) as {
     facets: { id: string; name: string; content_page_id: string | null }[]
   }
