@@ -115,6 +115,20 @@ describe("a project's tabs have its people", () => {
     expectStatus(await member.browser.json(`/folders/${subId}/my-membership`, 'DELETE'), 204, 'leaving from the sub-page')
     expect(await rows(app.db, sql`SELECT user_id FROM folder_members
       WHERE folder_id = ${project}::uuid AND user_id = ${member.id}::uuid`)).toEqual([])
+
+    const purpose = String((await rows(app.db, sql`
+      SELECT id FROM folders WHERE project_id = ${project}::uuid AND name = 'Purpose'`))[0]?.id)
+    const purposeFacet = (await rows(app.db, sql`
+      SELECT id FROM page_facets WHERE content_folder_id = ${purpose}::uuid
+    `))[0]?.id
+    expectStatus(
+      await owner.browser.json(`/folders/${subId}/location`, 'PATCH', { parent_folder_id: purpose }),
+      200,
+      'moved the nested Page between Facets',
+    )
+    expect(await rows(app.db, sql`
+      SELECT containing_facet_id FROM folders WHERE id = ${subId}::uuid
+    `)).toEqual([{ containing_facet_id: purposeFacet }])
   }, 60_000)
 
   test("a removed owner's pages all follow the project's heir", async () => {
