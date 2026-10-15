@@ -70,6 +70,76 @@
       "summary": "Right-click a task in List, Board, Calendar, or Freeform to open its actions, including Open in new tab.",
       "pr": 631,
       "commit": "bfa2f8274da21924873e2baa67c201830a169785"
+    },
+    {
+      "id": "pr-519",
+      "publishedAt": "2026-10-15",
+      "historical": true,
+      "kind": "feature",
+      "title": "Right-to-left text in Discussions",
+      "summary": "Arabic and other right-to-left text now reads in its natural direction within Discussion posts, including mixed-language writing.",
+      "pr": 519,
+      "commit": "a090ac22cf1d09445e97396edd6b36ae400e3eee"
+    },
+    {
+      "id": "pr-514",
+      "publishedAt": "2026-10-15",
+      "historical": true,
+      "kind": "feature",
+      "title": "Reactions for Discussion posts",
+      "summary": "Respond to a Discussion post with one of six emoji reactions instead of only a like.",
+      "pr": 514,
+      "commit": "a7cc1d41b9813798aab6c1b058b899bb1b7ad3cd"
+    },
+    {
+      "id": "pr-486",
+      "publishedAt": "2026-10-15",
+      "historical": true,
+      "kind": "feature",
+      "title": "Archive and restore work",
+      "summary": "Move finished work out of active views without deleting it. Restore archived pages from Settings when you need them again.",
+      "pr": 486,
+      "commit": "dbbae774a05abee308be77dca3716b97ec3fc699"
+    },
+    {
+      "id": "pr-468",
+      "publishedAt": "2026-10-15",
+      "historical": true,
+      "kind": "feature",
+      "title": "Assign one task to several teammates",
+      "summary": "Add more than one assignee to a task and see everyone responsible across task lists and views.",
+      "pr": 468,
+      "commit": "1546619c0acd0fbd14103d3bc347c8549162446d"
+    },
+    {
+      "id": "pr-455",
+      "publishedAt": "2026-10-15",
+      "historical": true,
+      "kind": "improvement",
+      "title": "Nested pages in the Library sidebar",
+      "summary": "Find child pages beneath their parent pages in the Library, with expandable navigation and keyboard support.",
+      "pr": 455,
+      "commit": "9624dc514973e2fdfe24f59f433cbcc96ef4ad27"
+    },
+    {
+      "id": "pr-403",
+      "publishedAt": "2026-10-15",
+      "historical": true,
+      "kind": "feature",
+      "title": "Calendar view for each Work page",
+      "summary": "See scheduled work by month, week, or day, and adjust task dates directly in Calendar.",
+      "pr": 403,
+      "commit": "b11a216882224679ed5dec164fea8625f50734b0"
+    },
+    {
+      "id": "pr-399",
+      "publishedAt": "2026-10-15",
+      "historical": true,
+      "kind": "feature",
+      "title": "Board view for Work",
+      "summary": "Arrange tasks in Board columns by section, assignee, or date, without duplicating the underlying tasks.",
+      "pr": 399,
+      "commit": "83b9d80188683560bc397f4fe6ea57f3b6ad3bee"
     }
   ]
 }
