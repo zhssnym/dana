@@ -9,6 +9,7 @@ import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { useConnections, usePageFacetDocument, usePageFacets } from '../api/queries.js'
 import { mutateApi } from '../api/http.js'
 import { getPageFacetsResponse } from '../../shared/page-facets.js'
+import type { GetPageFacetsResponse } from '../../shared/page-facets.js'
 import { queryKeys } from '../api/keys.js'
 import { mayDraw } from '../lib/folder-authority.js'
 import { usePageHasCover } from '../components/page-head.js'
@@ -153,6 +154,7 @@ function FolderPageBody({
     detail, members, viewerId: basis.viewerId, headId, isDefault,
   })
   const canCreateFacet = isNestedPage && facts !== null && mayDraw(facts, 'facet.create')
+  const canRenameFacet = isNestedPage && facts !== null && mayDraw(facts, 'facet.rename')
   const addFacet = async (): Promise<void> => {
     if (!canCreateFacet) return
     setFacetError('')
@@ -168,6 +170,22 @@ function FolderPageBody({
       if (made !== undefined) setActiveFacetId(made.id)
     } catch (error) {
       setFacetError(error instanceof Error ? error.message : 'Could not add this Facet.')
+    }
+  }
+  const renameFacet = async (
+    facet: GetPageFacetsResponse['facets'][number], name: string,
+  ): Promise<void> => {
+    if (!canRenameFacet) return
+    setFacetError('')
+    try {
+      const updated = await mutateApi(getPageFacetsResponse, {
+        method: 'PATCH',
+        path: `/pages/${id}/facets/${facet.id}`,
+        body: { name },
+      })
+      cache.setQueryData(queryKeys.pageFacets(id), updated)
+    } catch (error) {
+      setFacetError(error instanceof Error ? error.message : 'Could not rename this Facet.')
     }
   }
   const { filterPeople, filterLabels, filteringTasks, canCreateInFilter } = useTaskFilterOptions({
@@ -297,6 +315,8 @@ function FolderPageBody({
             onSelect={(facet) => setActiveFacetId(facet.id)}
             onAdd={() => { void addFacet() }}
             editable={canCreateFacet}
+            canRename={canRenameFacet}
+            onRename={(facet, name) => { void renameFacet(facet, name) }}
           /> : null}
           {facetError ? <p role="alert" className="text-sm text-destructive">{facetError}</p> : null}
         </div>
