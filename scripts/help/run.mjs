@@ -1,5 +1,4 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
 
 import { checkArticles, currentArticles } from './check.mjs'
 import { impactedHelp } from './topics.mjs'
@@ -102,6 +101,7 @@ function verifyDraft(output, impact, evidence) {
     const original = previous.get(slug)
     if (original === change.markdown) continue
     if (original) {
+      if (!impact.slugs.includes(slug)) articlesMapped = false
       const before = original.match(/^(title|section):[^\n]+/gm)?.join('\n')
       const after = change.markdown.match(/^(title|section):[^\n]+/gm)?.join('\n')
       if (before !== after) throw new Error('Model changed an existing article title or category')
@@ -235,7 +235,8 @@ async function main() {
   for (const sha of commits) {
     if (!ancestor(sha, liveSha)) continue
     if (!FORCE && await hasHelpCheck(sha)) continue
-    if (attempted++ === 3) break
+    if (attempted >= 3) break
+    attempted++
     try {
       await processCommit(sha)
     } catch (error) {
