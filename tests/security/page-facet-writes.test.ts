@@ -558,4 +558,85 @@ describe('Page Facet writes', () => {
     expectStatus(await owner.browser.json(path + '/restore', 'POST'), 404, 'repeat restore refused')
   }, 60_000)
 
+  test('archiving and restoring a root preserves nested Facets, Tasks, writing and child Page identities', async () => {
+    const [owner] = await cast.of(app)
+    if (!owner) throw new Error('Missing owner')
+    const made = await owner.browser.json('/folders', 'POST', {
+      name: 'pf671 archive restore root', kind: 'work',
+    })
+    expectStatus(made, 201, 'created root')
+    const rootId = (made.json() as { id: string }).id
+    const nested = await owner.browser.json('/folders', 'POST', {
+      name: 'pf671 archive restore child', parent_folder_id: rootId,
+    })
+    expectStatus(nested, 201, 'created nested Page')
+    const childId = (nested.json() as { id: string }).id
+    const main = (await owner.browser.json(`/pages/${childId}/facets`, 'GET')).json() as FacetResponse
+    const mainId = main.facets[0]?.id
+    if (!mainId) throw new Error('Expected nested Main')
+
+    const added = await owner.browser.json(`/pages/${childId}/facets`, 'POST', { name: 'Archive Notes' })
+    expectStatus(added, 201, 'created Notes')
+    const notesId = (added.json() as FacetResponse).facets.find((f) => f.name === 'Archive Notes')?.id
+    if (!notesId) throw new Error('Expected Notes')
+    const documentPath = `/pages/${childId}/facets/${notesId}/document`
+    const before = await owner.browser.json(documentPath, 'GET')
+    expectStatus(before, 200, 'read Notes')
+    const blockId = crypto.randomUUID()
+    const taskId = crypto.randomUUID()
+    const subPageId = crypto.randomUUID()
+    const homeBlockId = crypto.randomUUID()
+    const saved = await owner.browser.json(documentPath + '/actions', 'POST', {
+      action: 'document_transaction',
+      mutation_id: crypto.randomUUID(),
+      base_revision: (before.json() as { revision: string }).revision,
+      operations: [
+        {
+          op: 'put_block', id: blockId, block_kind: 'paragraph', text: 'archived writing',
+          rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null,
+        },
+        { op: 'create_task', id: taskId, title: 'archived Facet Task' },
+        { op: 'create_page', id: subPageId, block_id: homeBlockId, title: 'Archived Facet child' },
+        { op: 'set_outline', items: [
+          { kind: 'block', id: blockId, section_block_id: null, list_parent_block_id: null },
+          { kind: 'task', id: taskId, section_block_id: null, list_parent_block_id: null },
+          { kind: 'block', id: homeBlockId, section_block_id: null, list_parent_block_id: null },
+        ] },
+      ],
+    })
+    expectStatus(saved, 200, 'saved document before archive')
+    const revision = (saved.json() as { revision: string }).revision
+
+    expectStatus(await owner.browser.json(`/folders/${rootId}/archive`, 'POST', {}),
+      204, 'archive root')
+    const archivedRows = await rows(app.db, sql`
+      SELECT id, page_facet_id FROM tasks WHERE id = ${taskId}::uuid
+    `)
+    expect(archivedRows).toEqual([{ id: taskId, page_facet_id: notesId }])
+    expect(await rows(app.db, sql`
+      SELECT id, page_facet_id FROM page_blocks WHERE id = ${blockId}::uuid
+    `)).toEqual([{ id: blockId, page_facet_id: notesId }])
+
+    expectStatus(await owner.browser.json(`/archive/folders/${rootId}/restore`, 'POST', {}),
+      200, 'restore archived root')
+    const facets = await owner.browser.json(`/pages/${childId}/facets`, 'GET')
+    expectStatus(facets, 200, 'nested Facets visible after restore')
+    expect((facets.json() as FacetResponse).facets.map((f) => f.id)).toEqual([mainId, notesId])
+    const restored = await owner.browser.json(documentPath, 'GET')
+    expectStatus(restored, 200, 'document readable after restore')
+    const content = restored.json() as {
+      revision: string
+      blocks: { id: string }[]
+      items: { id: string }[]
+    }
+    expect(content.revision).toBe(revision)
+    expect(content.blocks.map((b) => b.id)).toContain(blockId)
+    expect(content.items.map((item) => item.id)).toEqual([blockId, taskId, homeBlockId])
+    expect(await rows(app.db, sql`
+      SELECT id, parent_folder_id, containing_facet_id FROM folders
+      WHERE id = ${subPageId}::uuid
+    `)).toEqual([{ id: subPageId, parent_folder_id: childId, containing_facet_id: notesId }])
+  }, 60_000)
+
+
 })
