@@ -50,9 +50,39 @@ describe("a project's tabs have its people", () => {
     expectStatus(await owner.browser.json(`/folders/${project}/tabs`, 'POST', { kind: 'usual' }), 201, 'the usual project')
     const results = String((await rows(app.db, sql`
       SELECT id FROM folders WHERE project_id = ${project}::uuid AND name = 'Results'`))[0]?.id)
+    const facets = await rows(app.db, sql`
+      SELECT pf.id, pf.page_id, pf.content_folder_id, pf.name
+        FROM page_facets pf
+       WHERE pf.content_folder_id IN (${project}::uuid, ${results}::uuid)
+       ORDER BY pf.name
+    `)
+    expect(facets).toHaveLength(2)
+    expect(facets).toEqual(expect.arrayContaining([
+      expect.objectContaining({ page_id: project, content_folder_id: project, name: 'Main' }),
+      expect.objectContaining({ page_id: project, content_folder_id: results, name: 'Results' }),
+    ]))
+    expect(facets.every((facet) => facet.id !== facet.content_folder_id)).toBe(true)
+    const resultsFacet = facets.find((facet) => facet.content_folder_id === results)
+    expect(resultsFacet).toBeDefined()
+
     const sub = await owner.browser.json('/folders', 'POST', { name: 'ac1523 sub', parent_folder_id: results })
     expectStatus(sub, 201, 'a sub-page under Results')
     const subId = (sub.json() as { id: string }).id
+    expect(await rows(app.db, sql`
+      SELECT f.containing_facet_id, pf.page_id AS home_page_id, pf.name AS home_name
+        FROM folders f JOIN page_facets pf ON pf.content_folder_id = f.id
+       WHERE f.id = ${subId}::uuid
+    `)).toEqual([{
+      containing_facet_id: resultsFacet?.id,
+      home_page_id: subId,
+      home_name: 'Main',
+    }])
+    await inTransaction(app.db, (tx) => tx.execute(sql`
+      UPDATE folders SET name = 'Resources' WHERE id = ${results}::uuid
+    `))
+    expect(await rows(app.db, sql`
+      SELECT name FROM page_facets WHERE id = ${resultsFacet?.id}::uuid
+    `)).toEqual([{ name: 'Resources' }])
     await connect(app.db, owner.id, member.id)
     await connect(app.db, owner.id, third.id)
 
