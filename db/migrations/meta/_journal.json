@@ -554,6 +554,13 @@
       "when": 1797000000000,
       "tag": "0095_facet_document_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1797100000000,
+      "tag": "0096_page_facet_trash",
+      "breakpoints": true
     }
   ]
 }
