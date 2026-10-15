@@ -109,6 +109,83 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
 
 
 
+
+test('root Page: legacy Work and Doc URLs remain valid beside new Facets', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/app/today')
+  const skip = page.getByRole('dialog', { name: 'How did you hear about Dana?' })
+    .getByRole('button', { name: 'Skip' })
+  await skip.waitFor({ timeout: 5_000 }).then(() => skip.click(), () => undefined)
+  const csrf = (await page.context().cookies()).find((cookie) => cookie.name === 'dana_csrf')?.value
+  expect(csrf).toBeTruthy()
+  const root = await page.request.post('/api/v1/folders', {
+    headers: { 'X-CSRF-Token': csrf! },
+    data: { name: 'Universal root test', kind: 'work' },
+  })
+  expect(root.status(), await root.text()).toBe(201)
+  const rootId = ((await root.json()) as { id: string }).id
+  const addedDoc = await page.request.post('/api/v1/folders/' + rootId + '/tabs', {
+    headers: { 'X-CSRF-Token': csrf! }, data: { kind: 'doc' },
+  })
+  expect(addedDoc.status(), await addedDoc.text()).toBe(201)
+  const list = (await (await page.request.get('/api/v1/pages/' + rootId + '/facets')).json()) as {
+    facets: { id: string; name: string; content_page_id: string | null }[]
+  }
+  const legacyDoc = list.facets.find((facet) => facet.content_page_id !== rootId)
+  expect(legacyDoc?.content_page_id).toBeTruthy()
+  await page.goto('/app/folders/' + rootId)
+  const strip = page.getByRole('tablist', { name: 'Page Facets' })
+  await expect(strip.getByRole('tab', { name: 'Main' })).toBeVisible()
+  await expect(strip.getByRole('tab', { name: 'Doc' })).toBeVisible()
+  await strip.getByRole('tab', { name: 'Doc' }).click()
+  await expect(page).toHaveURL('/app/folders/' + legacyDoc!.content_page_id)
+  await expect(page.getByRole('tablist', { name: 'Page Facets' })
+    .getByRole('tab', { name: 'Doc' })).toHaveAttribute('aria-selected', 'true')
+  await page.getByRole('button', { name: 'Add Facet' }).click()
+  await expect(page.getByRole('tablist', { name: 'Page Facets' })
+    .getByRole('tab', { name: 'Untitled' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page).toHaveURL(/pageFacet=/)
+  const message = 'Independent root writing ' + Date.now()
+  const editor = page.locator('.dana-writing-canvas .bn-editor').first()
+  await expect(editor).toBeVisible()
+  await editor.focus()
+  await page.keyboard.type(message)
+  await expect(editor).toContainText(message)
+  await expect.poll(async () => {
+    const facets = (await (await page.request.get('/api/v1/pages/' + rootId + '/facets')).json()) as typeof list
+    const independent = facets.facets.find((facet) => facet.name === 'Untitled')
+    if (independent === undefined) return false
+    const response = await page.request.get('/api/v1/pages/' + rootId + '/facets/' + independent.id + '/document')
+    return JSON.stringify(await response.json()).includes(message)
+  }).toBe(true)
+  await page.reload()
+  await expect(page.getByRole('tablist', { name: 'Page Facets' })
+    .getByRole('tab', { name: 'Untitled' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+  const mainTab = page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Main' })
+  const docTab = page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Doc' })
+  const first = await mainTab.boundingBox()
+  const last = await docTab.boundingBox()
+  expect(first).not.toBeNull()
+  expect(last).not.toBeNull()
+  await page.mouse.move(last!.x + last!.width / 2, last!.y + last!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(first!.x + 2, first!.y + first!.height / 2, { steps: 10 })
+  await page.mouse.up()
+  await expect.poll(async () => {
+    const current = (await (await page.request.get('/api/v1/pages/' + rootId + '/facets')).json()) as typeof list
+    return current.facets[0]?.id
+  }).toBe(legacyDoc!.id)
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+  await page.getByRole('tablist', { name: 'Page Facets' })
+    .getByRole('tab', { name: 'Main' }).click()
+  await expect(page).toHaveURL('/app/folders/' + rootId)
+  await expect(page.locator('.dana-writing-canvas')).not.toContainText(message)
+  await page.getByRole('tablist', { name: 'Page Facets' })
+    .getByRole('tab', { name: 'Doc' }).click()
+  await expect(page).toHaveURL('/app/folders/' + legacyDoc!.content_page_id)
+})
+
 test('nested Page: add a Facet and edit it in the existing Work canvas', async ({ page }) => {
   await signIn(page)
   await page.goto('/app/today')
