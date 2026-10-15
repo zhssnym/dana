@@ -13,6 +13,7 @@ type Facet = GetPageFacetsResponse['facets'][number]
 
 export function PageFacetStrip({
   facets, activeId, onSelect, onAdd, editable, canRename, onRename, canDelete, onDelete,
+  alwaysShow = false, tools, canReorder = false, onReorder,
 }: {
   readonly facets: readonly Facet[]
   readonly activeId: string | null
@@ -23,13 +24,17 @@ export function PageFacetStrip({
   readonly onRename: (facet: Facet, name: string) => void
   readonly canDelete: boolean
   readonly onDelete: (facet: Facet) => void
+  readonly alwaysShow?: boolean
+  readonly tools?: React.ReactNode
+  readonly canReorder?: boolean
+  readonly onReorder?: (order: string[]) => void
 }): React.JSX.Element | null {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [menu, setMenu] = useState<{ facet: Facet; x: number; y: number } | null>(null)
   const menuFor = useRef<string | null>(null)
   const fieldOpening = useRef(false)
   // Hooks run before the conditional return, so a one-Facet Page can gain a second.
-  if (facets.length < 2) return null
+  if (!alwaysShow && facets.length < 2) return null
 
   const startRename = (facet: Facet): void => {
     if (!canRename) return
@@ -38,10 +43,20 @@ export function PageFacetStrip({
     setRenamingId(facet.id)
   }
   const openMenu = (facet: Facet, x: number, y: number): void => {
-    if (!canRename && !(canDelete && facet.content_page_id === null)) return
+    if (!canRename && !canReorder && !(canDelete && facet.content_page_id === null)) return
     menuFor.current = facet.id
     fieldOpening.current = false
     setMenu({ facet, x, y })
+  }
+
+  const move = (facet: Facet, direction: -1 | 1): void => {
+    if (!canReorder || onReorder === undefined) return
+    const index = facets.findIndex((entry) => entry.id === facet.id)
+    const target = index + direction
+    if (index < 0 || target < 0 || target >= facets.length) return
+    const ids = facets.map((entry) => entry.id)
+    ;[ids[index], ids[target]] = [ids[target]!, ids[index]!]
+    onReorder(ids)
   }
 
   return (
@@ -58,16 +73,21 @@ export function PageFacetStrip({
         ) : (
           <button key={facet.id} type="button" role="tab" data-facet-id={facet.id}
             aria-selected={activeId === facet.id}
-            aria-haspopup={canRename || (canDelete && facet.content_page_id === null) ? 'menu' : undefined}
+            aria-haspopup={canRename || canReorder || (canDelete && facet.content_page_id === null) ? 'menu' : undefined}
             onClick={() => onSelect(facet)}
             onDoubleClick={() => startRename(facet)}
             onContextMenu={(event) => {
-              if (!canRename && !(canDelete && facet.content_page_id === null)) return
+              if (!canRename && !canReorder && !(canDelete && facet.content_page_id === null)) return
               event.preventDefault()
               openMenu(facet, event.clientX, event.clientY)
             }}
             onKeyDown={(event) => {
-              if (!(canRename || (canDelete && facet.content_page_id === null)) || (event.key !== 'ContextMenu' &&
+              if (canReorder && event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+                event.preventDefault()
+                move(facet, event.key === 'ArrowLeft' ? -1 : 1)
+                return
+              }
+              if (!(canRename || canReorder || (canDelete && facet.content_page_id === null)) || (event.key !== 'ContextMenu' &&
                   !(event.shiftKey && event.key === 'F10'))) return
               event.preventDefault()
               const rect = event.currentTarget.getBoundingClientRect()
@@ -90,6 +110,7 @@ export function PageFacetStrip({
           <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
         </button>
       ) : null}
+      {tools === undefined ? null : <div className="shrink-0 border-l border-border pl-2">{tools}</div>}
       <DropdownMenu open={menu !== null} onOpenChange={(open) => { if (!open) setMenu(null) }}>
         <DropdownMenuTrigger nativeButton={false}
           render={<span aria-hidden="true" tabIndex={-1} />}
@@ -107,6 +128,14 @@ export function PageFacetStrip({
             <>
               {canRename ? (
                 <DropdownMenuItem onClick={() => startRename(menu.facet)}>Rename</DropdownMenuItem>
+              ) : null}
+              {canReorder ? (
+                <>
+                  <DropdownMenuItem disabled={facets[0]?.id === menu.facet.id}
+                    onClick={() => move(menu.facet, -1)}>Move left</DropdownMenuItem>
+                  <DropdownMenuItem disabled={facets[facets.length - 1]?.id === menu.facet.id}
+                    onClick={() => move(menu.facet, 1)}>Move right</DropdownMenuItem>
+                </>
               ) : null}
               {canDelete && menu.facet.content_page_id === null ? (
                 <DropdownMenuItem variant="destructive" onClick={() => {
