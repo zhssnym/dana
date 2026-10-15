@@ -246,3 +246,19 @@ export async function uploadAvatar(file: File): Promise<PostAvatarResponse> {
     await postMultipart('/me/avatar', form),
   )
 }
+
+/** Read the public release feed independently of the current PWA bundle. A new
+ * deployment can announce a release without requiring a manual application reload.
+ * Failure is noncritical: keep the last bundled feed, do not show a network toast. */
+export async function readPublicUpdatesFeed(): Promise<unknown | null> {
+  try {
+    const response = await fetch('/updates/feed.json', {
+      cache: 'no-store',
+      credentials: 'same-origin',
+    })
+    if (!response.ok) return null
+    return await response.json()
+  } catch {
+    return null
+  }
+}
