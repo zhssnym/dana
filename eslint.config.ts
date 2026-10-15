@@ -150,6 +150,19 @@ export default tseslint.config(
     ],
   },
   eslint.configs.recommended,
+  // Maintenance scripts run on Node 24, not in a browser.
+  {
+    files: ['scripts/help/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        fetch: 'readonly',
+        AbortSignal: 'readonly',
+        URL: 'readonly',
+      },
+    },
+  },
   tseslint.configs.recommended,
   /*
   The boundary between the two halves of the application, enforced rather than
