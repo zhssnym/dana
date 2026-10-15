@@ -558,4 +558,74 @@ describe('Page Facet writes', () => {
     expectStatus(await owner.browser.json(path + '/restore', 'POST'), 404, 'repeat restore refused')
   }, 60_000)
 
+  test('account export retains independent and trashed Facet identities and content associations', async () => {
+    const [owner] = await cast.of(app)
+    if (!owner) throw new Error('Missing owner')
+    const made = await owner.browser.json('/folders', 'POST', {
+      name: 'pf671 account export root', kind: 'work',
+    })
+    expectStatus(made, 201, 'created Page')
+    const pageId = (made.json() as { id: string }).id
+    const original = (await owner.browser.json(`/pages/${pageId}/facets`, 'GET')).json() as FacetResponse
+    const mainId = original.facets[0]?.id
+    if (!mainId) throw new Error('Main missing')
+    const created = await owner.browser.json(`/pages/${pageId}/facets`, 'POST', { name: 'Exported Notes' })
+    expectStatus(created, 201, 'created Facet')
+    const independentId = (created.json() as FacetResponse).facets.find(
+      (facet) => facet.name === 'Exported Notes',
+    )?.id
+    if (!independentId) throw new Error('New Facet missing')
+
+    const path = `/pages/${pageId}/facets/${independentId}/document`
+    const before = await owner.browser.json(path, 'GET')
+    expectStatus(before, 200, 'read empty Facet')
+    const blockId = crypto.randomUUID()
+    const taskId = crypto.randomUUID()
+    expectStatus(await owner.browser.json(path + '/actions', 'POST', {
+      action: 'document_transaction', mutation_id: crypto.randomUUID(),
+      base_revision: (before.json() as { revision: string }).revision,
+      operations: [
+        { op: 'put_block', id: blockId, block_kind: 'paragraph',
+          text: 'Must stay associated during export', rich_content: null,
+          file_id: null, ref_folder_id: null, width_pct: null, checked: null },
+        { op: 'create_task', id: taskId, title: 'Must export with its Facet' },
+        { op: 'set_outline', items: [
+          { kind: 'block', id: blockId, section_block_id: null, list_parent_block_id: null },
+          { kind: 'task', id: taskId, section_block_id: null, list_parent_block_id: null },
+        ] },
+      ],
+    }), 200, 'write independent content')
+
+    const verifyExport = async (trashed: boolean): Promise<void> => {
+      const response = await owner.browser.json('/me/export', 'GET')
+      expectStatus(response, 200, 'complete account export')
+      const exported = response.json() as {
+        version: number
+        page_facets: { id: string; page_id: string; content_page_id: string | null; trashed: boolean }[]
+        folders: {
+          id: string
+          blocks: { id: string; page_facet_id: string | null }[]
+          tasks: { id: string; page_facet_id: string | null }[]
+        }[]
+      }
+      expect(exported.version).toBe(17)
+      expect(exported.page_facets).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: mainId, page_id: pageId, content_page_id: pageId, trashed: false }),
+        expect.objectContaining({ id: independentId, page_id: pageId, content_page_id: null, trashed }),
+      ]))
+      const page = exported.folders.find((folder) => folder.id === pageId)
+      expect(page).toBeDefined()
+      expect(page?.blocks).toContainEqual(expect.objectContaining({
+        id: blockId, page_facet_id: independentId,
+      }))
+      expect(page?.tasks).toContainEqual(expect.objectContaining({
+        id: taskId, page_facet_id: independentId,
+      }))
+    }
+    await verifyExport(false)
+    expectStatus(await owner.browser.json(`/pages/${pageId}/facets/${independentId}`, 'DELETE'),
+      200, 'Trash independent Facet')
+    await verifyExport(true)
+  }, 60_000)
+
 })
