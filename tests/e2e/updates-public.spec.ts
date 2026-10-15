@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-test('What's New and historical notes are available without signing in', async ({ page }) => {
+test("What's New and historical notes are available without signing in", async ({ page }) => {
   await page.goto('/updates')
   await expect(page.getByRole('heading', { name: "What's new" })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Earlier improvements' })).toBeVisible()
@@ -21,7 +21,7 @@ test('public updates manifest matches the displayed article URL', async ({ reque
   await expect(page.getByRole('heading', { name: feed.entries[0]!.title })).toBeVisible()
 })
 
-test('What's New remains readable on mobile', async ({ page }) => {
+test("What's New remains readable on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/updates')
   await expect(page.getByRole('heading', { name: "What's new" })).toBeVisible()
