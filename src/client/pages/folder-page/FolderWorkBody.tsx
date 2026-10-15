@@ -34,6 +34,7 @@ export function FolderWorkBody({
   facetId,
   facetPage,
   universal = false,
+  restrictTasksToPage = false,
   kind,
   tabs,
   open,
@@ -59,6 +60,8 @@ export function FolderWorkBody({
   readonly id: string
   readonly facetId: string | null
   readonly universal?: boolean
+  /** Every active Facet, including legacy-backed Main/Docs, owns only its own Tasks. */
+  readonly restrictTasksToPage?: boolean
   readonly facetPage: UseQueryResult<GetPageResponse>
   readonly kind: PageKind | null
   readonly tabs: readonly Folder[]
@@ -87,8 +90,11 @@ export function FolderWorkBody({
   const taskIds = new Set(
     (activePage.data?.items ?? []).filter((item) => item.kind === 'task').map((item) => item.id),
   )
-  const shownOpen = scoped ? openRows.filter((task) => taskIds.has(task.id)) : openRows
-  const shownCompleted = scoped ? completedRows.filter((task) => taskIds.has(task.id)) : completedRows
+  // Folder-level Task reads include the sibling Facets' rows. Never render
+  // another Facet's Tasks in Main, especially after that Facet is in Trash.
+  const taskScoped = scoped || restrictTasksToPage
+  const shownOpen = taskScoped ? openRows.filter((task) => taskIds.has(task.id)) : openRows
+  const shownCompleted = taskScoped ? completedRows.filter((task) => taskIds.has(task.id)) : completedRows
   const hasTasks = universal || kind === 'work' || scoped
   return (
     <div className="space-y-2">
