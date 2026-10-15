@@ -158,10 +158,41 @@ test('root Page: legacy Work and Doc URLs remain valid beside new Facets', async
     const response = await page.request.get('/api/v1/pages/' + rootId + '/facets/' + independent.id + '/document')
     return JSON.stringify(await response.json()).includes(message)
   }).toBe(true)
+
+  // A Task owned by a separate root Facet must never leak into legacy Main.
+  const ownedFacets = (await (await page.request.get('/api/v1/pages/' + rootId + '/facets')).json()) as typeof list
+  const independentId = ownedFacets.facets.find((facet) => facet.name === 'Untitled')?.id
+  expect(independentId).toBeTruthy()
+  const documentPath = '/api/v1/pages/' + rootId + '/facets/' + independentId + '/document'
+  const independentDocument = (await (await page.request.get(documentPath)).json()) as {
+    revision: string
+    items: { id: string; kind: 'task' | 'block' }[]
+  }
+  const taskId = crypto.randomUUID()
+  const taskTitle = 'Task belongs only to Notes ' + Date.now()
+  const savedTask = await page.request.post(documentPath + '/actions', {
+    headers: { 'X-CSRF-Token': csrf! },
+    data: {
+      action: 'document_transaction', mutation_id: crypto.randomUUID(),
+      base_revision: independentDocument.revision,
+      operations: [
+        { op: 'create_task', id: taskId, title: taskTitle },
+        { op: 'set_outline', items: [
+          ...independentDocument.items.map((item) => ({
+            kind: item.kind, id: item.id, section_block_id: null, list_parent_block_id: null,
+          })),
+          { kind: 'task', id: taskId, section_block_id: null, list_parent_block_id: null },
+        ] },
+      ],
+    },
+  })
+  expect(savedTask.status(), await savedTask.text()).toBe(200)
+
   await page.reload()
   await expect(page.getByRole('tablist', { name: 'Page Facets' })
     .getByRole('tab', { name: 'Untitled' })).toHaveAttribute('aria-selected', 'true')
   await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+  await expect(page.getByText(taskTitle, { exact: true })).toBeVisible()
   const mainTab = page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Main' })
   const docTab = page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Doc' })
   const first = await mainTab.boundingBox()
@@ -181,6 +212,7 @@ test('root Page: legacy Work and Doc URLs remain valid beside new Facets', async
     .getByRole('tab', { name: 'Main' }).click()
   await expect(page).toHaveURL('/app/folders/' + rootId)
   await expect(page.locator('.dana-writing-canvas')).not.toContainText(message)
+  await expect(page.getByText(taskTitle, { exact: true })).toHaveCount(0)
   await page.getByRole('tablist', { name: 'Page Facets' })
     .getByRole('tab', { name: 'Doc' }).click()
   await expect(page).toHaveURL('/app/folders/' + legacyDoc!.content_page_id)
