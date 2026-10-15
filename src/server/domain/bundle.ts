@@ -126,6 +126,7 @@ function bundleFrom(row: Record<string, unknown>): SettingsBundle {
     task_open: String(row.task_open) as SettingsBundle['task_open'],
     calendar_zoom: zoomFrom(row.calendar_zoom),
     feedback_reminder_dismissed: row.feedback_reminder_dismissed === true,
+    updates_seen_ids: updatesSeenFrom(row.updates_seen_ids),
     pinned_views: derivePins(row),
     sidebar_order: Array.isArray(order) ? order.map(String) : [],
     arrangements:
@@ -139,6 +140,14 @@ function bundleFrom(row: Record<string, unknown>): SettingsBundle {
   }
 }
 
+/** Persist a bounded, validated set of release IDs across devices. */
+function updatesSeenFrom(value: unknown): string[] {
+  const stored = jsonOf(value)
+  if (!Array.isArray(stored)) return []
+  return [...new Set(stored.filter((id): id is string =>
+    typeof id === 'string' && /^pr-[1-9]\d*$/.test(id)))].slice(-500)
+}
+
 /** Unknown and repeated keys dropped, order kept. */
 function focusFrom(value: unknown): FocusListKey[] {
   const stored = jsonOf(value)
@@ -149,7 +158,7 @@ function focusFrom(value: unknown): FocusListKey[] {
   )
 }
 
-const BUNDLE_COLUMNS = sql`theme, row_density, clock, task_open, calendar_zoom, feedback_reminder_dismissed,
+const BUNDLE_COLUMNS = sql`theme, row_density, clock, task_open, calendar_zoom, feedback_reminder_dismissed, updates_seen_ids,
   pinned_views, sidebar_order, arrangements, focus_lists, focus_appearance,
   show_important, show_all, show_done`
 
@@ -189,6 +198,19 @@ export async function writeBundle(
     }
     if (patch.feedback_reminder_dismissed !== undefined) {
       sets.push(sql`feedback_reminder_dismissed = ${patch.feedback_reminder_dismissed}`)
+    }
+    if (patch.updates_seen_ids !== undefined) {
+      // The row lock and set union preserve acknowledgements from another device.
+      const stored = await rowsOf(
+        tx,
+        sql`SELECT updates_seen_ids FROM user_settings
+            WHERE user_id = ${userId} FOR UPDATE`,
+      )
+      const row = stored[0]
+      if (row === undefined) throw new Error(`user ${userId} has no settings row (INV-14)`)
+      const before = updatesSeenFrom(row.updates_seen_ids)
+      const combined = [...new Set([...before, ...patch.updates_seen_ids])].slice(-500)
+      sets.push(sql`updates_seen_ids = ${JSON.stringify(combined)}::jsonb`)
     }
     if (patch.pinned_views !== undefined) {
       const pins = patch.pinned_views.includes('desk')
