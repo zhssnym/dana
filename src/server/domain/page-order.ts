@@ -81,8 +81,8 @@ export async function writeItemPosition(
   )
 }
 
-export async function seededItems(tx: Executor, folderId: string): Promise<PositionedItem[]> {
-  const items = await positionedItems(tx, folderId)
+export async function seededItems(tx: Executor, folderId: string, facetId?: string): Promise<PositionedItem[]> {
+  const items = await positionedItems(tx, folderId, facetId)
   if (items.every((item) => item.pagePosition !== null)) return items
   const keys = initialKeys(items.length)
   for (const [index, item] of items.entries()) {

@@ -24,4 +24,16 @@
 
 Any altered fingerprint, nonzero Facet violation, missing backup, SQL error or uncertain content recovery **blocks deployment**. Never bypass guards by migrating production experimentally.
 
+## Recovery procedure
+
+1. Before release, record the live application commit and the verified backup checksum. Record the second restore duration and result privately.
+2. If release fails, stop application writes and background jobs. Keep the failed database intact for investigation and recovery of later writes.
+3. Restore the verified backup into a new PostgreSQL 18 instance with separate credentials. Do not overwrite the production database.
+4. Compare the restored fingerprints with the pre-migration baseline. Check the migration journal, Page IDs, Task IDs, attachments and profile Doc access.
+5. Reconcile writes made after the backup before returning users to the restored database. If this cannot be proved, keep writes stopped.
+6. Configure the previous application release to use the restored instance through Render's secure environment settings. Do not run reverse migrations.
+7. Check `/api/health`, sign-in, direct URLs and the recorded compatibility sample before allowing writes. Retain both database instances and backup evidence.
+
+This procedure is a plan until the separate recovery restore and application checks pass. A code rollback alone does not prove data recovery.
+
 Supporting assertions: `671-facet-preservation-fingerprints.sql` and `671-facet-association-checks.sql`. Render documentation: https://render.com/docs/postgresql-backups.

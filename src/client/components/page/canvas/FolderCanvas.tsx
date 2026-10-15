@@ -289,7 +289,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
   const held = useRef(initialPage)
   const trashing = useRef(new Set<string>())
   // A recoverable draft, never a cache or offline queue. One key per document.
-  const draftKey = `dana-canvas-draft:${folderId}:${facetId ?? 'legacy'}`
+  const draftKey = facetId === undefined ? `dana-canvas-draft:${folderId}` : `dana-canvas-draft:${folderId}:${facetId}`
   const [writer] = useState(() => new CanvasWriter(firstProjection(), initialPage.revision ?? '',
     (body) => mutateApi(getPageResponse, { method: 'POST', path: `${documentPath}/actions`, body }),
     () => {

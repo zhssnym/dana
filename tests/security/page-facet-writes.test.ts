@@ -33,6 +33,68 @@ interface FacetResponse {
 }
 
 describe('Page Facet writes', () => {
+  test('Task creation, Section moves and recurrence keep their independent Facet', async () => {
+    const [owner, viewer, stranger] = await cast.of(app)
+    if (!owner || !viewer || !stranger) throw new Error('Missing test actors')
+    const made = await owner.browser.json('/folders', 'POST', { name: 'pf671 task views', kind: 'work' })
+    expectStatus(made, 201, 'root Page')
+    const pageId = (made.json() as { id: string }).id
+    const added = await owner.browser.json(`/pages/${pageId}/facets`, 'POST', { name: 'Notes' })
+    expectStatus(added, 201, 'independent Facet')
+    const facetId = (added.json() as FacetResponse).facets.find((facet) => facet.content_page_id === null)!.id
+    const endpoint = `/pages/${pageId}/facets/${facetId}/document`
+    const empty = (await owner.browser.json(endpoint, 'GET')).json() as { revision: string }
+    const sectionId = crypto.randomUUID()
+    expectStatus(await owner.browser.json(`${endpoint}/actions`, 'POST', {
+      action: 'document_transaction', mutation_id: crypto.randomUUID(), base_revision: empty.revision,
+      operations: [
+        { op: 'put_block', id: sectionId, block_kind: 'section', text: 'Facet Section', rich_content: null,
+          file_id: null, ref_folder_id: null, width_pct: null },
+        { op: 'set_outline', items: [{ kind: 'block', id: sectionId, section_block_id: null, list_parent_block_id: null }] },
+      ],
+    }), 200, 'Board Section uses the Facet document')
+    const created = await owner.browser.json('/tasks', 'POST', {
+      folder_id: pageId, page_facet_id: facetId, title: 'Facet calendar task',
+      due_date: '2099-01-01', recurrence_rule: 'FREQ=DAILY',
+    })
+    expectStatus(created, 201, 'Calendar creates inside the selected Facet')
+    const taskId = (created.json() as { id: string }).id
+    expectStatus(await owner.browser.json(`/tasks/${taskId}`, 'PATCH', { section_block_id: sectionId }),
+      200, 'Board moves inside the Facet Section')
+    const main = (await owner.browser.json(`/folders/${pageId}/page`, 'GET')).json() as { items: { id: string }[] }
+    expect(main.items.some((item) => item.id === taskId || item.id === sectionId)).toBe(false)
+    const complete = await owner.browser.json(`/tasks/${taskId}/complete?tz=UTC`, 'POST', {})
+    expectStatus(complete, 200, 'complete repeating Task')
+    const successors = await rows(app.db, sql`
+      SELECT page_facet_id, section_block_id FROM tasks
+       WHERE folder_id = ${pageId}::uuid AND id <> ${taskId}::uuid AND deleted_at IS NULL`)
+    expect(successors).toEqual([{ page_facet_id: facetId, section_block_id: sectionId }])
+    const otherFacet = await owner.browser.json(`/pages/${pageId}/facets`, 'POST', { name: 'Other' })
+    const otherId = (otherFacet.json() as FacetResponse).facets.find((facet) => facet.name === 'Other')!.id
+    expectStatus(await owner.browser.json('/tasks', 'POST', {
+      folder_id: pageId, page_facet_id: otherId, section_block_id: sectionId, title: 'Wrong Section',
+    }), 422, 'reject a Section from a sibling Facet')
+    expectStatus(await owner.browser.json(`/tasks/${taskId}`, 'PATCH', { section_block_id: null }),
+      200, 'move to the same Facet root')
+    expectStatus(await owner.browser.json(`/pages/${pageId}/facets/${otherId}`, 'DELETE'), 200, 'Trash empty Facet')
+    expectStatus(await owner.browser.json('/tasks', 'POST', {
+      folder_id: pageId, page_facet_id: otherId, title: 'Stale Calendar creation',
+    }), 404, 'reject creation in Trash')
+    const elsewhere = await owner.browser.json('/folders', 'POST', { name: 'pf671 elsewhere', kind: 'work' })
+    const elsewhereId = (elsewhere.json() as { id: string }).id
+    expectStatus(await owner.browser.json('/tasks', 'POST', {
+      folder_id: elsewhereId, page_facet_id: facetId, title: 'Wrong Page',
+    }), 404, 'reject a Facet from another Page')
+    await connect(app.db, owner.id, viewer.id)
+    await addMemberOk(owner, pageId, viewer.id, 'can_view')
+    expectStatus(await viewer.browser.json('/tasks', 'POST', {
+      folder_id: pageId, page_facet_id: facetId, title: 'Viewer creation',
+    }), 403, 'viewer cannot create')
+    expectStatus(await stranger.browser.json('/tasks', 'POST', {
+      folder_id: pageId, page_facet_id: facetId, title: 'Outsider creation',
+    }), 404, 'outsider cannot create')
+  }, 60_000)
+
   test('create, rename and reorder on nested Pages without moving Page content', async () => {
     const [owner, viewer, stranger] = await cast.of(app)
     if (!owner || !viewer || !stranger) throw new Error('Missing test actors')
@@ -209,6 +271,7 @@ describe('Page Facet writes', () => {
       SELECT count(*)::int AS amount FROM page_blocks b JOIN page_facets pf
         ON pf.content_folder_id = b.folder_id
        WHERE b.page_facet_id IS DISTINCT FROM pf.id
+          AND b.folder_id IN (${rootId}::uuid, ${childId}::uuid)
          AND b.text IS DISTINCT FROM 'pf671 Notes draft'
     `)).toEqual([{ amount: 0 }])
   }, 60_000)

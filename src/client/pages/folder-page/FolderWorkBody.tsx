@@ -121,6 +121,7 @@ export function FolderWorkBody({
           <Suspense fallback={null}>
             {activePage.data && completedReady && hasTasks && workView === 'calendar' ? <WorkCalendar
               folderId={id}
+              {...(facetId === null ? {} : { facetId })}
               tasks={[...shownOpen, ...shownCompleted]}
               filter={taskFilter}
               context={context}
@@ -130,6 +131,7 @@ export function FolderWorkBody({
               tasks={shownOpen}
               completed={shownCompleted}
               folderId={id}
+              {...(facetId === null ? {} : { facetId })}
               filter={taskFilter}
               context={context}
               actions={actions}

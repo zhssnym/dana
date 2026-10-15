@@ -56,11 +56,12 @@ export function BoardGroupControl({ group, onChange }: {
   </DropdownMenu>
 }
 
-export function WorkBoard({ page, tasks, completed, folderId, filter, context, actions, canCreate, canEdit, group }: {
+export function WorkBoard({ page, tasks, completed, folderId, facetId, filter, context, actions, canCreate, canEdit, group }: {
   page: PageView
   tasks: readonly TaskCard[]
   completed: readonly TaskCard[]
   folderId: string
+  facetId?: string
   filter: TaskFilter
   context: RowContext
   actions: RowActions
@@ -71,6 +72,8 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
   const create = useCreateTask()
   const wearFilterLabel = useWearFilterLabel(folderId)
   const queryClient = useQueryClient()
+  const documentPath = facetId === undefined ? `/folders/${folderId}/page` : `/pages/${folderId}/facets/${facetId}/document`
+  const documentKey = facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.pageFacetDocument(folderId, facetId)
   const sectionZones = useRef(new Map<string, HTMLElement>())
   const [naming, setNaming] = useState<string | null>(null)
   const [name, setName] = useState('')
@@ -88,13 +91,13 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
     setPending({ id, title, parentId })
     try {
       const body = appendSection(page, id, title, parentId)
-      const next = await mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body })
-      queryClient.setQueryData(queryKeys.folderPage(folderId), next)
+      const next = await mutateApi(getPageResponse, { method: 'POST', path: `${documentPath}/actions`, body })
+      queryClient.setQueryData(documentKey, next)
       setName('')
       setNaming(null)
     } catch {
       setSectionError('Could not create the Section. Try again.')
-      void queryClient.invalidateQueries({ queryKey: queryKeys.folderPage(folderId) })
+      void queryClient.invalidateQueries({ queryKey: documentKey })
     } finally { setPending(null) }
   }
   const rows = useMemo(() => {
@@ -178,11 +181,11 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
     setReordering(true)
     try {
       const body = reorderRootSection(page, source.key, target.key)
-      const next = await mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body })
-      queryClient.setQueryData(queryKeys.folderPage(folderId), next)
+      const next = await mutateApi(getPageResponse, { method: 'POST', path: `${documentPath}/actions`, body })
+      queryClient.setQueryData(documentKey, next)
     } catch {
       setReorderError('Could not move the Section. Try again.')
-      void queryClient.invalidateQueries({ queryKey: queryKeys.folderPage(folderId) })
+      void queryClient.invalidateQueries({ queryKey: documentKey })
     } finally { setReordering(false) }
   }
   const sectionDrag = useSortableList({
@@ -316,7 +319,7 @@ export function WorkBoard({ page, tasks, completed, folderId, filter, context, a
         const target = captureOf(column.key)
         if (target === null) return null
         return <BoardQuickAdd label={`New task in ${column.label}`} onAdd={(title) => create.mutate(
-          { title, folder_id: folderId, ...target },
+          { title, folder_id: folderId, ...(facetId === undefined ? {} : { page_facet_id: facetId }), ...target },
           { onSuccess: (task) => wearFilterLabel(task.id, filter.label) },
         )} />
       }}
