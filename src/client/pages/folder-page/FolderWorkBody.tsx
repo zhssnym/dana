@@ -33,6 +33,7 @@ export function FolderWorkBody({
   id,
   facetId,
   facetPage,
+  universal = false,
   kind,
   tabs,
   open,
@@ -57,6 +58,7 @@ export function FolderWorkBody({
 }: {
   readonly id: string
   readonly facetId: string | null
+  readonly universal?: boolean
   readonly facetPage: UseQueryResult<GetPageResponse>
   readonly kind: PageKind | null
   readonly tabs: readonly Folder[]
@@ -87,10 +89,10 @@ export function FolderWorkBody({
   )
   const shownOpen = scoped ? openRows.filter((task) => taskIds.has(task.id)) : openRows
   const shownCompleted = scoped ? completedRows.filter((task) => taskIds.has(task.id)) : completedRows
-  const hasTasks = kind === 'work' || scoped
+  const hasTasks = universal || kind === 'work' || scoped
   return (
     <div className="space-y-2">
-      <PageSection name={scoped ? 'Facet' : kind === 'doc' ? 'Doc' : 'Work'}>
+      <PageSection name={universal || scoped ? 'Facet' : kind === 'doc' ? 'Doc' : 'Work'}>
         {hasTasks && taskFilterActive(taskFilter) ? (
           <div className="-mt-2 mb-2">
             <TaskFilterChips
