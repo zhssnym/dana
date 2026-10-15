@@ -32,6 +32,8 @@ test('topics and article contents support direct navigation', async ({ page }) =
     .getByRole('link', { name: 'Choose dates' }).click()
   await expect(page).toHaveURL(/#choose-dates$/)
   await expect(page.locator('#choose-dates')).toBeVisible()
+  await page.getByRole('link', { name: 'Search help' }).click()
+  await expect(page.getByRole('searchbox', { name: 'Search help articles' })).toBeFocused()
 })
 
 test('article navigation stays usable on a narrow screen', async ({ page }) => {
