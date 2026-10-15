@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { TOPICS } from './topics.mjs'
 
 const ARTICLES = fileURLToPath(new URL('../../src/client/help/articles/', import.meta.url))
@@ -65,7 +65,7 @@ export function currentArticles() {
   return entries
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   try {
     const docs = checkArticles(currentArticles())
     for (const topic of TOPICS) {
