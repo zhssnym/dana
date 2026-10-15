@@ -25,17 +25,20 @@ export function PageFacetStrip({
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [menu, setMenu] = useState<{ facet: Facet; x: number; y: number } | null>(null)
   const menuFor = useRef<string | null>(null)
+  const fieldOpening = useRef(false)
   // Hooks run before the conditional return, so a one-Facet Page can gain a second.
   if (facets.length < 2) return null
 
   const startRename = (facet: Facet): void => {
     if (!canRename) return
+    fieldOpening.current = true
     setMenu(null)
     setRenamingId(facet.id)
   }
   const openMenu = (facet: Facet, x: number, y: number): void => {
     if (!canRename) return
     menuFor.current = facet.id
+    fieldOpening.current = false
     setMenu({ facet, x, y })
   }
 
@@ -91,10 +94,13 @@ export function PageFacetStrip({
           style={{ position: 'fixed', left: menu?.x ?? 0, top: menu?.y ?? 0, width: 0, height: 0 }}
         />
         <DropdownMenuContent align="start" className="w-auto" finalFocus={() => {
-          if (renamingId !== null) return false
-          return globalThis.document.querySelector<HTMLElement>(
-            '[role="tab"][aria-selected="true"]',
-          ) ?? true
+          if (fieldOpening.current) return false
+          const target = menuFor.current
+          return (target === null ? null : Array.from(
+            globalThis.document.querySelectorAll<HTMLElement>('[role="tab"]'),
+          ).find((tab) => tab.textContent === facets.find((facet) => facet.id === target)?.name))
+            ?? globalThis.document.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+            ?? true
         }}>
           {menu === null ? null : (
             <DropdownMenuItem onClick={() => startRename(menu.facet)}>Rename</DropdownMenuItem>
