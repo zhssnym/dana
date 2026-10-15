@@ -12,11 +12,11 @@ export async function pageFacetsOf(db: Executor, pageId: string): Promise<GetPag
       FROM folders p
       LEFT JOIN page_facets pf
         ON pf.page_id = p.id
-       AND EXISTS (
+       AND (pf.content_folder_id IS NULL OR EXISTS (
          SELECT 1 FROM folders content
           WHERE content.id = pf.content_folder_id
             AND content.deleted_at IS NULL AND content.archived_at IS NULL
-       )
+       ))
      WHERE p.id = ${pageId}::uuid
      ORDER BY pf.position COLLATE "C", pf.id
   `)
@@ -28,7 +28,7 @@ export async function pageFacetsOf(db: Executor, pageId: string): Promise<GetPag
       id: String(row.id),
       name: String(row.name),
       position: String(row.position),
-      content_page_id: String(row.content_page_id),
+      content_page_id: row.content_page_id == null ? null : String(row.content_page_id),
     }]),
   }
 }
