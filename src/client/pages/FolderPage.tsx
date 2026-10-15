@@ -126,7 +126,7 @@ function FolderPageBody({
   const activeOpen = independentFacetId !== null && facetOwnerId !== id ? independentOpen : open
   const basis = useRowBasis()
   const [taskFilter, setTaskFilter] = useTaskFilter(id)
-  const labelDefinitions = useLabels(id, 'all', folderOk && kind === 'work')
+  const labelDefinitions = useLabels(activeContentId, 'all', folderOk && (kind === 'work' || rootFacetPage))
   const [workView] = useCurrentWorkView()
   const [boardGroup, setBoardGroup] = useState<WorkGroup>('section')
   const actions = useRowActions()
@@ -152,7 +152,7 @@ function FolderPageBody({
   const scheduled = activeOpen.data?.scheduled ?? []
   const unscheduled = activeOpen.data?.unscheduled ?? []
   const { openRows, completedReady, completedRows, filterRows } = useFolderRows({
-    id: activeContentId, writes, kind: independentFacetId === null ? kind : 'work', workView, scheduled, unscheduled,
+    id: activeContentId, writes, kind: rootFacetPage || independentFacetId !== null ? 'work' : kind, workView, scheduled, unscheduled,
     items: independentFacetId === null ? page.data?.items : independentPage.data?.items,
   })
   const context: RowContext = {
@@ -287,7 +287,7 @@ function FolderPageBody({
     }
   }
   const { filterPeople, filterLabels, filteringTasks, canCreateInFilter } = useTaskFilterOptions({
-    members, filterRows, labels: labelDefinitions.data, taskFilter, kind, gates,
+    members, filterRows, labels: labelDefinitions.data, taskFilter, kind: rootFacetPage ? 'work' : kind, gates,
   })
   /* The Desk's row is drawn even with Work alone, so its "+" can add a Doc
      back after the last one went to Trash. */
@@ -422,7 +422,7 @@ function FolderPageBody({
             alwaysShow={rootFacetPage}
             canReorder={canReorderFacet}
             onReorder={(order) => { void reorderFacets(order) }}
-            {...(rootFacetPage && (kind === 'work' || independentFacetId !== null)
+            {...(rootFacetPage
               ? { tools: <FolderWorkTools
                   taskFilter={taskFilter} setTaskFilter={setTaskFilter}
                   people={filterPeople} labels={filterLabels}
@@ -451,6 +451,7 @@ function FolderPageBody({
         ) : (
           <FolderWorkBody
             id={activeContentId}
+            universal={rootFacetPage}
             facetId={independentFacetId}
             facetPage={independentPage}
             kind={kind}
