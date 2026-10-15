@@ -1,5 +1,7 @@
 import { Buffer } from 'node:buffer'
 
+import { isCompletedHelpAudit } from './readiness.mjs'
+
 const repo = process.env.GITHUB_REPOSITORY
 const token = process.env.GITHUB_TOKEN
 if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error('GITHUB_REPOSITORY is required')
@@ -32,7 +34,7 @@ const CHECK = 'Dana Help Audit'
 export async function hasHelpCheck(sha) {
   const result = await github('/repos/' + repo + '/commits/' + sha +
     '/check-runs?check_name=' + encodeURIComponent(CHECK) + '&per_page=10')
-  return result.check_runs?.some((run) => run.name === CHECK && run.status === 'completed') ?? false
+  return result.check_runs?.some(isCompletedHelpAudit) ?? false
 }
 
 export async function recordHelpCheck(sha, conclusion, summary) {
