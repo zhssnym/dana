@@ -25,4 +25,5 @@ test('maps changes to existing guides and preserves unknown areas for review', (
   assert.ok(impact.slugs.includes('schedule-a-task'))
   assert.deepEqual(impact.changedTests, ['tests/e2e/task-schedule.spec.ts'])
   assert.deepEqual(impact.unmatched, ['src/client/brand-new-feature.tsx'])
+  assert.deepEqual(impactedHelp(['src/client/help/articles/schedule-a-task.md']).codePaths, [])
 })
