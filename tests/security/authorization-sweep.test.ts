@@ -615,6 +615,19 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'POST /api/v1/pages/:id/facets/:facetId/document/actions',
+    {
+      attempt: (fx) => ({
+        path: `/pages/${fx.folderId}/facets/${fx.tabId}/document/actions`,
+        body: { action: 'document_transaction', mutation_id: crypto.randomUUID(), base_revision: 'unknown', operations: [] },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '#671 and 10.2: an outsider cannot learn whether a Facet document can be edited.',
+      },
+    },
+  ],
+  [
     'POST /api/v1/pages/:id/facets',
     {
       attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets`, body: { name: 'Private attempt' } }),
