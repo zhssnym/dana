@@ -20,7 +20,8 @@
     "e2e:app:prebuilt": "tsx db/seed.ts && tsx src/server/index.ts",
     "e2e:install": "playwright install chromium",
     "db:seed": "tsx db/seed.ts",
-    "help:check": "node scripts/help/check.mjs && node --test scripts/help/check.test.mjs"
+    "help:check": "node scripts/help/check.mjs && node --test scripts/help/check.test.mjs",
+    "updates:check": "node scripts/updates/check.mjs && node --test scripts/updates/check.test.mjs"
   },
   "dependencies": {
     "@animateicons/react": "^0.4.3",
