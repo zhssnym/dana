@@ -33,6 +33,8 @@ import {
 import { cn } from '../components/ui/utils.js'
 import { ChevronDown, History, MoreHorizontal, Pencil, Maximize2 } from '../lib/icons.js'
 import { ProfileContentArea } from './ProfileContentArea.js'
+import { ProfileTabs } from './ProfileTabs.js'
+import { ContributionActivity } from './ContributionActivity.js'
 import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
 import type { ConfirmLabels } from './task-rows.js'
@@ -114,9 +116,22 @@ export function MemberDetails({
           <Heading className={cn('font-title text-foreground', fullPage
             ? 'break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)]'
             : 'truncate text-sm')}>{name}</Heading>
-          {fullPage ? <p className="mt-0.5 text-xs text-muted-foreground">Project teammate</p> : null}
+          <div className="flex flex-wrap items-center gap-[var(--space-inline)] text-xs text-muted-foreground">
+            <AccessMenu folderId={folderId} userId={userId} access={member.access}
+              mayChange={member.viewer_may_change_access} self={userId === viewerId} ask={ask} size="sm"/>
+            <span>Joined {formatRelativeDay(member.joined_at, presenterToday())}</span>
+          </div>
+          {member.viewer_may_change_self_edit_grant ? (
+            <label className="flex cursor-pointer items-center gap-2 py-1 text-xs text-muted-foreground">
+              <Checkbox checked={member.can_edit_own_responsibilities} disabled={grant.isPending}
+                onCheckedChange={(checked) => grant.mutate({folderId,userId,enabled:checked})}/>
+              Can edit their own responsibilities
+            </label>
+          ) : member.can_edit_own_responsibilities ? (
+            <p className="text-xs text-muted-foreground">Can edit their own responsibilities</p>
+          ) : null}
         </div>
-        <div className="flex shrink-0 items-center gap-1" aria-label="Profile actions">
+        <div className="flex w-full shrink-0 items-center justify-end gap-1 sm:w-auto" aria-label="Profile actions">
           <DirectMessageButton folderId={folderId} memberId={userId} memberName={name} memberImage={member.user.avatar_url}/>
           {onOpenFullPage ? (
             <Button variant="ghost" size="icon" aria-label="Open in full page" title="Open in full page"
@@ -194,66 +209,46 @@ export function MemberDetails({
           </ul>
         </section>
       ) : (
-        <>
-          <section aria-label="In this project" className="space-y-[var(--space-group)]">
-            <h2 className={HEADING}>In this project</h2>
-            <div className="space-y-[var(--space-group)] border-t border-border/70 pt-[var(--space-inline)]">
-              <div className="space-y-1">
-                <div className="flex min-h-[var(--row-height)] items-center gap-2">
-                  <span className="min-w-0 flex-1 text-sm text-muted-foreground">Authorities</span>
-                  <AccessMenu folderId={folderId} userId={userId} access={member.access}
-                    mayChange={member.viewer_may_change_access} self={userId === viewerId} ask={ask}/>
-                </div>
-                <p className="text-xs leading-relaxed text-muted-foreground">{ACCESS_SCOPE[member.access]}</p>
-                {member.viewer_may_change_self_edit_grant ? (
-                  <label className="flex cursor-pointer items-center gap-2 py-1 text-xs text-muted-foreground">
-                    <Checkbox checked={member.can_edit_own_responsibilities} disabled={grant.isPending}
-                      onCheckedChange={(checked) => grant.mutate({folderId,userId,enabled:checked})}/>
-                    Can edit their own responsibilities
-                  </label>
-                ) : member.can_edit_own_responsibilities ? (
-                  <p className="text-xs text-muted-foreground">Can edit their own responsibilities</p>
-                ) : null}
-                <div className="flex min-h-[var(--row-height)] items-center gap-2 text-sm">
-                  <span className="min-w-0 flex-1 text-muted-foreground">Joined</span>
-                  <span className="text-foreground">{formatRelativeDay(member.joined_at, presenterToday())}</span>
-                </div>
-              </div>
-              <Responsibilities folderId={folderId} userId={userId}
-                content={member.responsibility.content} revision={member.responsibility.revision}
-                mayEdit={member.viewer_may_edit_responsibility}
-                onStale={() => {void details.refetch()}}/>
+        <ProfileTabs key={`${folderId}:${userId}`} folderId={folderId} userId={userId} viewerId={viewerId}
+          canManageProject={member.viewer_may_change_access} ask={ask}
+          migrationFallback={<div className="space-y-[var(--space-group)]">
+            <Responsibilities folderId={folderId} userId={userId}
+              content={member.responsibility.content} revision={member.responsibility.revision}
+              mayEdit={member.viewer_may_edit_responsibility}
+              onStale={() => {void details.refetch()}}/>
+            <ProfileContentArea folderId={folderId} userId={userId} area="project"
+              standing={{ ...member.profile_project, may_edit: false }} names={member.profile_file_names}
+              canUploadFile={false} canUploadImage={false} onSaved={() => details.refetch()}/>
+            <ProfileContentArea folderId={folderId} userId={userId} area="shared"
+              standing={{ ...member.profile_shared, may_edit: false }} names={member.profile_file_names}
+              canUploadFile={false} canUploadImage={false} onSaved={() => details.refetch()}/>
+          </div>}
+          overview={<div className="space-y-[var(--space-group)]">
+            <Responsibilities folderId={folderId} userId={userId}
+              content={member.responsibility.content} revision={member.responsibility.revision}
+              mayEdit={member.viewer_may_edit_responsibility}
+              onStale={() => {void details.refetch()}}/>
+            <ContributionActivity folderId={folderId} userId={userId}/>
+            {member.legacy_bio ? <section aria-label="Earlier project bio" className="space-y-[var(--space-inline)]">
+              <h3 className={HEADING}>Earlier project bio</h3>
+              <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+                {member.legacy_bio.content === null ? member.legacy_bio.text : <Runs content={member.legacy_bio.content}/>}
+              </p>
+              {member.legacy_bio.author || member.legacy_bio.last_editor ? <p className="text-xs text-muted-foreground">
+                {member.legacy_bio.author ? `Written by ${member.legacy_bio.author.display_name ?? 'Someone'}` : null}
+                {member.legacy_bio.last_editor && member.legacy_bio.last_editor.id !== member.legacy_bio.author?.id
+                  ? `${member.legacy_bio.author ? ' · ' : ''}Edited by ${member.legacy_bio.last_editor.display_name ?? 'Someone'}` : null}
+              </p> : null}
+            </section> : null}
+            {member.profile_project.content.blocks.some((block) => block.kind === 'file' || block.kind === 'image') ?
               <ProfileContentArea folderId={folderId} userId={userId} area="project"
-                standing={member.profile_project} names={member.profile_file_names}
-                canUploadFile={member.profile_may_upload_file} canUploadImage={member.profile_may_upload_image}
-                onSaved={() => details.refetch()}/>
-            </div>
-          </section>
-          <section aria-label="About the person" className="space-y-[var(--space-group)]">
-            <h2 className={HEADING}>About the person</h2>
-            <div className="space-y-[var(--space-group)] border-t border-border/70 pt-[var(--space-inline)]">
-              {member.legacy_bio ? (
-                <section aria-label="Earlier project bio" className="space-y-[var(--space-inline)]">
-                  <h3 className={HEADING}>Earlier project bio</h3>
-                  <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
-                    {member.legacy_bio.content === null ? member.legacy_bio.text : <Runs content={member.legacy_bio.content}/>}
-                  </p>
-                  {member.legacy_bio.author || member.legacy_bio.last_editor ? (
-                    <p className="text-xs text-muted-foreground">
-                      {member.legacy_bio.author ? `Written by ${member.legacy_bio.author.display_name ?? 'Someone'}` : null}
-                      {member.legacy_bio.last_editor && member.legacy_bio.last_editor.id !== member.legacy_bio.author?.id
-                        ? `${member.legacy_bio.author ? ' · ' : ''}Edited by ${member.legacy_bio.last_editor.display_name ?? 'Someone'}` : null}
-                    </p>
-                  ) : null}
-                </section>
-              ) : null}
+                standing={{ ...member.profile_project, may_edit: false }} names={member.profile_file_names}
+                canUploadFile={false} canUploadImage={false} onSaved={() => details.refetch()}/> : null}
+            {member.profile_shared.content.blocks.some((block) => block.kind === 'file' || block.kind === 'image') ?
               <ProfileContentArea folderId={folderId} userId={userId} area="shared"
-                standing={member.profile_shared} names={member.profile_file_names}
-                canUploadFile={member.profile_may_upload_file} canUploadImage={member.profile_may_upload_image}
-                onSaved={() => details.refetch()}/>
-            </div>
-          </section>
-        </>
+                standing={{ ...member.profile_shared, may_edit: false }} names={member.profile_file_names}
+                canUploadFile={false} canUploadImage={false} onSaved={() => details.refetch()}/> : null}
+          </div>}/>
       )}
     </div>
   )
@@ -286,9 +281,15 @@ export function AccessMenu({
   const label = FOLDER_ACCESS_LABELS[access]
   if (!mayChange && onRemove === undefined) {
     return (
-      <span className={cn('shrink-0 text-muted-foreground', size === 'sm' ? 'px-1.5 text-xs' : 'text-sm')}>
-        {label}
-      </span>
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<Button variant="ghost" size={size} className="font-normal text-muted-foreground"/>}
+          aria-label={`Access: ${label}`}>
+          {label}<ChevronDown strokeWidth={1.75} aria-hidden="true"/>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-48">
+          <p className="px-2 py-1 text-xs text-muted-foreground">{ACCESS_SCOPE[access]}</p>
+        </DropdownMenuContent>
+      </DropdownMenu>
     )
   }
   return (
@@ -307,6 +308,7 @@ export function AccessMenu({
         <ChevronDown strokeWidth={1.75} aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
+        <p className="px-2 py-1 text-xs text-muted-foreground">{ACCESS_SCOPE[access]}</p>
         {mayChange ? (
           <DropdownMenuRadioGroup
             value={access}
@@ -403,6 +405,7 @@ function Responsibilities({
 }): React.JSX.Element {
   const save = useSaveResponsibility()
   const [editing, setEditing] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const empty = content === null || content.blocks.length === 0
 
   return (
@@ -439,7 +442,7 @@ function Responsibilities({
         <p className="text-sm text-muted-foreground">No responsibilities yet.</p>
       ) : (
         <div className="space-y-1 text-sm leading-relaxed text-foreground">
-          {content.blocks.map((block, index) =>
+          {(expanded ? content.blocks : content.blocks.slice(0, 3)).map((block, index) =>
             block.kind === 'heading' ? (
               <p key={index} className="pt-1 font-medium"><Runs content={block.content}/></p>
             ) : block.kind === 'bullet' ? (
@@ -450,6 +453,10 @@ function Responsibilities({
               </p>
             ) : <p key={index} className="break-words"><Runs content={block.content}/></p>
           )}
+          {content.blocks.length > 3 ? <Button variant="ghost" size="sm"
+            onClick={() => setExpanded((value) => !value)}>
+            {expanded ? 'Show less' : 'Show all responsibilities'}
+          </Button> : null}
         </div>
       )}
     </section>

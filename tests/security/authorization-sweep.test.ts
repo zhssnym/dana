@@ -612,6 +612,13 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'GET /api/v1/folders/:id/members/:userId/contribution-activity',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/members/${fx.member.id}/contribution-activity` }),
+      stranger: { expected: 404, rule: '#669: a non-member cannot inspect contribution activity' },
+    },
+  ],
+  [
     'GET /api/v1/folders/:id/members/:userId/profile-docs',
     {
       attempt: (fx) => ({ path: `/folders/${fx.folderId}/members/${fx.member.id}/profile-docs` }),
@@ -627,11 +634,34 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'POST /api/v1/folders/:id/members/:userId/profile-docs/migrate',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/members/${fx.member.id}/profile-docs/migrate`,
+        body: {} }),
+      stranger: { expected: 404, rule: '#667: a non-member cannot migrate profile writing' },
+    },
+  ],
+  [
+    'GET /api/v1/folders/:id/members/:userId/profile-docs/:rootId/sharing',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/members/${fx.member.id}/profile-docs/${fx.profileRootId}/sharing` }),
+      stranger: { expected: 404, rule: '#668: a non-member cannot read profile Doc grants' },
+    },
+  ],
+  [
     'PATCH /api/v1/folders/:id/members/:userId/profile-docs/:rootId/audience',
     {
       attempt: (fx) => ({ path: `/folders/${fx.folderId}/members/${fx.member.id}/profile-docs/${fx.profileRootId}/audience`,
         body: { audience: 'project_members', grants: [] } }),
       stranger: { expected: 404, rule: '#666: a non-member cannot change a root audience' },
+    },
+  ],
+  [
+    'PATCH /api/v1/folders/:id/members/:userId/profile-docs/:rootId/position',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/members/${fx.member.id}/profile-docs/${fx.profileRootId}/position`,
+        body: { before_id: null, after_id: null } }),
+      stranger: { expected: 404, rule: '#668: a non-member cannot reorder a profile Doc' },
     },
   ],
   [

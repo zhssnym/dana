@@ -179,6 +179,7 @@ describe('account deletion sweeps every inert cascade on users(id)', () => {
       retained.map((entry) => entry.fk),
       'Every retained key must have an argument in 8.10 and its disposition beside the deletion code.',
     ).toEqual([
+      'profile_doc_migrations_editor_fkey',
       'member_profile_sections_editor_fkey',
       'folders_archived_by_fkey',
       'folder_members_bio_author_id_fkey',

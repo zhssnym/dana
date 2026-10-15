@@ -562,8 +562,14 @@ export async function exportForViewer(
       JOIN folders f ON f.id = s.project_id
       JOIN users u ON u.id = s.member_id
       LEFT JOIN users editor ON editor.id = s.updated_by
-     WHERE (s.member_id = ${viewerId}::uuid AND s.area = 'shared')
-        OR (f.owner_id = ${viewerId}::uuid AND s.area = 'project')
+     WHERE ((s.member_id = ${viewerId}::uuid AND s.area = 'shared')
+        OR (f.owner_id = ${viewerId}::uuid AND s.area = 'project'))
+       AND NOT EXISTS (SELECT 1 FROM profile_doc_migrations migration
+         JOIN folders root ON root.id = migration.root_folder_id
+           AND root.deleted_at IS NULL
+         WHERE migration.source_project_id = s.project_id
+           AND migration.source_member_id = s.member_id
+           AND migration.source_area = s.area)
      ORDER BY f.name, s.project_id, s.member_id, s.area
      LIMIT ${FETCH}
   `)

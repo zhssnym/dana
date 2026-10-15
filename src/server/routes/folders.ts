@@ -79,8 +79,10 @@ import {
 import { readFolderDependencies } from '../domain/task-dependencies.js'
 import { profileArea, putProfileContentBody } from '../../shared/member-profile.js'
 import { profileSectionsOf, writeProfileSection } from '../domain/member-profile.js'
-import { patchProfileDocAudienceBody, postProfileDocBody } from '../../shared/profile-docs.js'
-import { changeProfileDocAudience, createProfileDoc, listProfileDocs } from '../domain/profile-docs.js'
+import { patchProfileDocAudienceBody, patchProfileDocPositionBody, postProfileDocBody } from '../../shared/profile-docs.js'
+import { changeProfileDocAudience, createProfileDoc, getProfileDocSharing, listProfileDocs, moveProfileDoc } from '../domain/profile-docs.js'
+import { migrateLegacyProfileWriting } from '../domain/legacy-profile-migration.js'
+import { contributionActivity } from '../domain/contribution-activity.js'
 import type { GetFolderDependenciesResponse } from '../../shared/task-dependencies.js'
 import { inTransaction } from '../database.js'
 import { moveFolder, visibleAncestors } from '../domain/page-tree.js'
@@ -903,6 +905,19 @@ export function createFoldersRouter(
       res.status(200).json({ roots })
     })
 
+  router.get('/folders/:id/members/:userId/contribution-activity', requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const ids = memberOfPath(req, res)
+      if (ids === null || (await gate(req, res, ids.folderId, 'folder.read')) === null) return
+      const projectId = await projectFor(db, res, ids.folderId)
+      if (projectId === null) return
+      const activity = await contributionActivity(db, viewer(req), projectId, ids.memberId)
+      if (activity === null) { sendError(res, 404, 'not_found', 'Not found.'); return }
+      res.status(200).json(activity)
+    })
+
   router.post('/folders/:id/members/:userId/profile-docs', requireSession,
     requireCsrf, mutationLimit, async (req: Request, res: Response) => {
       const db = database(res)
@@ -920,6 +935,33 @@ export function createFoldersRouter(
         sendError(res, 403, 'forbidden', 'You cannot create this profile Doc.'); return
       }
       res.status(201).json({ id: result.id })
+    })
+
+  router.post('/folders/:id/members/:userId/profile-docs/migrate', requireSession,
+    requireCsrf, mutationLimit, async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const ids = memberOfPath(req, res)
+      if (ids === null || (await gate(req, res, ids.folderId, 'folder.read')) === null) return
+      const projectId = await projectFor(db, res, ids.folderId)
+      if (projectId === null) return
+      const result = await migrateLegacyProfileWriting(db, viewer(req), projectId, ids.memberId)
+      res.status(200).json(result)
+    })
+
+  router.get('/folders/:id/members/:userId/profile-docs/:rootId/sharing', requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const ids = memberOfPath(req, res)
+      if (ids === null || (await gate(req, res, ids.folderId, 'folder.read')) === null) return
+      const rootId = parsedId(res, req.params.rootId)
+      if (rootId === null) return
+      const projectId = await projectFor(db, res, ids.folderId)
+      if (projectId === null) return
+      const sharing = await getProfileDocSharing(db, viewer(req), projectId, ids.memberId, rootId)
+      if (sharing === null) { sendError(res, 404, 'not_found', 'Not found.'); return }
+      res.status(200).json(sharing)
     })
 
   router.patch('/folders/:id/members/:userId/profile-docs/:rootId/audience', requireSession,
@@ -942,6 +984,30 @@ export function createFoldersRouter(
       }
       if (result === 'invalid_person') {
         sendError(res, 422, 'validation_failed', 'A selected person is unavailable.'); return
+      }
+      res.status(204).end()
+    })
+
+  router.patch('/folders/:id/members/:userId/profile-docs/:rootId/position', requireSession,
+    requireCsrf, mutationLimit, async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const ids = memberOfPath(req, res)
+      if (ids === null || (await gate(req, res, ids.folderId, 'folder.read')) === null) return
+      const rootId = parsedId(res, req.params.rootId)
+      if (rootId === null) return
+      const body = parseBody(patchProfileDocPositionBody, req, res, securityLog)
+      if (body === null) return
+      const projectId = await projectFor(db, res, ids.folderId)
+      if (projectId === null) return
+      const result = await moveProfileDoc(db, viewer(req), projectId, ids.memberId,
+        rootId, body.before_id, body.after_id)
+      if (result === 'not_found') { sendError(res, 404, 'not_found', 'Not found.'); return }
+      if (result === 'forbidden') {
+        sendError(res, 403, 'forbidden', 'You cannot reorder this profile Doc.'); return
+      }
+      if (result === 'invalid_order') {
+        sendError(res, 422, 'validation_failed', 'The tab order changed. Load it again.'); return
       }
       res.status(204).end()
     })

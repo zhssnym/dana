@@ -77,8 +77,11 @@ content; only the named member edits their own Shared content. Files remain
 canonical Dana files; inserting a reference changes no source permission.
 Uploads still require the underlying file upload authority. No privacy toggle
 exists here, and no profile reference may expose a resource from another project.
-Leaving ends the membership-scoped profile content without deleting the source
-files or Docs. Neither area is a public personal feed.
+Leaving makes the old profile unavailable, but keeps both writing records and
+their revisions. The person can export Shared content. The project owner can
+export Project content. Source files keep their project access rules. Account
+deletion removes Shared content and keeps Project content with the project.
+Neither area is a public personal feed.
 
 Profile Docs are separate native Doc roots. A person-owned root remains with its
 owner after they leave a project. A project-managed root remains with its project.
@@ -310,6 +313,10 @@ Trash:
 - After 30 days the scheduler purges the item. A page purge removes its members, tasks,
   checklists, Today entries, reminders, `pending` invites and files. File bytes go after commit.
 - Dana purges events after 90 days.
+- Contribution activity uses 90 UTC calendar days, including today. It counts
+  recorded task creation and outcomes, comment creation, and page creation, edits and
+  renames in the current Team when the viewer can still open the source. Repeated edits
+  to one page on one day count once. Deleted sources and unsupported events do not count.
 
 Archive:
 

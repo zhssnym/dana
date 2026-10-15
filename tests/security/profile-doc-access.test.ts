@@ -28,6 +28,35 @@ afterAll(async () => {
   await app.close()
 })
 
+test('only a root manager reorders visible profile tabs', async () => {
+  const [manager, person, teammate, outsider] = await cast.of(app) as [Actor, Actor, Actor, Actor]
+  const projectId = await createFolder(manager, 'Profile order')
+  await connect(app.db, manager.id, person.id)
+  await connect(app.db, manager.id, teammate.id)
+  await addMemberOk(manager, projectId, person.id, 'can_view')
+  await addMemberOk(manager, projectId, teammate.id, 'can_view')
+  const path = `/folders/${projectId}/members/${person.id}/profile-docs`
+  const first = await manager.browser.json(path, 'POST', { name: 'First', custody: 'project' })
+  const second = await manager.browser.json(path, 'POST', { name: 'Second', custody: 'project' })
+  expectStatus(first, 201, 'first tab')
+  expectStatus(second, 201, 'second tab')
+  const firstId = (first.json() as { id: string }).id
+  const secondId = (second.json() as { id: string }).id
+  const move = `${path}/${secondId}/position`
+  expectStatus(await outsider.browser.json(move, 'PATCH', {
+    before_id: null, after_id: firstId,
+  }), 404, 'outsider cannot reorder')
+  expectStatus(await teammate.browser.json(move, 'PATCH', {
+    before_id: null, after_id: firstId,
+  }), 403, 'reader cannot reorder')
+  expectStatus(await manager.browser.json(move, 'PATCH', {
+    before_id: null, after_id: firstId,
+  }), 204, 'manager moves a managed tab')
+  expect((await manager.browser.json(path, 'GET')).json()).toMatchObject({
+    roots: [{ id: secondId }, { id: firstId }],
+  })
+})
+
 test('person-owned root, child and file inherit the root audience', async () => {
   const [manager, person, teammate, outsider] = await cast.of(app) as [Actor, Actor, Actor, Actor]
   const projectId = await createFolder(manager, 'Profile audience')
@@ -44,6 +73,10 @@ test('person-owned root, child and file inherit the root audience', async () => 
   })
   expectStatus(created, 201, 'person creates a private Doc')
   const rootId = (created.json() as { id: string }).id
+  expectStatus(await manager.browser.json(`${profilePath}/${rootId}/sharing`, 'GET'), 404,
+    'project manager cannot read personal grants')
+  expect((await person.browser.json(`${profilePath}/${rootId}/sharing`, 'GET')).json())
+    .toEqual({ grants: [] })
   expect((await person.browser.json(profilePath, 'GET')).json()).toMatchObject({
     roots: [{ id: rootId, audience: 'only_me', custody: 'person', may_manage: true }],
   })
@@ -149,6 +182,10 @@ test('person-owned root, child and file inherit the root audience', async () => 
   expectStatus(await person.browser.json(audiencePath, 'PATCH', {
     audience: 'selected_people', grants: [{ user_id: teammate.id, may_edit: false }],
   }), 204, 'person selects a reader')
+  expect((await person.browser.json(`${profilePath}/${rootId}/sharing`, 'GET')).json())
+    .toMatchObject({ grants: [{ user_id: teammate.id, may_edit: false }] })
+  expectStatus(await teammate.browser.json(`${profilePath}/${rootId}/sharing`, 'GET'), 404,
+    'selected reader cannot enumerate grants')
   expectStatus(await teammate.browser.json(`/folders/${childId}/page`, 'GET'), 200, 'selected reader sees child')
   expect(JSON.stringify((await teammate.browser.json('/search?q=Native%20child&tz=UTC', 'GET')).json()))
     .toContain(nativeChildId)

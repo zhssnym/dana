@@ -36,6 +36,9 @@ export const queryKeys = {
   folderMember: (id: string, userId: string) => ['folders', id, 'members', userId] as const,
   folderMemberHistory: (id: string, userId: string) =>
     ['folders', id, 'members', userId, 'history'] as const,
+  profileDocs: (id: string, userId: string) =>
+    ['folders', id, 'members', userId, 'profile-docs'] as const,
+  profilePages: (id: string) => ['folders', id, 'profile-pages'] as const,
   folderDependencies: (id: string) => ['folders', id, 'dependencies'] as const,
   shelfPage: (id: string) => ['shelves', id, 'page'] as const,
   notifications: () => ['notifications'] as const,

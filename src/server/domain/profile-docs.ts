@@ -103,6 +103,62 @@ export async function listProfileDocs(
 
 export type ChangeProfileDocAudienceResult = 'changed' | 'not_found' | 'forbidden' | 'invalid_person'
 
+export async function getProfileDocSharing(
+  db: Db, viewerId: string, projectId: string, personId: string, rootId: string,
+): Promise<{ grants: { user_id: string; may_edit: boolean; display_name: string | null }[] } | null> {
+  const roots = await listProfileDocs(db, viewerId, projectId, personId)
+  if (!roots?.some((root) => root.id === rootId && root.may_manage)) return null
+  const rows = await rowsOf(db, sql`SELECT g.user_id, g.may_edit, u.display_name
+    FROM profile_doc_grants g JOIN users u ON u.id = g.user_id AND u.deleted_at IS NULL
+    WHERE g.root_folder_id = ${rootId}::uuid ORDER BY u.display_name, g.user_id`)
+  return { grants: rows.map((row) => ({
+    user_id: String(row.user_id), may_edit: row.may_edit === true,
+    display_name: row.display_name === null ? null : String(row.display_name),
+  })) }
+}
+
+export async function moveProfileDoc(
+  db: Db,
+  viewerId: string,
+  projectId: string,
+  personId: string,
+  rootId: string,
+  beforeId: string | null,
+  afterId: string | null,
+): Promise<'changed' | 'not_found' | 'forbidden' | 'invalid_order'> {
+  return inTransaction(db, async (tx) => {
+    const project = await rowsOf(tx, liveProject(projectId))
+    if (!project.length) return 'not_found'
+    const members = await currentMembers(tx, projectId, viewerId, personId)
+    if (!members.some((row) => String(row.user_id) === viewerId) ||
+        !members.some((row) => String(row.user_id) === personId)) return 'not_found'
+    const ids = [rootId, beforeId, afterId].filter((id): id is string => id !== null)
+    if (new Set(ids).size !== ids.length) return 'invalid_order'
+    const roots = await rowsOf(tx, sql`SELECT r.root_folder_id, r.tab_position,
+        r.custody_project_id, v.access
+      FROM profile_doc_roots r
+      JOIN folders f ON f.id = r.root_folder_id AND f.deleted_at IS NULL
+      JOIN visible_folder_members v ON v.folder_id = r.root_folder_id
+        AND v.user_id = ${viewerId}::uuid
+      WHERE r.profile_user_id = ${personId}::uuid
+        AND (r.custody_project_id IS NULL OR r.custody_project_id = ${projectId}::uuid)
+        AND r.root_folder_id IN (${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)})
+      ORDER BY r.root_folder_id FOR UPDATE OF f`)
+    if (roots.length !== ids.length) return 'not_found'
+    const root = roots.find((row) => String(row.root_folder_id) === rootId)
+    if (root?.access !== 'full_control') return 'forbidden'
+    const before = roots.find((row) => String(row.root_folder_id) === beforeId)
+    const after = roots.find((row) => String(row.root_folder_id) === afterId)
+    if (before !== undefined && after !== undefined &&
+        String(before.tab_position) >= String(after.tab_position)) return 'invalid_order'
+    const position = keyBetween(before === undefined ? null : String(before.tab_position),
+      after === undefined ? null : String(after.tab_position))
+    await tx.execute(sql`UPDATE profile_doc_roots SET tab_position = ${position}
+      WHERE root_folder_id = ${rootId}::uuid`)
+    return 'changed'
+  })
+}
+
 export async function changeProfileDocAudience(
   db: Db,
   viewerId: string,
