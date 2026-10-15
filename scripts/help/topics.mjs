@@ -22,7 +22,7 @@ export const TOPICS = [
 const SOURCE_AREAS = ['src/client/', 'src/shared/', 'src/server/domain/', 'src/server/views/', 'src/server/routes/']
 
 export function impactedHelp(changedPaths) {
-  const codePaths = changedPaths.filter((p) => SOURCE_AREAS.some((prefix) => p.startsWith(prefix)) && !p.endsWith('.test.ts') && !p.endsWith('.test.tsx'))
+  const codePaths = changedPaths.filter((p) => /\.[jt]sx?$/.test(p) && SOURCE_AREAS.some((prefix) => p.startsWith(prefix)) && !/\.test\.[jt]sx?$/.test(p))
   const slugs = TOPICS.filter((topic) => topic.paths.some((prefix) => codePaths.some((path) => path === prefix || path.startsWith(prefix)))).map((topic) => topic.slug)
   const matched = codePaths.filter((path) => TOPICS.some((topic) => topic.paths.some((prefix) => path === prefix || path.startsWith(prefix))))
   return {
