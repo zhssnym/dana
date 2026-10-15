@@ -133,9 +133,19 @@ test('nested Page: add a Facet and edit it in the existing Work canvas', async (
   await page.goto(`/app/folders/${childId}`)
   await expect(page.getByRole('tablist', { name: 'Page Facets' })).toHaveCount(0)
 
+  // Permission-projected Page actions may arrive after the header on reload.
+  const openRenameFacet = async (): Promise<void> => {
+    await expect.poll(async () => {
+      await page.getByRole('button', { name: 'More actions' }).last().click()
+      const ready = await page.getByRole('menuitem', { name: 'Rename Facet' }).isVisible()
+      if (!ready) await page.keyboard.press('Escape')
+      return ready
+    }).toBe(true)
+    await page.getByRole('menuitem', { name: 'Rename Facet' }).click()
+  }
+
   // A sole Main has no strip, but it can still be renamed from Page actions.
-  await page.getByRole('button', { name: 'More actions' }).last().click()
-  await page.getByRole('menuitem', { name: 'Rename Facet' }).click()
+  await openRenameFacet()
   const renameDialog = page.getByRole('dialog', { name: 'Rename Facet' })
   await renameDialog.getByRole('textbox', { name: 'Facet name' }).fill('Overview')
   await renameDialog.getByRole('button', { name: 'Rename' }).click()
@@ -147,8 +157,7 @@ test('nested Page: add a Facet and edit it in the existing Work canvas', async (
   }).toBe('Overview')
   await expect(page.getByRole('tablist', { name: 'Page Facets' })).toHaveCount(0)
   await page.reload()
-  await page.getByRole('button', { name: 'More actions' }).last().click()
-  await page.getByRole('menuitem', { name: 'Rename Facet' }).click()
+  await openRenameFacet()
   await renameDialog.getByRole('textbox', { name: 'Facet name' }).fill('Main')
   await renameDialog.getByRole('button', { name: 'Rename' }).click()
   await expect.poll(async () => {
