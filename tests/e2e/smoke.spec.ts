@@ -203,7 +203,11 @@ test('root Page: legacy Work and Doc URLs remain valid beside new Facets', async
   await page.getByRole('button', { name: 'New task in Independent Board Section', exact: true }).click()
   const boardInput = page.getByRole('textbox', { name: 'New task name', exact: true })
   await boardInput.fill(boardTask)
+  const boardCreated = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/v1/tasks')
   await boardInput.press('Enter')
+  const boardResponse = await boardCreated
+  expect(boardResponse.status(), await boardResponse.text()).toBe(201)
+  const boardTaskId = ((await boardResponse.json()) as { id: string }).id
   await expect(page.getByText(boardTask, { exact: true })).toBeVisible()
   await page.getByRole('button', { name: /^Work view:/ }).click()
   await page.getByRole('menuitemradio', { name: 'Calendar', exact: true }).click()
@@ -212,13 +216,17 @@ test('root Page: legacy Work and Doc URLs remain valid beside new Facets', async
   const calendarTask = 'Independent Calendar task ' + Date.now()
   const calendarInput = day.getByRole('textbox', { name: /^New task on / })
   await calendarInput.fill(calendarTask)
+  const calendarCreated = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/v1/tasks')
   await calendarInput.press('Enter')
+  const calendarResponse = await calendarCreated
+  expect(calendarResponse.status(), await calendarResponse.text()).toBe(201)
+  const calendarTaskId = ((await calendarResponse.json()) as { id: string }).id
   await expect.poll(async () => {
     const facet = await (await page.request.get(documentPath)).text()
-    return [boardTask, calendarTask, 'Independent Board Section'].every((text) => facet.includes(text))
+    return [boardTaskId, calendarTaskId, 'Independent Board Section'].every((text) => facet.includes(text))
   }).toBe(true)
   const mainContent = await (await page.request.get(`/api/v1/folders/${rootId}/page`)).text()
-  for (const text of [boardTask, calendarTask, 'Independent Board Section']) expect(mainContent).not.toContain(text)
+  for (const text of [boardTaskId, calendarTaskId, 'Independent Board Section']) expect(mainContent).not.toContain(text)
   await page.getByRole('button', { name: /^Work view:/ }).click()
   await page.getByRole('menuitemradio', { name: 'Freeform', exact: true }).click()
   const mainTab = page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Main' })
