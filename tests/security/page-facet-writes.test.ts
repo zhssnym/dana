@@ -212,4 +212,111 @@ describe('Page Facet writes', () => {
          AND b.text IS DISTINCT FROM 'pf671 Notes draft'
     `)).toEqual([{ amount: 0 }])
   }, 60_000)
+
+  test('Facet reads are isolated and the legacy document transaction retains sibling content', async () => {
+    const [owner, , stranger] = await cast.of(app)
+    if (!owner || !stranger) throw new Error('Missing actors')
+    const made = await owner.browser.json('/folders', 'POST', {
+      name: 'pf671 independent content', kind: 'work',
+    })
+    expectStatus(made, 201, 'created root Page')
+    const pageId = (made.json() as { id: string }).id
+    const beforeFacets = await owner.browser.json(`/pages/${pageId}/facets`, 'GET')
+    expectStatus(beforeFacets, 200, 'read Facets')
+    const mainId = (beforeFacets.json() as FacetResponse).facets.find(
+      (facet) => facet.name === 'Main',
+    )?.id
+    expect(mainId).toBeDefined()
+
+    const add = await owner.browser.json(`/pages/${pageId}/facets`, 'POST', {
+      name: 'Notes',
+    })
+    expectStatus(add, 201, 'created Notes')
+    const notesId = (add.json() as FacetResponse).facets.find(
+      (facet) => facet.name === 'Notes',
+    )?.id
+    expect(notesId).toBeDefined()
+
+    const task = await owner.browser.json('/tasks', 'POST', {
+      folder_id: pageId, title: 'pf671 Notes task',
+    })
+    expectStatus(task, 201, 'created Task')
+    const taskId = (task.json() as { id: string }).id
+    await inTransaction(app.db, async (tx) => {
+      await tx.execute(sql`
+        INSERT INTO page_blocks (folder_id, page_facet_id, kind, position, text)
+        VALUES (${pageId}::uuid, ${mainId}::uuid, 'paragraph', 200, 'pf671 Main writing')
+      `)
+      await tx.execute(sql`
+        INSERT INTO page_blocks (folder_id, page_facet_id, kind, position, text)
+        VALUES (${pageId}::uuid, ${notesId}::uuid, 'paragraph', 201, 'pf671 Notes writing')
+      `)
+      await tx.execute(sql`
+        UPDATE tasks SET page_facet_id = ${notesId}::uuid WHERE id = ${taskId}::uuid
+      `)
+    })
+
+    const main = await owner.browser.json(`/folders/${pageId}/page`, 'GET')
+    const independent = await owner.browser.json(
+      `/pages/${pageId}/facets/${notesId}/document`, 'GET',
+    )
+    const mainFromFacet = await owner.browser.json(
+      `/pages/${pageId}/facets/${mainId}/document`, 'GET',
+    )
+    expectStatus(main, 200, 'read original Main')
+    expectStatus(independent, 200, 'read new Facet')
+    expectStatus(mainFromFacet, 200, 'read Main through Facet endpoint')
+    const mainPage = main.json() as {
+      revision: string
+      blocks: { id: string; text: string; section_block_id: string | null; list_parent_block_id: string | null }[]
+      items: { id: string; kind: 'block' | 'task' }[]
+      task_placements: { id: string; section_block_id: string | null }[]
+    }
+    const notesPage = independent.json() as typeof mainPage
+    expect(mainPage.blocks.some((block) => block.text === 'pf671 Main writing')).toBe(true)
+    expect(mainPage.blocks.some((block) => block.text === 'pf671 Notes writing')).toBe(false)
+    expect(mainPage.items.some((item) => item.id === taskId)).toBe(false)
+    expect(notesPage.blocks.map((block) => block.text)).toContain('pf671 Notes writing')
+    expect(notesPage.items.some((item) => item.id === taskId)).toBe(true)
+    expect(notesPage.revision).not.toBe(mainPage.revision)
+    expect((mainFromFacet.json() as typeof mainPage).revision).toBe(mainPage.revision)
+
+    // This is the old, still-supported Work editor's full-document write.
+    // It must never delete or rearrange another Facet's writing or Tasks.
+    const outline = mainPage.items.map((item) => {
+      const block = mainPage.blocks.find((candidate) => candidate.id === item.id)
+      return {
+        kind: item.kind,
+        id: item.id,
+        section_block_id: block?.section_block_id ??
+          mainPage.task_placements.find((task) => task.id === item.id)?.section_block_id ?? null,
+        list_parent_block_id: block?.list_parent_block_id ?? null,
+      }
+    })
+    const save = await owner.browser.json(`/folders/${pageId}/page/actions`, 'POST', {
+      action: 'document_transaction',
+      mutation_id: crypto.randomUUID(),
+      base_revision: mainPage.revision,
+      operations: [{ op: 'set_outline', items: outline }],
+    })
+    expectStatus(save, 200, 'legacy document save')
+
+    const after = await owner.browser.json(
+      `/pages/${pageId}/facets/${notesId}/document`, 'GET',
+    )
+    expectStatus(after, 200, 'Notes survived Main write')
+    const kept = after.json() as typeof mainPage
+    expect(kept.revision).toBe(notesPage.revision)
+    expect(kept.blocks.some((block) => block.text === 'pf671 Notes writing')).toBe(true)
+    expect(kept.items.some((item) => item.id === taskId)).toBe(true)
+
+    expectStatus(
+      await stranger.browser.json(`/pages/${pageId}/facets/${notesId}/document`, 'GET'),
+      404, 'stranger must not see a Facet document',
+    )
+    expectStatus(
+      await owner.browser.json(`/pages/${pageId}/facets/${crypto.randomUUID()}/document`, 'GET'),
+      404, 'unknown Facet',
+    )
+  }, 60_000)
 })
