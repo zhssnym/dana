@@ -4,7 +4,7 @@ import { checkArticles, currentArticles, parseHelp } from './check.mjs'
 import { impactedHelp } from './topics.mjs'
 
 const sample = (body = 'This is a clear and direct explanation of an existing behavior in Dana, with enough detail to be useful.') =>
-  '---\ntitle: Example help article\nsummary: Understand a current behavior in Dana.\nsection: Getting started\nrelated:\n---\n' + body + '\n'
+  '---\ntitle: Example help article\nsummary: Understand a current behavior in Dana.\nsection: Getting started\nrelated:\n---\n' + body + '\nThis example gives the user enough detail to understand the current behavior.\n'
 
 test('existing articles have stable valid links and metadata', () => {
   assert.ok(checkArticles(currentArticles()).size > 0)
