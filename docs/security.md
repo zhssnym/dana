@@ -57,9 +57,10 @@ file.
 No single middleware checks access. Each route and each domain function must check access
 itself. Dana has two mechanisms, and a new route needs both:
 
-- **Queries.** Each data query joins `folder_members` on the viewer in its FROM clause. A
-  query without this join returns no rows, not the rows of another person. Personal label
-  queries filter on `owner_user_id` in the same position.
+- **Queries.** Folder reads join `visible_folder_members` on the viewer. This view reads
+  `folder_members` for ordinary projects and root grants for profile Docs. A query without
+  this join can return another person's rows. Personal label queries filter on
+  `owner_user_id`.
 - **Gates.** Each mutation and each route with an id must call an `accessOf(...)` gate
   (`src/server/domain/folder-access.ts`) before it touches rows. Nothing adds the gate
   for you.
@@ -69,6 +70,12 @@ itself. Dana has two mechanisms, and a new route needs both:
 - **Bio.** A Team member can read a person's Bio in the current project. Only that
   person can change it. Full control and project ownership grant no Bio write access.
   Earlier project Bio text stays on the membership with its recorded attribution.
+- **Profile Docs.** Each root is a real Doc project. Its child pages inherit its access.
+  A person-owned root starts with Only me. Its owner manages the audience and grants.
+  A project-managed root starts with project members. Current Full control members
+  manage it. The project owner retains read access. A child has no separate audience.
+  A grant change also controls direct pages, files, search, references, history,
+  notifications and exports. Profile Docs do not create Tasks or Discussions.
 
 Rules for ids:
 

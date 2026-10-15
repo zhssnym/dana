@@ -69,10 +69,43 @@ export async function folderActorFacts(
   folderId: string,
   options: { includeTrashed?: boolean } = {},
 ): Promise<FolderActorFacts | null> {
+  await holdProfileDocAccess(executor, folderId)
   const found = await resolveScoped(executor, 'folder', folderId, actorId, {
     folder: options.includeTrashed === true ? 'any' : 'live',
   })
   return found === null ? null : found.facts
+}
+
+async function holdProfileDocAccess(executor: Executor, folderId: string): Promise<void> {
+  const roots = await rowsOf(executor, sql`SELECT r.root_folder_id
+    FROM folders f JOIN profile_doc_roots r ON r.root_folder_id = f.project_id
+    WHERE f.id = ${folderId}::uuid`)
+  const rootId = roots[0]?.root_folder_id
+  if (rootId === undefined) return
+  await executor.execute(sql`SELECT id FROM folders WHERE id = ${rootId}::uuid FOR SHARE`)
+  const projects = await rowsOf(executor, sql`SELECT audience_project_id, custody_project_id
+    FROM profile_doc_roots WHERE root_folder_id = ${rootId}::uuid`)
+  const ids = [...new Set([projects[0]?.audience_project_id, projects[0]?.custody_project_id]
+    .filter((id): id is string => typeof id === 'string'))]
+  if (ids.length) {
+    await executor.execute(sql`SELECT id FROM folders
+      WHERE id IN (${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)})
+      ORDER BY id FOR SHARE`)
+  }
+}
+
+/** Lock the root before a page write so a sharing change cannot pass its earlier access check. */
+export async function lockProfileDocForWrite(tx: Executor, folderId: string): Promise<void> {
+  const roots = await rowsOf(tx, sql`SELECT r.root_folder_id
+    FROM folders f JOIN profile_doc_roots r ON r.root_folder_id = f.project_id
+    WHERE f.id = ${folderId}::uuid`)
+  const rootId = roots[0]?.root_folder_id
+  if (rootId === undefined) return
+  if (String(rootId) === folderId) {
+    await tx.execute(sql`SELECT id FROM folders WHERE id = ${rootId}::uuid FOR UPDATE`)
+  } else {
+    await tx.execute(sql`SELECT id FROM folders WHERE id = ${rootId}::uuid FOR SHARE`)
+  }
 }
 
 /*
@@ -105,7 +138,7 @@ export function visibleFolder(
 ): SQL {
   const trashed = trashClause(sql`vis_f`, options.trashed ?? 'live')
   return sql`EXISTS (SELECT 1 FROM folders vis_f
-      JOIN folder_members vis_m ON vis_m.folder_id = vis_f.project_id
+      JOIN visible_folder_members vis_m ON vis_m.folder_id = vis_f.project_id
      WHERE vis_f.id = ${folderId} AND vis_m.user_id = ${viewerId}${trashed})`
 }
 
@@ -125,7 +158,7 @@ export function joinVisibleFolder(
   const f = alias(options.folder ?? 'fo')
   const m = alias(options.member ?? 'm')
   const trashed = trashClause(f, options.trashed ?? 'live')
-  const membership = sql`JOIN folder_members ${m}
+  const membership = sql`JOIN visible_folder_members ${m}
       ON ${m}.folder_id = ${f}.project_id AND ${m}.user_id = ${viewerId}`
   return options.folderId === undefined
     ? sql`${membership}${trashed}`
@@ -194,6 +227,7 @@ export async function resolveScoped(
                fo.name AS scoped_folder_name,
                fo.is_default AS scoped_folder_is_default,
                (fo.owner_id = m.user_id) AS scoped_is_owner,
+               EXISTS (SELECT 1 FROM profile_doc_roots pr WHERE pr.root_folder_id = fo.project_id) AS scoped_profile_doc,
                m.access AS scoped_access,
                (fo.deleted_at IS NOT NULL) AS scoped_folder_trashed
         ${from}
@@ -209,6 +243,7 @@ export async function resolveScoped(
         folder_name: row.scoped_folder_name,
         folder_is_default: row.scoped_folder_is_default,
         is_owner: row.scoped_is_owner,
+        profile_doc: row.scoped_profile_doc,
         access: row.scoped_access,
       },
       viewerId,
@@ -230,6 +265,7 @@ export function factsFromRow(
     isOwner: row.is_owner === true,
     isDefault: row.folder_is_default === true,
     name: String(row.folder_name),
+    profileDoc: row.profile_doc === true,
   }
 }
 

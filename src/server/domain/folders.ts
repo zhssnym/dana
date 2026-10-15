@@ -16,6 +16,7 @@ import { recomputeReminders } from '../time/reminder-recompute.js'
 import { recordEvent } from './events.js'
 import {
   folderActorFacts,
+  lockProfileDocForWrite,
   lockedMembership,
   mayPerform,
   otherFullControlCount,
@@ -115,9 +116,13 @@ const supersededOccurrence = sql`EXISTS (
  * One query for the list and the single view; the membership join is the scope (10.2).
  * `m` is the viewer's own membership: `my_access` must come from it, never from the owner's row.
  */
-function folderSelect(viewerId: string, folderId?: string) {
+function folderSelect(viewerId: string, folderId?: string, profileRootId?: string) {
   const scope =
-    folderId === undefined ? sql`` : sql` AND f.id = ${folderId}`
+    folderId !== undefined
+      ? sql` AND f.id = ${folderId}`
+      : profileRootId !== undefined
+        ? sql` AND f.project_id = ${profileRootId}::uuid`
+        : sql` AND NOT EXISTS (SELECT 1 FROM profile_doc_roots r WHERE r.root_folder_id = f.project_id)`
   return sql`
     SELECT f.id, f.name, f.is_default,
            (f.owner_id = ${viewerId}) AS is_owner,
@@ -135,7 +140,7 @@ function folderSelect(viewerId: string, folderId?: string) {
            CASE WHEN f.id = f.project_id THEN m.shelf_name END AS my_shelf,
            m.color AS my_color,
            m.access AS my_access,
-           (SELECT count(*)::int FROM folder_members mm
+           (SELECT count(*)::int FROM visible_folder_members mm
              WHERE mm.folder_id = f.project_id) AS member_count,
            c.pending, c.completed, c.one_off_done, c.one_off_total,
            c.recurring_active
@@ -185,6 +190,12 @@ async function withPersonalLabels(
 /** GET /folders, in 7.4's order: is_default first, then lower(name), id. */
 export async function listFolders(db: Db, viewerId: string): Promise<Folder[]> {
   return withPersonalLabels(db, viewerId, await rowsOf(db, folderSelect(viewerId)))
+}
+
+export async function listProfileDocPages(db: Db, viewerId: string, rootId: string): Promise<Folder[]> {
+  const root = await rowsOf(db, sql`SELECT 1 FROM profile_doc_roots WHERE root_folder_id = ${rootId}::uuid`)
+  if (!root.length) return []
+  return withPersonalLabels(db, viewerId, await rowsOf(db, folderSelect(viewerId, undefined, rootId)))
 }
 
 /** GET /folders for pre-tab clients: other project tabs left out, pages under a tab listed under the root. */
@@ -318,7 +329,8 @@ export async function projectCapReached(
     tx,
     sql`SELECT count(*)::int AS n FROM folders
         WHERE owner_id = ${viewerId} AND NOT is_default
-          AND deleted_at IS NULL AND id = project_id`,
+          AND deleted_at IS NULL AND id = project_id
+          AND NOT EXISTS (SELECT 1 FROM profile_doc_roots r WHERE r.root_folder_id = folders.id)`,
   )
   return Number(owned[0]?.n ?? 0) + adding > 200
 }
@@ -405,6 +417,7 @@ export type CreateSubPageResult =
   | { kind: 'too_deep' }
   /** The parent is a Discussion page, which holds threads: 422. */
   | { kind: 'discussion_parent' }
+  | { kind: 'profile_doc_kind' }
 
 /**
  * A new page under `parentId` in the caller's transaction. Needs `folder.page.edit` on the parent; takes the tree lock
@@ -422,8 +435,13 @@ export async function createSubPage(
   const decision = mayPerform(parent, PAGE_TREE_EDIT_ACTION)
   if (!decision.allowed) return { kind: 'forbidden', reason: decision.reason }
   if (parent.isDefault) return { kind: 'default_parent' }
-  const parentKind = await rowsOf(tx, sql`SELECT kind FROM folders WHERE id = ${parentId}::uuid`)
+  const parentKind = await rowsOf(tx, sql`SELECT kind, project_id FROM folders WHERE id = ${parentId}::uuid`)
   if (parentKind[0]?.kind === 'discussion') return { kind: 'discussion_parent' }
+  const profile = await rowsOf(tx, sql`SELECT 1 FROM profile_doc_roots
+    WHERE root_folder_id = ${parentKind[0]?.project_id}::uuid`)
+  if (profile.length && input.kind !== undefined && input.kind !== 'doc') {
+    return { kind: 'profile_doc_kind' }
+  }
   /* A page added inside a Work tab lands in the project's Pages tab. */
   if (input.homeBlock !== false && parentKind[0]?.kind === 'work') {
     const pages = await pagesTabFor(tx, actorId, parentId)
@@ -463,7 +481,7 @@ export interface FolderProfilePatch {
   description?: string | null
 }
 
-export type PatchProfileResult = 'patched' | 'cover_not_here'
+export type PatchProfileResult = 'patched' | 'cover_not_here' | 'not_found' | 'forbidden'
 
 /** Rename and identity in one write and one event. A cover must be an image-kinded file of this folder. */
 export async function patchFolderProfile(
@@ -473,6 +491,10 @@ export async function patchFolderProfile(
   patch: FolderProfilePatch,
 ): Promise<PatchProfileResult> {
   return inTransaction(db, async (tx) => {
+    await lockProfileDocForWrite(tx, folderId)
+    const access = await folderActorFacts(tx, actorId, folderId)
+    if (access === null) return 'not_found' as const
+    if (!mayPerform(access, 'folder.profile.edit').allowed) return 'forbidden' as const
     /* No copy is needed: the cover must be this folder's own file. If this clause ever widens, add the copy too. */
     if (patch.coverFileId !== undefined && patch.coverFileId !== null) {
       const cover = await rowsOf(
@@ -602,7 +624,7 @@ export async function memberIdsOf(
 ): Promise<string[]> {
   const rows = await rowsOf(
     executor,
-    sql`SELECT user_id FROM folder_members WHERE folder_id = ${projectIdOf(folderId)}`,
+    sql`SELECT user_id FROM visible_folder_members WHERE folder_id = ${projectIdOf(folderId)}`,
   )
   return rows.map((row) => String(row.user_id))
 }
@@ -612,7 +634,10 @@ export async function deleteFolderRow(
   tx: Executor,
   folderId: string,
 ): Promise<void> {
-  await releaseSurvivors(tx, [folderId])
+  const profile = await rowsOf(tx, sql`SELECT 1 FROM folders f
+    JOIN profile_doc_roots r ON r.root_folder_id = f.project_id
+    WHERE f.id = ${folderId}::uuid`)
+  if (!profile.length) await releaseSurvivors(tx, [folderId])
   await tx.execute(sql`DELETE FROM folders WHERE id = ${folderId}`)
 }
 

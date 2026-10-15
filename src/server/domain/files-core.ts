@@ -229,6 +229,14 @@ export async function createFile(
   }
 
   return inTransaction(db, async (tx) => {
+    if (input.folderId !== null) {
+      const facts = await accessOf(tx, viewerId, input.folderId)
+      if (facts === null) return { kind: 'folder_not_found' } as const
+      const action = input.kind === 'file' || input.kind === 'voice'
+        ? 'file.upload.comment' : 'file.upload.page'
+      const allowed = mayPerform(facts, action)
+      if (!allowed.allowed) return { kind: 'forbidden', reason: allowed.reason } as const
+    }
     // Lock the owner's row so two uploads racing the last megabyte serialize.
     await tx.execute(
       sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`,
@@ -338,6 +346,14 @@ export async function deleteFile(
     /* Read the blocks naming this file before the delete, since SET NULL erases the link. Lock the file row first
     so no block can start naming it in between. Mark them only if the delete removes the row. */
     await tx.execute(sql`SELECT id FROM files WHERE id = ${fileId} FOR UPDATE`)
+    const home = await rowsOf(tx, sql`SELECT folder_id FROM files WHERE id = ${fileId}::uuid`)
+    const folderId = home[0]?.folder_id
+    if (folderId !== null && folderId !== undefined) {
+      const access = await accessOf(tx, viewerId, String(folderId))
+      if (access !== null && !mayPerform(access, 'file.delete').allowed) {
+        return 'forbidden' as const
+      }
+    }
     const wearers = await blocksNamingFiles(tx, sql`${fileId}::uuid`)
     /* Folder-scoped files need Full control of the Folder to delete, not authorship. Folder-less files stay the owner's. */
     const removed = await rowsOf(
@@ -347,7 +363,7 @@ export async function deleteFile(
             AND (
               (f.folder_id IS NULL AND f.owner_id = ${viewerId})
               OR EXISTS (SELECT 1 FROM folders fo
-                          JOIN folder_members m ON m.folder_id = fo.project_id
+                          JOIN visible_folder_members m ON m.folder_id = fo.project_id
                           WHERE fo.id = f.folder_id
                             AND m.user_id = ${viewerId}
                             AND m.access = 'full_control'

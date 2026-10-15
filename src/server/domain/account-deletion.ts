@@ -54,6 +54,13 @@ export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
     why: '8.9 and 8.10: a folder with other members is transferred and one without is deleted outright, so no folder is left owned by a scrubbed account.',
   },
   {
+    fk: 'profile_doc_roots_person_fkey',
+    table: 'profile_doc_roots',
+    disposition: 'outlives',
+    where: '',
+    why: 'A project-managed profile Doc remains with its project after the person deletes their account. The user row remains without identity. A person-owned Doc leaves with its owned Folder.',
+  },
+  {
     fk: 'folder_access_history_actor_id_fkey',
     table: 'folder_access_history',
     disposition: 'outlives',
@@ -210,6 +217,13 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     disposition: 'retained',
     where: '',
     why: 'A project-scoped content section may have been edited by another project member. Account deletion scrubs the author identity without removing the teammate’s current project content. Removing the membership deletes its own sections, not the canonical linked files.',
+  },
+  {
+    fk: 'profile_doc_grants_user_fkey',
+    table: 'profile_doc_grants',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: 'The user row stays after account deletion, so its cascade does not run. Step 6c removes selected reader and editor grants to prevent access by the deleted account.',
   },
   {
     fk: 'feedback_user_id_fkey',
@@ -411,7 +425,24 @@ export async function deleteAccountData(
         ORDER BY f.id`,
   )
   for (const row of transferable) {
-    await transferOwnership(tx, String(row.id), userId)
+    const projectId = String(row.id)
+    await transferOwnership(tx, projectId, userId)
+    await tx.execute(sql`UPDATE folders SET owner_id = (
+      SELECT owner_id FROM folders WHERE id = ${projectId}::uuid)
+      WHERE id IN (SELECT root_folder_id FROM profile_doc_roots
+        WHERE custody_project_id = ${projectId}::uuid)`)
+  }
+
+  const managedFiles = await rowsOf(tx, sql`SELECT file.id FROM files file
+    JOIN folders page ON page.id = file.folder_id
+    JOIN profile_doc_roots r ON r.root_folder_id = page.project_id
+    JOIN folders project ON project.id = r.custody_project_id
+    WHERE project.owner_id = ${userId}::uuid`)
+  const managedInDoomedProjects = await rowsOf(tx, sql`SELECT r.root_folder_id
+    FROM profile_doc_roots r JOIN folders p ON p.id = r.custody_project_id
+    WHERE p.owner_id = ${userId}::uuid ORDER BY r.root_folder_id`)
+  for (const row of managedInDoomedProjects) {
+    await deleteFolderRow(tx, String(row.root_folder_id))
   }
 
   // 3. Delete everything still owned. Collect the files rows first: the cascade drops them,
@@ -476,6 +507,7 @@ export async function deleteAccountData(
   )
   await markBlocksReclaimed(tx, wearers)
   const fileIds = new Set<string>()
+  for (const row of managedFiles) fileIds.add(String(row.id))
   for (const row of cascadeFiles) fileIds.add(String(row.id))
   for (const row of ownedFiles) fileIds.add(String(row.id))
 
@@ -501,6 +533,10 @@ export async function deleteAccountData(
     await rowsOf(
       tx,
       sql`DELETE FROM notifications WHERE user_id = ${userId} RETURNING 1 AS one`,
+    ),
+    await rowsOf(
+      tx,
+      sql`DELETE FROM profile_doc_grants WHERE user_id = ${userId} RETURNING 1 AS one`,
     ),
     await rowsOf(
       tx,

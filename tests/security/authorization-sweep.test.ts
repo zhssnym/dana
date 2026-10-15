@@ -150,6 +150,8 @@ afterAll(async () => {
   /* The seeded Discussion first: its Outcome's actor key would otherwise be
      released before the Discussion that holds it. */
   if (fixtures !== undefined) {
+    await app.db.execute(sql`DELETE FROM profile_doc_roots
+      WHERE root_folder_id = ${fixtures.profileRootId}::uuid`)
     await app.db.execute(
       sql`DELETE FROM discussions WHERE id = ${fixtures.discussionId}::uuid`,
     )
@@ -285,6 +287,7 @@ function idBearingRoutes(application: unknown): string[] {
  */
 type ResourceId =
   | 'folderId'
+  | 'profileRootId'
   | 'trashedFolderId'
   | 'archivedFolderId'
   | 'taskId'
@@ -342,6 +345,12 @@ async function fixturesOf(): Promise<Fixtures> {
   ]
 
   const folderId = await makeSharedFolder(app, owner, member, 'ac397 shared')
+  const profileDoc = await owner.browser.json(
+    `/folders/${folderId}/members/${member.id}/profile-docs`, 'POST',
+    { name: 'ac397 managed profile Doc', custody: 'project' },
+  )
+  expect(profileDoc.status).toBe(201)
+  const profileRootId = String((profileDoc.json() as { id: string }).id)
   const taskId = await makeTask(owner, folderId, 'ac397 the task')
   const stepId = await makeStep(owner, taskId, 'ac397 the step')
   const blockingTaskId = await makeTask(owner, folderId, 'ac397 the blocker')
@@ -464,6 +473,7 @@ async function fixturesOf(): Promise<Fixtures> {
     member,
     stranger,
     folderId,
+    profileRootId,
     trashedFolderId,
     archivedFolderId,
     taskId,
@@ -592,6 +602,36 @@ const TABLE = new Map<string, Row>([
         expected: 404,
         rule: '5.4 "See folder and every task in it: no (404)" for a non-member, and 10.2 forbids 403 here because it would confirm the folder exists',
       },
+    },
+  ],
+  [
+    'GET /api/v1/folders/:id/profile-pages',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.profileRootId}/profile-pages` }),
+      stranger: { expected: 404, rule: '#666: a hidden profile Doc tree has no visible pages' },
+    },
+  ],
+  [
+    'GET /api/v1/folders/:id/members/:userId/profile-docs',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/members/${fx.member.id}/profile-docs` }),
+      stranger: { expected: 404, rule: '#666: a non-member cannot enumerate a profile Doc root' },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:id/members/:userId/profile-docs',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/members/${fx.member.id}/profile-docs`,
+        body: { name: 'Intrusion', custody: 'project' } }),
+      stranger: { expected: 404, rule: '#666: a non-member cannot create a profile Doc root' },
+    },
+  ],
+  [
+    'PATCH /api/v1/folders/:id/members/:userId/profile-docs/:rootId/audience',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/members/${fx.member.id}/profile-docs/${fx.profileRootId}/audience`,
+        body: { audience: 'project_members', grants: [] } }),
+      stranger: { expected: 404, rule: '#666: a non-member cannot change a root audience' },
     },
   ],
   [
@@ -2441,6 +2481,8 @@ describe('every id-bearing route refuses a stranger', () => {
     }
   > = {
     folderId: (fx) => ({ what: 'the folder', path: `/folders/${fx.folderId}` }),
+    profileRootId: (fx) => ({ what: 'the profile Doc root',
+      path: `/folders/${fx.profileRootId}/profile-pages`, holds: fx.profileRootId }),
     taskId: (fx) => ({ what: 'the task', path: `/tasks/${fx.taskId}` }),
     blockingTaskId: (fx) => ({
       what: 'the blocking task',

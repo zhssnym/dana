@@ -128,6 +128,9 @@ export async function addTab(
     if (root === null) return { kind: 'not_found' }
     const facts = await folderActorFacts(tx, actorId, root.id)
     if (facts === null) return { kind: 'not_found' }
+    if (facts.profileDoc === true) {
+      return { kind: 'invalid', reason: 'A profile Doc cannot hold project tabs.' }
+    }
     const decision = mayPerform(facts, PAGE_TREE_EDIT_ACTION)
     if (!decision.allowed) return { kind: 'forbidden', reason: decision.reason }
 

@@ -493,6 +493,8 @@ export interface FolderActorFacts {
   isDefault: boolean
   /** Rendered by the share-grant email. */
   name: string
+  /** Profile Docs use source grants and do not provide a new project workspace. */
+  profileDoc?: boolean
 }
 
 export interface FolderActionTarget {
@@ -525,6 +527,21 @@ export function mayPerform(
   target: FolderActionTarget = {},
 ): FolderActionDecision {
   const rule = RULES[action]
+
+  if (facts.profileDoc === true && !(
+    action === 'folder.read' ||
+    action === 'folder.page.edit' ||
+    action === 'folder.section.manage' ||
+    action === 'folder.trash' ||
+    action === 'folder.restore' ||
+    action === 'folder.destroy' ||
+    action === 'file.upload.page' ||
+    action === 'file.upload.comment' ||
+    action === 'file.delete' ||
+    (action === 'folder.profile.edit' && facts.access === 'full_control')
+  )) {
+    return { allowed: false, reason: 'This action is not available on a profile Doc.' }
+  }
 
   if (rule.requiresAuthor === true) {
     if (target.authorId === undefined || target.authorId !== facts.actorId) {

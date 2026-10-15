@@ -33,6 +33,7 @@ import {
   folderView,
   isMember,
   listFolders,
+  listProfileDocPages,
   membersOf,
   otherMemberCount,
   pendingInvitesOf,
@@ -78,6 +79,8 @@ import {
 import { readFolderDependencies } from '../domain/task-dependencies.js'
 import { profileArea, putProfileContentBody } from '../../shared/member-profile.js'
 import { profileSectionsOf, writeProfileSection } from '../domain/member-profile.js'
+import { patchProfileDocAudienceBody, postProfileDocBody } from '../../shared/profile-docs.js'
+import { changeProfileDocAudience, createProfileDoc, listProfileDocs } from '../domain/profile-docs.js'
 import type { GetFolderDependenciesResponse } from '../../shared/task-dependencies.js'
 import { inTransaction } from '../database.js'
 import { moveFolder, visibleAncestors } from '../domain/page-tree.js'
@@ -216,6 +219,25 @@ export function createFoldersRouter(
     res.status(200).json(query.data.tabs === '1' ? folders : withoutProjectTabs(folders))
   })
 
+  router.get('/folders/:id/profile-pages', requireSession, async (req: Request, res: Response) => {
+    const db = database(res)
+    if (db === null) return
+    const rootId = parsedId(res, req.params.id)
+    if (rootId === null) return
+    const access = await gate(req, res, rootId, 'folder.read')
+    if (access === null) return
+    if (access.profileDoc !== true || access.folderId !== rootId) {
+      sendError(res, 404, 'not_found', 'Not found.')
+      return
+    }
+    const pages = await listProfileDocPages(db, viewer(req), rootId)
+    if (!pages.some((page) => page.id === rootId)) {
+      sendError(res, 404, 'not_found', 'Not found.')
+      return
+    }
+    res.status(200).json({ pages })
+  })
+
   router.post(
     '/folders',
     requireSession,
@@ -249,6 +271,9 @@ export function createFoldersRouter(
             return
           case 'discussion_parent':
             sendError(res, 422, 'validation_failed', 'parent_folder_id: a Discussion page holds threads, not pages.')
+            return
+          case 'profile_doc_kind':
+            sendError(res, 422, 'validation_failed', 'A profile Doc holds Doc pages only.')
             return
           case 'too_deep':
             sendError(res, 422, 'validation_failed', 'parent_folder_id: pages can nest at most 20 deep.')
@@ -335,6 +360,14 @@ export function createFoldersRouter(
         coverFocalY: parsed.cover_focal_y,
         description: parsed.description,
       })
+      if (outcome === 'not_found') {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      if (outcome === 'forbidden') {
+        sendError(res, 403, 'forbidden', 'You cannot change this Doc.')
+        return
+      }
       if (outcome === 'cover_not_here') {
         sendError(
           res,
@@ -856,6 +889,62 @@ export function createFoldersRouter(
     if (memberId === null) return null
     return { folderId, memberId }
   }
+
+  router.get('/folders/:id/members/:userId/profile-docs', requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const ids = memberOfPath(req, res)
+      if (ids === null || (await gate(req, res, ids.folderId, 'folder.read')) === null) return
+      const projectId = await projectFor(db, res, ids.folderId)
+      if (projectId === null) return
+      const roots = await listProfileDocs(db, viewer(req), projectId, ids.memberId)
+      if (roots === null) { sendError(res, 404, 'not_found', 'Not found.'); return }
+      res.status(200).json({ roots })
+    })
+
+  router.post('/folders/:id/members/:userId/profile-docs', requireSession,
+    requireCsrf, mutationLimit, async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const ids = memberOfPath(req, res)
+      if (ids === null || (await gate(req, res, ids.folderId, 'folder.read')) === null) return
+      const body = parseBody(postProfileDocBody, req, res, securityLog)
+      if (body === null) return
+      const projectId = await projectFor(db, res, ids.folderId)
+      if (projectId === null) return
+      const result = await createProfileDoc(db, viewer(req), projectId, ids.memberId,
+        body.name, body.custody)
+      if (result.kind === 'not_found') { sendError(res, 404, 'not_found', 'Not found.'); return }
+      if (result.kind === 'forbidden') {
+        sendError(res, 403, 'forbidden', 'You cannot create this profile Doc.'); return
+      }
+      res.status(201).json({ id: result.id })
+    })
+
+  router.patch('/folders/:id/members/:userId/profile-docs/:rootId/audience', requireSession,
+    requireCsrf, mutationLimit, async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const ids = memberOfPath(req, res)
+      if (ids === null || (await gate(req, res, ids.folderId, 'folder.read')) === null) return
+      const rootId = parsedId(res, req.params.rootId)
+      if (rootId === null) return
+      const body = parseBody(patchProfileDocAudienceBody, req, res, securityLog)
+      if (body === null) return
+      const projectId = await projectFor(db, res, ids.folderId)
+      if (projectId === null) return
+      const result = await changeProfileDocAudience(db, viewer(req), projectId, ids.memberId,
+        rootId, body.audience, body.grants)
+      if (result === 'not_found') { sendError(res, 404, 'not_found', 'Not found.'); return }
+      if (result === 'forbidden') {
+        sendError(res, 403, 'forbidden', 'You cannot change this profile Doc audience.'); return
+      }
+      if (result === 'invalid_person') {
+        sendError(res, 422, 'validation_failed', 'A selected person is unavailable.'); return
+      }
+      res.status(204).end()
+    })
 
   router.get(
     '/folders/:id/members/:userId/responsibility',

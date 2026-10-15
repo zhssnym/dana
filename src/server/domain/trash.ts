@@ -248,16 +248,28 @@ export async function destroyFolders(
     const picked = await rowsOf(tx, sql`WITH doomed AS (${doomed}) SELECT id FROM doomed`)
     const ids = picked.map((row) => String(row.id))
     if (ids.length === 0) return { folderIds: [], fileIds: [] }
-    await releaseSurvivors(tx, ids)
-    const list = sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)
+    const doomedList = sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)
+    const managed = await rowsOf(tx, sql`SELECT root_folder_id FROM profile_doc_roots
+      WHERE custody_project_id IN (${doomedList}) FOR UPDATE`)
+    const managedIds = managed.map((row) => String(row.root_folder_id))
+    const profileRows = await rowsOf(tx, sql`SELECT f.id FROM folders f
+      JOIN profile_doc_roots r ON r.root_folder_id = f.project_id
+      WHERE f.id IN (${doomedList})`)
+    const profileIds = new Set(profileRows.map((row) => String(row.id)))
+    await releaseSurvivors(tx, ids.filter((id) => !profileIds.has(id)))
+    const list = sql.join([...ids, ...managedIds].map((id) => sql`${id}::uuid`), sql`, `)
     const files = await rowsOf(
       tx,
       sql`SELECT f.id FROM files f JOIN folders fo ON fo.id = f.folder_id
            WHERE fo.id IN (${list}) OR fo.project_id IN (${list})`,
     )
-    const removed = await rowsOf(tx, sql`DELETE FROM folders WHERE id IN (${list}) RETURNING id`)
+    if (managedIds.length) {
+      await tx.execute(sql`DELETE FROM folders WHERE id IN (
+        ${sql.join(managedIds.map((id) => sql`${id}::uuid`), sql`, `)})`)
+    }
+    const removed = await rowsOf(tx, sql`DELETE FROM folders WHERE id IN (${doomedList}) RETURNING id`)
     return {
-      folderIds: removed.map((row) => String(row.id)),
+      folderIds: [...managedIds, ...removed.map((row) => String(row.id))],
       fileIds: files.map((row) => String(row.id)),
     }
   })

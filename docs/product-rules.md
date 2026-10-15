@@ -80,6 +80,13 @@ exists here, and no profile reference may expose a resource from another project
 Leaving ends the membership-scoped profile content without deleting the source
 files or Docs. Neither area is a public personal feed.
 
+Profile Docs are separate native Doc roots. A person-owned root remains with its
+owner after they leave a project. A project-managed root remains with its project.
+Each `/page` child inherits the root audience. The root can be Only me, project
+teammates, or selected people when the person owns it. A project-managed root
+always keeps project governance. The profile Doc interface and legacy content
+migration are tracked in #652; the current profile still uses the fields above.
+
 A Teammate block reads the current profile. Its name opens that profile and its
 Message action opens the existing DM. A removed member stays unavailable. The
 block stores no copy of the profile.

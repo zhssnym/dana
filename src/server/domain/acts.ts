@@ -661,6 +661,9 @@ export async function importWorkflow(
       if (parent === null) return { kind: 'parent_not_found' } as const
       const decision = mayPerform(parent, PAGE_TREE_EDIT_ACTION)
       if (!decision.allowed) return { kind: 'forbidden', reason: decision.reason } as const
+      if (parent.profileDoc === true) {
+        return { kind: 'forbidden', reason: 'A Work import cannot be added to a profile Doc.' } as const
+      }
       if (parent.isDefault) return { kind: 'default_parent' } as const
       if (!(await mayAddChildUnder(tx, parentId))) return { kind: 'too_deep' } as const
     }
