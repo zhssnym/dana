@@ -181,6 +181,7 @@ function HelpHome(): React.JSX.Element {
             onChange={(event) => setQuery(event.target.value)}
             aria-label="Search help articles"
             placeholder="Search help articles"
+            autoFocus={searchParams.get('search') === '1'}
             autoComplete="off"
             className="h-12 min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
@@ -358,9 +359,16 @@ export function HelpCenterPage(): React.JSX.Element {
             <img src="/dana-mark.svg" alt="" className="size-7 shrink-0" />
             <span>Dana <span className="ml-1 font-normal text-muted-foreground">Help Center</span></span>
           </Link>
-          <a href={paths.home} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
-            Open Dana <ArrowUpRight className="size-4" aria-hidden="true" />
-          </a>
+          <nav aria-label="Help actions" className="flex items-center gap-5">
+            {slug ? (
+              <Link to={paths.help + '?search=1'} className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground">
+                <Search className="size-4" aria-hidden="true" /> Search help
+              </Link>
+            ) : null}
+            <a href={paths.home} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+              Open Dana <ArrowUpRight className="size-4" aria-hidden="true" />
+            </a>
+          </nav>
         </div>
       </header>
       {slug === undefined ? <HelpHome key={params.get('section') ?? 'all'} /> : <HelpArticleView slug={slug} />}
