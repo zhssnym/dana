@@ -21,10 +21,10 @@ export { documentHash } from './document-hash.js'
 import { documentHash } from './document-hash.js'
 /* `field` is set only by `importWorkflow`, which knows the page's path in a workflow file (folders.<n>.page). */
 export class DocumentRefusal extends Error { constructor(readonly kind:'stale'|'not_convertible'|'file_not_here'|'file_kind_mismatch'|'not_found',message:string,readonly field?:string){super(message)} }
-export async function documentMetadata(tx:Executor,folderId:string|null) {
+export async function documentMetadata(tx:Executor,folderId:string|null,facetId?:string) {
  if(folderId===null)return {revision:documentHash(null),task_placements:[]}
- const blocks=hashableBlocks(await rowsOf(tx,sql`SELECT id,kind,text,rich_content,file_id,ref_folder_id,width_pct,section_block_id,list_parent_block_id,checked,page_position,position,toggleable FROM page_blocks WHERE folder_id=${folderId}::uuid ORDER BY id`))
- const tasks=await rowsOf(tx,sql`SELECT id,section_block_id,page_position FROM tasks WHERE folder_id=${folderId}::uuid AND deleted_at IS NULL ORDER BY id`)
+ const blocks=hashableBlocks(await rowsOf(tx,sql`SELECT id,kind,text,rich_content,file_id,ref_folder_id,width_pct,section_block_id,list_parent_block_id,checked,page_position,position,toggleable FROM page_blocks WHERE folder_id=${folderId}::uuid AND ${facetId===undefined?sql`(page_facet_id IS NULL OR page_facet_id=(SELECT id FROM page_facets WHERE content_folder_id=${folderId}::uuid))`:sql`page_facet_id=${facetId}::uuid`} ORDER BY id`))
+ const tasks=await rowsOf(tx,sql`SELECT id,section_block_id,page_position FROM tasks WHERE folder_id=${folderId}::uuid AND ${facetId===undefined?sql`(page_facet_id IS NULL OR page_facet_id=(SELECT id FROM page_facets WHERE content_folder_id=${folderId}::uuid))`:sql`page_facet_id=${facetId}::uuid`} AND deleted_at IS NULL ORDER BY id`)
  return {revision:documentHash({blocks,tasks}),task_placements:tasks.map(t=>({id:String(t.id),section_block_id:t.section_block_id==null?null:String(t.section_block_id)}))}
 }
 /** Whether a Main-document transaction changes the page tree. Such a transaction takes the tree lock before the folder row. */
@@ -43,7 +43,7 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
  const previousOutline=await positionedItems(tx,folderId)
  const metadata=await documentMetadata(tx,folderId)
  if(metadata.revision!==body.base_revision)throw new DocumentRefusal('stale','The page changed. Your draft is retained; reconcile it with the current page.')
- const stored=await rowsOf(tx,sql`SELECT id,kind,text,rich_content,file_id,ref_folder_id,width_pct,page_position,position,section_block_id,list_parent_block_id,checked,toggleable FROM page_blocks WHERE folder_id=${folderId}::uuid FOR UPDATE`)
+ const stored=await rowsOf(tx,sql`SELECT id,kind,text,rich_content,file_id,ref_folder_id,width_pct,page_position,position,section_block_id,list_parent_block_id,checked,toggleable FROM page_blocks WHERE folder_id=${folderId}::uuid AND (page_facet_id IS NULL OR page_facet_id=(SELECT id FROM page_facets WHERE content_folder_id=${folderId}::uuid)) FOR UPDATE`)
  const blocks=new Map<string,BlockOp>(stored.map(b=>[String(b.id),{op:'put_block',id:String(b.id),block_kind:b.kind as BlockOp['block_kind'],text:b.text as string|null,rich_content:b.rich_content as BlockOp['rich_content'],file_id:b.file_id as string|null,ref_folder_id:b.ref_folder_id as string|null,width_pct:b.width_pct as number|null,checked:b.checked===null||b.checked===undefined?null:Boolean(b.checked),toggleable:b.toggleable===true?true:null}]))
  const original=new Set(blocks.keys())
  const tasks=new Set(metadata.task_placements.map(t=>t.id))
