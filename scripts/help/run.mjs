@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 
 import { checkArticles, currentArticles } from './check.mjs'
 import { impactedHelp } from './topics.mjs'
+import { missingHelpSecrets } from './readiness.mjs'
 import { hasHelpCheck, recordHelpCheck, openHelpIssue, openHelpPullRequest } from './github.mjs'
 
 const BASE = '235ff6b509ab5791319c3bfb953bc3550c43fa74'
@@ -159,13 +160,6 @@ async function processCommit(sha) {
     await recordHelpCheck(sha, 'success', 'No user-facing code in this commit.')
     return
   }
-  if (!process.env.OPENAI_API_KEY || !process.env.HELP_BOT_TOKEN) {
-    const reason = 'To enable documentation drafting, set repository secrets OPENAI_API_KEY and HELP_BOT_TOKEN. No article was changed.'
-    await openHelpIssue(sha, reason, impact.slugs)
-    await recordHelpCheck(sha, 'action_required', reason)
-    return
-  }
-
   const evidence = buildEvidence(sha, impact)
   const current = [...evidence.docs.entries()]
     .filter(([slug]) => impact.slugs.includes(slug))
@@ -244,6 +238,12 @@ async function processCommit(sha) {
 
 async function main() {
   checkArticles(currentArticles())
+  const missing = missingHelpSecrets(process.env)
+  if (missing.length > 0) {
+    console.log('Documentation drafting paused. Add GitHub Actions secrets: ' + missing.join(', ') +
+      '. No commits were audited, marked reviewed, or converted to issues. Retry after configuration.')
+    return
+  }
   if (!ancestor(BASE, git('rev-parse', 'HEAD'))) throw new Error('Known Help baseline is not in current history')
   const liveSha = await deployedCommit()
   if (!liveSha || !SHA.test(liveSha)) {
