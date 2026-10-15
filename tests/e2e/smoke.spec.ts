@@ -74,45 +74,36 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
   })
 
   const words = `left at once ${Date.now()}`
-  await test.step('writing typed just before leaving the page is saved', async () => {
-    // The autosave waits 450 ms; leaving inside that wait must still send it.
-    // Work's thread ends in its one last line; "# " there opens a heading at the page's end.
-    await page.getByRole('textbox', { name: 'Add a task', exact: true }).click()
-    await page.keyboard.type('# ')
+  await test.step('typing just before leaving the Work editor is saved', async () => {
+    // The editor itself receives input; the redundant bottom task line is gone.
+    await expect(page.getByRole('textbox', { name: 'Add a task', exact: true })).toHaveCount(0)
+    const canvas = page.locator('.dana-writing-canvas').first()
+    await expect(canvas).toBeVisible()
+    await canvas.locator('.dana-canvas-tail').click()
     await page.keyboard.type(words)
-    await expect(page.locator('.dana-writing-canvas').first()).toContainText(words)
+    await expect(canvas).toContainText(words)
     await page.getByRole('navigation').getByRole('link', { name: /Today/ }).first().click()
-    await expect
-      .poll(async () => {
-        const response = await page.request.get(`/api/v1/folders/${seedIds.groceries}/page`)
-        return (await response.text()).includes(words)
-      })
-      .toBe(true)
+    await expect.poll(async () => {
+      const response = await page.request.get(`/api/v1/folders/${seedIds.groceries}/page`)
+      return (await response.text()).includes(words)
+    }).toBe(true)
   })
 
-  await test.step('a task typed in Work\'s last line is stored in the last Section', async () => {
-    // AC-1509: the heading written above ends the page, so it is the Section the Task lands in.
+  await test.step('the slash menu still creates and saves tasks', async () => {
     await page.goto(`/app/folders/${seedIds.groceries}`)
-    const line = page.getByRole('textbox', { name: 'Add a task', exact: true })
-    const task = `last line ${Date.now()}`
-    await line.fill(task)
-    await line.press('Enter')
+    const canvas = page.locator('.dana-writing-canvas').first()
+    await canvas.locator('.dana-canvas-tail').click()
+    await page.keyboard.type('/task')
+    await page.keyboard.press('Enter')
+    const task = `slash task ${Date.now()}`
+    await page.keyboard.type(task)
+    await page.keyboard.press('Enter')
     await expect(taskRow(page, task).first()).toBeVisible()
-    await expect(line).toBeFocused()
-    // Read back from the server: the stored Task, and the Section it is placed in.
-    await expect
-      .poll(async () => {
-        const search = (await (await page.request.get(`/api/v1/search?q=${encodeURIComponent(task)}&tz=UTC`)).json()) as { rows: { id: string; title: string }[] }
-        const id = search.rows.find((row) => row.title === task)?.id
-        const document = (await (await page.request.get(`/api/v1/folders/${seedIds.groceries}/page`)).json()) as {
-          task_placements: { id: string; section_block_id: string | null }[]
-          blocks: { id: string; kind: string; text: string | null }[]
-        }
-        const heading = document.blocks.find((block) => block.kind === 'section' && block.text === words)
-        const placed = document.task_placements.find((placement) => placement.id === id)
-        return { stored: placed !== undefined, section: heading !== undefined && placed?.section_block_id === heading.id }
-      })
-      .toEqual({ stored: true, section: true })
+    await expect.poll(async () => {
+      const response = await page.request.get(`/api/v1/search?q=${encodeURIComponent(task)}&tz=UTC`)
+      const search = (await response.json()) as { rows: { title: string }[] }
+      return search.rows.some((row) => row.title === task)
+    }).toBe(true)
   })
 })
 
