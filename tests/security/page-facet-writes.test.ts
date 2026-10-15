@@ -199,7 +199,9 @@ describe('Page Facet writes', () => {
     await expect(inTransaction(app.db, (tx) => tx.execute(sql`
       INSERT INTO page_blocks (folder_id, page_facet_id, kind, position, text)
       VALUES (${rootId}::uuid, ${notes?.id}::uuid, 'paragraph', 1001, 'invalid foreign Facet')
-    `))).rejects.toThrow(/page_facet_not_here/)
+    `))).rejects.toMatchObject({
+      cause: { message: expect.stringContaining('page_facet_not_here') },
+    })
 
     // Backfilled legacy records (including seeded data) cannot point to a
     // different Facet than their original content home.
