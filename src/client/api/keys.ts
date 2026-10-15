@@ -33,6 +33,9 @@ export const queryKeys = {
   /* A thread key carries the task id or 'folder', so a folder's thread and a task's never collide. */
   shelf: (id: string) => ['shelves', id] as const,
   folderPage: (id: string) => ['folders', id, 'page'] as const,
+  pageFacets: (id: string) => ['page-facets', id] as const,
+  pageFacetDocument: (pageId: string, facetId: string) =>
+    ['page-facet-document', pageId, facetId] as const,
   folderMember: (id: string, userId: string) => ['folders', id, 'members', userId] as const,
   folderMemberHistory: (id: string, userId: string) =>
     ['folders', id, 'members', userId, 'history'] as const,
