@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 
-import { HELP_SECTIONS, findHelp, helpArticles, helpBySlug } from '../help/content.js'
+import { findHelp, helpArticles, helpBySlug } from '../help/content.js'
 import type { HelpArticle, HelpSection } from '../help/content.js'
 import { helpHeadings, HelpMarkdown } from '../help/markdown.js'
 import {
