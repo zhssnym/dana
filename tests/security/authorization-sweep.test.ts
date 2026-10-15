@@ -605,6 +605,27 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'POST /api/v1/pages/:id/facets',
+    {
+      attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets`, body: { name: 'Private attempt' } }),
+      stranger: { expected: 404, rule: '#671 and 10.2: only Page members may create shared Facets.' },
+    },
+  ],
+  [
+    'PATCH /api/v1/pages/:id/facets/:facetId',
+    {
+      attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets/${fx.tabId}`, body: { name: 'Private attempt' } }),
+      stranger: { expected: 404, rule: '#671 and 10.2: Page access is checked before the target Facet.' },
+    },
+  ],
+  [
+    'PUT /api/v1/pages/:id/facets/order',
+    {
+      attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets/order`, body: { order: [] } }),
+      stranger: { expected: 404, rule: '#671 and 10.2: a non-member cannot reorder Page Facets.' },
+    },
+  ],
+  [
     'PATCH /api/v1/folders/:id',
     {
       attempt: (fx) => ({
