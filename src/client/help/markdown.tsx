@@ -64,8 +64,27 @@ function ShortcutReference(): React.JSX.Element {
   )
 }
 
+export type HelpHeading = { readonly id: string; readonly title: string; readonly level: 2 | 3 }
+
+export function helpHeadings(body: string): HelpHeading[] {
+  const used = new Map<string, number>()
+  const headings: HelpHeading[] = []
+  for (const line of body.split(/\r?\n/)) {
+    const match = /^(#{2,3})\s+(.+)$/.exec(line.trim())
+    if (!match) continue
+    const title = match[2]!.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/[*\x60]/g, '')
+    const base = title.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'section'
+    const count = used.get(base) ?? 0
+    used.set(base, count + 1)
+    headings.push({ title, id: count === 0 ? base : base + '-' + String(count + 1), level: match[1]!.length as 2 | 3 })
+  }
+  return headings
+}
+
 export function HelpMarkdown({ body }: { readonly body: string }): React.JSX.Element {
   const lines = body.split(/\r?\n/)
+  const headings = helpHeadings(body)
+  let headingIndex = 0
   const blocks: ReactNode[] = []
   let i = 0
   while (i < lines.length) {
@@ -78,12 +97,14 @@ export function HelpMarkdown({ body }: { readonly body: string }): React.JSX.Ele
       continue
     }
     if (line.startsWith('## ')) {
-      blocks.push(<h2 key={key} className="mt-8 mb-3 font-title text-[length:var(--text-h3-size)] leading-[var(--text-h3-line)]">{inline(line.slice(3))}</h2>)
+      const heading = headings[headingIndex++]!
+      blocks.push(<h2 id={heading.id} key={key} className="mt-9 scroll-mt-8 mb-3 font-title text-[length:var(--text-h2-size)] leading-[var(--text-h2-line)]">{inline(line.slice(3))}</h2>)
       i++
       continue
     }
     if (line.startsWith('### ')) {
-      blocks.push(<h3 key={key} className="mt-5 mb-2 font-section text-sm">{inline(line.slice(4))}</h3>)
+      const heading = headings[headingIndex++]!
+      blocks.push(<h3 id={heading.id} key={key} className="mt-7 scroll-mt-8 mb-2 font-section text-[length:var(--text-h3-size)] leading-[var(--text-h3-line)]">{inline(line.slice(4))}</h3>)
       i++
       continue
     }
