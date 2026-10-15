@@ -595,6 +595,16 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'GET /api/v1/pages/:id/facets',
+    {
+      attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets` }),
+      stranger: {
+        expected: 404,
+        rule: '#671 and 10.2: Facet identities and placement belong to a Page. A non-member must not learn either, so the access gate returns 404.',
+      },
+    },
+  ],
+  [
     'PATCH /api/v1/folders/:id',
     {
       attempt: (fx) => ({
