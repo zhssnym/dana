@@ -54,7 +54,7 @@ export function PageFacetStrip({
             }}
           />
         ) : (
-          <button key={facet.id} type="button" role="tab"
+          <button key={facet.id} type="button" role="tab" data-facet-id={facet.id}
             aria-selected={activeId === facet.id}
             aria-haspopup={canRename ? 'menu' : undefined}
             onClick={() => onSelect(facet)}
@@ -96,9 +96,8 @@ export function PageFacetStrip({
         <DropdownMenuContent align="start" className="w-auto" finalFocus={() => {
           if (fieldOpening.current) return false
           const target = menuFor.current
-          return (target === null ? null : Array.from(
-            globalThis.document.querySelectorAll<HTMLElement>('[role="tab"]'),
-          ).find((tab) => tab.textContent === facets.find((facet) => facet.id === target)?.name))
+          return (target === null ? null
+            : globalThis.document.querySelector<HTMLElement>(`[role="tab"][data-facet-id="${target}"]`))
             ?? globalThis.document.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
             ?? true
         }}>
