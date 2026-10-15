@@ -1,0 +1,37 @@
+name: Publish verified Help guides
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+concurrency:
+  group: dana-help-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  publish:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.head_branch, 'automation/help-') &&
+      vars.HELP_AUTOPUBLISH == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Merge only a verified Help-only PR for already deployed code
+        run: node scripts/help/publish.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          HELP_BOT_TOKEN: ${{ secrets.HELP_BOT_TOKEN }}
+          HELP_AUTOPUBLISH: ${{ vars.HELP_AUTOPUBLISH }}

@@ -379,6 +379,17 @@ export function createApp(options: AppOptions = {}): express.Express {
     }),
   )
 
+  // Public deployment identity for Help automation; a merge alone does not mean code is live.
+  app.get('/api/v1/build', (_req: Request, res: Response) => {
+    const commit = process.env.RENDER_GIT_COMMIT?.toLowerCase()
+    res.set('Cache-Control', 'no-store')
+    if (!commit || !/^[a-f0-9]{40}$/.test(commit)) {
+      res.status(503).json({ status: 'unavailable' })
+      return
+    }
+    res.json({ commit })
+  })
+
   app.use('/api', (_req: Request, res: Response) => {
     res.status(404).json(errorBody('not_found', 'Not found.'))
   })

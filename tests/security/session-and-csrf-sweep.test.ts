@@ -1,7 +1,7 @@
 /*
 structural: every mutating route on the mounted application answers
 401 with no session and 403 with a session but no X-CSRF-Token, and every
-reading route answers 401 with no session unless it is one of three named
+reading route answers 401 with no session unless it is one of four named
 public reads, all enumerated over the router rather than sampled.
 
 A one-off route review decays the moment a router is added; a structural
@@ -109,6 +109,10 @@ const EXEMPT = new Map<string, string>([
  * refusing an entry whose route answers 401 after all.
  */
 const PUBLIC_READS = new Map<string, string>([
+  [
+    'GET /api/v1/build',
+    'public deployment identity for the Help maintenance runner. It returns only a Render Git commit SHA or HTTP 503, never account data. It must work without a session so GitHub can verify that a change reached production before documentation is published',
+  ],
   [
     'GET /api/health/',
     'the platform probe. The host calls it with no cookie to decide whether this instance is alive, so a session requirement would report every healthy deploy as sick',
