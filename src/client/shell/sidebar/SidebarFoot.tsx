@@ -64,7 +64,7 @@ export function SidebarFoot({
   return (
     <>
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
-      <div className="px-2 pb-2" onContextMenu={onContextMenu}>
+      <div className="px-2 pb-1" onContextMenu={onContextMenu}>
         {reminderCollapsed ? (
           <button
             type="button"
@@ -105,10 +105,10 @@ export function SidebarFoot({
           </section>
         )}
       </div>
-      <SidebarFooter className="border-t border-border p-2" onContextMenu={onContextMenu}>
-        {/* The 224px sidebar cannot fit seven full-sized controls in one row. Two
-            deliberate groups keep the standard hit area and prevent overflow. */}
-        <div className="grid grid-cols-4 gap-1">
+      <SidebarFooter className="border-t border-sidebar-border px-1 py-1" onContextMenu={onContextMenu}>
+        {/* One balanced row: seven 28px controls fit inside the 224px minimum sidebar
+            without changing hit sizes, leaving empty grid cells or widening the footer. */}
+        <div className="grid grid-cols-7 items-center justify-items-center gap-0.5">
           <FootTip label={<>Search <kbd data-slot="kbd" className="font-sans opacity-70">{SEARCH_KEYS}</kbd></>}>
             <button type="button" aria-label="Search" aria-keyshortcuts={IS_MAC ? 'Meta+K' : 'Control+K'} className={FOOT_BUTTON} onClick={onOpenSearch}>
               <Search strokeWidth={1.75} aria-hidden="true" />
@@ -117,29 +117,20 @@ export function SidebarFoot({
           <NotificationsBell side="top" className={FOOT_BUTTON} />
           <MessagesButton className={FOOT_BUTTON} />
           <HelpUpdatesMenu className={FOOT_BUTTON} onFeedback={() => setFeedbackOpen(true)} />
-        </div>
-        <div className="mt-1 grid grid-cols-4 gap-1">
           <FootTip label="Settings">
-            <Link
-              to={paths.settings}
-              aria-label="Settings"
+            <Link to={paths.settings} aria-label="Settings"
               aria-current={currentPath.startsWith(paths.settings) ? 'page' : undefined}
-              className={FOOT_BUTTON}
-            >
+              className={FOOT_BUTTON}>
               <Settings strokeWidth={1.75} aria-hidden="true" />
             </Link>
           </FootTip>
           <FootTip label="Trash">
-            <Link
-              to={paths.trash}
-              aria-label="Trash"
+            <Link to={paths.trash} aria-label="Trash"
               aria-current={currentPath === paths.trash ? 'page' : undefined}
-              className={FOOT_BUTTON}
-            >
+              className={FOOT_BUTTON}>
               <Trash2 strokeWidth={1.75} aria-hidden="true" />
             </Link>
           </FootTip>
-          <span aria-hidden="true" />
           <FootTip label={isMobile ? 'Close sidebar' : 'Collapse sidebar'}>
             <SidebarTrigger className={FOOT_BUTTON} />
           </FootTip>
