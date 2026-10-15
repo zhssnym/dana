@@ -41,7 +41,7 @@ export async function pageFacetsOf(db: Executor, pageId: string): Promise<GetPag
   }
 }
 
-type FacetWriteResult =
+export type FacetWriteResult =
   | { kind: 'ok' }
   | { kind: 'not_found' }
   | { kind: 'forbidden'; reason: string }
