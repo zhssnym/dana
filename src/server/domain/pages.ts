@@ -717,6 +717,47 @@ export async function actOnFolderPage(
     throw error
   })
 }
+/** A new Facet uses its parent Page's content folder, without a second Page row.
+ * Legacy-backed Facets keep using the original Page writer and receipts. */
+export async function actOnIndependentFacetPage(
+  db: Db,
+  viewerId: string,
+  pageId: string,
+  facetId: string,
+  body: DocumentTransaction,
+): Promise<PageActionResult> {
+  return inTransaction<PageActionResult>(db, async (tx) => {
+    const facts = await accessOf(tx, viewerId, pageId)
+    if (facts === null) return { kind: 'not_found' }
+    const permission = mayPerform(facts, 'folder.section.manage')
+    if (!permission.allowed) return { kind: 'forbidden', reason: permission.reason }
+    const existing = await rowsOf(tx, sql`
+      SELECT pf.id FROM page_facets pf
+        JOIN folders p ON p.id = pf.page_id
+       WHERE pf.id = ${facetId}::uuid AND pf.page_id = ${pageId}::uuid
+         AND pf.content_folder_id IS NULL AND p.deleted_at IS NULL
+         AND p.archived_at IS NULL
+    `)
+    if (!existing.length) return { kind: 'not_found' }
+    if (touchesPageTree(body)) await lockPageTree(tx)
+    await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${pageId}::uuid FOR UPDATE`)
+    const mutation = await applyDocument(tx, viewerId, pageId, body, facetId)
+    const page = await pageViewIn(tx, viewerId, {
+      folderId: pageId, shelfId: null, facetId,
+    })
+    return { kind: 'written', page: { ...page, mutation } }
+  }).catch((error: unknown) => {
+    if (error instanceof DocumentRefusal) {
+      if (error.kind === 'stale') return { kind: 'stale' as const, blockId: pageId }
+      if (error.kind === 'file_kind_mismatch') return {
+        kind: 'file_kind_mismatch' as const, message: error.message,
+      }
+      return { kind: error.kind } as PageActionResult
+    }
+    throw error
+  })
+}
+
 /** A Shelf's `document_transaction`, resolved and locked in the writing transaction. Not the viewer's: not_found. */
 export async function actOnShelfPage(
   db: Db,
