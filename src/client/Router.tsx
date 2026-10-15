@@ -11,6 +11,7 @@ import { FacetEntryPage } from './pages/FacetEntryPage.js'
 import { ResultLinkPage } from './pages/ResultLinkPage.js'
 import { FolderPage } from './pages/FolderPage.js'
 import { LandingPage } from './pages/LandingPage.js'
+import { HelpCenterPage } from './pages/HelpCenterPage.js'
 import { LegalPage } from './pages/LegalPage.js'
 import { NotFoundPage } from './pages/NotFoundPage.js'
 import { ScheduledPage } from './pages/ScheduledPage.js'
@@ -41,6 +42,8 @@ export function Router(): React.JSX.Element {
         {/* Outside the /app layout on purpose: see routes.ts. */}
         <Route path={paths.privacy} element={<LegalPage page="privacy" />} />
         <Route path={paths.terms} element={<LegalPage page="terms" />} />
+        <Route path={paths.help} element={<HelpCenterPage />} />
+        <Route path={paths.helpArticle(':slug')} element={<HelpCenterPage />} />
         <Route path={paths.home} element={<AppShell />}>
           <Route index element={<Navigate to={paths.today} replace />} />
           <Route path="today" element={<TodayPage />} />
