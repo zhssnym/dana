@@ -1,37 +1,17 @@
 import { Buffer } from 'node:buffer'
-import { execFileSync, spawnSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 
 import { github, owner, repository } from '../help/github.mjs'
 import { checkUpdates, currentUpdates } from './check.mjs'
 import { classifyPR } from './select.mjs'
+import { isAncestor, productionSha } from './run-utils.mjs'
 
 const BASELINE = 'a25621c4a52fd65a88335f5803e2dd2466bc5090'
-const LIVE_URL = 'https://dana.so/api/v1/build'
 const BOT = process.env.HELP_BOT_TOKEN
 const SHA = /^[a-f0-9]{40}$/
 
 function git(...args) {
   return execFileSync('git', args, { encoding: 'utf8' }).trim()
-}
-
-export function isAncestor(ancestor, descendant) {
-  if (!SHA.test(ancestor) || !SHA.test(descendant)) return false
-  return spawnSync('git', ['merge-base', '--is-ancestor', ancestor, descendant]).status === 0
-}
-
-export async function productionSha() {
-  try {
-    const response = await fetch(LIVE_URL, {
-      headers: { 'Cache-Control': 'no-cache' },
-      cache: 'no-store',
-      signal: AbortSignal.timeout(8_000),
-    })
-    if (!response.ok) return null
-    const { commit } = await response.json()
-    return SHA.test(commit ?? '') ? commit : null
-  } catch {
-    return null
-  }
 }
 
 async function mergedPullRequests() {
