@@ -453,6 +453,7 @@ function FolderPageBody({
           <FolderWorkBody
             id={activeContentId}
             universal={rootFacetPage && legacyTaskFacet}
+            restrictTasksToPage={selectedFacet !== undefined}
             facetId={independentFacetId}
             facetPage={independentPage}
             kind={kind}
