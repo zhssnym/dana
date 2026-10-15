@@ -82,6 +82,7 @@ import type { GetFolderDependenciesResponse } from '../../shared/task-dependenci
 import { inTransaction } from '../database.js'
 import { moveFolder, visibleAncestors } from '../domain/page-tree.js'
 import { addTab } from '../domain/project-tabs.js'
+import { pageFacetsOf } from '../domain/page-facets.js'
 import { retiredRoute } from '../observability/retired-route.js'
 import { routerWithPreamble } from './preamble.js'
 
@@ -311,6 +312,19 @@ export function createFoldersRouter(
       })
     },
   )
+
+  // New Page/Facet contract. Keep the legacy /folders/:id/facets reader intact.
+  router.get('/pages/:id/facets', requireSession, async (req: Request, res: Response) => {
+    const db = database(res)
+    if (db === null) return
+    const pageId = parsedId(res, req.params.id)
+    if (pageId === null) return
+    if ((await accessOf(db, viewer(req), pageId)) === null) {
+      sendError(res, 404, 'not_found', 'Not found.')
+      return
+    }
+    res.status(200).json(await pageFacetsOf(db, pageId))
+  })
 
   router.patch(
     '/folders/:id',
