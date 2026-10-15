@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
@@ -14,6 +16,16 @@ export default defineConfig({
   // session; the plugin lands here first because nothing it writes renders
   // without this line.
   plugins: [
+    {
+      name: 'publish-updates-feed',
+      generateBundle() {
+        this.emitFile({
+          type: 'asset',
+          fileName: 'updates/feed.json',
+          source: readFileSync(new URL('./src/client/updates/feed.json', import.meta.url)),
+        })
+      },
+    },
     react(),
     tailwindcss(),
     // The 10.6 PWA layer, 11.4's named plugin. Each load-bearing value below
