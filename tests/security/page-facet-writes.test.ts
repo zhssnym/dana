@@ -618,7 +618,7 @@ describe('Page Facet writes', () => {
     `)).toEqual([{ id: blockId, page_facet_id: notesId }])
 
     expectStatus(await owner.browser.json(`/archive/folders/${rootId}/restore`, 'POST', {}),
-      204, 'restore archived root')
+      200, 'restore archived root')
     const facets = await owner.browser.json(`/pages/${childId}/facets`, 'GET')
     expectStatus(facets, 200, 'nested Facets visible after restore')
     expect((facets.json() as FacetResponse).facets.map((f) => f.id)).toEqual([mainId, notesId])
