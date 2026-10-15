@@ -39,3 +39,60 @@ safe Markdown links, bold and inline code. Avoid raw HTML and complex Markdown.
 New content and changed shortcuts need source or browser verification.
 
 Automated writing and ongoing documentation validation belong to #678.
+
+
+## Automated maintenance
+
+The article registry is in scripts/help/topics.mjs. It maps source areas to existing
+article slugs. Keep this map current when you add or move a feature. Unknown user-facing
+source changes are sent for review, not ignored.
+
+CI runs npm run help:check. It checks frontmatter, categories, stable links, article
+length and unsupported markup. A generated article must pass these checks before a PR
+is created. Raw HTML is not permitted.
+
+The Help maintenance workflow runs after successful main CI and every six hours as a
+fallback. It reads the public /api/v1/build endpoint and proceeds only when Render's
+RENDER_GIT_COMMIT confirms that the changed code is live. The endpoint returns HTTP
+503 when the deployment identity is unavailable. The workflow never substitutes a
+GitHub merge time or commit date for production verification.
+
+The workflow uses the current code, changed tests, and affected article text as
+evidence for a draft. It does not treat old PR descriptions as source of truth. Its
+review stage checks exact source quotes, relevant changed tests, article scope,
+links and writing quality. Uncertain changes create a draft PR or a specific
+review issue. Removing an old guide always needs human review.
+
+### Enable generation
+
+Create these repository Actions secrets:
+
+- OPENAI_API_KEY: A scoped API key for the documentation model. The workflow sends
+  relevant source, test excerpts and existing help text to that model. Do not enable
+  this step if the repository's code must not be shared with the selected provider.
+- HELP_BOT_TOKEN: A fine-grained GitHub personal access token for this repository
+  with Contents and Pull requests read/write. Use a dedicated bot account where
+  possible. A PR created with this token triggers regular GitHub CI. A PR created
+  with the workflow's GITHUB_TOKEN may not trigger those checks.
+
+Optional repository variables:
+
+- HELP_WRITER_MODEL: The model used for drafting and verification. Defaults to
+  gpt-4.1-mini.
+- HELP_AUTOPUBLISH: Set to true **only after** a test-generated PR has passed
+  verification and manual review. Its default is off. When enabled, a second
+  workflow merges only a nondraft Help-bot PR whose latest head passed CI, whose
+  files are only Help Markdown articles, and whose source code is confirmed live.
+
+The workflow records an audit check on each inspected main commit. When a required
+secret is absent, evidence is missing, or a model answer is uncertain, it opens a
+review issue and does not publish changes. Use the Help maintenance workflow's
+manual Force input to retry after a configuration or documentation fix.
+
+The automatic scan starts after the Help Center redesign commit
+235ff6b509ab5791319c3bfb953bc3550c43fa74. The initial help articles were
+created under #677. Their first audit is separate from the incremental change scan.
+
+The documentation model can be wrong even when its checks pass. Keep the exception
+queue and audit history available, and periodically spot-check published guides
+against the running application.
