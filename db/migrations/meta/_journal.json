@@ -519,6 +519,13 @@
       "when": 1796200000000,
       "tag": "0087_page_facet_content_association",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1796300000000,
+      "tag": "0088_facet_document_receipts",
+      "breakpoints": true
     }
   ]
 }
