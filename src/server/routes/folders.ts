@@ -82,7 +82,9 @@ import type { GetFolderDependenciesResponse } from '../../shared/task-dependenci
 import { inTransaction } from '../database.js'
 import { moveFolder, visibleAncestors } from '../domain/page-tree.js'
 import { addTab } from '../domain/project-tabs.js'
-import { pageFacetsOf } from '../domain/page-facets.js'
+import { createPageFacet, pageFacetsOf, renamePageFacet, reorderPageFacets } from '../domain/page-facets.js'
+import type { FacetWriteResult } from '../domain/page-facets.js'
+import { createPageFacetBody, renamePageFacetBody, reorderPageFacetsBody } from '../../shared/page-facets.js'
 import { retiredRoute } from '../observability/retired-route.js'
 import { routerWithPreamble } from './preamble.js'
 
@@ -325,6 +327,72 @@ export function createFoldersRouter(
     }
     res.status(200).json(await pageFacetsOf(db, pageId))
   })
+
+  const replyFacetWrite = async (
+    res: Response, db: Db, pageId: string, outcome: FacetWriteResult, okStatus: number,
+  ): Promise<void> => {
+    switch (outcome.kind) {
+      case 'ok':
+        res.status(okStatus).json(await pageFacetsOf(db, pageId))
+        return
+      case 'not_found':
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      case 'forbidden':
+        sendError(res, 403, 'forbidden', outcome.reason)
+        return
+      case 'invalid':
+        sendError(res, 422, 'validation_failed', 'after_facet_id is not on this Page.')
+        return
+      case 'conflict':
+        sendError(res, 409, 'conflict', 'The Facet list changed or reached its limit. Reload and try again.')
+        return
+    }
+  }
+
+  router.post('/pages/:id/facets', requireSession, requireCsrf, mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const pageId = parsedId(res, req.params.id)
+      if (pageId === null) return
+      if ((await gate(req, res, pageId, 'facet.create')) === null) return
+      const body = parseBody(createPageFacetBody, req, res, securityLog)
+      if (body === null) return
+      const outcome = await createPageFacet(db, viewer(req), pageId, body.name, body.after_facet_id)
+      await replyFacetWrite(res, db, pageId, outcome, 201)
+    },
+  )
+
+  router.patch('/pages/:id/facets/:facetId', requireSession, requireCsrf, mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const pageId = parsedId(res, req.params.id)
+      if (pageId === null) return
+      if ((await gate(req, res, pageId, 'facet.rename')) === null) return
+      const facetId = parsedId(res, req.params.facetId)
+      if (facetId === null) return
+      const body = parseBody(renamePageFacetBody, req, res, securityLog)
+      if (body === null) return
+      const outcome = await renamePageFacet(db, viewer(req), pageId, facetId, body.name)
+      await replyFacetWrite(res, db, pageId, outcome, 200)
+    },
+  )
+
+  router.put('/pages/:id/facets/order', requireSession, requireCsrf, mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const pageId = parsedId(res, req.params.id)
+      if (pageId === null) return
+      if ((await gate(req, res, pageId, 'facet.reorder')) === null) return
+      const body = parseBody(reorderPageFacetsBody, req, res, securityLog)
+      if (body === null) return
+      const outcome = await reorderPageFacets(db, viewer(req), pageId, body.order)
+      await replyFacetWrite(res, db, pageId, outcome, 200)
+    },
+  )
 
   router.patch(
     '/folders/:id',
