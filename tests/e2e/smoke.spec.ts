@@ -133,6 +133,40 @@ test('nested Page: add a Facet and edit it in the existing Work canvas', async (
   await page.goto(`/app/folders/${childId}`)
   await expect(page.getByRole('tablist', { name: 'Page Facets' })).toHaveCount(0)
 
+  // Permission-projected Page actions may arrive after the header on reload.
+  const openRenameFacet = async (): Promise<void> => {
+    await expect.poll(async () => {
+      await page.getByRole('button', { name: 'More actions' }).last().click()
+      const ready = await page.getByRole('menuitem', { name: 'Rename Facet' }).isVisible()
+      if (!ready) await page.keyboard.press('Escape')
+      return ready
+    }).toBe(true)
+    await page.getByRole('menuitem', { name: 'Rename Facet' }).click()
+  }
+
+  // A sole Main has no strip, but it can still be renamed from Page actions.
+  await openRenameFacet()
+  const renameDialog = page.getByRole('dialog', { name: 'Rename Facet' })
+  await renameDialog.getByRole('textbox', { name: 'Facet name' }).fill('Overview')
+  await renameDialog.getByRole('button', { name: 'Rename' }).click()
+  await expect.poll(async () => {
+    const data = (await (await page.request.get(`/api/v1/pages/${childId}/facets`)).json()) as {
+      facets: { name: string }[]
+    }
+    return data.facets[0]?.name
+  }).toBe('Overview')
+  await expect(page.getByRole('tablist', { name: 'Page Facets' })).toHaveCount(0)
+  await page.reload()
+  await openRenameFacet()
+  await renameDialog.getByRole('textbox', { name: 'Facet name' }).fill('Main')
+  await renameDialog.getByRole('button', { name: 'Rename' }).click()
+  await expect.poll(async () => {
+    const data = (await (await page.request.get(`/api/v1/pages/${childId}/facets`)).json()) as {
+      facets: { name: string }[]
+    }
+    return data.facets[0]?.name
+  }).toBe('Main')
+
   await page.getByRole('button', { name: 'More actions' }).last().click()
   await page.getByRole('menuitem', { name: 'Add Facet' }).click()
   const tabs = page.getByRole('tablist', { name: 'Page Facets' })
@@ -183,6 +217,26 @@ test('nested Page: add a Facet and edit it in the existing Work canvas', async (
   await expect(reorderedTabs.getByRole('tab', { name: 'Main' })).toHaveAttribute('aria-selected', 'true')
   await expect(page.locator('.dana-writing-canvas')).not.toContainText(message)
   await reorderedTabs.getByRole('tab', { name: 'Untitled' }).click()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+
+  // Facet rename changes metadata only: the saved writing stays on its Facet.
+  await reorderedTabs.getByRole('tab', { name: 'Untitled' }).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Rename' }).click()
+  const nameField = page.getByRole('textbox', { name: 'Name of Untitled' })
+  await nameField.fill('Notes')
+  await nameField.press('Enter')
+  await expect(reorderedTabs.getByRole('tab', { name: 'Notes' })).toBeVisible()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+  await expect.poll(async () => {
+    const response = await page.request.get(`/api/v1/pages/${childId}/facets`)
+    const data = (await response.json()) as {
+      facets: { id: string; name: string }[]
+    }
+    return data.facets.find((facet) => facet.id === newFacetId)?.name
+  }).toBe('Notes')
+
+  await page.reload()
+  await page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Notes' }).click()
   await expect(page.locator('.dana-writing-canvas')).toContainText(message)
 })
 

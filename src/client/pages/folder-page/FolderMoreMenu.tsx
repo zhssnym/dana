@@ -4,7 +4,7 @@ import type { NavigateFunction } from 'react-router'
 import type { useDuplicateFolder } from '../../api/mutations.js'
 import { ObjectMenu } from '../../components/object-menu.js'
 import { DropdownMenuItem, DropdownMenuSeparator } from '../../components/ui/dropdown-menu.js'
-import { Plus } from '../../lib/icons.js'
+import { Pencil, Plus } from '../../lib/icons.js'
 import type { FolderGates } from '../../lib/folder-authority.js'
 import { folderLink } from '../../lib/nav-links.js'
 import { copyLink } from '../../lib/object-acts.js'
@@ -23,6 +23,7 @@ export function FolderMoreMenu({
   navigate,
   acts,
   onAddFacet,
+  onRenameFacet,
 }: {
   readonly atProject: boolean
   readonly name: string
@@ -35,6 +36,7 @@ export function FolderMoreMenu({
   readonly navigate: NavigateFunction
   readonly acts: FolderActs
   readonly onAddFacet?: () => void
+  readonly onRenameFacet?: () => void
 }): React.JSX.Element {
   const { doArchive, askLeave, doDelete, saveAsWorkflow } = acts
   return (
@@ -42,12 +44,20 @@ export function FolderMoreMenu({
       kind={atProject ? 'project' : 'folder'}
       name={name}
       align="end"
-      extra={onAddFacet === undefined ? undefined : (
+      extra={onAddFacet === undefined && onRenameFacet === undefined ? undefined : (
         <>
-          <DropdownMenuItem onClick={onAddFacet}>
-            <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            Add Facet
-          </DropdownMenuItem>
+          {onRenameFacet === undefined ? null : (
+            <DropdownMenuItem onClick={onRenameFacet}>
+              <Pencil className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              Rename Facet
+            </DropdownMenuItem>
+          )}
+          {onAddFacet === undefined ? null : (
+            <DropdownMenuItem onClick={onAddFacet}>
+              <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              Add Facet
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
         </>
       )}
