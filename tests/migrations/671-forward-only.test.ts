@@ -132,9 +132,27 @@ test('0092-0096 add Facet identities without replacing populated 0091 content', 
       }
       return values
     }
+    // Execute the exact operator-facing read-only SQL against the fixture,
+    // not just a parallel approximation inside this test.
+    const fingerprints = await readFile(resolve('db/release/671-facet-preservation-fingerprints.sql'), 'utf8')
+    const fingerprintRows = async () => {
+      const reports = await pg!.exec(fingerprints)
+      return reports[1]?.rows
+    }
     const before = await snapshot()
+    const beforeReport = await fingerprintRows()
     await migrate(db, { migrationsFolder: migrations })
     expect(await snapshot()).toEqual(before)
+    expect(await fingerprintRows()).toEqual(beforeReport)
+
+    const inspection = await pg.exec(
+      await readFile(resolve('db/release/671-facet-association-checks.sql'), 'utf8'),
+    )
+    const checkRows = inspection[1]?.rows ?? []
+    expect(checkRows).toHaveLength(8)
+    for (const check of checkRows) {
+      expect(Number(check.violation_count), String(check.check_name)).toBe(0)
+    }
 
     const facets = await db.execute(sql`
       SELECT f.id AS folder_id, pf.id AS facet_id, pf.page_id, pf.content_folder_id
