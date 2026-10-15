@@ -1,8 +1,11 @@
+import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
 import { addMemberOk, Cast, connect, expectStatus } from '../support/folders-harness.js'
+import { inTransaction } from '../../src/server/database.js'
+import { rows } from '../support/helpers.js'
 
 let app: AuthTestApp
 const cast = new Cast(['owner', 'viewer', 'stranger'], 'pf671')
@@ -117,5 +120,94 @@ describe('Page Facet writes', () => {
     expectStatus(await stranger.browser.json(`/pages/${nestedId}/facets`, 'POST', {
       name: 'Not allowed',
     }), 404, 'stranger cannot discover Page')
+  }, 60_000)
+
+  test('legacy Page content tracks its Facet and a new Facet can own blocks without a new Page', async () => {
+    const [owner] = await cast.of(app)
+    if (!owner) throw new Error('Missing owner')
+    const made = await owner.browser.json('/folders', 'POST', {
+      name: 'pf671 content home', kind: 'work',
+    })
+    expectStatus(made, 201, 'created Page')
+    const rootId = (made.json() as { id: string }).id
+    const child = await owner.browser.json('/folders', 'POST', {
+      name: 'pf671 child home', parent_folder_id: rootId,
+    })
+    expectStatus(child, 201, 'created nested Page')
+    const childId = (child.json() as { id: string }).id
+
+    const rootFacet = (await rows(app.db, sql`
+      SELECT id FROM page_facets WHERE content_folder_id = ${rootId}::uuid
+    `))[0]?.id
+    const childFacet = (await rows(app.db, sql`
+      SELECT id FROM page_facets WHERE content_folder_id = ${childId}::uuid
+    `))[0]?.id
+    expect(rootFacet).toBeDefined()
+    expect(childFacet).toBeDefined()
+
+    const task = await owner.browser.json('/tasks', 'POST', {
+      folder_id: rootId, title: 'pf671 existing task',
+    })
+    expectStatus(task, 201, 'legacy Task created')
+    const taskId = (task.json() as { id: string }).id
+    await inTransaction(app.db, (tx) => tx.execute(sql`
+      INSERT INTO page_blocks (folder_id, kind, position, text)
+      VALUES (${rootId}::uuid, 'paragraph', 999, 'pf671 existing writing')
+    `))
+    const [taskRow] = await rows(app.db, sql`
+      SELECT folder_id, page_facet_id FROM tasks WHERE id = ${taskId}::uuid
+    `)
+    expect(taskRow).toEqual({ folder_id: rootId, page_facet_id: rootFacet })
+    const [block] = await rows(app.db, sql`
+      SELECT id, folder_id, page_facet_id FROM page_blocks
+       WHERE folder_id = ${rootId}::uuid AND text = 'pf671 existing writing'
+    `)
+    expect(block?.page_facet_id).toBe(rootFacet)
+
+    // Moving legacy content between Page homes reassigns only the Facet link.
+    await inTransaction(app.db, (tx) => tx.execute(sql`
+      UPDATE page_blocks SET folder_id = ${childId}::uuid WHERE id = ${block?.id}::uuid
+    `))
+    expect(await rows(app.db, sql`
+      SELECT folder_id, page_facet_id FROM page_blocks WHERE id = ${block?.id}::uuid
+    `)).toEqual([{ folder_id: childId, page_facet_id: childFacet }])
+
+    const [before] = await rows(app.db, sql`
+      SELECT count(*)::int AS amount FROM folders WHERE project_id = ${rootId}::uuid
+    `)
+    const created = await owner.browser.json(`/pages/${childId}/facets`, 'POST', {
+      name: 'pf671 Notes',
+    })
+    expectStatus(created, 201, 'created independent Facet')
+    const notes = (created.json() as FacetResponse).facets.find((facet) => facet.name === 'pf671 Notes')
+    expect(notes?.content_page_id).toBeNull()
+    const [after] = await rows(app.db, sql`
+      SELECT count(*)::int AS amount FROM folders WHERE project_id = ${rootId}::uuid
+    `)
+    expect(after).toEqual(before)
+
+    // The future editor will supply the Facet id while retaining the parent Page id.
+    await inTransaction(app.db, (tx) => tx.execute(sql`
+      INSERT INTO page_blocks (folder_id, page_facet_id, kind, position, text)
+      VALUES (${childId}::uuid, ${notes?.id}::uuid, 'paragraph', 1000, 'pf671 Notes draft')
+    `))
+    expect(await rows(app.db, sql`
+      SELECT folder_id, page_facet_id FROM page_blocks
+       WHERE text = 'pf671 Notes draft'
+    `)).toEqual([{ folder_id: childId, page_facet_id: notes?.id }])
+    // The same Facet cannot be used as another Page's content home.
+    await expect(inTransaction(app.db, (tx) => tx.execute(sql`
+      INSERT INTO page_blocks (folder_id, page_facet_id, kind, position, text)
+      VALUES (${rootId}::uuid, ${notes?.id}::uuid, 'paragraph', 1001, 'invalid foreign Facet')
+    `))).rejects.toThrow(/page_facet_not_here/)
+
+    // Backfilled legacy records (including seeded data) cannot point to a
+    // different Facet than their original content home.
+    expect(await rows(app.db, sql`
+      SELECT count(*)::int AS amount FROM page_blocks b JOIN page_facets pf
+        ON pf.content_folder_id = b.folder_id
+       WHERE b.page_facet_id IS DISTINCT FROM pf.id
+         AND b.text IS DISTINCT FROM 'pf671 Notes draft'
+    `)).toEqual([{ amount: 0 }])
   }, 60_000)
 })
