@@ -157,7 +157,6 @@ function FolderPageBody({
   })
   const canCreateFacet = isNestedPage && facts !== null && mayDraw(facts, 'facet.create')
   const canRenameFacet = isNestedPage && facts !== null && mayDraw(facts, 'facet.rename')
-  const singleFacet = pageFacets.data?.facets.length === 1 ? pageFacets.data.facets[0] : null
   const addFacet = async (): Promise<void> => {
     if (!canCreateFacet) return
     setFacetError('')
@@ -267,8 +266,7 @@ function FolderPageBody({
         navigate={navigate}
         acts={acts}
         {...(canCreateFacet ? { onAddFacet: () => { void addFacet() } } : {})}
-        {...(canRenameFacet && singleFacet !== null && singleFacet !== undefined
-          ? { onRenameFacet: () => setSingleFacetRenameOpen(true) } : {})}
+        {...(canRenameFacet ? { onRenameFacet: () => setSingleFacetRenameOpen(true) } : {})}
       />
     </>
   )
@@ -371,9 +369,10 @@ function FolderPageBody({
         )}
       </PageBody>
 
-      <FacetRenameDialog open={singleFacetRenameOpen} name={singleFacet?.name ?? 'Main'}
+      <FacetRenameDialog open={singleFacetRenameOpen} name={selectedFacet?.name ?? ''}
+        ready={selectedFacet !== undefined}
         onOpenChange={setSingleFacetRenameOpen}
-        onRename={(name) => { if (singleFacet !== null && singleFacet !== undefined) void renameFacet(singleFacet, name) }}
+        onRename={(name) => { if (selectedFacet !== undefined) void renameFacet(selectedFacet, name) }}
       />
       <FolderCoverDialog storageName={coverKey} open={coverOpen} onOpenChange={setCoverOpen} />
 
