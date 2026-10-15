@@ -179,36 +179,6 @@ export async function addTab(
   })
 }
 
-/** Where a new sub-page of a Work tab goes: the project's `Pages` Doc tab, created after the Work tab if missing. */
-export async function pagesTabFor(tx: Executor, actorId: string, workTabId: string): Promise<string | null> {
-  const root = await lockedProjectOf(tx, workTabId)
-  if (root === null) return null
-  const work = await rowsOf(
-    tx,
-    sql`SELECT tab_position FROM folders
-         WHERE id = ${workTabId}::uuid AND kind = 'work' AND tab_position IS NOT NULL
-           AND deleted_at IS NULL AND archived_at IS NULL`,
-  )
-  if (work[0] === undefined) return null
-  const existing = await rowsOf(
-    tx,
-    sql`SELECT id FROM folders
-         WHERE project_id = ${root.id}::uuid AND tab_position IS NOT NULL AND kind = 'doc'
-           AND name = 'Pages' AND deleted_at IS NULL AND archived_at IS NULL
-         ORDER BY tab_position, id LIMIT 1`,
-  )
-  if (existing[0] !== undefined) return String(existing[0].id)
-  const at = String(work[0].tab_position)
-  const next = await rowsOf(
-    tx,
-    sql`SELECT min(tab_position) AS next FROM folders
-         WHERE project_id = ${root.id}::uuid AND tab_position > ${at}
-           AND deleted_at IS NULL AND archived_at IS NULL`,
-  )
-  const after = next[0]?.next == null ? null : String(next[0].next)
-  return insertTab(tx, actorId, root, 'doc', 'Pages', keyBetween(at, after))
-}
-
 export { projectOf } from './folder-access.js'
 
 /** The project's Discussion tab, created at the end if missing. Desk answers null. */
