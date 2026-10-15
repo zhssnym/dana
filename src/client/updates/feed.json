@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "pr-688",
+      "publishedAt": "2026-10-15",
+      "historical": true,
+      "kind": "improvement",
+      "title": "Find Help articles more easily",
+      "summary": "The Help Center now has topic navigation, a clearer reading layout, and section links within longer guides.",
+      "pr": 688,
+      "commit": "235ff6b509ab5791319c3bfb953bc3550c43fa74"
+    },
+    {
+      "id": "pr-682",
+      "publishedAt": "2026-10-15",
+      "historical": true,
+      "kind": "feature",
+      "title": "A Help Center for Dana",
+      "summary": "Browse guides for tasks, planning, writing, and collaboration. Search and keyboard shortcuts are available without signing in.",
+      "pr": 682,
+      "commit": "df797e3fa40a0853065019379b709522c17626d2"
+    },
+    {
+      "id": "pr-665",
+      "publishedAt": "2026-10-15",
+      "historical": true,
+      "kind": "improvement",
+      "title": "A personal bio for each teammate",
+      "summary": "Teammates now own their personal bio. Earlier project bios remain available as read-only context with attribution.",
+      "pr": 665,
+      "commit": "e3a17394d148d88840fa59cc89acbd443503ac48"
+    },
+    {
+      "id": "pr-651",
+      "publishedAt": "2026-10-15",
+      "historical": true,
+      "kind": "improvement",
+      "title": "More useful teammate profiles",
+      "summary": "Profiles separate project details from personal information, with space for relevant writing, images, and files.",
+      "pr": 651,
+      "commit": "d6fdc04face9796fc08aebc472486d25d3cbb7b1"
+    },
+    {
+      "id": "pr-641",
+      "publishedAt": "2026-10-15",
+      "historical": true,
+      "kind": "improvement",
+      "title": "Easier date adjustments in Calendar",
+      "summary": "Task ranges have clearer resize handles. Drag either end to adjust dates, including on touch devices.",
+      "pr": 641,
+      "commit": "a0a706965f7d6c563f3db00f547fb0c37e8a5f97"
+    },
+    {
+      "id": "pr-632",
+      "publishedAt": "2026-10-15",
+      "historical": true,
+      "kind": "improvement",
+      "title": "Breadcrumbs show where you are",
+      "summary": "Location breadcrumbs now appear on root pages as well as nested pages, tasks, and other work surfaces.",
+      "pr": 632,
+      "commit": "c2c6f10ecd86b1d7c1992d04841031c4cfac993a"
+    },
+    {
+      "id": "pr-631",
+      "publishedAt": "2026-10-15",
+      "historical": true,
+      "kind": "improvement",
+      "title": "Task actions are easier to reach",
+      "summary": "Right-click a task in List, Board, Calendar, or Freeform to open its actions, including Open in new tab.",
+      "pr": 631,
+      "commit": "bfa2f8274da21924873e2baa67c201830a169785"
+    }
+  ]
+}
