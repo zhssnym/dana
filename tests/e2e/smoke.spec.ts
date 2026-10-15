@@ -169,6 +169,21 @@ test('nested Page: add a Facet and edit it in the existing Work canvas', async (
   await page.reload()
   await page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Untitled' }).click()
   await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+
+  // Reordering must not display another Facet's tab while editing Main's data.
+  const mainFacetId = facets.facets.find((facet) => facet.name === 'Main')?.id
+  expect(mainFacetId).toBeTruthy()
+  const reordered = await page.request.put(`/api/v1/pages/${childId}/facets/order`, {
+    headers: { 'X-CSRF-Token': csrf! },
+    data: { order: [newFacetId, mainFacetId] },
+  })
+  expect(reordered.status(), await reordered.text()).toBe(200)
+  await page.reload()
+  const reorderedTabs = page.getByRole('tablist', { name: 'Page Facets' })
+  await expect(reorderedTabs.getByRole('tab', { name: 'Main' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('.dana-writing-canvas')).not.toContainText(message)
+  await reorderedTabs.getByRole('tab', { name: 'Untitled' }).click()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
 })
 
 
