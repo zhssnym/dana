@@ -106,5 +106,5 @@ CREATE TRIGGER folders_sync_page_facet_after_insert
   FOR EACH ROW EXECUTE FUNCTION folders_sync_page_facet();
 --> statement-breakpoint
 CREATE TRIGGER folders_sync_page_facet_after_update
-  AFTER UPDATE OF name, tab_position, project_id, kind ON folders
+  AFTER UPDATE OF name, tab_position, project_id, parent_folder_id, kind ON folders
   FOR EACH ROW EXECUTE FUNCTION folders_sync_page_facet();
