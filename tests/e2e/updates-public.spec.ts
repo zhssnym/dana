@@ -26,7 +26,6 @@ test("What's New remains readable on mobile", async ({ page }) => {
   await page.goto('/updates')
   await expect(page.getByRole('heading', { name: "What's new" })).toBeVisible()
   await expect(page.getByRole('link', { name: /A personal bio for each teammate/ })).toBeVisible()
-  const overflows = await page.evaluate(() =>
-    document.documentElement.scrollWidth > document.documentElement.clientWidth)
+  const overflows = await page.evaluate('document.documentElement.scrollWidth > document.documentElement.clientWidth')
   expect(overflows).toBe(false)
 })
