@@ -75,34 +75,42 @@ function UpdateDetail({ id }: { readonly id: string }): React.JSX.Element {
       </div>
     )
   }
+  const Icon = TYPE_ICON[item.kind]
   return (
-    <article className="mx-auto max-w-[var(--help-article-width)] px-5 pb-20 pt-10 sm:px-8">
+    <article className="mx-auto max-w-[var(--help-article-width)] px-5 pb-16 pt-9 sm:px-8 sm:pt-12">
       <nav aria-label="Breadcrumb">
-        <Link to={paths.updates} className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          All updates
+        <Link to={paths.updates}
+          className="inline-flex items-center gap-2 rounded-sm py-1 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary">
+          <ArrowLeft className="size-4 shrink-0" aria-hidden="true" />
+          What&apos;s New
         </Link>
       </nav>
-      <div className="mt-10 flex items-center gap-3 text-xs text-muted-foreground">
-        <UpdateMark kind={item.kind} />
-        <span>{TYPE_LABEL[item.kind]}</span>
-        {!item.historical ? <span>· {formatUpdateDay(item.publishedAt)}</span> : null}
-      </div>
-      <h1 className="mt-5 font-title text-[length:var(--text-title-size)] leading-[var(--text-title-line)]">{item.title}</h1>
-      <p className="mt-6 text-sm leading-7 text-foreground">{item.summary}</p>
-      <div className="mt-10">
-        <a
-          href={'https://github.com/zhssnym/dana/pull/' + item.pr}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-primary"
-        >
-          Technical details <ArrowUpRight className="size-4" aria-hidden="true" />
-        </a>
-      </div>
-      <Link to={paths.updates} className="mt-14 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4" aria-hidden="true" /> Back to all updates
-      </Link>
+
+      <header className="mt-9 sm:mt-11">
+        <p className="flex items-center gap-2 text-xs font-section text-muted-foreground">
+          <Icon className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
+          <span>{TYPE_LABEL[item.kind]}</span>
+          {!item.historical ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>{formatUpdateDay(item.publishedAt)}</span>
+            </>
+          ) : null}
+        </p>
+        <h1 className="mt-4 font-title text-[length:var(--text-title-size)] leading-[var(--text-title-line)]">
+          {item.title}
+        </h1>
+        <p className="mt-5 text-sm leading-7 text-muted-foreground">{item.summary}</p>
+      </header>
+
+      <a
+        href={'https://github.com/zhssnym/dana/pull/' + item.pr}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-8 inline-flex items-center gap-2 rounded-sm py-1 text-xs text-muted-foreground hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+      >
+        Technical details <ArrowUpRight className="size-4" aria-hidden="true" />
+      </a>
     </article>
   )
 }
