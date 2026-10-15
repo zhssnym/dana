@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest'
 
 import { findHelp, HELP_SECTIONS, helpArticles, helpBySlug } from './content.js'
+import { helpHeadings } from './markdown.js'
 
 describe('public help articles', () => {
+  it('assigns stable, distinct heading anchors for the article table of contents', () => {
+    expect(helpHeadings('## Choose dates\n### Start date\n## Choose dates')).toEqual([
+      { title: 'Choose dates', id: 'choose-dates', level: 2 },
+      { title: 'Start date', id: 'start-date', level: 3 },
+      { title: 'Choose dates', id: 'choose-dates-2', level: 2 },
+    ])
+  })
+
+
   it('has valid titles, categories, unique slugs, and related links', () => {
     expect(helpArticles.length).toBeGreaterThanOrEqual(10)
     expect(new Set(helpArticles.map((article) => article.slug)).size).toBe(helpArticles.length)
