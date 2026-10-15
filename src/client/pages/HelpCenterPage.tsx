@@ -306,6 +306,10 @@ function HelpArticleView({ slug }: { readonly slug: string }): React.JSX.Element
             <Link to={paths.help} className="hover:text-foreground">Help</Link>
             <ChevronRight className="size-3.5" aria-hidden="true" />
             <Link to={topicUrl(article.section)} className="hover:text-foreground">{article.section}</Link>
+            <Link to={paths.help + '?search=1'} className="ml-auto inline-flex items-center gap-1.5 rounded-sm text-muted-foreground hover:text-foreground">
+              <Search className="size-3.5" aria-hidden="true" />
+              Search help
+            </Link>
           </nav>
           <header className="border-b border-border pb-8">
             <h1 className="font-title text-[length:var(--text-title-size)] leading-[var(--text-title-line)]">{article.title}</h1>
