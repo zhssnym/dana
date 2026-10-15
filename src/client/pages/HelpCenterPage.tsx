@@ -169,7 +169,7 @@ function HelpHome(): React.JSX.Element {
   return (
     <div className="mx-auto max-w-[var(--help-layout-width)] px-5 sm:px-8">
       <section className="border-b border-border py-12 sm:py-16">
-        <h1 className="font-title text-[length:var(--text-title-size)] leading-[var(--text-title-line)]">
+        <h1 className="font-title text-[length:var(--text-title-size)] leading-[var(--text-title-line)] sm:text-[length:var(--help-hero-title-size)] sm:leading-[var(--help-hero-title-line)]">
           How can we help?
         </h1>
         <p className="mt-3 text-sm text-muted-foreground">Find answers and learn how to work in Dana.</p>
@@ -280,7 +280,7 @@ function HelpArticleView({ slug }: { readonly slug: string }): React.JSX.Element
   return (
     <div className="mx-auto grid max-w-[var(--help-layout-width)] gap-8 px-5 pb-20 pt-8 sm:px-8 lg:grid-cols-[var(--help-nav-width)_minmax(0,1fr)] lg:gap-10 xl:grid-cols-[var(--help-nav-width)_minmax(0,1fr)_var(--help-toc-width)] xl:gap-12">
       <aside className="hidden min-w-0 border-r border-border pr-5 lg:block">
-        <div className="sticky top-8 max-h-[calc(100dvh-64px)] overflow-y-auto pb-8">
+        <div className="sticky top-8 max-h-[calc(100dvh-var(--help-nav-viewport-gap))] overflow-y-auto pb-8">
           <Link to={paths.help} className="mb-7 inline-flex items-center gap-2 text-xs font-section text-foreground hover:text-primary">
             <BookOpen className="size-4 text-muted-foreground" aria-hidden="true" /> All guides
           </Link>
@@ -294,7 +294,7 @@ function HelpArticleView({ slug }: { readonly slug: string }): React.JSX.Element
             Browse articles
             <ChevronDown className="ml-auto size-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
           </summary>
-          <div className="mt-4 max-h-[50dvh] overflow-y-auto pb-3">
+          <div className="mt-4 max-h-[var(--help-mobile-nav-height)] overflow-y-auto pb-3">
             <DocumentationNavigation current={slug} />
           </div>
         </details>
@@ -355,9 +355,7 @@ export function HelpCenterPage(): React.JSX.Element {
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-[var(--help-layout-width)] items-center justify-between gap-4 px-5 py-4 sm:px-8">
           <Link to={paths.help} className="flex items-center gap-3 font-title text-sm text-foreground hover:text-primary">
-            <span className="flex size-8 items-center justify-center rounded-md bg-muted">
-              <BookOpen className="size-4" strokeWidth={1.6} aria-hidden="true" />
-            </span>
+            <img src="/dana-mark.svg" alt="" className="size-7 shrink-0" />
             <span>Dana <span className="ml-1 font-normal text-muted-foreground">Help Center</span></span>
           </Link>
           <a href={paths.home} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
