@@ -3,6 +3,7 @@ import type { ReactElement } from 'react'
 import { Link } from 'react-router'
 import { ArrowUpRight, Megaphone, Search, Settings, Trash2, X } from '../../lib/icons.js'
 import { FeedbackDialog } from '../../components/feedback/FeedbackDialog.js'
+import { HelpUpdatesMenu } from '../../components/help/HelpUpdatesMenu.js'
 import { usePatchBundle } from '../../api/mutations.js'
 import { useBundle } from '../../api/queries.js'
 import { SidebarFooter, SidebarTrigger } from '../../components/ui/sidebar.js'
@@ -105,7 +106,9 @@ export function SidebarFoot({
         )}
       </div>
       <SidebarFooter className="border-t border-border p-2" onContextMenu={onContextMenu}>
-        <div className="flex items-center gap-1">
+        {/* The 224px sidebar cannot fit seven full-sized controls in one row. Two
+            deliberate groups keep the standard hit area and prevent overflow. */}
+        <div className="grid grid-cols-4 gap-1">
           <FootTip label={<>Search <kbd data-slot="kbd" className="font-sans opacity-70">{SEARCH_KEYS}</kbd></>}>
             <button type="button" aria-label="Search" aria-keyshortcuts={IS_MAC ? 'Meta+K' : 'Control+K'} className={FOOT_BUTTON} onClick={onOpenSearch}>
               <Search strokeWidth={1.75} aria-hidden="true" />
@@ -113,6 +116,9 @@ export function SidebarFoot({
           </FootTip>
           <NotificationsBell side="top" className={FOOT_BUTTON} />
           <MessagesButton className={FOOT_BUTTON} />
+          <HelpUpdatesMenu className={FOOT_BUTTON} onFeedback={() => setFeedbackOpen(true)} />
+        </div>
+        <div className="mt-1 grid grid-cols-4 gap-1">
           <FootTip label="Settings">
             <Link
               to={paths.settings}
@@ -133,7 +139,7 @@ export function SidebarFoot({
               <Trash2 strokeWidth={1.75} aria-hidden="true" />
             </Link>
           </FootTip>
-          <span className="min-w-0 flex-1" />
+          <span aria-hidden="true" />
           <FootTip label={isMobile ? 'Close sidebar' : 'Collapse sidebar'}>
             <SidebarTrigger className={FOOT_BUTTON} />
           </FootTip>
