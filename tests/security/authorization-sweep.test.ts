@@ -605,6 +605,16 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'GET /api/v1/pages/:id/facets/:facetId/document',
+    {
+      attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets/${fx.tabId}/document` }),
+      stranger: {
+        expected: 404,
+        rule: '#671 and 10.2: a Facet document is visible only to someone who can read its owning Page.',
+      },
+    },
+  ],
+  [
     'POST /api/v1/pages/:id/facets',
     {
       attempt: (fx) => ({ path: `/pages/${fx.folderId}/facets`, body: { name: 'Private attempt' } }),
