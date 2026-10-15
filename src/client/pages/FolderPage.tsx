@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 
-import { useConnections, usePageFacetDocument, usePageFacets } from '../api/queries.js'
+import { useConnections, useFolderOpenTasks, usePageFacetDocument, usePageFacets } from '../api/queries.js'
 import { getPlain, mutateApi } from '../api/http.js'
 import { getPageFacetsResponse } from '../../shared/page-facets.js'
 import type { GetPageFacetsResponse } from '../../shared/page-facets.js'
@@ -108,14 +108,22 @@ function FolderPageBody({
   const [facetTrashError, setFacetTrashError] = useState('')
   useEffect(() => { setActiveFacetId(null); setFacetError('') }, [id])
   const isNestedPage = folder.data?.parent_folder_id != null
-  const pageFacets = usePageFacets(id, isNestedPage && kind !== 'discussion')
-  // The legacy-backed Main document stays the default even when another Facet
-  // is reordered before it. The selected tab and editor must resolve together.
-  const selectedFacet = pageFacets.data?.facets.find((facet) => facet.id === activeFacetId)
+  // Historical Work/Doc tab URLs remain content addresses. Their Page owner
+  // is the project root, so one Facet strip can expose both old and new Facets.
+  const rootFacetPage = onTab && folder.data?.is_default === false && kind !== 'discussion'
+  const facetOwnerId = rootFacetPage ? headId : id
+  const pageFacets = usePageFacets(facetOwnerId, (isNestedPage || rootFacetPage) && kind !== 'discussion')
+  const selectedFacet = pageFacets.data?.facets.find(
+    (facet) => rootFacetPage && facet.id === search.get('pageFacet'),
+  ) ?? pageFacets.data?.facets.find((facet) => facet.id === activeFacetId)
     ?? pageFacets.data?.facets.find((facet) => facet.content_page_id === id)
     ?? pageFacets.data?.facets[0]
   const independentFacetId = selectedFacet?.content_page_id === null ? selectedFacet.id : null
-  const independentPage = usePageFacetDocument(id, independentFacetId)
+  const activeContentId = independentFacetId !== null ? facetOwnerId : id
+  const independentPage = usePageFacetDocument(facetOwnerId, independentFacetId)
+  const independentOpen = useFolderOpenTasks(facetOwnerId,
+    independentFacetId !== null && facetOwnerId !== id)
+  const activeOpen = independentFacetId !== null && facetOwnerId !== id ? independentOpen : open
   const basis = useRowBasis()
   const [taskFilter, setTaskFilter] = useTaskFilter(id)
   const labelDefinitions = useLabels(id, 'all', folderOk && kind === 'work')
@@ -141,10 +149,10 @@ function FolderPageBody({
   const { dockOpen, threadRows, unreadThreads } = useFolderDiscussion(headId, basis.viewerId, sharing)
 
   const detail = folder.data
-  const scheduled = open.data?.scheduled ?? []
-  const unscheduled = open.data?.unscheduled ?? []
+  const scheduled = activeOpen.data?.scheduled ?? []
+  const unscheduled = activeOpen.data?.unscheduled ?? []
   const { openRows, completedReady, completedRows, filterRows } = useFolderRows({
-    id, writes, kind: independentFacetId === null ? kind : 'work', workView, scheduled, unscheduled,
+    id: activeContentId, writes, kind: independentFacetId === null ? kind : 'work', workView, scheduled, unscheduled,
     items: independentFacetId === null ? page.data?.items : independentPage.data?.items,
   })
   const context: RowContext = {
@@ -163,22 +171,33 @@ function FolderPageBody({
   const { facts, gates, sharedPageEditable, tabsEditable } = folderPageAuthority({
     detail, members, viewerId: basis.viewerId, headId, isDefault,
   })
-  const canCreateFacet = isNestedPage && facts !== null && mayDraw(facts, 'facet.create')
-  const canRenameFacet = isNestedPage && facts !== null && mayDraw(facts, 'facet.rename')
-  const canDeleteFacet = isNestedPage && facts !== null && mayDraw(facts, 'facet.delete')
+  const canCreateFacet = (isNestedPage || rootFacetPage) && facts !== null && mayDraw(facts, 'facet.create')
+  const canRenameFacet = (isNestedPage || rootFacetPage) && facts !== null && mayDraw(facts, 'facet.rename')
+  const canDeleteFacet = (isNestedPage || rootFacetPage) && facts !== null && mayDraw(facts, 'facet.delete')
+  const canReorderFacet = (isNestedPage || rootFacetPage) && facts !== null && mayDraw(facts, 'facet.reorder')
+  const selectFacet = (facet: GetPageFacetsResponse['facets'][number]): void => {
+    if (!rootFacetPage) {
+      setActiveFacetId(facet.id)
+      return
+    }
+    const target = facet.content_page_id === null
+      ? `${paths.folder(facetOwnerId)}?pageFacet=${facet.id}`
+      : paths.folder(facet.content_page_id)
+    void navigate(target, { replace: true })
+  }
   const addFacet = async (): Promise<void> => {
     if (!canCreateFacet) return
     setFacetError('')
     try {
       const updated = await mutateApi(getPageFacetsResponse, {
         method: 'POST',
-        path: `/pages/${id}/facets`,
+        path: `/pages/${facetOwnerId}/facets`,
         body: { name: 'Untitled' },
       })
       const existing = new Set(pageFacets.data?.facets.map((facet) => facet.id) ?? [])
       const made = updated.facets.find((facet) => !existing.has(facet.id))
-      cache.setQueryData(queryKeys.pageFacets(id), updated)
-      if (made !== undefined) setActiveFacetId(made.id)
+      cache.setQueryData(queryKeys.pageFacets(facetOwnerId), updated)
+      if (made !== undefined) selectFacet(made)
     } catch (error) {
       setFacetError(error instanceof Error ? error.message : 'Could not add this Facet.')
     }
@@ -191,12 +210,24 @@ function FolderPageBody({
     try {
       const updated = await mutateApi(getPageFacetsResponse, {
         method: 'PATCH',
-        path: `/pages/${id}/facets/${facet.id}`,
+        path: `/pages/${facetOwnerId}/facets/${facet.id}`,
         body: { name },
       })
-      cache.setQueryData(queryKeys.pageFacets(id), updated)
+      cache.setQueryData(queryKeys.pageFacets(facetOwnerId), updated)
     } catch (error) {
       setFacetError(error instanceof Error ? error.message : 'Could not rename this Facet.')
+    }
+  }
+  const reorderFacets = async (order: string[]): Promise<void> => {
+    if (!canReorderFacet) return
+    setFacetError('')
+    try {
+      const updated = await mutateApi(getPageFacetsResponse, {
+        method: 'PUT', path: `/pages/${facetOwnerId}/facets/order`, body: { order },
+      })
+      cache.setQueryData(queryKeys.pageFacets(facetOwnerId), updated)
+    } catch (error) {
+      setFacetError(error instanceof Error ? error.message : 'Could not reorder these Facets.')
     }
   }
   const trashFacet = async (): Promise<void> => {
@@ -207,10 +238,13 @@ function FolderPageBody({
     try {
       const updated = await mutateApi(getPageFacetsResponse, {
         method: 'DELETE',
-        path: `/pages/${id}/facets/${target.id}`,
+        path: `/pages/${facetOwnerId}/facets/${target.id}`,
       })
-      cache.setQueryData(queryKeys.pageFacets(id), updated)
-      if (activeFacetId === target.id) setActiveFacetId(null)
+      cache.setQueryData(queryKeys.pageFacets(facetOwnerId), updated)
+      if (selectedFacet?.id === target.id) {
+        if (rootFacetPage) void navigate(paths.folder(facetOwnerId), { replace: true })
+        else setActiveFacetId(null)
+      }
       setFacetToTrash(null)
     } catch (error) {
       setFacetError(error instanceof Error ? error.message : 'Could not move this Facet to Trash.')
@@ -225,7 +259,7 @@ function FolderPageBody({
     setFacetTrashLoading(true)
     setFacetTrashError('')
     try {
-      const found = await getPlain(getPageFacetsResponse, `/pages/${id}/facets/trash`)
+      const found = await getPlain(getPageFacetsResponse, `/pages/${facetOwnerId}/facets/trash`)
       setTrashedFacets(found.facets)
     } catch (error) {
       setFacetTrashError(error instanceof Error ? error.message : 'Could not load deleted Facets.')
@@ -239,12 +273,12 @@ function FolderPageBody({
     setFacetTrashError('')
     try {
       const updated = await mutateApi(getPageFacetsResponse, {
-        method: 'POST', path: `/pages/${id}/facets/${facet.id}/restore`,
+        method: 'POST', path: `/pages/${facetOwnerId}/facets/${facet.id}/restore`,
       })
-      cache.setQueryData(queryKeys.pageFacets(id), updated)
-      await cache.invalidateQueries({ queryKey: queryKeys.pageFacetDocument(id, facet.id) })
+      cache.setQueryData(queryKeys.pageFacets(facetOwnerId), updated)
+      await cache.invalidateQueries({ queryKey: queryKeys.pageFacetDocument(facetOwnerId, facet.id) })
       setTrashedFacets((current) => current.filter((entry) => entry.id !== facet.id))
-      setActiveFacetId(facet.id)
+      selectFacet(facet)
       setFacetTrashOpen(false)
     } catch (error) {
       setFacetTrashError(error instanceof Error ? error.message : 'Could not restore this Facet.')
@@ -289,7 +323,7 @@ function FolderPageBody({
   const headerActions = (
     <>
       {/* With one tab the row is not drawn, so its "+" waits here. */}
-      {shownTabs.length === 1 && tabsEditable && kind !== null && kind !== 'work' ? (
+      {!rootFacetPage && shownTabs.length === 1 && tabsEditable && kind !== null && kind !== 'work' ? (
         <AddTabMenu tabs={shownTabs} onAdd={acts.addTab} />
       ) : null}
       {/* Discussion shows once the project has another member or a thread. */}
@@ -355,7 +389,7 @@ function FolderPageBody({
             headId={headId}
             actions={headerActions}
           />
-          <FolderTabRow
+          {!rootFacetPage || pageFacets.data === undefined ? <FolderTabRow
             failed={allPages.isError && onTab}
             tabs={shownTabs}
             activeId={id}
@@ -374,17 +408,27 @@ function FolderPageBody({
                 setBoardGroup={setBoardGroup}
               />
             ) : undefined}
-          />
-          {isNestedPage ? <PageFacetStrip
+          /> : null}
+          {isNestedPage || rootFacetPage ? <PageFacetStrip
             facets={pageFacets.data?.facets ?? []}
             activeId={selectedFacet?.id ?? null}
-            onSelect={(facet) => setActiveFacetId(facet.id)}
+            onSelect={selectFacet}
             onAdd={() => { void addFacet() }}
             editable={canCreateFacet}
             canRename={canRenameFacet}
             onRename={(facet, name) => { void renameFacet(facet, name) }}
             canDelete={canDeleteFacet}
             onDelete={setFacetToTrash}
+            alwaysShow={rootFacetPage}
+            canReorder={canReorderFacet}
+            onReorder={(order) => { void reorderFacets(order) }}
+            {...(rootFacetPage && (kind === 'work' || independentFacetId !== null)
+              ? { tools: <FolderWorkTools
+                  taskFilter={taskFilter} setTaskFilter={setTaskFilter}
+                  people={filterPeople} labels={filterLabels}
+                  today={context.today} workView={workView}
+                  boardGroup={boardGroup} setBoardGroup={setBoardGroup}
+                /> } : {})}
           /> : null}
           {facetError ? <p role="alert" className="text-sm text-destructive">{facetError}</p> : null}
         </div>
@@ -406,12 +450,12 @@ function FolderPageBody({
           />
         ) : (
           <FolderWorkBody
-            id={id}
+            id={activeContentId}
             facetId={independentFacetId}
             facetPage={independentPage}
             kind={kind}
             tabs={tabs}
-            open={open}
+            open={activeOpen}
             page={page}
             completedReady={completedReady}
             openRows={openRows}
