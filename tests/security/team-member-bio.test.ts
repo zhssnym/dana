@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
+import { EXPORT_VERSION } from '../../src/shared/export.js'
 
 import { afterAll, beforeAll, expect, test } from 'vitest'
 
@@ -118,7 +119,7 @@ test('project context and member-curated content have distinct write grants and 
   const memberExport = await member.browser.json('/me/export', 'GET')
   expectStatus(memberExport, 200, 'member export includes curated content')
   expect(memberExport.json()).toMatchObject({
-    version: 16,
+    version: EXPORT_VERSION,
     profile_sections: [{
       area: 'shared', member_id: member.id,
       content: { blocks: [{ kind: 'paragraph', content: { runs: [{ text: 'Portfolio note' }] } }] },
