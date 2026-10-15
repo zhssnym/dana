@@ -5,9 +5,11 @@ can see the thing and lacks the role.
 */
 import type { Request, Response, Router } from 'express'
 import { z } from 'zod'
+import { sql } from 'drizzle-orm'
 
 import type { DbClient } from '../../../db/client.js'
 import { pageActionBody, putPageBody } from '../../shared/pages.js'
+import { rowsOf } from '../database.js'
 import { documentTransaction } from '../../shared/page-document.js'
 import type { TransferOwnershipResponse } from '../../shared/folders.js'
 import { patchShelfBody, postShelvesBody } from '../../shared/shelves.js'
@@ -141,6 +143,43 @@ export function createWorkshopRouter(
       "You've used your 1 GB of storage. Delete some files to add more.",
     )
   }
+
+  // A Facet has the same document contract as Work. Its existing content
+  // home may be a former tab; new Facets use the owning Page's content store.
+  router.get(
+    '/pages/:id/facets/:facetId/document',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const pageId = parsedId(res, req.params.id)
+      const facetId = parsedId(res, req.params.facetId)
+      if (pageId === null || facetId === null) return
+      if ((await accessOf(db, viewer(req), pageId)) === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const found = await rowsOf(db, sql`
+        SELECT pf.content_folder_id FROM page_facets pf
+          JOIN folders p ON p.id = pf.page_id
+         WHERE pf.page_id = ${pageId}::uuid AND pf.id = ${facetId}::uuid
+           AND p.deleted_at IS NULL AND p.archived_at IS NULL
+           AND (pf.content_folder_id IS NULL OR EXISTS (
+             SELECT 1 FROM folders content
+              WHERE content.id = pf.content_folder_id
+                AND content.deleted_at IS NULL AND content.archived_at IS NULL
+           ))`)
+      if (found.length === 0) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const contentId = found[0]?.content_folder_id == null
+        ? pageId : String(found[0].content_folder_id)
+      res.status(200).json(await pageView(db, viewer(req), {
+        folderId: contentId, shelfId: null, facetId,
+      }))
+    },
+  )
 
   router.get(
     '/folders/:id/page',
