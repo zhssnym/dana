@@ -162,6 +162,21 @@ test('root Page: legacy Work and Doc URLs remain valid beside new Facets', async
   await expect(page.getByRole('tablist', { name: 'Page Facets' })
     .getByRole('tab', { name: 'Untitled' })).toHaveAttribute('aria-selected', 'true')
   await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+  const mainTab = page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Main' })
+  const docTab = page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Doc' })
+  const first = await mainTab.boundingBox()
+  const last = await docTab.boundingBox()
+  expect(first).not.toBeNull()
+  expect(last).not.toBeNull()
+  await page.mouse.move(last!.x + last!.width / 2, last!.y + last!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(first!.x + 2, first!.y + first!.height / 2, { steps: 10 })
+  await page.mouse.up()
+  await expect.poll(async () => {
+    const current = (await (await page.request.get('/api/v1/pages/' + rootId + '/facets')).json()) as typeof list
+    return current.facets[0]?.id
+  }).toBe(legacyDoc!.id)
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
   await page.getByRole('tablist', { name: 'Page Facets' })
     .getByRole('tab', { name: 'Main' }).click()
   await expect(page).toHaveURL('/app/folders/' + rootId)
