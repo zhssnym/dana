@@ -41,7 +41,6 @@ import {
   trashPageSubtree,
   visibleParentPredicate,
 } from './page-tree.js'
-import { pagesTabFor } from './project-tabs.js'
 import { ensureShelf } from './shelves.js'
 
 function toIso(value: unknown): string {
@@ -424,11 +423,6 @@ export async function createSubPage(
   if (parent.isDefault) return { kind: 'default_parent' }
   const parentKind = await rowsOf(tx, sql`SELECT kind FROM folders WHERE id = ${parentId}::uuid`)
   if (parentKind[0]?.kind === 'discussion') return { kind: 'discussion_parent' }
-  /* A page added inside a Work tab lands in the project's Pages tab. */
-  if (input.homeBlock !== false && parentKind[0]?.kind === 'work') {
-    const pages = await pagesTabFor(tx, actorId, parentId)
-    if (pages !== null) parentId = pages
-  }
   if (!(await mayAddChildUnder(tx, parentId))) return { kind: 'too_deep' }
 
   const id = await insertOwnedFolder(tx, actorId, {

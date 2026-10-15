@@ -143,6 +143,16 @@ describe("a project's tabs have its people", () => {
     await addMemberOk(leaver, project, viewer.id, 'can_view')
     const sub = await leaver.browser.json('/folders', 'POST', { name: 'ac1523 heir sub', parent_folder_id: project })
     expectStatus(sub, 201, 'a sub-page')
+    const subId = (sub.json() as { id: string }).id
+    expect(await rows(app.db, sql`
+      SELECT f.parent_folder_id, b.folder_id AS home_folder_id
+        FROM folders f JOIN page_blocks b ON b.ref_folder_id = f.id AND b.kind = 'page'
+       WHERE f.id = ${subId}::uuid
+    `)).toEqual([{ parent_folder_id: project, home_folder_id: project }])
+    expect(await rows(app.db, sql`
+      SELECT id FROM folders WHERE project_id = ${project}::uuid
+        AND name = 'Pages' AND tab_position IS NOT NULL
+    `)).toEqual([])
 
     // 8.10 step 2's automatic transfer: the interactive DELETE /me refuses a
     // shared project first, so this is the forced-removal path it keeps.
