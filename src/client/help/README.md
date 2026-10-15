@@ -75,6 +75,20 @@ Create these repository Actions secrets:
   possible. A PR created with this token triggers regular GitHub CI. A PR created
   with the workflow's GITHUB_TOKEN may not trigger those checks.
 
+The connected GitHub code integration cannot create or read repository Actions secrets.
+An administrator must supply them securely in **Settings → Secrets and variables → Actions**
+at https://github.com/zhssnym/dana/settings/secrets/actions. Never put keys in
+source files, PR comments, or chat messages.
+
+When either required secret is absent, the audit now pauses before marking commits
+reviewed or raising per-commit issues. An earlier setup-only audit marked
+`action_required` is automatically retryable once the secrets are available.
+
+After adding both secrets, open **Actions → Help maintenance → Run workflow** to
+validate a deployed commit; review any generated PR or exception issue before
+enabling unattended publication. The What's New maintenance workflow uses the
+same `HELP_BOT_TOKEN` secret and can be run manually for its own end-to-end test.
+
 Optional repository variables:
 
 - HELP_WRITER_MODEL: The model used for drafting and verification. Defaults to
