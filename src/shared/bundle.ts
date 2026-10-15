@@ -92,6 +92,8 @@ export const patchSettingsBody = z.object({
   /* Per account (#140). Outside the three is 422, not a silent default. */
   calendar_zoom: z.enum(CALENDAR_ZOOMS).optional(),
   feedback_reminder_dismissed: z.boolean().optional(),
+  /** Acknowledged nonhistorical public updates. The server merges IDs instead of replacing them. */
+  updates_seen_ids: z.array(z.string().regex(/^pr-[1-9]\d*$/)).max(100).optional(),
   /* Capped by the array's length, so adding a view never makes a full list 422. */
   pinned_views: z.array(z.enum(NATIVE_VIEWS)).max(NATIVE_VIEWS.length).optional(),
   sidebar_order: z.array(z.uuid()).max(300).optional(),
@@ -111,6 +113,7 @@ export interface SettingsBundle {
   /** Always one of CALENDAR_ZOOMS: the read maps anything else to the default. */
   calendar_zoom: CalendarZoom
   feedback_reminder_dismissed: boolean
+  updates_seen_ids: string[]
   pinned_views: string[]
   sidebar_order: string[]
   arrangements: Record<string, string>
@@ -145,6 +148,7 @@ export const settingsBundle = z.object({
   task_open: z.enum(['dialog', 'panel', 'tab']),
   calendar_zoom: z.enum(CALENDAR_ZOOMS),
   feedback_reminder_dismissed: z.boolean(),
+  updates_seen_ids: z.array(z.string().regex(/^pr-[1-9]\d*$/)),
   pinned_views: z.array(z.string()),
   sidebar_order: z.array(z.string()),
   arrangements: z.record(z.string(), z.string()),
