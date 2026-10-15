@@ -46,6 +46,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Check Help Center content and source map
+        run: npm run help:check
       - name: Lint, typecheck, build
         run: npm run gate
       - name: Test (Postgres)
