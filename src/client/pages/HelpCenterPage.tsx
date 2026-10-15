@@ -280,7 +280,7 @@ function HelpArticleView({ slug }: { readonly slug: string }): React.JSX.Element
   return (
     <div className="mx-auto grid max-w-[var(--help-layout-width)] gap-8 px-5 pb-20 pt-8 sm:px-8 lg:grid-cols-[var(--help-nav-width)_minmax(0,1fr)] lg:gap-10 xl:grid-cols-[var(--help-nav-width)_minmax(0,1fr)_var(--help-toc-width)] xl:gap-12">
       <aside className="hidden min-w-0 border-r border-border pr-5 lg:block">
-        <div className="sticky top-8 max-h-[calc(100dvh-var(--help-nav-viewport-gap))] overflow-y-auto pb-8">
+        <div className="sticky top-8 max-h-[calc(100dvh_-_var(--help-nav-viewport-gap))] overflow-y-auto pb-8">
           <Link to={paths.help} className="mb-7 inline-flex items-center gap-2 text-xs font-section text-foreground hover:text-primary">
             <BookOpen className="size-4 text-muted-foreground" aria-hidden="true" /> All guides
           </Link>
