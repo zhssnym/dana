@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import { isSyncableKind } from '../../shared/page-document.js'
-import type { SyncedSource } from '../../shared/synced-blocks.js'
+import type { SyncedPage, SyncedSource } from '../../shared/synced-blocks.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { visibleFolder } from './folder-access.js'
@@ -39,7 +39,7 @@ export async function syncedSourceProblem(
   return isSyncableKind(String(row.kind)) ? null : 'This block cannot be synced.'
 }
 
-/** The source block and its home, or null when it is gone or the viewer cannot read it. */
+/** The original and every document with a copy the viewer can open, or null when the original is gone or unreadable. */
 export async function syncedSourceOf(
   tx: Executor,
   viewerId: string,
@@ -47,37 +47,41 @@ export async function syncedSourceOf(
 ): Promise<SyncedSource | null> {
   const rows = await rowsOf(
     tx,
-    sql`SELECT b.id, b.kind, b.folder_id, b.task_id, b.shelf_id,
+    sql`SELECT x.id, x.kind, x.folder_id, x.task_id, x.shelf_id, x.id = ${sourceId}::uuid AS original,
                pf.id AS facet_id, pf.page_id, f.name AS folder_name, pf.name AS facet_name,
-               t.title AS task_title, s.name AS shelf_name,
-               (SELECT count(DISTINCT COALESCE(c.page_facet_id, c.folder_id, c.task_id, c.shelf_id))
-                  FROM page_blocks c
-                 WHERE c.kind = 'synced' AND c.text = b.id::text AND ${readableBlock('c', viewerId)}) AS copies
-          FROM page_blocks b
-          LEFT JOIN page_facets pf ON pf.id = b.page_facet_id
-          LEFT JOIN folders f ON f.id = COALESCE(pf.page_id, b.folder_id)
-          LEFT JOIN tasks t ON t.id = b.task_id
-          LEFT JOIN shelves s ON s.id = b.shelf_id
-         WHERE b.id = ${sourceId}::uuid AND ${readableBlock('b', viewerId)}`,
+               t.title AS task_title, s.name AS shelf_name
+          FROM page_blocks x
+          LEFT JOIN page_facets pf ON pf.id = x.page_facet_id
+          LEFT JOIN folders f ON f.id = COALESCE(pf.page_id, x.folder_id)
+          LEFT JOIN tasks t ON t.id = x.task_id
+          LEFT JOIN shelves s ON s.id = x.shelf_id
+         WHERE (x.id = ${sourceId}::uuid OR (x.kind = 'synced' AND x.text = ${sourceId}))
+           AND ${readableBlock('x', viewerId)}
+         ORDER BY (x.id = ${sourceId}::uuid) DESC, x.page_position ASC NULLS LAST, x.position, x.id`,
   )
-  const row = rows[0]
-  if (row === undefined || !isSyncableKind(String(row.kind))) return null
-  const copies = Number(row.copies)
-  if (row.task_id !== null) {
-    return { block_id: sourceId, home: 'task', home_id: String(row.task_id), facet_id: null, label: String(row.task_title), copies }
+  const head = rows[0]
+  if (head === undefined || head.original !== true || !isSyncableKind(String(head.kind))) return null
+  const pages = new Map<string, SyncedPage>()
+  for (const row of rows) {
+    const page = pageOf(row)
+    const key = `${page.home}:${page.home_id}:${page.facet_id ?? ''}`
+    if (!pages.has(key)) pages.set(key, page)
   }
-  if (row.shelf_id !== null) {
-    return { block_id: sourceId, home: 'shelf', home_id: String(row.shelf_id), facet_id: null, label: String(row.shelf_name), copies }
-  }
+  return { block_id: sourceId, pages: [...pages.values()] }
+}
+
+function pageOf(row: Record<string, unknown>): SyncedPage {
+  const base = { block_id: String(row.id), original: row.original === true }
+  if (row.task_id !== null) return { ...base, home: 'task', home_id: String(row.task_id), facet_id: null, label: String(row.task_title) }
+  if (row.shelf_id !== null) return { ...base, home: 'shelf', home_id: String(row.shelf_id), facet_id: null, label: String(row.shelf_name) }
   const facetName = row.facet_name === null ? null : String(row.facet_name)
   const pageName = String(row.folder_name ?? '')
   return {
-    block_id: sourceId,
+    ...base,
     home: 'folder',
     home_id: String(row.page_id ?? row.folder_id),
     facet_id: row.facet_id === null ? null : String(row.facet_id),
     label: facetName === null || facetName === 'Main' ? pageName : `${pageName} · ${facetName}`,
-    copies,
   }
 }
 

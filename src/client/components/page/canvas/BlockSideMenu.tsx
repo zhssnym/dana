@@ -23,8 +23,6 @@ export interface BlockMenuModel {
   readonly canDuplicate: (block: TreeBlock) => boolean
   readonly duplicate: (ids: readonly string[]) => void
   readonly insertBefore?: (id: string) => void
-  /** Other documents that hold a synced copy of a block, by block id. */
-  readonly syncedCopies?: Readonly<Record<string, number>>
   readonly removal: (block: TreeBlock, ids: readonly string[]) => { label: string; run: () => void } | { note: string } | null
 }
 
@@ -76,7 +74,6 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
   const removal = model.removal(block, ids)
   // A copy syncs its original, so a copy of a copy is one more view of the same block.
   const syncSource = block.type === 'synced' ? String(block.props.sourceId) : SYNCABLE_TYPES.has(block.type) && !isSectionHeading(block) ? block.id : null
-  const copies = model.syncedCopies?.[block.id] ?? 0
   const tableContent = block.type === 'table' ? block.content as { headerRows?: number; headerCols?: number } : null
   const Item = Components.Generic.Menu.Item
   return (
@@ -128,7 +125,6 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
           <span className="flex flex-1 items-center gap-2"><MenuIcon icon={RefreshCw} />Copy and sync</span>
         </Item>
       )}
-      {copies === 0 ? null : <p className="px-2 py-1.5 text-xs text-muted-foreground">Synced to {copies === 1 ? '1 other page' : `${copies} other pages`}</p>}
       {removal === null ? null : 'note' in removal
         ? <p className="px-2 py-1.5 text-xs text-muted-foreground">{removal.note}</p>
         : <Item className="bn-menu-item dana-menu-danger" onClick={removal.run}><span className="flex flex-1 items-center gap-2"><MenuIcon icon={Trash2} />{removal.label}</span></Item>}

@@ -390,9 +390,8 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
     turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, false) },
     canDuplicate: () => true,
     duplicate: (ids) => { duplicateBlocks(editor, ids) },
-    syncedCopies: latest.synced_copies,
     removal: (_block, ids) => ({ label: 'Delete', run: () => { editor.removeBlocks([...ids]) } }),
-  }), [editor, latest.synced_copies])
+  }), [editor])
   const selectionActions = useMemo(() => ({ remove: (ids: readonly string[]) => { editor.removeBlocks([...ids]) }, duplicate: menu.duplicate }), [editor, menu])
   useBlockSelectionKeys(editor, selectionActions)
   useBlockAnchor(editor, true)

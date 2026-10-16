@@ -35,6 +35,7 @@ import { MentionSuggestions } from './mentions.js'
 import { PersonBlockContext } from './person-context.js'
 import { useCanvasTaskDelete } from './CanvasTask.js'
 import { ReferencedFrom } from '../../links/referenced-from.js'
+import { SyncedToolbar } from './CanvasSynced.js'
 import type { BacklinkTargetKind } from '../../links/dana-link.js'
 import './canvas.css'
 
@@ -234,7 +235,6 @@ export function CanvasSurface({
       : null,
     canDuplicate: (block) => !contains(block, TASK_OR_FOLDER),
     duplicate,
-    syncedCopies,
     removal: (block, ids) => {
       // A folder row is the shelf's membership, so it leaves through that act, never Delete.
       if (block.type === 'danaFolder') {
@@ -252,12 +252,13 @@ export function CanvasSurface({
       }
       return { label: 'Delete', run: () => { remove(ids) } }
     },
-  }), [editor, headingMode, taskCreator, editable, insertBefore, requestTask, duplicate, syncedCopies, onRemoveFolder, remove, deleteTask, trashPage])
+  }), [editor, headingMode, taskCreator, editable, insertBefore, requestTask, duplicate, onRemoveFolder, remove, deleteTask, trashPage])
   const move = useCallback((ids: readonly string[], direction: -1 | 1): boolean => moveBlocksBy(editor, ids, direction), [editor])
   const selectionActions = useMemo(() => ({ remove, duplicate, admits, move }), [remove, duplicate, admits, move])
   useBlockSelectionKeys(editor, selectionActions)
   useBlockAnchor(editor, true)
   const scope = `dana-canvas-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const surface = useRef<HTMLDivElement>(null)
 
   // Tab nests a block under the one above only where the shape is allowed; code keeps
   // its own Tab. Focus that arrives by Tab passes through until you type or click
@@ -349,7 +350,6 @@ export function CanvasSurface({
   return (
     <BlockMenuContext.Provider value={menu}>
     <BlockSelectionStyle editor={editor} scope={scope} />
-    <SyncedOriginalStyle scope={scope} copies={syncedCopies} />
     <div
       onKeyDownCapture={onKeyDownCapture}
       onKeyDown={linkKey}
@@ -366,7 +366,8 @@ export function CanvasSurface({
         const box = row.getBoundingClientRect()
         setInsertMenu({ id, x: event.clientX || box.left, y: event.clientY || box.bottom })
       }}
-      className={`dana-writing-canvas ${scope} min-w-0`}
+      ref={surface}
+      className={`dana-writing-canvas ${scope} relative min-w-0`}
       style={placeholder === undefined ? undefined : ({ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties)}
     >
       <PersonBlockContext.Provider value={peopleFolderId ?? null}>
@@ -401,6 +402,7 @@ export function CanvasSurface({
           <DropdownMenuItem onClick={() => { if (insertMenu !== null) insertBefore(insertMenu.id) }}>Insert block above</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <SyncedOriginals host={surface} scope={scope} copies={syncedCopies} />
       {footer}
       {backlinks === undefined ? null : <ReferencedFrom kind={backlinks.kind} id={backlinks.id} className="mt-[var(--space-inline)]" />}
       {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}
@@ -423,10 +425,37 @@ export function CanvasSurface({
   )
 }
 
-/** An original with synced copies shows a 1px frame on hover, like the copies' own frame. */
-function SyncedOriginalStyle({ scope, copies }: { readonly scope: string; readonly copies: Readonly<Record<string, number>> | undefined }): React.JSX.Element | null {
-  const ids = Object.keys(copies ?? {})
-  if (ids.length === 0) return null
-  const rows = ids.map((id) => `.${scope} .bn-block-outer[data-id="${CSS.escape(id)}"]:hover > .bn-block > :not(.bn-block-group)`)
-  return <style>{`${rows.join(', ')} { box-shadow: 0 0 0 1px var(--border); border-radius: var(--radius-sm); }`}</style>
+/** An original with copies gets the copies' frame and toolbar while the pointer is on it. */
+function SyncedOriginals({ host, scope, copies }: {
+  readonly host: React.RefObject<HTMLDivElement | null>
+  readonly scope: string
+  readonly copies: Readonly<Record<string, number>> | undefined
+}): React.JSX.Element | null {
+  const [active, setActive] = useState<{ readonly id: string; readonly top: number; readonly right: number } | null>(null)
+  useEffect(() => {
+    const root = host.current
+    if (root === null || copies === undefined) return
+    const over = (event: MouseEvent): void => {
+      const target = event.target as Element
+      if (target.closest('[data-synced-toolbar]') !== null) return
+      let row = target.closest<HTMLElement>('.bn-block-outer[data-id]')
+      while (row !== null && copies[row.dataset.id ?? ''] === undefined) row = row.parentElement?.closest<HTMLElement>('.bn-block-outer[data-id]') ?? null
+      const content = row?.querySelector(':scope > .bn-block > :not(.bn-block-group)')
+      if (row === null || content === null || content === undefined) { setActive(null); return }
+      const box = content.getBoundingClientRect()
+      const base = root.getBoundingClientRect()
+      setActive({ id: row.dataset.id!, top: box.top - base.top, right: base.right - box.right })
+    }
+    const leave = (): void => { if (root.querySelector('[data-synced-toolbar] [aria-expanded="true"]') === null) setActive(null) }
+    root.addEventListener('mouseover', over)
+    root.addEventListener('mouseleave', leave)
+    return () => { root.removeEventListener('mouseover', over); root.removeEventListener('mouseleave', leave) }
+  }, [host, copies])
+  if (active === null || copies?.[active.id] === undefined) return null
+  return <>
+    <style>{`.${scope} .bn-block-outer[data-id="${CSS.escape(active.id)}"] > .bn-block > :not(.bn-block-group) { box-shadow: 0 0 0 1px var(--color-warning-700); border-radius: var(--radius-sm); }`}</style>
+    <div className="absolute" data-synced-original="" style={{ top: active.top, right: active.right }}>
+      <SyncedToolbar sourceId={active.id} className="dana-synced-toolbar" />
+    </div>
+  </>
 }

@@ -50,7 +50,10 @@ test('a stranger can neither locate an original nor sync it into their own page'
 
   const located = await owner.browser.json(`/synced-blocks/${original}`, 'GET')
   expectStatus(located, 200, 'owner locates the original')
-  expect(located.json()).toMatchObject({ block_id: original, home: 'folder', copies: 1 })
+  expect(located.json()).toMatchObject({
+    block_id: original,
+    pages: [{ home_id: source, block_id: original, original: true }, { home_id: target, block_id: copy, original: false }],
+  })
   expect((await read(owner, source)).synced_copies).toEqual({ [original]: 1 })
 
   expectStatus(await stranger.browser.json(`/synced-blocks/${original}`, 'GET'), 404, 'stranger cannot locate it')
