@@ -148,7 +148,7 @@ export async function saveAsWorkflow({
   const missing =
     saved.omitted === 0
       ? ''
-      : ` ${String(saved.omitted)} ${saved.omitted === 1 ? 'picture, file or page link is' : 'pictures, files and page links are'} not included.`
+      : ` ${String(saved.omitted)} ${saved.omitted === 1 ? 'media item, page link or synced block is' : 'media items, page links and synced blocks are'} not included.`
   /* Uses the writer's own count, so it cannot disagree with the file. */
   const finished =
     saved.withheldTasks === 0

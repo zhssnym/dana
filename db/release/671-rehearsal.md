@@ -15,6 +15,30 @@
 5. Run `bash db/release/671-rehearse.sh`. The script rejects same-host source and target, a nonempty target, missing acknowledgment, incompatible Postgres versions and a pre-migrated source. It creates a custom-format `pg_dump`, verifies its table of contents and SHA-256, restores only into the empty destination, computes before/after fingerprints of existing records, applies pending Drizzle migrations **only on the rehearsal database**, and checks Facet associations.
 6. Review the preserved artifacts and pass/fail result. A green script confirms database-level invariants but **does not** establish app-level compatibility.
 
+## Release heads that include migration 0097
+
+Migration 0097 converts connected-work placements to synced blocks. It can change
+existing placement rows and add copies for old Facet edges. An unbounded run on
+this head cannot pass the unchanged-block fingerprint gate for 0092–0096.
+
+Run the procedure in two stages on the same isolated target:
+
+1. Use commit `7ba4fb5895009d04918f540509e72d51b510cf4a`, whose journal ends at
+   0096. Run `671-rehearse.sh` and retain the nine matching fingerprints and all
+   eight zero-violation association checks.
+2. Record every public table and original block ID privately. Check out the
+   reviewed release head. Run `671-apply-migrations.ts` with the isolated target
+   URL and acknowledgment still set. This applies 0097 only.
+3. Verify that every original block ID remains. Changes to existing rows must
+   match the marked-link conversions in 0097 exactly. Each new synced copy must
+   represent an existing `page_block_facets` edge and retain its source block.
+   All other public tables must match the 0096 snapshot. Run the eight Facet
+   association checks again; each result must be zero.
+
+Do not accept an unexplained fingerprint change. Keep the application and all
+compatibility checks on the final release head. A code rollback does not reverse
+0097; use the recovery procedure below if database recovery is necessary.
+
 ## Additional gates before merging #709
 
 - Test original Page, Task, block, file and membership identities, old URL resolution, historical Purpose/Results and Discussions, Desk, Library, breadcrumbs, archive/recovery, profile Docs, Task views, permission boundaries and import/export against the migrated rehearsal copy.
