@@ -37,7 +37,7 @@ export function PublicInfoShell({
           </nav>
         </div>
       </header>
-      <div className="flex-1">{children}</div>
+      <div className="flex flex-1 flex-col">{children}</div>
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-[var(--help-layout-width)] flex-wrap items-center justify-between gap-x-5 gap-y-3 px-5 py-5 text-xs text-muted-foreground sm:px-8">
           <span className="font-section text-foreground">Dana</span>
