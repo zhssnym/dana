@@ -64,9 +64,21 @@ export async function backlinksOf(
     target.kind === 'folder'
       ? sql`(pb.kind = 'folder_ref' AND pb.ref_folder_id = ${target.id}::uuid)`
       : sql`false`
+  // A synced copy references the document that holds its original.
+  const original =
+    target.kind === 'folder' ? sql`src.folder_id = ${target.id}::uuid`
+      : target.kind === 'facet' ? sql`(src.page_facet_id = ${target.id}::uuid OR src.folder_id = ${target.id}::uuid)`
+        : target.kind === 'task' ? sql`src.task_id = ${target.id}::uuid`
+          : target.kind === 'shelf' ? sql`src.shelf_id = ${target.id}::uuid`
+            : target.kind === 'result' ? sql`src.id = ${target.id}::uuid`
+              : sql`false`
+  // CASE keeps the cast away from rows whose text is not an id.
+  const syncedRef = sql`(pb.kind = 'synced' AND EXISTS (SELECT 1 FROM page_blocks src
+      WHERE src.id = CASE WHEN pb.kind = 'synced' THEN pb.text::uuid END AND ${original}))`
   const hits: Hit[] = []
 
   const pageBlock = (row: Record<string, unknown>): boolean =>
+    row.synced_ref === true ||
     (target.kind === 'folder' &&
       row.kind === 'folder_ref' &&
       String(row.ref_folder_id) === target.id) ||
@@ -74,7 +86,7 @@ export async function backlinksOf(
 
   const folderRows = await rowsOf(
     executor,
-    sql`SELECT pb.id, pb.kind, pb.ref_folder_id, pb.rich_content,
+    sql`SELECT pb.id, pb.kind, pb.ref_folder_id, pb.rich_content, ${syncedRef} AS synced_ref,
                f.id AS home_id,
                -- Step 7: a tab other than the project's own reads "Project · Tab".
                CASE WHEN f.tab_position IS NOT NULL AND f.id <> f.project_id
@@ -82,7 +94,7 @@ export async function backlinksOf(
                     ELSE f.name END AS label
           FROM page_blocks pb
           ${joinVisibleFolder(viewerId, { folderId: sql`pb.folder_id`, folder: 'f' })}
-         WHERE (pb.rich_content::text LIKE ${pattern} OR ${folderRef})
+         WHERE (pb.rich_content::text LIKE ${pattern} OR ${folderRef} OR ${syncedRef})
          ORDER BY pb.page_position ASC NULLS LAST, pb.position ASC, pb.id ASC
          LIMIT ${SCAN_BOUND}`,
   )
@@ -101,11 +113,11 @@ export async function backlinksOf(
 
   const shelfRows = await rowsOf(
     executor,
-    sql`SELECT pb.id, pb.kind, pb.ref_folder_id, pb.rich_content,
+    sql`SELECT pb.id, pb.kind, pb.ref_folder_id, pb.rich_content, ${syncedRef} AS synced_ref,
                s.id AS home_id, s.name AS label
           FROM page_blocks pb
           JOIN shelves s ON s.id = pb.shelf_id AND s.user_id = ${viewerId}
-         WHERE (pb.rich_content::text LIKE ${pattern} OR ${folderRef})
+         WHERE (pb.rich_content::text LIKE ${pattern} OR ${folderRef} OR ${syncedRef})
          ORDER BY pb.page_position ASC NULLS LAST, pb.position ASC, pb.id ASC
          LIMIT ${SCAN_BOUND}`,
   )
@@ -124,17 +136,17 @@ export async function backlinksOf(
 
   const taskRows = await rowsOf(
     executor,
-    sql`SELECT pb.id, pb.kind, pb.ref_folder_id, pb.rich_content,
+    sql`SELECT pb.id, pb.kind, pb.ref_folder_id, pb.rich_content, ${syncedRef} AS synced_ref,
                t.id AS home_id, t.folder_id, t.title AS label
           FROM page_blocks pb
           JOIN tasks t ON t.id = pb.task_id AND t.deleted_at IS NULL
           ${joinVisibleFolder(viewerId, { folderId: sql`t.folder_id` })}
-         WHERE pb.rich_content::text LIKE ${pattern}
+         WHERE (pb.rich_content::text LIKE ${pattern} OR ${syncedRef})
          ORDER BY pb.page_position ASC NULLS LAST, pb.position ASC, pb.id ASC
          LIMIT ${SCAN_BOUND}`,
   )
   for (const row of taskRows) {
-    if (!documentReferences(row.rich_content, target, origin)) continue
+    if (row.synced_ref !== true && !documentReferences(row.rich_content, target, origin)) continue
     hits.push({
       surface: 'page',
       home: 'task',

@@ -63,5 +63,5 @@ export const queryKeys = {
 
   reference: (kind: string, id: string) => ['references', kind, id] as const,
   backlinks: (kind: string, id: string) => ['backlinks', kind, id] as const,
-  connectedWork: (facetId: string) => ['facets', facetId, 'connected-work'] as const,
+  syncedSource: (blockId: string) => ['synced-blocks', blockId] as const,
 } as const

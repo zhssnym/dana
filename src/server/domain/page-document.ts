@@ -12,6 +12,7 @@ import { createTaskIn } from './tasks.js'
 import { positionedItems } from './page-order.js'
 import { recordEvent } from './events.js'
 import { syncMentions } from './mentions.js'
+import { syncedSourceProblem } from './synced-blocks.js'
 import { createSubPage, trashFolderSubtree } from './folders.js'
 import { folderActorFacts, mayPerform } from './folder-access.js'
 import { restoreTrashedPage } from './page-tree.js'
@@ -124,6 +125,11 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
   if(block.block_kind==='person'){
    const member=await rowsOf(tx,sql`SELECT 1 AS present FROM visible_folder_members m JOIN folders f ON f.project_id=m.folder_id WHERE f.id=${folderId}::uuid AND m.user_id=${block.text}::uuid`)
    if(member.length===0)throw new DocumentRefusal('not_found','This person is not on the Team.')
+  }
+  // Only a new or re-pointed copy is checked, so losing access to an original never blocks a save.
+  if(block.block_kind==='synced'&&!stored.some(row=>String(row.id)===block.id&&row.kind==='synced'&&row.text===block.text)){
+   const problem=await syncedSourceProblem(tx,viewerId,block.text as string)
+   if(problem!==null)throw new DocumentRefusal('not_found',problem)
   }
   // A `page` block's reference was judged by `pageTreeRules` above.
   if(block.ref_folder_id!==null&&block.block_kind!=='page'&&(await folderActorFacts(tx,viewerId,block.ref_folder_id))===null)throw new DocumentRefusal('not_found','Referenced folder is not accessible.')

@@ -1,0 +1,122 @@
+/* A synced block reads as plain text. While it is edited, a soft accent frame sits
+   just outside the text, so the text never moves, and a toolbar sits above it. */
+.dana-synced-block {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.dana-synced-frame {
+  position: absolute;
+  inset: calc(-2 * var(--space-row)) calc(-1 * var(--space-inline));
+  border: 1px solid var(--synced-frame);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-reveal) var(--ease-standard);
+}
+
+.dana-synced-toolbar {
+  position: absolute;
+  inset-block-end: calc(100% + 3 * var(--space-row));
+  inset-inline-end: calc(-1 * var(--space-inline));
+  z-index: 20;
+  pointer-events: auto;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--duration-reveal) var(--ease-standard), visibility 0s var(--duration-reveal);
+}
+
+.dana-synced-block:focus-within > :is(.dana-synced-frame, .dana-synced-toolbar),
+.dana-synced-block:has([aria-expanded='true']) > :is(.dana-synced-frame, .dana-synced-toolbar),
+[data-synced-original] > :is(.dana-synced-frame, .dana-synced-toolbar) {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+/* The original's frame mounts when the caret arrives, so it fades in from here. */
+@starting-style {
+  [data-synced-original] > :is(.dana-synced-frame, .dana-synced-toolbar) {
+    opacity: 0;
+  }
+}
+
+/* The original's frame and toolbar float over the page, so clicks pass through to its text. */
+[data-synced-original] {
+  position: absolute;
+  pointer-events: none;
+}
+
+.dana-synced-mirror {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0 !important;
+  overflow: visible;
+  pointer-events: auto;
+  user-select: text;
+}
+
+.dana-synced-mirror .bn-container,
+.dana-synced-mirror .bn-editor {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding-inline: 0 !important;
+  background: transparent !important;
+  overflow: visible;
+}
+
+.dana-synced-mirror .bn-container {
+  --bn-colors-selected-background: transparent !important;
+  --bn-colors-selected-text: var(--foreground) !important;
+  --bn-colors-hovered-background: transparent !important;
+}
+
+.dana-synced-mirror .bn-editor > .bn-block-group {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.dana-synced-mirror .bn-block-outer,
+.dana-synced-mirror .bn-block,
+.dana-synced-mirror .bn-block-content {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  border-inline-start: 0 !important;
+}
+
+/* The nested editor must not take the parent canvas's selection frame. */
+.dana-synced-mirror .ProseMirror-selectednode,
+.dana-synced-mirror .bn-block-content.ProseMirror-selectednode,
+.dana-synced-mirror .ProseMirror-selectednode > .bn-block-content,
+.dana-synced-mirror [data-selected='true'],
+.dana-synced-mirror [aria-selected='true'] {
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+.dana-synced-mirror .ProseMirror-selectednode *,
+.dana-synced-mirror .bn-block-content.ProseMirror-selectednode *,
+.dana-synced-mirror [data-selected='true'] * {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* A mirror is one block: no trailing "add a block" line. */
+.dana-synced-mirror .bn-trailing-block {
+  display: none;
+}
+
+/* The mirror sits inside the page's block group, so BlockNote's nesting guide
+   would draw beside its top block. */
+.dana-synced-mirror .bn-editor > .bn-block-group > .bn-block-outer::before {
+  display: none !important;
+}

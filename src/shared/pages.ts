@@ -125,6 +125,8 @@ export interface PageView {
   task_placements?: {id:string;section_block_id:string|null}[]
   mutation?: {mutation_id:string;committed_revision:string;replayed:boolean;created_task_ids:string[]}
   blocks: PageBlock[]
+  /** Block id to the number of other documents that hold a synced copy the reader can open. */
+  synced_copies?: Record<string, number>
   /** The folder page's order; shelf pages hold block refs only. */
   items: PageItemRef[]
 }
@@ -240,6 +242,7 @@ export const getPageResponse = z.object({
   task_placements: z.array(z.object({id:z.uuid(),section_block_id:z.uuid().nullable()})).optional(),
   mutation: z.object({mutation_id:z.uuid(),committed_revision:z.string(),replayed:z.boolean(),created_task_ids:z.array(z.uuid())}).optional(),
   blocks: z.array(pageBlock),
+  synced_copies: z.record(z.uuid(), z.number().int().nonnegative()).optional(),
   items: z.array(pageItemRef),
 })
 export type GetPageResponse = z.infer<typeof getPageResponse>

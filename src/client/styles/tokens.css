@@ -209,9 +209,12 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --duration-hover-in: 50ms;
   --duration-hover-out: 150ms;
   --duration-enter: 180ms;
+  /* A synced block's frame fades in, slower than a control's enter. */
+  --duration-reveal: 400ms;
   --float-scale: 0.97;
   --float-rise: 4px;
   --focus-ring: color-mix(in oklch, var(--ring) 45%, transparent);
+  --synced-frame: color-mix(in oklch, var(--ring) 28%, transparent);
   /* r5: a selected row, block or option: an accent tint behind it. */
   --selected: color-mix(in srgb, var(--accent-color) 14%, transparent);
 
@@ -365,6 +368,7 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
     --duration-slow: 1ms;
     --duration-task-complete: 1ms;
     --duration-enter: 1ms;
+    --duration-reveal: 1ms;
     --duration-hover-in: 1ms;
     --duration-hover-out: 1ms;
     --float-scale: 1;

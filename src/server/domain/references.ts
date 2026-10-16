@@ -324,3 +324,24 @@ export async function resultLocation(
         label: resultLabel(row.text as string | null),
       }
 }
+/** The project's Doc tabs that `pageId` may link to as facets, or null when the viewer cannot open `pageId`. */
+export async function projectFacetOptions(
+  executor: Executor,
+  viewerId: string,
+  pageId: string,
+): Promise<{ id: string; name: string }[] | null> {
+  if ((await accessOf(executor, viewerId, pageId)) === null) return null
+  const rows = await rowsOf(
+    executor,
+    sql`SELECT tf.id, tf.name
+          FROM folders p
+          JOIN folders tf ON tf.project_id = p.project_id
+         WHERE p.id = ${pageId}::uuid
+           AND p.deleted_at IS NULL AND p.archived_at IS NULL
+           AND tf.kind = 'doc' AND tf.tab_position IS NOT NULL
+           AND tf.id <> tf.project_id
+           AND tf.deleted_at IS NULL AND tf.archived_at IS NULL
+         ORDER BY tf.tab_position, tf.id`,
+  )
+  return rows.map((row) => ({ id: String(row.id), name: String(row.name) }))
+}

@@ -27,7 +27,6 @@ import { CanvasSlashMenu, blockMenuTargets, headingTogglesFor } from './slash-it
 import { isSectionHeading, shelfOutlineFailure, validateCanvasOutline } from './outline.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
 import type { BlockMenuModel } from './BlockSideMenu.js'
-import { useAutomaticBlockFacets } from './BlockFacets.js'
 import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
 import { backspaceToText, contains, simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
 import type { TreeBlock } from './turn-into.js'
@@ -35,7 +34,7 @@ import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { MentionSuggestions } from './mentions.js'
 import { PersonBlockContext } from './person-context.js'
 import { useCanvasTaskDelete } from './CanvasTask.js'
-import { ConnectedWork } from '../../links/connected-work.js'
+import { SyncedToolbar } from './CanvasSynced.js'
 import './canvas.css'
 
 type HeadingMode = 'section' | 'document' | 'none'
@@ -99,6 +98,7 @@ export function CanvasSurface({
   results = false,
   footer,
   settle,
+  syncedCopies,
 }: {
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
@@ -128,6 +128,8 @@ export function CanvasSurface({
   readonly footer?: ReactNode
   /** Sends the writing now; true once the page holds it. Named tasks are trashed after. */
   readonly settle?: (taskIds: readonly string[]) => Promise<boolean>
+  /** Other documents that hold a synced copy of a block, by block id. */
+  readonly syncedCopies?: Readonly<Record<string, number>>
 }): React.JSX.Element {
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
   const [insertMenu, setInsertMenu] = useState<{ readonly id: string; readonly x: number; readonly y: number } | null>(null)
@@ -153,9 +155,6 @@ export function CanvasSurface({
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] })
     return () => observer.disconnect()
   }, [])
-
-  // Facet metadata lives for the canvas lifetime, so chips exist from first paint.
-  const automaticFacets = useAutomaticBlockFacets(editor, editable, onNotice)
 
   // Shapes this canvas can keep. A refused shape is never offered or attempted.
   const admits = useCallback((document: readonly TreeBlock[]): boolean =>
@@ -231,7 +230,6 @@ export function CanvasSurface({
       : null,
     canDuplicate: (block) => !contains(block, TASK_OR_FOLDER),
     duplicate,
-    facets: automaticFacets,
     removal: (block, ids) => {
       // A folder row is the shelf's membership, so it leaves through that act, never Delete.
       if (block.type === 'danaFolder') {
@@ -249,12 +247,13 @@ export function CanvasSurface({
       }
       return { label: 'Delete', run: () => { remove(ids) } }
     },
-  }), [editor, headingMode, taskCreator, editable, insertBefore, requestTask, duplicate, automaticFacets, onRemoveFolder, remove, deleteTask, trashPage])
+  }), [editor, headingMode, taskCreator, editable, insertBefore, requestTask, duplicate, onRemoveFolder, remove, deleteTask, trashPage])
   const move = useCallback((ids: readonly string[], direction: -1 | 1): boolean => moveBlocksBy(editor, ids, direction), [editor])
   const selectionActions = useMemo(() => ({ remove, duplicate, admits, move }), [remove, duplicate, admits, move])
   useBlockSelectionKeys(editor, selectionActions)
   useBlockAnchor(editor, true)
   const scope = `dana-canvas-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const surface = useRef<HTMLDivElement>(null)
 
   // Tab nests a block under the one above only where the shape is allowed; code keeps
   // its own Tab. Focus that arrives by Tab passes through until you type or click
@@ -362,7 +361,8 @@ export function CanvasSurface({
         const box = row.getBoundingClientRect()
         setInsertMenu({ id, x: event.clientX || box.left, y: event.clientY || box.bottom })
       }}
-      className={`dana-writing-canvas ${scope} min-w-0`}
+      ref={surface}
+      className={`dana-writing-canvas ${scope} relative min-w-0`}
       style={placeholder === undefined ? undefined : ({ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties)}
     >
       <PersonBlockContext.Provider value={peopleFolderId ?? null}>
@@ -397,8 +397,8 @@ export function CanvasSurface({
           <DropdownMenuItem onClick={() => { if (insertMenu !== null) insertBefore(insertMenu.id) }}>Insert block above</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <SyncedOriginals editor={editor} host={surface} copies={syncedCopies} />
       {footer}
-      {headingMode === 'document' && peopleFolderId !== undefined ? <ConnectedWork id={peopleFolderId} /> : null}
       {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}
     </div>
     <AlertDialog open={referenceToConvert !== null} onOpenChange={(open) => { if (!open) setReferenceToConvert(null) }}>
@@ -416,5 +416,47 @@ export function CanvasSurface({
       </AlertDialogContent>
     </AlertDialog>
     </BlockMenuContext.Provider>
+  )
+}
+
+/** While the caret is in an original that has copies, it gets the copies' frame and toolbar. */
+function SyncedOriginals({ editor, host, copies }: {
+  readonly editor: CanvasEditor
+  readonly host: React.RefObject<HTMLDivElement | null>
+  readonly copies: Readonly<Record<string, number>> | undefined
+}): React.JSX.Element | null {
+  const [active, setActive] = useState<{ readonly id: string; readonly top: number; readonly left: number; readonly width: number; readonly height: number } | null>(null)
+  useEffect(() => {
+    const root = host.current
+    if (root === null || copies === undefined) return
+    const update = (): void => {
+      if (!editor.isFocused()) return
+      let block: CanvasBlock | undefined = editor.getTextCursorPosition().block
+      while (block !== undefined && copies[block.id] === undefined) block = editor.getParentBlock(block.id)
+      const content = block === undefined ? null : root.querySelector(`.bn-block-outer[data-id="${CSS.escape(block.id)}"] > .bn-block > :not(.bn-block-group)`)
+      if (block === undefined || content === null) { setActive(null); return }
+      const box = content.getBoundingClientRect()
+      const base = root.getBoundingClientRect()
+      setActive({ id: block.id, top: box.top - base.top, left: box.left - base.left, width: box.width, height: box.height })
+    }
+    // The toolbar and its open menu keep the original active; leaving both ends it.
+    // Checked a task later, so a menu that is closing has updated its trigger.
+    const leave = (): void => {
+      window.setTimeout(() => {
+        if (root.contains(document.activeElement) || root.querySelector('[data-synced-toolbar] [aria-expanded="true"]') !== null) return
+        setActive(null)
+      }, 0)
+    }
+    const off = editor.onSelectionChange(update)
+    root.addEventListener('focusin', update)
+    root.addEventListener('focusout', leave)
+    return () => { off(); root.removeEventListener('focusin', update); root.removeEventListener('focusout', leave) }
+  }, [editor, host, copies])
+  if (active === null || copies?.[active.id] === undefined) return null
+  return (
+    <div data-synced-original="" style={{ top: active.top, left: active.left, width: active.width, height: active.height }}>
+      <span aria-hidden="true" className="dana-synced-frame" />
+      <SyncedToolbar sourceId={active.id} className="dana-synced-toolbar" />
+    </div>
   )
 }

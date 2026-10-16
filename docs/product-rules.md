@@ -54,6 +54,15 @@ Work, Doc, Task and Collection writing can hold editable Tables. A Table keeps
 its rows, columns, headers, cell formatting and links when the page saves.
 Work and Doc can hold a Teammate block. It stores a Team member ID and reads the
 current Team profile. A removed member shows as unavailable.
+Work and Doc can hold a synced block. It shows one original block live, and an
+edit in a copy changes the original. "Copy and sync" in the block menu copies a
+link. Paste that link in a Work or Doc page to add a copy. Unsync turns a copy
+into a normal block with the current content. When the original is deleted, each
+copy keeps that content as a normal block. A reader who cannot open the original
+sees that it is not available. A synced block reads as plain text. While it is
+edited, the original and each copy show a frame and "Synced to N other pages",
+which lists every page that holds the block. A page that the reader cannot open
+is not listed or counted.
 
 The Team directory opens each member's profile in the side panel or full page.
 The profile has a personal Bio below the header, **In this project**

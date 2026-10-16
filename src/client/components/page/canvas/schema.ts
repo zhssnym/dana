@@ -15,6 +15,7 @@ import { createCanvasPageRefSpec, createCanvasPageSpec } from './CanvasPage.js'
 import { createCanvasParagraph } from './CanvasParagraph.js'
 import { createCanvasDiagramSpec } from './CanvasDiagram.js'
 import { createCanvasPersonSpec } from './CanvasPerson.js'
+import { createCanvasSyncedSpec } from './CanvasSynced.js'
 import { createTaskAtCursor, removeCanvasBlocks, removeEmptyBeforeHeading } from './commands.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 import { mentionInlineSpec } from './mentions.js'
@@ -356,6 +357,8 @@ export const canvasSchema = BlockNoteSchema.create({
     danaFolder: createCanvasFolderSpec(),
     diagram: createCanvasDiagramSpec(),
     person: createCanvasPersonSpec(),
+    // A live view of another block; only "Copy and sync" then paste inserts one.
+    synced: createCanvasSyncedSpec(),
     table: defaultBlockSpecs.table,
     // A sub-page; only Folder Work's `/page` inserts one.
     danaPage: createCanvasPageSpec(),

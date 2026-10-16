@@ -32,6 +32,7 @@ import {
 } from './page-order.js'
 import { createTaskIn } from './tasks.js'
 import { fileReclaimedAt } from './document-outline.js'
+import { syncedCopyCounts } from './synced-blocks.js'
 
 function toIso(value: unknown): string {
   return value instanceof Date
@@ -819,6 +820,7 @@ async function pageViewIn(
       ? await shelfDocumentMetadata(tx, home.shelfId)
       : await documentMetadata(tx, home.folderId, home.facetId)),
     blocks: rows.map(blockFromRow),
+    synced_copies: await syncedCopyCounts(tx, viewerId, rows.map((row) => String(row.id))),
     items: await pageItemsIn(tx, viewerId, home),
   }
 }

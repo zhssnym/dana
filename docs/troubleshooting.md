@@ -43,6 +43,14 @@ These give no error and no red test. Read your diff for them before opening a PR
   `.sql` file.
 - **A constraint has no explicit name.** Name every constraint and index. Tests and error
   handling refer to them by name.
+
+### Block kinds
+- **An id shows up in task notes or text search.** Person and synced blocks keep an id in
+  `text`. A read that takes `text` from every kind copies that id. `notesProjection` skips
+  both kinds, and search lists the kinds it reads. Do the same in a new text-wide read.
+- **A synced copy shows "not available" for a block that exists.** The kinds that a copy may
+  show are listed twice: `SYNCABLE_BLOCK_KINDS` in `src/shared/page-document.ts` and the
+  list in `db/migrations/0097_synced_blocks.sql`. Change both when a kind is added.
 - **A both-or-neither CHECK admits the row it was written to refuse.** A CHECK fails only on
   FALSE, and NULL passes. `(a IS NULL AND b IS NULL) OR (a > 0 AND b > 0)` accepts `a` null
   with `b` set. Write `(a IS NULL) = (b IS NULL) AND (a IS NULL OR (a > 0 AND b > 0))`, and add
@@ -241,6 +249,10 @@ real. Re-run at most once.
 
 ## 7. Client
 
+- **A nested editor shows a line at its left.** BlockNote draws its nesting guide with
+  `.bn-block-group .bn-block-group > .bn-block-outer::before`, which also matches the top
+  block of an editor that sits inside another editor's block. The synced-block mirror turns
+  that guide off in `synced-block.css`. Do the same for any new nested editor.
 - **A slash-menu block appears but does not insert.** The canvas guard checks block types in
   `src/client/components/page/canvas/outline.ts`. Add the new type to `KNOWN_TYPES` and test
   insertion with `installCanvasGuard` active. A slash-menu or schema test alone misses the refusal.

@@ -32,8 +32,7 @@ import { CanvasSlashMenu, blockMenuTargets } from './slash-items.js'
 import { CanvasWriter } from './saving.js'
 import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
-import type { AnyEditor, BlockMenuModel } from './BlockSideMenu.js'
-import { useBlockFacets } from './BlockFacets.js'
+import type { BlockMenuModel } from './BlockSideMenu.js'
 import { createCanvasCallout } from './CanvasCallout.js'
 import { queryKeys } from '../../../api/keys.js'
 import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
@@ -344,13 +343,6 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
     },
   })
   editorRef.current = editor
-  // This surface owns its facet controller too; the hover side menu only reads it.
-  const facets = useBlockFacets(
-    editor as unknown as AnyEditor,
-    folderId ?? undefined,
-    access === 'edit',
-    setError,
-  )
   // Tick mode writes one `put_block` with the stored outline, then reopens on the
   // answer. Set during render so the boxes drawn at mount find it.
   if (access === 'tick') {
@@ -398,9 +390,8 @@ function TaskSession({ taskId, folderId, access, onBlockedBy, initialPage, lates
     turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, false) },
     canDuplicate: () => true,
     duplicate: (ids) => { duplicateBlocks(editor, ids) },
-    facets,
     removal: (_block, ids) => ({ label: 'Delete', run: () => { editor.removeBlocks([...ids]) } }),
-  }), [editor, facets])
+  }), [editor])
   const selectionActions = useMemo(() => ({ remove: (ids: readonly string[]) => { editor.removeBlocks([...ids]) }, duplicate: menu.duplicate }), [editor, menu])
   useBlockSelectionKeys(editor, selectionActions)
   useBlockAnchor(editor, true)

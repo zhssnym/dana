@@ -10,11 +10,10 @@ import type { DbClient } from '../../../db/client.js'
 import { referenceKind, referenceSearchQuery } from '../../shared/references.js'
 import { requireSession } from '../auth/index.js'
 import { accessOf } from '../domain/folder-access.js'
-import { resolveReference, resultLocation, searchReferences } from '../domain/references.js'
+import { projectFacetOptions, resolveReference, resultLocation, searchReferences } from '../domain/references.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
-import { projectFacetOptions } from '../views/block-facets.js'
 import { routerWithPreamble } from './preamble.js'
 
 export interface ReferencesRouterOptions {
