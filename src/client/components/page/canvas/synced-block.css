@@ -9,10 +9,11 @@
 .dana-synced-frame {
   position: absolute;
   inset: calc(-2 * var(--space-row)) calc(-1 * var(--space-inline));
-  border: 1px solid var(--focus-ring);
+  border: 1px solid var(--synced-frame);
   border-radius: var(--radius-md);
   pointer-events: none;
-  visibility: hidden;
+  opacity: 0;
+  transition: opacity var(--duration-reveal) var(--ease-standard);
 }
 
 .dana-synced-toolbar {
@@ -21,13 +22,24 @@
   inset-inline-end: calc(-1 * var(--space-inline));
   z-index: 20;
   pointer-events: auto;
+  opacity: 0;
   visibility: hidden;
+  transition: opacity var(--duration-reveal) var(--ease-standard), visibility 0s var(--duration-reveal);
 }
 
 .dana-synced-block:focus-within > :is(.dana-synced-frame, .dana-synced-toolbar),
 .dana-synced-block:has([aria-expanded='true']) > :is(.dana-synced-frame, .dana-synced-toolbar),
 [data-synced-original] > :is(.dana-synced-frame, .dana-synced-toolbar) {
+  opacity: 1;
   visibility: visible;
+  transition-delay: 0s;
+}
+
+/* The original's frame mounts when the caret arrives, so it fades in from here. */
+@starting-style {
+  [data-synced-original] > :is(.dana-synced-frame, .dana-synced-toolbar) {
+    opacity: 0;
+  }
 }
 
 /* The original's frame and toolbar float over the page, so clicks pass through to its text. */
