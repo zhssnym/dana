@@ -30,7 +30,7 @@ import type { CanvasDocument, CanvasInput } from './adapters.js'
 import { CanvasWriter } from './saving.js'
 import { isSectionHeading } from './outline.js'
 import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
-import { pasteIntoCanvas } from './paste.js'
+import { pasteIntoCanvas, pasteSyncedBlock } from './paste.js'
 import { lineTitles, removeCanvasBlocks } from './commands.js'
 import { RECONCILED } from './guard.js'
 import type { TaskRows } from '../../../pages/task-rows.js'
@@ -243,6 +243,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: placeholder, default: placeholder } },
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
     pasteHandler: ({ editor: current, event, defaultPasteHandler }) =>
+      pasteSyncedBlock(current, event) ??
       pasteIntoCanvas(
         current,
         event,
@@ -623,6 +624,8 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       >
       <CanvasSurface
         peopleFolderId={folderId}
+        backlinks={{ kind: 'folder', id: folderId }}
+        syncedCopies={page.synced_copies}
         // Only a reader who can write is asked to.
         placeholder={!arrangeable ? undefined : placeholder}
         editor={editor}

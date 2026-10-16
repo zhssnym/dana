@@ -15,6 +15,7 @@ import type { Refuse } from './document-body.js'
 import { fileReclaimedAt } from './document-outline.js'
 import { initialKeys, keyBetween } from './fractional-index.js'
 import { syncMentions } from './mentions.js'
+import { syncedCopyCounts } from './synced-blocks.js'
 
 /** Ceilings in code points, which is what Postgres's `char_length` counts. */
 const PARAGRAPH_MAX = 4000
@@ -48,7 +49,8 @@ export function notesProjection(
   blocks: readonly { readonly kind?: unknown; readonly text?: unknown }[],
 ): string | null {
   const joined = blocks
-    .filter((block) => block.kind !== 'checklist')
+    // An id is not writing: a Person or synced block keeps one in `text`.
+    .filter((block) => block.kind !== 'checklist' && block.kind !== 'person' && block.kind !== 'synced')
     .map((block) => str(block.text))
     .filter((text): text is string => text !== null)
     .join('\n')
@@ -113,12 +115,13 @@ async function revisionOf(tx: Executor, taskId: string): Promise<string> {
 }
 
 /** The read, for a caller that has already gated and holds a transaction. */
-export async function taskDocumentViewIn(tx: Executor, taskId: string): Promise<PageView> {
+export async function taskDocumentViewIn(tx: Executor, taskId: string, viewerId: string): Promise<PageView> {
   const rows = await blockRows(tx, taskId)
   return {
     revision: await revisionOf(tx, taskId),
     task_placements: [],
     blocks: rows.map(blockFromRow),
+    synced_copies: await syncedCopyCounts(tx, viewerId, rows.map((row) => String(row.id))),
     items: rows.map((row) => ({ kind: 'block' as const, id: String(row.id) })),
   }
 }
@@ -435,7 +438,7 @@ export async function applyTaskDocumentLocked(
     if (receipt.payload_hash !== hash) {
       throw new TaskDocumentRefusal('stale', 'This retry identity already belongs to a different edit.')
     }
-    const replayed = await taskDocumentViewIn(tx, taskId)
+    const replayed = await taskDocumentViewIn(tx, taskId, viewerId)
     return {
       changed: false,
       view: {
@@ -484,7 +487,7 @@ export async function applyTaskDocumentLocked(
         VALUES (${viewerId}::uuid, ${folderId}::uuid, ${body.mutation_id}::uuid,
                 ${hash}, ${committed}, ${JSON.stringify({ task_id: taskId })}::jsonb)`,
   )
-  const view = await taskDocumentViewIn(tx, taskId)
+  const view = await taskDocumentViewIn(tx, taskId, viewerId)
   return {
     changed: true,
     view: {

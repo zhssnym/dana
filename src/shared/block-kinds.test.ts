@@ -24,7 +24,7 @@ describe('block-kind registry', () => {
     for (const home of BLOCK_HOMES) {
       const refused = DOCUMENT_BLOCK_KINDS.filter((kind) => !allowedIn(kind, home))
       for (const kind of refused) {
-        if (kind === 'person') continue // This kind did not exist in the old homes.
+        if (kind === 'person' || kind === 'synced') continue // These kinds did not exist in the old homes.
         expect(REFUSED_BEFORE[home], `${home} ${kind}`).toContain(kind)
       }
     }

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, test } from 'vitest'
 
-import type { PageBlock } from '../../../shared/pages.js'
-import { mirroredBlockInput } from './ConnectedBlockMirror.js'
+import type { PageBlock } from '../../../../shared/pages.js'
+import { mirroredBlockInput } from './SyncedBlockMirror.js'
 
 const ID = '00000000-0000-4000-8000-000000000010'
 const FILE = '00000000-0000-4000-8000-000000000020'
@@ -32,7 +32,7 @@ function block(overrides: Partial<PageBlock> = {}): PageBlock {
   }
 }
 
-describe('connected block mirror', () => {
+describe('synced block mirror', () => {
   test('renders a canonical File through Dana native file hydration', () => {
     const input = mirroredBlockInput(block({
       kind: 'file',

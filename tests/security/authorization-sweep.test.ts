@@ -1908,6 +1908,17 @@ const TABLE = new Map<string, Row>([
       },
     },
   ],
+  [
+    'GET /api/v1/synced-blocks/:id',
+    {
+      // A step is a checklist block in its Task's document, so it can be an original.
+      attempt: (fx) => ({ path: `/synced-blocks/${fx.stepId}` }),
+      stranger: {
+        expected: 404,
+        rule: "#720: an original is located only through its own home's read gate, so a non-member is told what an id naming nothing is told — 404",
+      },
+    },
+  ],
 
   /* -------------------------------------------------------------- *
    * Labels (issue #226, parent #208)

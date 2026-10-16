@@ -1274,7 +1274,7 @@ export async function taskDocument(
       await tx.execute(sql`SELECT 1 FROM tasks WHERE id = ${taskId}::uuid FOR UPDATE`)
       await materializeNotesLocked(tx, taskId)
     }
-    return taskDocumentViewIn(tx, taskId)
+    return taskDocumentViewIn(tx, taskId, viewerId)
   })
 }
 

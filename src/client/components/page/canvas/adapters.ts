@@ -244,6 +244,8 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
       node = { id: block.id, type: 'diagram', props: { source: block.text ?? '' }, children: [] }
     } else if (block.kind === 'person') {
       node = { id: block.id, type: 'person', props: { userId: block.text ?? '' }, children: [] }
+    } else if (block.kind === 'synced') {
+      node = { id: block.id, type: 'synced', props: { sourceId: block.text ?? '' }, children: [] }
     } else if (block.kind === 'table') {
       node = { id: block.id, type: 'table', content: tableContentOf(block.rich_content), children: [] }
     } else if (block.kind === 'page') {
@@ -376,7 +378,7 @@ export function dehydrateCanvas(
 
       // File, audio, video and Person blocks need a chosen target before save.
       // Reclaimed media keeps its saved reference.
-      if (unuploadedRequiredMedia || (block.type === 'person' && block.props.userId === '')) {
+      if (unuploadedRequiredMedia || (block.type === 'person' && block.props.userId === '') || (block.type === 'synced' && block.props.sourceId === '')) {
         visit(block.children, sectionParent, blockParent)
         continue
       }
@@ -419,6 +421,7 @@ export function dehydrateCanvas(
         else if (block.type === 'video') blockKind = 'video'
         else if (block.type === 'table') blockKind = 'table'
         else if (block.type === 'person') blockKind = 'person'
+        else if (block.type === 'synced') blockKind = 'synced'
         else if (reference !== null) blockKind = 'folder_ref'
 
         const media =
@@ -478,6 +481,7 @@ export function dehydrateCanvas(
         else if (block.type === 'danaPage') result.blocks.push({ id: block.id, block_kind: 'page', text: null, rich_content: null, file_id: null, ref_folder_id: block.props.folderId, width_pct: null, checked: null, toggleable: null })
         else if (block.type === 'diagram') result.blocks.push({ id: block.id, block_kind: 'diagram', text: block.props.source, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null })
         else if (block.type === 'person') result.blocks.push({ id: block.id, block_kind: 'person', text: block.props.userId, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null })
+        else if (block.type === 'synced') result.blocks.push({ id: block.id, block_kind: 'synced', text: block.props.sourceId, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null })
         else if (block.type === 'table') {
           const table = tableRichOf(block)
           result.blocks.push({ id: block.id, block_kind: 'table', text: tablePlainText(table.table), rich_content: table, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null })

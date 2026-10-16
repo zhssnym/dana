@@ -27,7 +27,6 @@ import { CanvasSlashMenu, blockMenuTargets, headingTogglesFor } from './slash-it
 import { isSectionHeading, shelfOutlineFailure, validateCanvasOutline } from './outline.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
 import type { BlockMenuModel } from './BlockSideMenu.js'
-import { useAutomaticBlockFacets } from './BlockFacets.js'
 import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
 import { backspaceToText, contains, simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
 import type { TreeBlock } from './turn-into.js'
@@ -35,7 +34,8 @@ import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { MentionSuggestions } from './mentions.js'
 import { PersonBlockContext } from './person-context.js'
 import { useCanvasTaskDelete } from './CanvasTask.js'
-import { ConnectedWork } from '../../links/connected-work.js'
+import { ReferencedFrom } from '../../links/referenced-from.js'
+import type { BacklinkTargetKind } from '../../links/dana-link.js'
 import './canvas.css'
 
 type HeadingMode = 'section' | 'document' | 'none'
@@ -99,6 +99,8 @@ export function CanvasSurface({
   results = false,
   footer,
   settle,
+  backlinks,
+  syncedCopies,
 }: {
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
@@ -128,6 +130,10 @@ export function CanvasSurface({
   readonly footer?: ReactNode
   /** Sends the writing now; true once the page holds it. Named tasks are trashed after. */
   readonly settle?: (taskIds: readonly string[]) => Promise<boolean>
+  /** The page whose backlinks show under the writing. */
+  readonly backlinks?: { readonly kind: BacklinkTargetKind; readonly id: string }
+  /** Other documents that hold a synced copy of a block, by block id. */
+  readonly syncedCopies?: Readonly<Record<string, number>>
 }): React.JSX.Element {
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
   const [insertMenu, setInsertMenu] = useState<{ readonly id: string; readonly x: number; readonly y: number } | null>(null)
@@ -153,9 +159,6 @@ export function CanvasSurface({
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] })
     return () => observer.disconnect()
   }, [])
-
-  // Facet metadata lives for the canvas lifetime, so chips exist from first paint.
-  const automaticFacets = useAutomaticBlockFacets(editor, editable, onNotice)
 
   // Shapes this canvas can keep. A refused shape is never offered or attempted.
   const admits = useCallback((document: readonly TreeBlock[]): boolean =>
@@ -231,7 +234,7 @@ export function CanvasSurface({
       : null,
     canDuplicate: (block) => !contains(block, TASK_OR_FOLDER),
     duplicate,
-    facets: automaticFacets,
+    syncedCopies,
     removal: (block, ids) => {
       // A folder row is the shelf's membership, so it leaves through that act, never Delete.
       if (block.type === 'danaFolder') {
@@ -249,7 +252,7 @@ export function CanvasSurface({
       }
       return { label: 'Delete', run: () => { remove(ids) } }
     },
-  }), [editor, headingMode, taskCreator, editable, insertBefore, requestTask, duplicate, automaticFacets, onRemoveFolder, remove, deleteTask, trashPage])
+  }), [editor, headingMode, taskCreator, editable, insertBefore, requestTask, duplicate, syncedCopies, onRemoveFolder, remove, deleteTask, trashPage])
   const move = useCallback((ids: readonly string[], direction: -1 | 1): boolean => moveBlocksBy(editor, ids, direction), [editor])
   const selectionActions = useMemo(() => ({ remove, duplicate, admits, move }), [remove, duplicate, admits, move])
   useBlockSelectionKeys(editor, selectionActions)
@@ -346,6 +349,7 @@ export function CanvasSurface({
   return (
     <BlockMenuContext.Provider value={menu}>
     <BlockSelectionStyle editor={editor} scope={scope} />
+    <SyncedOriginalStyle scope={scope} copies={syncedCopies} />
     <div
       onKeyDownCapture={onKeyDownCapture}
       onKeyDown={linkKey}
@@ -398,7 +402,7 @@ export function CanvasSurface({
         </DropdownMenuContent>
       </DropdownMenu>
       {footer}
-      {headingMode === 'document' && peopleFolderId !== undefined ? <ConnectedWork id={peopleFolderId} /> : null}
+      {backlinks === undefined ? null : <ReferencedFrom kind={backlinks.kind} id={backlinks.id} className="mt-[var(--space-inline)]" />}
       {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}
     </div>
     <AlertDialog open={referenceToConvert !== null} onOpenChange={(open) => { if (!open) setReferenceToConvert(null) }}>
@@ -417,4 +421,12 @@ export function CanvasSurface({
     </AlertDialog>
     </BlockMenuContext.Provider>
   )
+}
+
+/** An original with synced copies shows a 1px frame on hover, like the copies' own frame. */
+function SyncedOriginalStyle({ scope, copies }: { readonly scope: string; readonly copies: Readonly<Record<string, number>> | undefined }): React.JSX.Element | null {
+  const ids = Object.keys(copies ?? {})
+  if (ids.length === 0) return null
+  const rows = ids.map((id) => `.${scope} .bn-block-outer[data-id="${CSS.escape(id)}"]:hover > .bn-block > :not(.bn-block-group)`)
+  return <style>{`${rows.join(', ')} { box-shadow: 0 0 0 1px var(--border); border-radius: var(--radius-sm); }`}</style>
 }

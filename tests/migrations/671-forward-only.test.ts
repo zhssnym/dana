@@ -27,7 +27,7 @@ test('0092-0096 add Facet identities without replacing populated 0091 content', 
   try {
     const journal = JSON.parse(await readFile(join(migrations, 'meta/_journal.json'), 'utf8')) as Journal
     const previous = journal.entries.filter((entry) => entry.idx <= 91)
-    const added = journal.entries.filter((entry) => entry.idx > 91)
+    const added = journal.entries.filter((entry) => entry.idx > 91 && entry.idx <= 96)
     expect(previous.at(-1)?.tag).toBe('0091_profile_legacy_migration')
     expect(added.map((entry) => entry.tag)).toEqual([
       '0092_page_facets_foundation', '0093_page_facet_writes',

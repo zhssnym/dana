@@ -228,3 +228,31 @@ export function pasteIntoCanvas(
     return true
   }
 }
+
+const SYNC_LINK = /^\s*(https?:\/\/[^\s#]+)?[^\s#]*#sync-block-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s*$/i
+
+/** The original's id when the clipboard holds a "Copy and sync" link from this app, else null. */
+export function syncedSourceOfPaste(text: string, origin: string): string | null {
+  const match = SYNC_LINK.exec(text)
+  if (match === null) return null
+  if (match[1] !== undefined) {
+    try {
+      if (new URL(match[1]).origin !== origin) return null
+    } catch {
+      return null
+    }
+  }
+  return match[2]!.toLowerCase()
+}
+
+/** "Paste and sync": a sync link becomes a synced block after the cursor's block. */
+export function pasteSyncedBlock(editor: CanvasEditor, event: ClipboardEvent): true | undefined {
+  const sourceId = syncedSourceOfPaste(event.clipboardData?.getData('text/plain') ?? '', window.location.origin)
+  if (sourceId === null) return undefined
+  const current = editor.getTextCursorPosition().block
+  const synced = { type: 'synced' as const, props: { sourceId } }
+  const empty = current.type === 'paragraph' && Array.isArray(current.content) && current.content.length === 0 && current.children.length === 0
+  if (empty) editor.replaceBlocks([current.id], [synced])
+  else editor.insertBlocks([synced], current, 'after')
+  return true
+}
