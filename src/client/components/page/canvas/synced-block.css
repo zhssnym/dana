@@ -1,13 +1,14 @@
-/* A synced block: an orange frame on hover and a toolbar above its top-right corner. */
+/* A synced block reads as plain text. While it is edited, it shows a frame and a
+   toolbar above its top-right corner. The negative margin keeps the text aligned. */
 .dana-synced-block {
-  width: 100%;
+  width: calc(100% + 2 * (var(--space-inline) + 1px));
   min-width: 0;
+  margin-inline: calc(-1 * (var(--space-inline) + 1px));
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   padding: var(--space-row) var(--space-inline);
 }
 
-.dana-synced-block:hover,
 .dana-synced-block:focus-within,
 .dana-synced-block:has([aria-expanded='true']) {
   border-color: var(--color-warning-700);
@@ -22,26 +23,10 @@
   visibility: hidden;
 }
 
-/* Keeps the pointer inside the block while it crosses the gap to the toolbar. */
-.dana-synced-toolbar::after {
-  content: '';
-  position: absolute;
-  inset-inline: 0;
-  inset-block-start: 100%;
-  block-size: var(--space-row);
-}
-
-.dana-synced-block:hover > .dana-synced-toolbar,
 .dana-synced-block:focus-within > .dana-synced-toolbar,
 .dana-synced-toolbar:has([aria-expanded='true']),
 [data-synced-original] > .dana-synced-toolbar {
   visibility: visible;
-}
-
-@media (hover: none) {
-  .dana-synced-toolbar {
-    visibility: visible;
-  }
 }
 
 .dana-synced-mirror {

@@ -59,10 +59,10 @@ edit in a copy changes the original. "Copy and sync" in the block menu copies a
 link. Paste that link in a Work or Doc page to add a copy. Unsync turns a copy
 into a normal block with the current content. When the original is deleted, each
 copy keeps that content as a normal block. A reader who cannot open the original
-sees that it is not available. On hover, the original and each copy show a frame
-and "Synced to N other pages", which lists every page that holds the block.
-"Referenced from" under a page lists the pages that link to it or hold a copy of
-one of its blocks. A page that the reader cannot open is not listed or counted.
+sees that it is not available. A synced block reads as plain text. While it is
+edited, the original and each copy show a frame and "Synced to N other pages",
+which lists every page that holds the block. A page that the reader cannot open
+is not listed or counted.
 
 The Team directory opens each member's profile in the side panel or full page.
 The profile has a personal Bio below the header, **In this project**

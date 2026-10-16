@@ -624,7 +624,6 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       >
       <CanvasSurface
         peopleFolderId={folderId}
-        backlinks={{ kind: 'folder', id: folderId }}
         syncedCopies={page.synced_copies}
         // Only a reader who can write is asked to.
         placeholder={!arrangeable ? undefined : placeholder}

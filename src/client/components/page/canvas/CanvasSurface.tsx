@@ -34,9 +34,7 @@ import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { MentionSuggestions } from './mentions.js'
 import { PersonBlockContext } from './person-context.js'
 import { useCanvasTaskDelete } from './CanvasTask.js'
-import { ReferencedFrom } from '../../links/referenced-from.js'
 import { SyncedToolbar } from './CanvasSynced.js'
-import type { BacklinkTargetKind } from '../../links/dana-link.js'
 import './canvas.css'
 
 type HeadingMode = 'section' | 'document' | 'none'
@@ -100,7 +98,6 @@ export function CanvasSurface({
   results = false,
   footer,
   settle,
-  backlinks,
   syncedCopies,
 }: {
   readonly editor: CanvasEditor
@@ -131,8 +128,6 @@ export function CanvasSurface({
   readonly footer?: ReactNode
   /** Sends the writing now; true once the page holds it. Named tasks are trashed after. */
   readonly settle?: (taskIds: readonly string[]) => Promise<boolean>
-  /** The page whose backlinks show under the writing. */
-  readonly backlinks?: { readonly kind: BacklinkTargetKind; readonly id: string }
   /** Other documents that hold a synced copy of a block, by block id. */
   readonly syncedCopies?: Readonly<Record<string, number>>
 }): React.JSX.Element {
@@ -402,9 +397,8 @@ export function CanvasSurface({
           <DropdownMenuItem onClick={() => { if (insertMenu !== null) insertBefore(insertMenu.id) }}>Insert block above</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <SyncedOriginals host={surface} scope={scope} copies={syncedCopies} />
+      <SyncedOriginals editor={editor} host={surface} scope={scope} copies={syncedCopies} />
       {footer}
-      {backlinks === undefined ? null : <ReferencedFrom kind={backlinks.kind} id={backlinks.id} className="mt-[var(--space-inline)]" />}
       {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}
     </div>
     <AlertDialog open={referenceToConvert !== null} onOpenChange={(open) => { if (!open) setReferenceToConvert(null) }}>
@@ -425,8 +419,9 @@ export function CanvasSurface({
   )
 }
 
-/** An original with copies gets the copies' frame and toolbar while the pointer is on it. */
-function SyncedOriginals({ host, scope, copies }: {
+/** While the caret is in an original that has copies, it gets the copies' frame and toolbar. */
+function SyncedOriginals({ editor, host, scope, copies }: {
+  readonly editor: CanvasEditor
   readonly host: React.RefObject<HTMLDivElement | null>
   readonly scope: string
   readonly copies: Readonly<Record<string, number>> | undefined
@@ -435,22 +430,29 @@ function SyncedOriginals({ host, scope, copies }: {
   useEffect(() => {
     const root = host.current
     if (root === null || copies === undefined) return
-    const over = (event: MouseEvent): void => {
-      const target = event.target as Element
-      if (target.closest('[data-synced-toolbar]') !== null) return
-      let row = target.closest<HTMLElement>('.bn-block-outer[data-id]')
-      while (row !== null && copies[row.dataset.id ?? ''] === undefined) row = row.parentElement?.closest<HTMLElement>('.bn-block-outer[data-id]') ?? null
-      const content = row?.querySelector(':scope > .bn-block > :not(.bn-block-group)')
-      if (row === null || content === null || content === undefined) { setActive(null); return }
+    const update = (): void => {
+      if (!editor.isFocused()) return
+      let block: CanvasBlock | undefined = editor.getTextCursorPosition().block
+      while (block !== undefined && copies[block.id] === undefined) block = editor.getParentBlock(block.id)
+      const content = block === undefined ? null : root.querySelector(`.bn-block-outer[data-id="${CSS.escape(block.id)}"] > .bn-block > :not(.bn-block-group)`)
+      if (block === undefined || content === null) { setActive(null); return }
       const box = content.getBoundingClientRect()
       const base = root.getBoundingClientRect()
-      setActive({ id: row.dataset.id!, top: box.top - base.top, right: base.right - box.right })
+      setActive({ id: block.id, top: box.top - base.top, right: base.right - box.right })
     }
-    const leave = (): void => { if (root.querySelector('[data-synced-toolbar] [aria-expanded="true"]') === null) setActive(null) }
-    root.addEventListener('mouseover', over)
-    root.addEventListener('mouseleave', leave)
-    return () => { root.removeEventListener('mouseover', over); root.removeEventListener('mouseleave', leave) }
-  }, [host, copies])
+    // The toolbar and its open menu keep the original active; leaving both ends it.
+    // Checked a task later, so a menu that is closing has updated its trigger.
+    const leave = (): void => {
+      window.setTimeout(() => {
+        if (root.contains(document.activeElement) || root.querySelector('[data-synced-toolbar] [aria-expanded="true"]') !== null) return
+        setActive(null)
+      }, 0)
+    }
+    const off = editor.onSelectionChange(update)
+    root.addEventListener('focusin', update)
+    root.addEventListener('focusout', leave)
+    return () => { off(); root.removeEventListener('focusin', update); root.removeEventListener('focusout', leave) }
+  }, [editor, host, copies])
   if (active === null || copies?.[active.id] === undefined) return null
   return <>
     <style>{`.${scope} .bn-block-outer[data-id="${CSS.escape(active.id)}"] > .bn-block > :not(.bn-block-group) { box-shadow: 0 0 0 1px var(--color-warning-700); border-radius: var(--radius-sm); }`}</style>

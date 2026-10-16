@@ -10,7 +10,7 @@ import { syncedSource } from '../../../../shared/synced-blocks.js'
 import type { SyncedPage } from '../../../../shared/synced-blocks.js'
 import { getPlain, mutateApi } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
-import { ArrowDownLeft, ArrowUpRight, ChevronDown, Copy, FileText, MoreHorizontal } from '../../../lib/icons.js'
+import { ArrowDownLeft, ArrowUpRight, ChevronDown, Copy, FileText, IconMotion, MoreHorizontal } from '../../../lib/icons.js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../ui/dropdown-menu.js'
 import { documentOf } from './adapters.js'
 import { syncLink } from './block-selection.js'
@@ -75,7 +75,7 @@ function useSyncedSource(sourceId: string) {
 
 const BUTTON = 'inline-flex h-6 items-center gap-1 rounded-sm px-1.5 hover:bg-accent hover:text-foreground'
 
-/** "Synced to N other pages", the copy action and, on a copy, Unsync. Shown on hover. */
+/** "Synced to N other pages", the copy action and, on a copy, Unsync. Shown while the block is edited. */
 export function SyncedToolbar({ sourceId, onUnsync, className = '' }: {
   readonly sourceId: string
   readonly onUnsync?: () => void
@@ -89,6 +89,7 @@ export function SyncedToolbar({ sourceId, onUnsync, className = '' }: {
   const others = pages.filter((page) => !here(page)).length
   const Arrow = pages.some((page) => page.original && here(page)) ? ArrowDownLeft : ArrowUpRight
   return (
+    <IconMotion enabled={false}>
     <div
       contentEditable={false}
       className={`flex items-center gap-px whitespace-nowrap rounded-md border border-border bg-background p-px text-xs text-muted-foreground ${className}`}
@@ -129,6 +130,7 @@ export function SyncedToolbar({ sourceId, onUnsync, className = '' }: {
         </DropdownMenu>
       )}
     </div>
+    </IconMotion>
   )
 }
 
