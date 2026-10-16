@@ -4,38 +4,32 @@ import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 
 import { findHelp, helpArticles, helpBySlug, HELP_SECTIONS } from '../help/content.js'
-import type { HelpArticle } from '../help/content.js'
 import { HelpMarkdown } from '../help/markdown.js'
 import { ArrowRight, ChevronDown, ChevronRight, Search, X } from '../lib/icons.js'
 import { paths } from '../routes.js'
 
-// Sections fold like a Notion sidebar. The section of the open article starts open.
+// All guides stay visible, as in a standard docs sidebar. The sidebar scrolls on its own.
 function HelpSidebar({ current }: { readonly current?: string }): React.JSX.Element {
-  const currentSection = current === undefined ? undefined : helpBySlug.get(current)?.section
   return (
-    <nav aria-label="Help articles">
-      <Link to={paths.help} className="block px-2 pb-2 text-xs text-muted-foreground hover:text-foreground">Help Center</Link>
+    <nav aria-label="Help articles" className="space-y-5">
       {HELP_SECTIONS.map((section) => (
-        <details key={section} open={section === currentSection} className="group">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm text-foreground hover:bg-hover [&::-webkit-details-marker]:hidden">
-            {section}
-            <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden="true" />
-          </summary>
-          <ul className="mb-1">
+        <section key={section}>
+          <h2 className="px-2 pb-1 text-xs font-section text-muted-foreground">{section}</h2>
+          <ul>
             {helpArticles.filter((article) => article.section === section).map((article) => (
               <li key={article.slug}>
                 <Link
                   to={paths.helpArticle(article.slug)}
                   aria-current={article.slug === current ? 'page' : undefined}
-                  className={'block rounded-md py-1.5 pl-5 pr-2 text-sm transition-colors ' +
-                    (article.slug === current ? 'bg-selected text-foreground' : 'text-muted-foreground hover:bg-hover hover:text-foreground')}
+                  className={'block rounded-md px-2 py-1.5 text-sm transition-colors ' +
+                    (article.slug === current ? 'bg-selected text-foreground' : 'text-foreground hover:bg-hover')}
                 >
                   {article.title}
                 </Link>
               </li>
             ))}
           </ul>
-        </details>
+        </section>
       ))}
     </nav>
   )
@@ -106,7 +100,7 @@ function HelpHome(): React.JSX.Element {
                 <p className="mt-1 text-xs text-muted-foreground">Try a different word.</p>
               </>
             ) : (
-              <ul>
+              <ul aria-label="Search results">
                 {results.map((article) => (
                   <li key={article.slug}>
                     <Link to={paths.helpArticle(article.slug)} className="block rounded-md px-3 py-2.5 hover:bg-hover">
@@ -139,7 +133,6 @@ function HelpArticleView({ slug }: { readonly slug: string }): React.JSX.Element
       </HelpLayout>
     )
   }
-  const related = article.related.map((related) => helpBySlug.get(related)).filter((entry): entry is HelpArticle => entry !== undefined)
 
   return (
     <HelpLayout current={slug}>
@@ -152,20 +145,6 @@ function HelpArticleView({ slug }: { readonly slug: string }): React.JSX.Element
         <h1 className="font-title text-[length:var(--text-title-size)] leading-[var(--text-title-line)]">{article.title}</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">{article.summary}</p>
         <div className="pt-4"><HelpMarkdown body={article.body} /></div>
-        {related.length > 0 ? (
-          <section className="mt-12 border-t border-border pt-6">
-            <h2 className="text-sm font-section">Related guides</h2>
-            <ul className="mt-2">
-              {related.map((entry) => (
-                <li key={entry.slug}>
-                  <Link to={paths.helpArticle(entry.slug)} className="inline-block py-1.5 text-sm text-primary hover:underline">
-                    {entry.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
       </article>
     </HelpLayout>
   )
