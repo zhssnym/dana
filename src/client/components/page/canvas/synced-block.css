@@ -1,32 +1,39 @@
-/* A synced block reads as plain text. While it is edited, it shows a frame and a
-   toolbar above its top-right corner. The negative margin keeps the text aligned. */
+/* A synced block reads as plain text. While it is edited, a soft accent frame sits
+   just outside the text, so the text never moves, and a toolbar sits above it. */
 .dana-synced-block {
-  width: calc(100% + 2 * (var(--space-inline) + 1px));
+  position: relative;
+  width: 100%;
   min-width: 0;
-  margin-inline: calc(-1 * (var(--space-inline) + 1px));
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  padding: var(--space-row) var(--space-inline);
 }
 
-.dana-synced-block:focus-within,
-.dana-synced-block:has([aria-expanded='true']) {
-  border-color: var(--color-warning-700);
+.dana-synced-frame {
+  position: absolute;
+  inset: calc(-2 * var(--space-row)) calc(-1 * var(--space-inline));
+  border: 1px solid var(--focus-ring);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .dana-synced-toolbar {
   position: absolute;
-  inset-block-end: 100%;
-  inset-inline-end: 0;
-  margin-block-end: var(--space-row);
+  inset-block-end: calc(100% + 3 * var(--space-row));
+  inset-inline-end: calc(-1 * var(--space-inline));
   z-index: 20;
+  pointer-events: auto;
   visibility: hidden;
 }
 
-.dana-synced-block:focus-within > .dana-synced-toolbar,
-.dana-synced-toolbar:has([aria-expanded='true']),
-[data-synced-original] > .dana-synced-toolbar {
+.dana-synced-block:focus-within > :is(.dana-synced-frame, .dana-synced-toolbar),
+.dana-synced-block:has([aria-expanded='true']) > :is(.dana-synced-frame, .dana-synced-toolbar),
+[data-synced-original] > :is(.dana-synced-frame, .dana-synced-toolbar) {
   visibility: visible;
+}
+
+/* The original's frame and toolbar float over the page, so clicks pass through to its text. */
+[data-synced-original] {
+  position: absolute;
+  pointer-events: none;
 }
 
 .dana-synced-mirror {

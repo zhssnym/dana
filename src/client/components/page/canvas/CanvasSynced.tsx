@@ -164,7 +164,8 @@ function SyncedBlock({ blockId, sourceId, editor }: {
     : original === undefined ? 'The original block is not available.' : null
 
   return (
-    <div contentEditable={false} className="group/synced dana-synced-block relative" data-synced-block="">
+    <div contentEditable={false} className="dana-synced-block" data-synced-block="">
+      <span aria-hidden="true" className="dana-synced-frame" />
       {original === undefined ? null : (
         <SyncedToolbar
           sourceId={sourceId}

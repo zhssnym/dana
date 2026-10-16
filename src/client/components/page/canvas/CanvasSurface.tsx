@@ -397,7 +397,7 @@ export function CanvasSurface({
           <DropdownMenuItem onClick={() => { if (insertMenu !== null) insertBefore(insertMenu.id) }}>Insert block above</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <SyncedOriginals editor={editor} host={surface} scope={scope} copies={syncedCopies} />
+      <SyncedOriginals editor={editor} host={surface} copies={syncedCopies} />
       {footer}
       {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}
     </div>
@@ -420,13 +420,12 @@ export function CanvasSurface({
 }
 
 /** While the caret is in an original that has copies, it gets the copies' frame and toolbar. */
-function SyncedOriginals({ editor, host, scope, copies }: {
+function SyncedOriginals({ editor, host, copies }: {
   readonly editor: CanvasEditor
   readonly host: React.RefObject<HTMLDivElement | null>
-  readonly scope: string
   readonly copies: Readonly<Record<string, number>> | undefined
 }): React.JSX.Element | null {
-  const [active, setActive] = useState<{ readonly id: string; readonly top: number; readonly right: number } | null>(null)
+  const [active, setActive] = useState<{ readonly id: string; readonly top: number; readonly left: number; readonly width: number; readonly height: number } | null>(null)
   useEffect(() => {
     const root = host.current
     if (root === null || copies === undefined) return
@@ -438,7 +437,7 @@ function SyncedOriginals({ editor, host, scope, copies }: {
       if (block === undefined || content === null) { setActive(null); return }
       const box = content.getBoundingClientRect()
       const base = root.getBoundingClientRect()
-      setActive({ id: block.id, top: box.top - base.top, right: base.right - box.right })
+      setActive({ id: block.id, top: box.top - base.top, left: box.left - base.left, width: box.width, height: box.height })
     }
     // The toolbar and its open menu keep the original active; leaving both ends it.
     // Checked a task later, so a menu that is closing has updated its trigger.
@@ -454,10 +453,10 @@ function SyncedOriginals({ editor, host, scope, copies }: {
     return () => { off(); root.removeEventListener('focusin', update); root.removeEventListener('focusout', leave) }
   }, [editor, host, copies])
   if (active === null || copies?.[active.id] === undefined) return null
-  return <>
-    <style>{`.${scope} .bn-block-outer[data-id="${CSS.escape(active.id)}"] > .bn-block > :not(.bn-block-group) { box-shadow: 0 0 0 1px var(--color-warning-700); border-radius: var(--radius-sm); }`}</style>
-    <div className="absolute" data-synced-original="" style={{ top: active.top, right: active.right }}>
+  return (
+    <div data-synced-original="" style={{ top: active.top, left: active.left, width: active.width, height: active.height }}>
+      <span aria-hidden="true" className="dana-synced-frame" />
       <SyncedToolbar sourceId={active.id} className="dana-synced-toolbar" />
     </div>
-  </>
+  )
 }
