@@ -1,11 +1,9 @@
 import { useState } from 'react'
 import type { ReactElement } from 'react'
 import { Link } from 'react-router'
-import { ArrowUpRight, Megaphone, Search, Settings, Trash2, X } from '../../lib/icons.js'
+import { Megaphone, Search, Settings, Trash2 } from '../../lib/icons.js'
 import { FeedbackDialog } from '../../components/feedback/FeedbackDialog.js'
 import { HelpUpdatesMenu } from '../../components/help/HelpUpdatesMenu.js'
-import { usePatchBundle } from '../../api/mutations.js'
-import { useBundle } from '../../api/queries.js'
 import { SidebarFooter, SidebarTrigger } from '../../components/ui/sidebar.js'
 import { NotificationsBell } from '../../components/notifications-bell.js'
 import { MessagesButton } from '../../components/direct-message/MessagesButton.js'
@@ -48,63 +46,21 @@ export function SidebarFoot({
   readonly onContextMenu: (event: React.MouseEvent) => void
 }): React.JSX.Element {
   const [feedbackOpen, setFeedbackOpen] = useState(false)
-  const [dismissedHere, setDismissedHere] = useState(false)
-  const bundle = useBundle()
-  const patchBundle = usePatchBundle()
-  const reminderCollapsed = dismissedHere || bundle.data?.feedback_reminder_dismissed !== false
-
-  const collapseReminder = (): void => {
-    setDismissedHere(true)
-    patchBundle.mutate(
-      { feedback_reminder_dismissed: true },
-      { onError: () => setDismissedHere(false) },
-    )
-  }
 
   return (
     <>
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
-      <div className="px-2 pb-1" onContextMenu={onContextMenu}>
-        {reminderCollapsed ? (
-          <button
-            type="button"
-            aria-label="Feedback"
-            className="flex h-(--row-height) w-full items-center gap-2 rounded-md px-2 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-            onClick={() => setFeedbackOpen(true)}
-          >
-            <Megaphone strokeWidth={1.75} aria-hidden="true" />
-            Feedback
-          </button>
-        ) : (
-          <section aria-label="Beta feedback" className="rounded-md border border-sidebar-border bg-background p-3">
-            <div className="flex items-center justify-between gap-1">
-              <h2 className="flex min-w-0 items-center gap-2 text-sm font-section">
-                <Megaphone strokeWidth={1.75} aria-hidden="true" />
-                Help shape Dana
-              </h2>
-              <button
-                type="button"
-                aria-label="Collapse feedback reminder"
-                className="flex size-(--control-height) shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-                onClick={collapseReminder}
-              >
-                <X strokeWidth={1.75} aria-hidden="true" />
-              </button>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              You're an early tester. Your feedback helps us make Dana better.
-            </p>
-            <button
-              type="button"
-              className="mt-2 flex items-center gap-1 text-xs font-section text-foreground hover:text-primary"
-              onClick={() => setFeedbackOpen(true)}
-            >
-              Share feedback
-              <ArrowUpRight strokeWidth={1.75} aria-hidden="true" />
-            </button>
-          </section>
-        )}
-      </div>
+      {/* One sidebar row above the foot, not a card. */}
+      <section aria-label="Beta feedback" className="border-t border-sidebar-border" onContextMenu={onContextMenu}>
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 px-4 py-2 text-sm text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:bg-sidebar-accent focus-visible:text-foreground"
+          onClick={() => setFeedbackOpen(true)}
+        >
+          <Megaphone strokeWidth={1.75} aria-hidden="true" />
+          Share feedback
+        </button>
+      </section>
       <SidebarFooter className="border-t border-sidebar-border px-1 py-1" onContextMenu={onContextMenu}>
         {/* One balanced row: seven 28px controls fit inside the 224px minimum sidebar
             without changing hit sizes, leaving empty grid cells or widening the footer. */}
