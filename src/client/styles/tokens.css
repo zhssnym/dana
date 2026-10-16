@@ -270,9 +270,7 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --help-layout-width: 1200px;
   --help-article-width: 720px;
   --help-nav-width: 232px;
-  --help-toc-width: 172px;
   --help-search-width: 640px;
-  --help-suggestions-width: 256px;
   --content-list: clamp(720px, 60vw, 900px);
   --shell-content-max: var(--content-list);
   --calendar-month-cell-height: 104px;

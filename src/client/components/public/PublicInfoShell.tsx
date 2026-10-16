@@ -19,7 +19,6 @@ export function PublicInfoShell({
           <Link to={paths.help} className="flex shrink-0 items-center gap-2.5 rounded-sm text-foreground hover:text-primary">
             <img src="/dana-mark.svg" alt="" className="size-7 shrink-0" />
             <span className="font-title text-sm">Dana</span>
-            <span className="hidden border-l border-border pl-3 text-xs font-normal text-muted-foreground sm:inline">Help & Updates</span>
           </Link>
           <nav className="flex items-center gap-4 text-xs sm:gap-6" aria-label="Site navigation">
             <Link to={paths.help} aria-current={section === 'help' ? 'page' : undefined}
@@ -43,8 +42,6 @@ export function PublicInfoShell({
         <div className="mx-auto flex max-w-[var(--help-layout-width)] flex-wrap items-center justify-between gap-x-5 gap-y-3 px-5 py-5 text-xs text-muted-foreground sm:px-8">
           <span className="font-section text-foreground">Dana</span>
           <nav className="flex flex-wrap items-center gap-x-5 gap-y-2" aria-label="Footer">
-            <Link to={paths.help} className="hover:text-foreground">Help Center</Link>
-            <Link to={paths.updates} className="hover:text-foreground">What&apos;s New</Link>
             <a href="/privacy" className="hover:text-foreground">Privacy</a>
             <a href="/terms" className="hover:text-foreground">Terms</a>
           </nav>

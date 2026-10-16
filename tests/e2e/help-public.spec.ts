@@ -19,21 +19,16 @@ test('direct help article links resolve without an account', async ({ page }) =>
 })
 
 
-test('topics and article contents support direct navigation', async ({ page }) => {
+test('every guide is one click from help, and the article list filters', async ({ page }) => {
   await page.goto('/help')
-  await page.getByRole('link', { name: /Tasks and planning/ }).click()
-  await expect(page).toHaveURL(/section=Tasks/)
   await expect(page.getByRole('heading', { name: 'Tasks and planning' })).toBeVisible()
-
-  await page.getByRole('link', { name: /Schedule a task/ }).click()
+  await page.getByRole('link', { name: 'Schedule a task', exact: true }).click()
   await expect(page).toHaveURL(/\/help\/schedule-a-task/)
-  await expect(page.getByRole('navigation', { name: 'On this page' })).toBeVisible()
-  await page.getByRole('navigation', { name: 'On this page' })
-    .getByRole('link', { name: 'Choose dates' }).click()
-  await expect(page).toHaveURL(/#choose-dates$/)
-  await expect(page.locator('#choose-dates')).toBeVisible()
-  await page.getByRole('link', { name: 'Search help' }).click()
-  await expect(page.getByRole('searchbox', { name: 'Search help articles' })).toBeFocused()
+
+  const nav = page.getByRole('navigation', { name: 'Help articles' })
+  await nav.getByRole('searchbox', { name: 'Search help articles' }).fill('keyboard')
+  await nav.getByRole('link', { name: 'Keyboard shortcuts' }).click()
+  await expect(page.getByRole('heading', { name: 'Keyboard shortcuts', level: 1 })).toBeVisible()
 })
 
 test('article navigation stays usable on a narrow screen', async ({ page }) => {
@@ -52,7 +47,7 @@ test('search can recover from no results', async ({ page }) => {
   await page.getByRole('searchbox', { name: 'Search help articles' }).fill('nothing-matches-this-help-query')
   await expect(page.getByRole('heading', { name: 'No matching articles' })).toBeVisible()
   await page.getByRole('button', { name: 'Clear search' }).click()
-  await expect(page.getByRole('heading', { name: 'Browse by topic' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Getting started' })).toBeVisible()
 })
 
 
