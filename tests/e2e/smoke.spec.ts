@@ -108,6 +108,310 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
 })
 
 
+
+
+test('root Page: legacy Work and Doc URLs remain valid beside new Facets', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/app/today')
+  const skip = page.getByRole('dialog', { name: 'How did you hear about Dana?' })
+    .getByRole('button', { name: 'Skip' })
+  await skip.waitFor({ timeout: 5_000 }).then(() => skip.click(), () => undefined)
+  const csrf = (await page.context().cookies()).find((cookie) => cookie.name === 'dana_csrf')?.value
+  expect(csrf).toBeTruthy()
+  const root = await page.request.post('/api/v1/folders', {
+    headers: { 'X-CSRF-Token': csrf! },
+    data: { name: 'Universal root test', kind: 'work' },
+  })
+  expect(root.status(), await root.text()).toBe(201)
+  const rootId = ((await root.json()) as { id: string }).id
+  const addedDoc = await page.request.post('/api/v1/folders/' + rootId + '/tabs', {
+    headers: { 'X-CSRF-Token': csrf! }, data: { kind: 'doc' },
+  })
+  expect(addedDoc.status(), await addedDoc.text()).toBe(201)
+  const list = (await (await page.request.get('/api/v1/pages/' + rootId + '/facets')).json()) as {
+    facets: { id: string; name: string; content_page_id: string | null }[]
+  }
+  const legacyDoc = list.facets.find((facet) => facet.content_page_id !== rootId)
+  expect(legacyDoc?.content_page_id).toBeTruthy()
+  await page.goto('/app/folders/' + rootId)
+  const strip = page.getByRole('tablist', { name: 'Page Facets' })
+  await expect(strip.getByRole('tab', { name: 'Main' })).toBeVisible()
+  await expect(strip.getByRole('tab', { name: 'Doc' })).toBeVisible()
+  await strip.getByRole('tab', { name: 'Doc' }).click()
+  await expect(page).toHaveURL('/app/folders/' + legacyDoc!.content_page_id)
+  await expect(page.getByRole('tablist', { name: 'Page Facets' })
+    .getByRole('tab', { name: 'Doc' })).toHaveAttribute('aria-selected', 'true')
+  await page.getByRole('button', { name: 'Add Facet' }).click()
+  await expect(page.getByRole('tablist', { name: 'Page Facets' })
+    .getByRole('tab', { name: 'Untitled' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page).toHaveURL(/pageFacet=/)
+  const message = 'Independent root writing ' + Date.now()
+  const editor = page.locator('.dana-writing-canvas .bn-editor').first()
+  await expect(editor).toBeVisible()
+  await editor.focus()
+  await page.keyboard.type(message)
+  await expect(editor).toContainText(message)
+  await expect.poll(async () => {
+    const facets = (await (await page.request.get('/api/v1/pages/' + rootId + '/facets')).json()) as typeof list
+    const independent = facets.facets.find((facet) => facet.name === 'Untitled')
+    if (independent === undefined) return false
+    const response = await page.request.get('/api/v1/pages/' + rootId + '/facets/' + independent.id + '/document')
+    return JSON.stringify(await response.json()).includes(message)
+  }).toBe(true)
+
+  // A Task owned by a separate root Facet must never leak into legacy Main.
+  const ownedFacets = (await (await page.request.get('/api/v1/pages/' + rootId + '/facets')).json()) as typeof list
+  const independentId = ownedFacets.facets.find((facet) => facet.name === 'Untitled')?.id
+  expect(independentId).toBeTruthy()
+  const documentPath = '/api/v1/pages/' + rootId + '/facets/' + independentId + '/document'
+  const independentDocument = (await (await page.request.get(documentPath)).json()) as {
+    revision: string
+    items: { id: string; kind: 'task' | 'block' }[]
+  }
+  const taskId = crypto.randomUUID()
+  const taskTitle = 'Task belongs only to Notes ' + Date.now()
+  const savedTask = await page.request.post(documentPath + '/actions', {
+    headers: { 'X-CSRF-Token': csrf! },
+    data: {
+      action: 'document_transaction', mutation_id: crypto.randomUUID(),
+      base_revision: independentDocument.revision,
+      operations: [
+        { op: 'create_task', id: taskId, title: taskTitle },
+        { op: 'set_outline', items: [
+          ...independentDocument.items.map((item) => ({
+            kind: item.kind, id: item.id, section_block_id: null, list_parent_block_id: null,
+          })),
+          { kind: 'task', id: taskId, section_block_id: null, list_parent_block_id: null },
+        ] },
+      ],
+    },
+  })
+  expect(savedTask.status(), await savedTask.text()).toBe(200)
+
+  await page.reload()
+  await expect(page.getByRole('tablist', { name: 'Page Facets' })
+    .getByRole('tab', { name: 'Untitled' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+  await expect(page.getByText(taskTitle, { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /^Work view:/ }).click()
+  await page.getByRole('menuitemradio', { name: 'Board', exact: true }).click()
+  await page.getByRole('button', { name: 'New section', exact: true }).click()
+  const sectionName = page.getByRole('textbox', { name: 'New section name', exact: true })
+  await sectionName.fill('Independent Board Section')
+  await sectionName.press('Enter')
+  const boardTask = 'Independent Board task ' + Date.now()
+  await page.getByRole('button', { name: 'New task in Independent Board Section', exact: true }).click()
+  const boardInput = page.getByRole('textbox', { name: 'New task name', exact: true })
+  await boardInput.fill(boardTask)
+  const boardCreated = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/v1/tasks')
+  await boardInput.press('Enter')
+  const boardResponse = await boardCreated
+  expect(boardResponse.status(), await boardResponse.text()).toBe(201)
+  const boardTaskId = ((await boardResponse.json()) as { id: string }).id
+  await expect(page.getByText(boardTask, { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /^Work view:/ }).click()
+  await page.getByRole('menuitemradio', { name: 'Calendar', exact: true }).click()
+  const day = page.getByRole('grid', { name: 'Work calendar' }).getByRole('gridcell').first()
+  await day.getByRole('button', { name: /^New task on / }).click()
+  const calendarTask = 'Independent Calendar task ' + Date.now()
+  const calendarInput = day.getByRole('textbox', { name: /^New task on / })
+  await calendarInput.fill(calendarTask)
+  const calendarCreated = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/v1/tasks')
+  await calendarInput.press('Enter')
+  const calendarResponse = await calendarCreated
+  expect(calendarResponse.status(), await calendarResponse.text()).toBe(201)
+  const calendarTaskId = ((await calendarResponse.json()) as { id: string }).id
+  await expect.poll(async () => {
+    const facet = await (await page.request.get(documentPath)).text()
+    return [boardTaskId, calendarTaskId, 'Independent Board Section'].every((text) => facet.includes(text))
+  }).toBe(true)
+  const mainContent = await (await page.request.get(`/api/v1/folders/${rootId}/page`)).text()
+  for (const text of [boardTaskId, calendarTaskId, 'Independent Board Section']) expect(mainContent).not.toContain(text)
+  await page.getByRole('button', { name: /^Work view:/ }).click()
+  await page.getByRole('menuitemradio', { name: 'Freeform', exact: true }).click()
+  const mainTab = page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Main' })
+  const docTab = page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Doc' })
+  const first = await mainTab.boundingBox()
+  const last = await docTab.boundingBox()
+  expect(first).not.toBeNull()
+  expect(last).not.toBeNull()
+  await page.mouse.move(last!.x + last!.width / 2, last!.y + last!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(first!.x + 2, first!.y + first!.height / 2, { steps: 10 })
+  await page.mouse.up()
+  await expect.poll(async () => {
+    const current = (await (await page.request.get('/api/v1/pages/' + rootId + '/facets')).json()) as typeof list
+    return current.facets[0]?.id
+  }).toBe(legacyDoc!.id)
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+  await page.getByRole('tablist', { name: 'Page Facets' })
+    .getByRole('tab', { name: 'Main' }).click()
+  await expect(page).toHaveURL('/app/folders/' + rootId)
+  await expect(page.locator('.dana-writing-canvas')).not.toContainText(message)
+  await expect(page.getByText(taskTitle, { exact: true })).toHaveCount(0)
+  await page.getByRole('tablist', { name: 'Page Facets' })
+    .getByRole('tab', { name: 'Doc' }).click()
+  await expect(page).toHaveURL('/app/folders/' + legacyDoc!.content_page_id)
+  await page.evaluate((id) => sessionStorage.setItem(`dana-canvas-draft:${id}`,
+    JSON.stringify({ folderId: id, blocks: [] })), rootId)
+  await page.goto(`/app/folders/${rootId}`)
+  await expect(page.getByText('Unsaved writing from before is kept.', { exact: false })).toBeVisible()
+})
+
+test('nested Page: add a Facet and edit it in the existing Work canvas', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/app/today')
+  const skip = page.getByRole('dialog', { name: 'How did you hear about Dana?' }).getByRole('button', { name: 'Skip' })
+  await skip.waitFor({ timeout: 5_000 }).then(() => skip.click(), () => undefined)
+  const csrf = (await page.context().cookies()).find((cookie) => cookie.name === 'dana_csrf')?.value
+  expect(csrf).toBeTruthy()
+
+  const root = await page.request.post('/api/v1/folders', {
+    headers: { 'X-CSRF-Token': csrf! },
+    data: { name: 'Facet browser test root', kind: 'work' },
+  })
+  expect(root.status(), await root.text()).toBe(201)
+  const rootId = ((await root.json()) as { id: string }).id
+  const child = await page.request.post('/api/v1/folders', {
+    headers: { 'X-CSRF-Token': csrf! },
+    data: { name: 'Facet browser test child', parent_folder_id: rootId },
+  })
+  expect(child.status(), await child.text()).toBe(201)
+  const childId = ((await child.json()) as { id: string }).id
+
+  await page.goto(`/app/folders/${childId}`)
+  await expect(page.getByRole('tablist', { name: 'Page Facets' })).toHaveCount(0)
+
+  // Permission-projected Page actions may arrive after the header on reload.
+  const openRenameFacet = async (): Promise<void> => {
+    await expect.poll(async () => {
+      await page.getByRole('button', { name: 'More actions' }).last().click()
+      const ready = await page.getByRole('menuitem', { name: 'Rename Facet' }).isVisible()
+      if (!ready) await page.keyboard.press('Escape')
+      return ready
+    }).toBe(true)
+    await page.getByRole('menuitem', { name: 'Rename Facet' }).click()
+  }
+
+  // A sole Main has no strip, but it can still be renamed from Page actions.
+  await openRenameFacet()
+  const renameDialog = page.getByRole('dialog', { name: 'Rename Facet' })
+  await renameDialog.getByRole('textbox', { name: 'Facet name' }).fill('Overview')
+  await renameDialog.getByRole('button', { name: 'Rename' }).click()
+  await expect.poll(async () => {
+    const data = (await (await page.request.get(`/api/v1/pages/${childId}/facets`)).json()) as {
+      facets: { name: string }[]
+    }
+    return data.facets[0]?.name
+  }).toBe('Overview')
+  await expect(page.getByRole('tablist', { name: 'Page Facets' })).toHaveCount(0)
+  await page.reload()
+  await openRenameFacet()
+  await renameDialog.getByRole('textbox', { name: 'Facet name' }).fill('Main')
+  await renameDialog.getByRole('button', { name: 'Rename' }).click()
+  await expect.poll(async () => {
+    const data = (await (await page.request.get(`/api/v1/pages/${childId}/facets`)).json()) as {
+      facets: { name: string }[]
+    }
+    return data.facets[0]?.name
+  }).toBe('Main')
+
+  await page.getByRole('button', { name: 'More actions' }).last().click()
+  await page.getByRole('menuitem', { name: 'Add Facet' }).click()
+  const tabs = page.getByRole('tablist', { name: 'Page Facets' })
+  await expect(tabs).toBeVisible()
+  await expect(tabs.getByRole('tab', { name: 'Main' })).toBeVisible()
+  await expect(tabs.getByRole('tab', { name: 'Untitled' })).toHaveAttribute('aria-selected', 'true')
+
+  const facets = (await (await page.request.get(`/api/v1/pages/${childId}/facets`)).json()) as {
+    facets: { id: string; name: string }[]
+  }
+  const newFacetId = facets.facets.find((facet) => facet.name === 'Untitled')?.id
+  expect(newFacetId).toBeTruthy()
+
+  const message = `Facet browser writing ${Date.now()}`
+  const editor = page.locator('.dana-writing-canvas .bn-editor').first()
+  await expect(editor).toBeVisible()
+  // Until #686 removes the old footer, it can overlap the editor's click target.
+  // Focus the actual contenteditable writing surface, not that trailing task input.
+  await editor.focus()
+  await expect(editor).toBeFocused()
+  await page.keyboard.type(message)
+  await expect(editor).toContainText(message)
+  await expect.poll(async () => {
+    const response = await page.request.get(
+      `/api/v1/pages/${childId}/facets/${newFacetId}/document`,
+    )
+    return JSON.stringify(await response.json()).includes(message)
+  }).toBe(true)
+
+  await tabs.getByRole('tab', { name: 'Main' }).click()
+  await expect(page.locator('.dana-writing-canvas')).not.toContainText(message)
+  await tabs.getByRole('tab', { name: 'Untitled' }).click()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+  await page.reload()
+  await page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Untitled' }).click()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+
+  // Reordering must not display another Facet's tab while editing Main's data.
+  const mainFacetId = facets.facets.find((facet) => facet.name === 'Main')?.id
+  expect(mainFacetId).toBeTruthy()
+  const reordered = await page.request.put(`/api/v1/pages/${childId}/facets/order`, {
+    headers: { 'X-CSRF-Token': csrf! },
+    data: { order: [newFacetId, mainFacetId] },
+  })
+  expect(reordered.status(), await reordered.text()).toBe(200)
+  await page.reload()
+  const reorderedTabs = page.getByRole('tablist', { name: 'Page Facets' })
+  await expect(reorderedTabs.getByRole('tab', { name: 'Main' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('.dana-writing-canvas')).not.toContainText(message)
+  await reorderedTabs.getByRole('tab', { name: 'Untitled' }).click()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+
+  // Facet rename changes metadata only: the saved writing stays on its Facet.
+  await reorderedTabs.getByRole('tab', { name: 'Untitled' }).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Rename' }).click()
+  const nameField = page.getByRole('textbox', { name: 'Name of Untitled' })
+  await nameField.fill('Notes')
+  await nameField.press('Enter')
+  await expect(reorderedTabs.getByRole('tab', { name: 'Notes' })).toBeVisible()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+  await expect.poll(async () => {
+    const response = await page.request.get(`/api/v1/pages/${childId}/facets`)
+    const data = (await response.json()) as {
+      facets: { id: string; name: string }[]
+    }
+    return data.facets.find((facet) => facet.id === newFacetId)?.name
+  }).toBe('Notes')
+
+  await page.reload()
+  await page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Notes' }).click()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+
+  // Trash is reversible; switching away must not erase persisted writing.
+  await page.getByRole('tablist', { name: 'Page Facets' })
+    .getByRole('tab', { name: 'Notes' }).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Move to Trash' }).click()
+  const confirmation = page.getByRole('dialog', { name: 'Move Facet to Trash?' })
+  await expect(confirmation).toContainText('nested Pages stay saved')
+  await confirmation.getByRole('button', { name: 'Move to Trash' }).click()
+  await expect(page.getByRole('tablist', { name: 'Page Facets' })).toHaveCount(0)
+  await expect(page.locator('.dana-writing-canvas')).not.toContainText(message)
+
+  await page.getByRole('button', { name: 'More actions' }).last().click()
+  await page.getByRole('menuitem', { name: 'Deleted Facets' }).click()
+  const deleted = page.getByRole('dialog', { name: 'Deleted Facets' })
+  await expect(deleted).toContainText('Notes')
+  await deleted.getByRole('button', { name: 'Restore' }).click()
+  await expect(page.getByRole('tablist', { name: 'Page Facets' })
+    .getByRole('tab', { name: 'Notes' })).toBeVisible()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+  await page.reload()
+  await page.getByRole('tablist', { name: 'Page Facets' }).getByRole('tab', { name: 'Notes' }).click()
+  await expect(page.locator('.dana-writing-canvas')).toContainText(message)
+})
+
+
 test('tooltip: Work actions use the same styled hint as the sidebar', async ({ page }) => {
   await signIn(page)
   await page.goto(`/app/folders/${seedIds.groceries}`)

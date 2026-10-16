@@ -70,6 +70,10 @@ itself. Dana has two mechanisms, and a new route needs both:
 - **Bio.** A Team member can read a person's Bio in the current project. Only that
   person can change it. Full control and project ownership grant no Bio write access.
   Earlier project Bio text stays on the membership with its recorded attribution.
+- **Synced blocks.** A copy stores only the id of its original. The copy reads the
+  original through the original's own document route and gate. A new or re-pointed
+  copy is refused unless the writer can read the original. Copy counts include only
+  copies that the reader can open.
 - **Profile Docs.** Each root is a real Doc project. Its child pages inherit its access.
   A person-owned root starts with Only me. Its owner manages the audience and grants.
   A project-managed root starts with project members. Current Full control members

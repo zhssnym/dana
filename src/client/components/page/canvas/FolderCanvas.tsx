@@ -30,7 +30,7 @@ import type { CanvasDocument, CanvasInput } from './adapters.js'
 import { CanvasWriter } from './saving.js'
 import { isSectionHeading } from './outline.js'
 import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
-import { pasteIntoCanvas } from './paste.js'
+import { pasteIntoCanvas, pasteSyncedBlock } from './paste.js'
 import { lineTitles, removeCanvasBlocks } from './commands.js'
 import { RECONCILED } from './guard.js'
 import type { TaskRows } from '../../../pages/task-rows.js'
@@ -39,9 +39,18 @@ import { useCurrentWorkView } from '../../../views/work-view.js'
 
 type Rows = Parameters<typeof TaskRows>[0]
 const noCompleted: Rows['tasks'] = []
+
+/** One cache and one recovery draft per document, never shared across Facets. */
+export function canvasDocumentKey(folderId: string, facetId?: string) {
+  return facetId === undefined ? queryKeys.folderPage(folderId)
+    : queryKeys.pageFacetDocument(folderId, facetId)
+}
+
 interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   readonly page: PageView
   readonly folderId: string
+  /** Select another Facet's document without creating a second editor. */
+  readonly facetId?: string
   readonly arrangeable: boolean
   /** A Doc page: flat headings that never make Work sections, and no thread. */
   readonly presentationHeadings?: boolean
@@ -85,7 +94,7 @@ export default function FolderCanvas(props: Props): React.JSX.Element {
     setCheckpoint((old) => ({ page, epoch: old.epoch + 1 }))
   }, [])
   return <div ref={shell} className="min-w-0"><CanvasErrorBoundary>
-    <PersistedCanvas key={`${props.folderId}:${checkpoint.epoch}`} {...props} opening={opening} frozen={frozen} initialPage={checkpoint.page} onCheckpoint={onCheckpoint} />
+    <PersistedCanvas key={`${props.folderId}:${props.facetId ?? "legacy"}:${checkpoint.epoch}`} {...props} opening={opening} frozen={frozen} initialPage={checkpoint.page} onCheckpoint={onCheckpoint} />
   </CanvasErrorBoundary></div>
 }
 /** How long a checkpoint remount keeps the page's height (ms). */
@@ -137,7 +146,7 @@ function taskBlocks(blocks: readonly CanvasBlock[], taskIds: ReadonlySet<string>
   return blocks.flatMap((block) => [...(block.type === 'danaTask' && taskIds.has(String(block.props.taskId)) ? [block] : []), ...taskBlocks(block.children, taskIds)])
 }
 
-function PersistedCanvas({ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen }: Props & {
+function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen }: Props & {
   readonly opening: string
   readonly frozen: Frozen
   readonly initialPage: PageView
@@ -149,7 +158,7 @@ function PersistedCanvas({ page, initialPage, folderId, presentationHeadings, on
   const [reloadNote, setReloadNote] = useState('')
   useEffect(() => { setWidth(host.current?.clientWidth || 600) }, [])
   // Without a revision every save would carry no base, so pause writing instead.
-  const pageKey = queryKeys.folderPage(folderId)
+  const pageKey = canvasDocumentKey(folderId, facetId)
   if (!initialPage.revision) return <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
     This page opened without its version, so writing is paused to keep your page safe. Nothing was changed.
     <Button variant="outline" onClick={() => { setReloadNote('Loading…'); void queryClient.invalidateQueries({ queryKey: pageKey }).then(() => {
@@ -158,12 +167,12 @@ function PersistedCanvas({ page, initialPage, folderId, presentationHeadings, on
       else setReloadNote('The page still has no version. Try again in a moment.')
     }) }}>Load the page again</Button>{reloadNote}
   </div>
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen }} width={width} onSaved={(next) => {
-    queryClient.setQueryData(queryKeys.folderPage(folderId), next)
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen }} width={width} onSaved={(next) => {
+    queryClient.setQueryData(canvasDocumentKey(folderId, facetId), next)
   }} />}</div>
 }
 
-function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen, width, onSaved }: Props & {
+function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, onCreatePage, results, workRootId, tasks, completed, taskFilter, context, actions, onAsk, arrangeable, onCheckpoint, opening, frozen, width, onSaved }: Props & {
   readonly opening: string
   readonly frozen: Frozen
   readonly initialPage: PageView
@@ -234,6 +243,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
     dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: placeholder, default: placeholder } },
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
     pasteHandler: ({ editor: current, event, defaultPasteHandler }) =>
+      pasteSyncedBlock(current, event) ??
       pasteIntoCanvas(
         current,
         event,
@@ -258,7 +268,9 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
   })
   // The writer's baseline is what a save of the untouched page would send (`baselineOf`).
   // An empty page starts from an empty baseline, so the placeholder line is written.
-  const documentPath = `/folders/${folderId}/page`
+  const documentPath = facetId === undefined
+    ? `/folders/${folderId}/page`
+    : `/pages/${folderId}/facets/${facetId}/document`
   const projection = (current: readonly CanvasBlock[]): CanvasDocument => {
     const drawn = dehydrateCanvas(current, width, folderRefs)
     const lossless = baselineOf(editorPage, drawn)
@@ -278,7 +290,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
   const held = useRef(initialPage)
   const trashing = useRef(new Set<string>())
   // A recoverable draft, never a cache or offline queue. One key per document.
-  const draftKey = `dana-canvas-draft:${folderId}`
+  const draftKey = facetId === undefined ? `dana-canvas-draft:${folderId}` : `dana-canvas-draft:${folderId}:${facetId}`
   const [writer] = useState(() => new CanvasWriter(firstProjection(), initialPage.revision ?? '',
     (body) => mutateApi(getPageResponse, { method: 'POST', path: `${documentPath}/actions`, body }),
     () => {
@@ -612,6 +624,7 @@ function CanvasSession({ page, initialPage, folderId, presentationHeadings, onCr
       >
       <CanvasSurface
         peopleFolderId={folderId}
+        syncedCopies={page.synced_copies}
         // Only a reader who can write is asked to.
         placeholder={!arrangeable ? undefined : placeholder}
         editor={editor}

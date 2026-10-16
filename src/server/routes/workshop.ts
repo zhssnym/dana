@@ -5,9 +5,11 @@ can see the thing and lacks the role.
 */
 import type { Request, Response, Router } from 'express'
 import { z } from 'zod'
+import { sql } from 'drizzle-orm'
 
 import type { DbClient } from '../../../db/client.js'
 import { pageActionBody, putPageBody } from '../../shared/pages.js'
+import { rowsOf } from '../database.js'
 import { documentTransaction } from '../../shared/page-document.js'
 import type { TransferOwnershipResponse } from '../../shared/folders.js'
 import { patchShelfBody, postShelvesBody } from '../../shared/shelves.js'
@@ -32,7 +34,7 @@ import type { FolderAction } from '../domain/folder-access.js'
 import { WorkflowLabelNameConflict } from '../domain/labels.js'
 import { today } from '../time/today.js'
 import { DocumentRefusal } from '../domain/page-document.js'
-import { actOnFolderPage, actOnShelfPage, pageView, putPage } from '../domain/pages.js'
+import { actOnFolderPage, actOnIndependentFacetPage, actOnShelfPage, pageView, putPage } from '../domain/pages.js'
 import { ShelfDocumentRefusal } from '../domain/shelf-document.js'
 import {
   createShelf,
@@ -141,6 +143,109 @@ export function createWorkshopRouter(
       "You've used your 1 GB of storage. Delete some files to add more.",
     )
   }
+
+  // A Facet has the same document contract as Work. Its existing content
+  // home may be a former tab; new Facets use the owning Page's content store.
+  router.get(
+    '/pages/:id/facets/:facetId/document',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const pageId = parsedId(res, req.params.id)
+      const facetId = parsedId(res, req.params.facetId)
+      if (pageId === null || facetId === null) return
+      if ((await accessOf(db, viewer(req), pageId)) === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const found = await rowsOf(db, sql`
+        SELECT pf.content_folder_id FROM page_facets pf
+          JOIN folders p ON p.id = pf.page_id
+         WHERE pf.page_id = ${pageId}::uuid AND pf.id = ${facetId}::uuid
+           AND pf.deleted_at IS NULL AND p.deleted_at IS NULL AND p.archived_at IS NULL
+           AND (pf.content_folder_id IS NULL OR EXISTS (
+             SELECT 1 FROM folders content
+              WHERE content.id = pf.content_folder_id
+                AND content.deleted_at IS NULL AND content.archived_at IS NULL
+           ))`)
+      if (found.length === 0) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const contentId = found[0]?.content_folder_id == null
+        ? pageId : String(found[0].content_folder_id)
+      res.status(200).json(await pageView(db, viewer(req), {
+        folderId: contentId, shelfId: null, facetId,
+      }))
+    },
+  )
+
+  // Same document transaction as Work. Legacy-backed Facets keep their
+  // original writer; independent Facets scope both content and retries.
+  router.post(
+    '/pages/:id/facets/:facetId/document/actions',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const pageId = parsedId(res, req.params.id)
+      const facetId = parsedId(res, req.params.facetId)
+      if (pageId === null || facetId === null) return
+      if (!(await gate(req, res, pageId, 'folder.section.manage'))) return
+      const rows = await rowsOf(db, sql`
+        SELECT pf.content_folder_id FROM page_facets pf
+          JOIN folders p ON p.id = pf.page_id
+         WHERE pf.id = ${facetId}::uuid AND pf.page_id = ${pageId}::uuid
+           AND pf.deleted_at IS NULL AND p.deleted_at IS NULL AND p.archived_at IS NULL
+           AND (pf.content_folder_id IS NULL OR EXISTS (
+             SELECT 1 FROM folders content
+              WHERE content.id = pf.content_folder_id
+                AND content.deleted_at IS NULL AND content.archived_at IS NULL
+           ))`)
+      if (rows.length === 0) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const parsed = parseBody(documentTransaction, req, res, securityLog)
+      if (parsed === null) return
+      const contentId = rows[0]?.content_folder_id
+      const result = contentId == null
+        ? await actOnIndependentFacetPage(db, viewer(req), pageId, facetId, parsed)
+        : await actOnFolderPage(db, viewer(req), String(contentId), parsed)
+      switch (result.kind) {
+        case 'written':
+          res.status(200).json(result.page)
+          return
+        case 'not_found':
+          sendError(res, 404, 'not_found', 'Not found.')
+          return
+        case 'forbidden':
+          sendError(res, 403, 'forbidden', result.reason)
+          return
+        case 'stale':
+          sendError(res, 409, 'conflict', 'The Facet changed elsewhere. Keep your draft and load the latest version.')
+          return
+        case 'file_kind_mismatch':
+          sendError(res, 422, 'validation_failed', result.message)
+          return
+        case 'file_not_here':
+          sendFieldValidationError(res, [{ field: 'file_id', message: 'must name a file you can reach' }])
+          return
+        case 'section_not_here':
+          sendFieldValidationError(res, [{ field: 'section_block_id', message: 'must name a Section in this Facet' }])
+          return
+        case 'bad_anchor':
+          sendFieldValidationError(res, [{ field: result.field, message: 'must name an item in this Facet' }])
+          return
+        case 'not_convertible':
+          sendError(res, 422, 'validation_failed', 'This content cannot be changed that way.')
+          return
+      }
+    },
+  )
 
   router.get(
     '/folders/:id/page',

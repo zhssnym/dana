@@ -97,6 +97,7 @@ export const postTasksBody = z
   .object({
     title: taskTitle,
     folder_id: uuid.optional(),
+    page_facet_id: uuid.optional(),
     notes: taskNotes.nullable().optional(),
     important: z.boolean({ error: 'must be a boolean' }).optional(),
     start_date: dueDate.nullable().optional(),

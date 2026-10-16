@@ -3,7 +3,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import type { TaskCard } from '../../shared/tasks.js'
 import { useCreateTask, useUpdateTask } from '../api/mutations.js'
 import { useWearFilterLabel } from '../api/labels.js'
-import { useFolderPage } from '../api/queries.js'
+import { useFolderPage, usePageFacetDocument } from '../api/queries.js'
 import { PlannedCalendar } from '../components/calendar/index.js'
 import { ConfirmDialog, TaskRows, useConfirm } from '../pages/task-rows.js'
 import { formatDueDate } from '../parts/presenters.js'
@@ -13,8 +13,9 @@ import { useRowActions } from '../parts/useRowActions.js'
 import { PlaceGroup } from './usePlace.js'
 import { taskMatchesFilter, type TaskFilter } from './filter.js'
 
-export default function WorkCalendar({ folderId, tasks, filter, context, canCreate }: {
+export default function WorkCalendar({ folderId, facetId, tasks, filter, context, canCreate }: {
   readonly folderId: string
+  readonly facetId?: string
   readonly tasks: readonly TaskCard[]
   readonly filter: TaskFilter
   readonly context: RowContext
@@ -23,7 +24,9 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
   const create = useCreateTask()
   const wearFilterLabel = useWearFilterLabel(folderId)
   const update = useUpdateTask()
-  const page = useFolderPage(folderId)
+  const legacyPage = useFolderPage(folderId, facetId === undefined)
+  const facetPage = usePageFacetDocument(folderId, facetId ?? null)
+  const page = facetId === undefined ? legacyPage : facetPage
   const actions = useRowActions()
   const confirm = useConfirm()
   const host = useRef<HTMLDivElement>(null)
@@ -127,7 +130,7 @@ export default function WorkCalendar({ folderId, tasks, filter, context, canCrea
       onExternalOver={undatedProposal}
       onDragStateChange={onScheduledDragState}
       {...(canCreate ? { onCreate: (title: string, date: string) => {
-        create.mutate({ title, folder_id: folderId, due_date: date }, {
+        create.mutate({ title, folder_id: folderId, due_date: date, ...(facetId === undefined ? {} : { page_facet_id: facetId }) }, {
           onSuccess: (task) => wearFilterLabel(task.id, filter.label),
         })
       } } : {})}

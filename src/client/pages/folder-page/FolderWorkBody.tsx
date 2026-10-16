@@ -31,6 +31,10 @@ import type { Folder, PageKind } from '../../../shared/folders.js'
 
 export function FolderWorkBody({
   id,
+  facetId,
+  facetPage,
+  universal = false,
+  restrictTasksToPage = false,
   kind,
   tabs,
   open,
@@ -54,6 +58,11 @@ export function FolderWorkBody({
   navigate,
 }: {
   readonly id: string
+  readonly facetId: string | null
+  readonly universal?: boolean
+  /** Every active Facet, including legacy-backed Main/Docs, owns only its own Tasks. */
+  readonly restrictTasksToPage?: boolean
+  readonly facetPage: UseQueryResult<GetPageResponse>
   readonly kind: PageKind | null
   readonly tabs: readonly Folder[]
   readonly open: UseQueryResult<GetFolderTasksOpenResponse>
@@ -76,10 +85,21 @@ export function FolderWorkBody({
   readonly onAsk: ReturnType<typeof useConfirm>['ask']
   readonly navigate: NavigateFunction
 }): React.JSX.Element {
+  const activePage = facetId === null ? page : facetPage
+  const scoped = facetId !== null
+  const taskIds = new Set(
+    (activePage.data?.items ?? []).filter((item) => item.kind === 'task').map((item) => item.id),
+  )
+  // Folder-level Task reads include the sibling Facets' rows. Never render
+  // another Facet's Tasks in Main, especially after that Facet is in Trash.
+  const taskScoped = scoped || restrictTasksToPage
+  const shownOpen = taskScoped ? openRows.filter((task) => taskIds.has(task.id)) : openRows
+  const shownCompleted = taskScoped ? completedRows.filter((task) => taskIds.has(task.id)) : completedRows
+  const hasTasks = universal || kind === 'work' || scoped
   return (
     <div className="space-y-2">
-      <PageSection name={kind === 'doc' ? 'Doc' : 'Work'}>
-        {kind === 'work' && taskFilterActive(taskFilter) ? (
+      <PageSection name={universal || scoped ? 'Facet' : kind === 'doc' ? 'Doc' : 'Work'}>
+        {hasTasks && taskFilterActive(taskFilter) ? (
           <div className="-mt-2 mb-2">
             <TaskFilterChips
               filter={taskFilter}
@@ -99,44 +119,47 @@ export function FolderWorkBody({
           truncated={open.data?.truncated ?? false}
         >
           <Suspense fallback={null}>
-            {page.data && completedReady && kind === 'work' && workView === 'calendar' ? <WorkCalendar
+            {activePage.data && completedReady && hasTasks && workView === 'calendar' ? <WorkCalendar
               folderId={id}
-              tasks={[...openRows, ...completedRows]}
+              {...(facetId === null ? {} : { facetId })}
+              tasks={[...shownOpen, ...shownCompleted]}
               filter={taskFilter}
               context={context}
               canCreate={facts !== null && mayDraw(facts, 'task.create') && canCreateInFilter}
-            /> : page.data && completedReady && kind === 'work' && workView === 'board' ? <WorkBoard
-              page={page.data}
-              tasks={openRows}
-              completed={completedRows}
+            /> : activePage.data && completedReady && hasTasks && workView === 'board' ? <WorkBoard
+              page={activePage.data}
+              tasks={shownOpen}
+              completed={shownCompleted}
               folderId={id}
+              {...(facetId === null ? {} : { facetId })}
               filter={taskFilter}
               context={context}
               actions={actions}
               canCreate={facts !== null && mayDraw(facts, 'task.create') && canCreateInFilter}
               canEdit={sharedPageEditable}
               group={boardGroup}
-            /> : page.data && completedReady ? <FolderCanvas
-              key={id}
-              page={page.data}
-              tasks={openRows}
-              completed={completedRows}
+            /> : activePage.data && completedReady ? <FolderCanvas
+              key={`${id}:${facetId ?? 'legacy'}`}
+              {...(facetId === null ? {} : { facetId })}
+              page={activePage.data}
+              tasks={shownOpen}
+              completed={shownCompleted}
               {...(filteringTasks ? { taskFilter } : {})}
               folderId={id}
               context={context}
               actions={actions}
               onAsk={onAsk}
               /* A Doc is never filtered, so only the edit right decides. */
-              arrangeable={kind === 'doc' ? sharedPageEditable : !filteringTasks}
+              arrangeable={scoped || kind === 'doc' ? sharedPageEditable : !filteringTasks}
               resultsWritable={sharedPageEditable}
               {...(sharedPageEditable ? { onCreatePage: (made: string) => { void navigate(folderActionPath(made, 'rename')) } } : {})}
-              {...(kind === 'doc'
+              {...(kind === 'doc' && !scoped
                 ? {
                     presentationHeadings: true,
                     results: resultsTab(tabs)?.id === id,
                   }
                 : {})}
-            /> : page.isError ? <p role="alert" className="text-sm text-muted-foreground">Could not load writing. Reload to try again.</p> : null}
+            /> : activePage.isError ? <p role="alert" className="text-sm text-muted-foreground">Could not load writing. Reload to try again.</p> : null}
           </Suspense>
         </PageBody>
       </PageSection>

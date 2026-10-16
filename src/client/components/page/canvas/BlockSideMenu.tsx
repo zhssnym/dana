@@ -5,24 +5,16 @@ import { offset } from '@floating-ui/react'
 import type { BlockNoteEditor } from '@blocknote/core'
 import { SideMenuExtension } from '@blocknote/core/extensions'
 import { useBlockNoteEditor, useComponentsContext, useExtension, useExtensionState } from '@blocknote/react'
-import type { BlockFacetRef } from '../../../../shared/block-facets.js'
-import { blockLink, blockSelection, setBlockSelection } from './block-selection.js'
+import { blockLink, blockSelection, setBlockSelection, syncLink } from './block-selection.js'
+import { isSectionHeading } from './outline.js'
 import { conversionOf, isCurrent, withoutIds } from './turn-into.js'
 import type { TreeBlock, TurnTarget } from './turn-into.js'
-import { Check, CheckCircle2, Copy, GripVertical, Link2, Network, Plus, Repeat2, Table2, Trash2 } from '../../../lib/icons.js'
+import { Check, CheckCircle2, Copy, GripVertical, Link2, Plus, RefreshCw, Repeat2, Table2, Trash2 } from '../../../lib/icons.js'
 import type { LucideIcon } from '../../../lib/icons.js'
 import { kindIconOf } from './slash-items.js'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- both canvas schemas pass through here
 export type AnyEditor = BlockNoteEditor<any, any, any>
-
-export interface BlockFacetMenuModel {
-  readonly options: readonly BlockFacetRef[]
-  readonly editable: boolean
-  readonly selected: (blockId: string) => readonly BlockFacetRef[]
-  readonly toggle: (blockId: string, facetId: string) => void
-  readonly busy: boolean
-}
 
 export interface BlockMenuModel {
   readonly targets: (block: TreeBlock) => readonly TurnTarget[]
@@ -31,7 +23,6 @@ export interface BlockMenuModel {
   readonly canDuplicate: (block: TreeBlock) => boolean
   readonly duplicate: (ids: readonly string[]) => void
   readonly insertBefore?: (id: string) => void
-  readonly facets?: BlockFacetMenuModel
   readonly removal: (block: TreeBlock, ids: readonly string[]) => { label: string; run: () => void } | { note: string } | null
 }
 
@@ -43,7 +34,9 @@ export function pageTheme(): 'dark' | 'light' {
 export const BlockMenuContext = createContext<BlockMenuModel | null>(null)
 
 const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+'
-const NON_PERSISTED_BLOCKS = new Set(['danaTask', 'danaFolder'])
+// Canvas types whose stored kind a synced block may show (SYNCABLE_BLOCK_KINDS).
+const SYNCABLE_TYPES = new Set(['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem',
+  'quote', 'callout', 'codeBlock', 'diagram', 'table', 'image', 'file', 'audio', 'video', 'synced'])
 
 function actingOn(editor: AnyEditor, id: string): readonly string[] {
   const selected = blockSelection(editor)
@@ -79,9 +72,8 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
   const targets = model.targets(block)
   const extra = model.extraTarget?.(block) ?? null
   const removal = model.removal(block, ids)
-  const facets = model.facets
-  const selected = new Set(facets?.selected(block.id).map((facet) => facet.id) ?? [])
-  const canConnectFacet = facets !== undefined && facets.editable && facets.options.length > 0 && !NON_PERSISTED_BLOCKS.has(block.type)
+  // A copy syncs its original, so a copy of a copy is one more view of the same block.
+  const syncSource = block.type === 'synced' ? String(block.props.sourceId) : SYNCABLE_TYPES.has(block.type) && !isSectionHeading(block) ? block.id : null
   const tableContent = block.type === 'table' ? block.content as { headerRows?: number; headerCols?: number } : null
   const Item = Components.Generic.Menu.Item
   return (
@@ -120,29 +112,6 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
           </Components.Generic.Menu.Dropdown>
         </Components.Generic.Menu.Root>
       ) : null}
-      {canConnectFacet ? (
-        <Components.Generic.Menu.Root position="right" sub={true}>
-          <Components.Generic.Menu.Trigger sub={true}>
-            <Item className="bn-menu-item" subTrigger={true}>
-              <span className="flex flex-1 items-center gap-2"><MenuIcon icon={Network} />Connect to facet</span>
-            </Item>
-          </Components.Generic.Menu.Trigger>
-          <Components.Generic.Menu.Dropdown sub={true} className="bn-menu-dropdown dana-block-menu">
-            {facets.options.map((facet) => (
-              <Item
-                key={facet.id}
-                className={facets.busy ? 'bn-menu-item opacity-60' : 'bn-menu-item'}
-                onClick={() => { if (!facets.busy) facets.toggle(block.id, facet.id) }}
-              >
-                <span className="flex flex-1 items-center gap-2">
-                  <span className="flex-1 truncate">{facet.name}</span>
-                  {selected.has(facet.id) ? <Check size={14} /> : null}
-                </span>
-              </Item>
-            ))}
-          </Components.Generic.Menu.Dropdown>
-        </Components.Generic.Menu.Root>
-      ) : null}
       {model.canDuplicate(block) ? (
         <Item className="bn-menu-item" onClick={() => { model.duplicate(ids) }}>
           <span className="flex flex-1 items-center gap-2"><MenuIcon icon={Copy} /><span className="flex-1">Duplicate</span><span className="text-xs text-muted-foreground">{MOD}D</span></span>
@@ -151,6 +120,11 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
       <Item className="bn-menu-item" onClick={() => { void navigator.clipboard?.writeText(block.type === 'result' ? `${window.location.origin}/app/results/${block.id}` : blockLink(block.id)) }}>
         <span className="flex flex-1 items-center gap-2"><MenuIcon icon={Link2} />Copy link to block</span>
       </Item>
+      {syncSource === null || syncSource === '' ? null : (
+        <Item className="bn-menu-item" onClick={() => { void navigator.clipboard?.writeText(syncLink(syncSource)) }}>
+          <span className="flex flex-1 items-center gap-2"><MenuIcon icon={RefreshCw} />Copy and sync</span>
+        </Item>
+      )}
       {removal === null ? null : 'note' in removal
         ? <p className="px-2 py-1.5 text-xs text-muted-foreground">{removal.note}</p>
         : <Item className="bn-menu-item dana-menu-danger" onClick={removal.run}><span className="flex flex-1 items-center gap-2"><MenuIcon icon={Trash2} />{removal.label}</span></Item>}
@@ -211,10 +185,7 @@ function BlockSideMenuRoot({ model }: { readonly model: BlockMenuModel }): React
   )
 }
 
-/**
- * The side menu is transient and must not create a second facet controller: its
- * unmount would erase the chips.
- */
+/** The side menu is transient, so it only reads the canvas's menu model. */
 export function BlockSideMenu(): React.JSX.Element {
   const inherited = useContext(BlockMenuContext)!
   return <BlockSideMenuRoot model={inherited} />

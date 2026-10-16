@@ -529,11 +529,16 @@ export function blockLink(id: string): string {
   const { origin, pathname, search } = window.location
   return `${origin}${pathname}${search}#block-${id}`
 }
+
+/** "Copy and sync": a block link that a canvas paste turns into a synced block. */
+export function syncLink(id: string): string {
+  return blockLink(id).replace(/#block-/, '#sync-block-')
+}
 export function useBlockAnchor(editor: AnyEditor, ready: boolean): void {
   useEffect(() => {
     if (!ready) return
     function follow(): void {
-      const match = /^#block-(.+)$/.exec(window.location.hash)
+      const match = /^#(?:sync-)?block-(.+)$/.exec(window.location.hash)
       if (match === null) return
       const id = decodeURIComponent(match[1]!)
       const element = editor.domElement?.querySelector(`.bn-block-outer[data-id="${CSS.escape(id)}"]`)

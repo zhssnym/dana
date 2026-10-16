@@ -6,7 +6,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 
-import { useConnections } from '../api/queries.js'
+import { useConnections, useFolderOpenTasks, usePageFacetDocument, usePageFacets } from '../api/queries.js'
+import { getPlain, mutateApi } from '../api/http.js'
+import { getPageFacetsResponse } from '../../shared/page-facets.js'
+import type { GetPageFacetsResponse } from '../../shared/page-facets.js'
+import { queryKeys } from '../api/keys.js'
+import { mayDraw } from '../lib/folder-authority.js'
 import { usePageHasCover } from '../components/page-head.js'
 import { FolderCoverDialog } from '../components/folder-head.js'
 import { FOLDER_PREFIX } from '../lib/page-identity.js'
@@ -30,11 +35,14 @@ import { useCurrentWorkView } from '../views/work-view.js'
 import type { WorkGroup } from '../views/WorkBoard.js'
 import type { Folder } from '../../shared/folders.js'
 import { FacetAddress } from './folder-page/FacetAddress.js'
+import { FacetRenameDialog } from './folder-page/FacetRenameDialog.js'
+import { FacetDeleteDialog, FacetTrashDialog } from './folder-page/FacetTrashDialogs.js'
 import { folderActs } from './folder-page/folder-acts.js'
 import { folderPageAuthority } from './folder-page/folder-page-authority.js'
 import { FolderDiscussionButton } from './folder-page/FolderDiscussionButton.js'
 import { FolderHead } from './folder-page/FolderHead.js'
 import { FolderMoreMenu } from './folder-page/FolderMoreMenu.js'
+import { PageFacetStrip } from './folder-page/PageFacetStrip.js'
 import { FolderTabRow } from './folder-page/FolderTabRow.js'
 import { FolderTeamPanel } from './folder-page/FolderTeamPanel.js'
 import { FolderWorkBody } from './folder-page/FolderWorkBody.js'
@@ -88,9 +96,38 @@ function FolderPageBody({
     here, herePage, kind, onTab, headId, atProject, folder, folderOk, writes, open, page, allPages, tabs, projectName,
   } = useFolderReads(id, leaving)
   const cache = useQueryClient()
+  const [activeFacetId, setActiveFacetId] = useState<string | null>(null)
+  const [facetError, setFacetError] = useState('')
+  const [singleFacetRenameOpen, setSingleFacetRenameOpen] = useState(false)
+  const [facetToTrash, setFacetToTrash] = useState<GetPageFacetsResponse['facets'][number] | null>(null)
+  const [facetTrashBusy, setFacetTrashBusy] = useState(false)
+  const [facetTrashOpen, setFacetTrashOpen] = useState(false)
+  const [trashedFacets, setTrashedFacets] = useState<GetPageFacetsResponse['facets']>([])
+  const [facetTrashLoading, setFacetTrashLoading] = useState(false)
+  const [facetRestoreBusy, setFacetRestoreBusy] = useState<string | null>(null)
+  const [facetTrashError, setFacetTrashError] = useState('')
+  useEffect(() => { setActiveFacetId(null); setFacetError('') }, [id])
+  const isNestedPage = folder.data?.parent_folder_id != null
+  // Historical Work/Doc tab URLs remain content addresses. Their Page owner
+  // is the project root, so one Facet strip can expose both old and new Facets.
+  const rootFacetPage = onTab && folder.data?.is_default === false && kind !== 'discussion'
+  const facetOwnerId = rootFacetPage ? headId : id
+  const pageFacets = usePageFacets(facetOwnerId, (isNestedPage || rootFacetPage) && kind !== 'discussion')
+  const selectedFacet = pageFacets.data?.facets.find(
+    (facet) => rootFacetPage && facet.id === search.get('pageFacet'),
+  ) ?? pageFacets.data?.facets.find((facet) => facet.id === activeFacetId)
+    ?? pageFacets.data?.facets.find((facet) => facet.content_page_id === id)
+    ?? pageFacets.data?.facets[0]
+  const independentFacetId = selectedFacet?.content_page_id === null ? selectedFacet.id : null
+  const activeContentId = independentFacetId !== null ? facetOwnerId : id
+  const independentPage = usePageFacetDocument(facetOwnerId, independentFacetId)
+  const independentOpen = useFolderOpenTasks(facetOwnerId,
+    independentFacetId !== null && facetOwnerId !== id)
+  const activeOpen = independentFacetId !== null && facetOwnerId !== id ? independentOpen : open
   const basis = useRowBasis()
   const [taskFilter, setTaskFilter] = useTaskFilter(id)
-  const labelDefinitions = useLabels(id, 'all', folderOk && kind === 'work')
+  const legacyTaskFacet = kind === 'work' || independentFacetId !== null
+  const labelDefinitions = useLabels(activeContentId, 'all', folderOk && legacyTaskFacet)
   const [workView] = useCurrentWorkView()
   const [boardGroup, setBoardGroup] = useState<WorkGroup>('section')
   const actions = useRowActions()
@@ -113,10 +150,11 @@ function FolderPageBody({
   const { dockOpen, threadRows, unreadThreads } = useFolderDiscussion(headId, basis.viewerId, sharing)
 
   const detail = folder.data
-  const scheduled = open.data?.scheduled ?? []
-  const unscheduled = open.data?.unscheduled ?? []
+  const scheduled = activeOpen.data?.scheduled ?? []
+  const unscheduled = activeOpen.data?.unscheduled ?? []
   const { openRows, completedReady, completedRows, filterRows } = useFolderRows({
-    id, writes, kind, workView, scheduled, unscheduled, items: page.data?.items,
+    id: activeContentId, writes, kind: legacyTaskFacet ? 'work' : kind, workView, scheduled, unscheduled,
+    items: independentFacetId === null ? page.data?.items : independentPage.data?.items,
   })
   const context: RowContext = {
     ...basis,
@@ -134,8 +172,123 @@ function FolderPageBody({
   const { facts, gates, sharedPageEditable, tabsEditable } = folderPageAuthority({
     detail, members, viewerId: basis.viewerId, headId, isDefault,
   })
+  const canCreateFacet = (isNestedPage || rootFacetPage) && facts !== null && mayDraw(facts, 'facet.create')
+  const canRenameFacet = (isNestedPage || rootFacetPage) && facts !== null && mayDraw(facts, 'facet.rename')
+  const canDeleteFacet = (isNestedPage || rootFacetPage) && facts !== null && mayDraw(facts, 'facet.delete')
+  const canReorderFacet = (isNestedPage || rootFacetPage) && facts !== null && mayDraw(facts, 'facet.reorder')
+  const selectFacet = (facet: GetPageFacetsResponse['facets'][number]): void => {
+    if (!rootFacetPage) {
+      setActiveFacetId(facet.id)
+      return
+    }
+    const target = facet.content_page_id === null
+      ? `${paths.folder(facetOwnerId)}?pageFacet=${facet.id}`
+      : paths.folder(facet.content_page_id)
+    void navigate(target, { replace: true })
+  }
+  const addFacet = async (): Promise<void> => {
+    if (!canCreateFacet) return
+    setFacetError('')
+    try {
+      const updated = await mutateApi(getPageFacetsResponse, {
+        method: 'POST',
+        path: `/pages/${facetOwnerId}/facets`,
+        body: { name: 'Untitled' },
+      })
+      const existing = new Set(pageFacets.data?.facets.map((facet) => facet.id) ?? [])
+      const made = updated.facets.find((facet) => !existing.has(facet.id))
+      cache.setQueryData(queryKeys.pageFacets(facetOwnerId), updated)
+      if (made !== undefined) selectFacet(made)
+    } catch (error) {
+      setFacetError(error instanceof Error ? error.message : 'Could not add this Facet.')
+    }
+  }
+  const renameFacet = async (
+    facet: GetPageFacetsResponse['facets'][number], name: string,
+  ): Promise<void> => {
+    if (!canRenameFacet) return
+    setFacetError('')
+    try {
+      const updated = await mutateApi(getPageFacetsResponse, {
+        method: 'PATCH',
+        path: `/pages/${facetOwnerId}/facets/${facet.id}`,
+        body: { name },
+      })
+      cache.setQueryData(queryKeys.pageFacets(facetOwnerId), updated)
+    } catch (error) {
+      setFacetError(error instanceof Error ? error.message : 'Could not rename this Facet.')
+    }
+  }
+  const reorderFacets = async (order: string[]): Promise<void> => {
+    if (!canReorderFacet) return
+    setFacetError('')
+    try {
+      const updated = await mutateApi(getPageFacetsResponse, {
+        method: 'PUT', path: `/pages/${facetOwnerId}/facets/order`, body: { order },
+      })
+      cache.setQueryData(queryKeys.pageFacets(facetOwnerId), updated)
+    } catch (error) {
+      setFacetError(error instanceof Error ? error.message : 'Could not reorder these Facets.')
+    }
+  }
+  const trashFacet = async (): Promise<void> => {
+    const target = facetToTrash
+    if (!canDeleteFacet || target === null || target.content_page_id !== null) return
+    setFacetTrashBusy(true)
+    setFacetError('')
+    try {
+      const updated = await mutateApi(getPageFacetsResponse, {
+        method: 'DELETE',
+        path: `/pages/${facetOwnerId}/facets/${target.id}`,
+      })
+      cache.setQueryData(queryKeys.pageFacets(facetOwnerId), updated)
+      if (selectedFacet?.id === target.id) {
+        if (rootFacetPage) void navigate(paths.folder(facetOwnerId), { replace: true })
+        else setActiveFacetId(null)
+      }
+      setFacetToTrash(null)
+    } catch (error) {
+      setFacetError(error instanceof Error ? error.message : 'Could not move this Facet to Trash.')
+      setFacetToTrash(null)
+    } finally {
+      setFacetTrashBusy(false)
+    }
+  }
+  const openFacetTrash = async (): Promise<void> => {
+    if (!canDeleteFacet) return
+    setFacetTrashOpen(true)
+    setFacetTrashLoading(true)
+    setFacetTrashError('')
+    try {
+      const found = await getPlain(getPageFacetsResponse, `/pages/${facetOwnerId}/facets/trash`)
+      setTrashedFacets(found.facets)
+    } catch (error) {
+      setFacetTrashError(error instanceof Error ? error.message : 'Could not load deleted Facets.')
+    } finally {
+      setFacetTrashLoading(false)
+    }
+  }
+  const restoreFacet = async (facet: GetPageFacetsResponse['facets'][number]): Promise<void> => {
+    if (!canDeleteFacet || facetRestoreBusy !== null) return
+    setFacetRestoreBusy(facet.id)
+    setFacetTrashError('')
+    try {
+      const updated = await mutateApi(getPageFacetsResponse, {
+        method: 'POST', path: `/pages/${facetOwnerId}/facets/${facet.id}/restore`,
+      })
+      cache.setQueryData(queryKeys.pageFacets(facetOwnerId), updated)
+      await cache.invalidateQueries({ queryKey: queryKeys.pageFacetDocument(facetOwnerId, facet.id) })
+      setTrashedFacets((current) => current.filter((entry) => entry.id !== facet.id))
+      selectFacet(facet)
+      setFacetTrashOpen(false)
+    } catch (error) {
+      setFacetTrashError(error instanceof Error ? error.message : 'Could not restore this Facet.')
+    } finally {
+      setFacetRestoreBusy(null)
+    }
+  }
   const { filterPeople, filterLabels, filteringTasks, canCreateInFilter } = useTaskFilterOptions({
-    members, filterRows, labels: labelDefinitions.data, taskFilter, kind, gates,
+    members, filterRows, labels: labelDefinitions.data, taskFilter, kind: legacyTaskFacet ? 'work' : kind, gates,
   })
   /* The Desk's row is drawn even with Work alone, so its "+" can add a Doc
      back after the last one went to Trash. */
@@ -171,7 +324,7 @@ function FolderPageBody({
   const headerActions = (
     <>
       {/* With one tab the row is not drawn, so its "+" waits here. */}
-      {shownTabs.length === 1 && tabsEditable && kind !== null && kind !== 'work' ? (
+      {!rootFacetPage && shownTabs.length === 1 && tabsEditable && kind !== null && kind !== 'work' ? (
         <AddTabMenu tabs={shownTabs} onAdd={acts.addTab} />
       ) : null}
       {/* Discussion shows once the project has another member or a thread. */}
@@ -209,6 +362,9 @@ function FolderPageBody({
         duplicate={duplicate}
         navigate={navigate}
         acts={acts}
+        {...(canCreateFacet ? { onAddFacet: () => { void addFacet() } } : {})}
+        {...(canRenameFacet ? { onRenameFacet: () => setSingleFacetRenameOpen(true) } : {})}
+        {...(canDeleteFacet ? { onManageDeletedFacets: () => { void openFacetTrash() } } : {})}
       />
     </>
   )
@@ -234,7 +390,7 @@ function FolderPageBody({
             headId={headId}
             actions={headerActions}
           />
-          <FolderTabRow
+          {!rootFacetPage || pageFacets.data === undefined ? <FolderTabRow
             failed={allPages.isError && onTab}
             tabs={shownTabs}
             activeId={id}
@@ -253,7 +409,29 @@ function FolderPageBody({
                 setBoardGroup={setBoardGroup}
               />
             ) : undefined}
-          />
+          /> : null}
+          {isNestedPage || rootFacetPage ? <PageFacetStrip
+            facets={pageFacets.data?.facets ?? []}
+            activeId={selectedFacet?.id ?? null}
+            onSelect={selectFacet}
+            onAdd={() => { void addFacet() }}
+            editable={canCreateFacet}
+            canRename={canRenameFacet}
+            onRename={(facet, name) => { void renameFacet(facet, name) }}
+            canDelete={canDeleteFacet}
+            onDelete={setFacetToTrash}
+            alwaysShow={rootFacetPage}
+            canReorder={canReorderFacet}
+            onReorder={(order) => { void reorderFacets(order) }}
+            {...(rootFacetPage && legacyTaskFacet
+              ? { tools: <FolderWorkTools
+                  taskFilter={taskFilter} setTaskFilter={setTaskFilter}
+                  people={filterPeople} labels={filterLabels}
+                  today={context.today} workView={workView}
+                  boardGroup={boardGroup} setBoardGroup={setBoardGroup}
+                /> } : {})}
+          /> : null}
+          {facetError ? <p role="alert" className="text-sm text-destructive">{facetError}</p> : null}
         </div>
 
         {herePage === undefined ? null : kind === null ? (
@@ -273,10 +451,14 @@ function FolderPageBody({
           />
         ) : (
           <FolderWorkBody
-            id={id}
+            id={activeContentId}
+            universal={rootFacetPage && legacyTaskFacet}
+            restrictTasksToPage={selectedFacet !== undefined}
+            facetId={independentFacetId}
+            facetPage={independentPage}
             kind={kind}
             tabs={tabs}
-            open={open}
+            open={activeOpen}
             page={page}
             completedReady={completedReady}
             openRows={openRows}
@@ -299,6 +481,20 @@ function FolderPageBody({
         )}
       </PageBody>
 
+      <FacetRenameDialog open={singleFacetRenameOpen} name={selectedFacet?.name ?? ''}
+        ready={selectedFacet !== undefined}
+        onOpenChange={setSingleFacetRenameOpen}
+        onRename={(name) => { if (selectedFacet !== undefined) void renameFacet(selectedFacet, name) }}
+      />
+      <FacetDeleteDialog facet={facetToTrash} pending={facetTrashBusy}
+        onClose={() => setFacetToTrash(null)}
+        onConfirm={() => { void trashFacet() }}
+      />
+      <FacetTrashDialog open={facetTrashOpen} onOpenChange={setFacetTrashOpen}
+        facets={trashedFacets} loading={facetTrashLoading}
+        pendingId={facetRestoreBusy} error={facetTrashError}
+        onRestore={(facet) => { void restoreFacet(facet) }}
+      />
       <FolderCoverDialog storageName={coverKey} open={coverOpen} onOpenChange={setCoverOpen} />
 
       <FolderTeamPanel

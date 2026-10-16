@@ -18,7 +18,7 @@ Bump on every shape change: a reader must refuse a version it does not know,
 because an older schema strips new keys silently. Pick the next number from
 the open branches, not this file, so two branches never share one number.
 */
-export const EXPORT_VERSION = 16
+export const EXPORT_VERSION = 17
 
 /** 10.3's per-collection row cap; a cut collection is named in `truncated`. */
 export const EXPORT_ROW_CAP = 1000
@@ -48,6 +48,7 @@ export const EXPORT_COLLECTIONS = [
   'personal_labels',
   'facets',
   'facets.blocks',
+  'page_facets',
 ] as const
 export type ExportCollection = (typeof EXPORT_COLLECTIONS)[number]
 
@@ -105,6 +106,8 @@ export type ExportReminder = z.infer<typeof exportReminder>
 
 /** 4.17 without the file dimensions; `files` carries those once. */
 export const exportBlock = z.object({
+  /** Stable Facet association; NULL for task or Shelf document blocks. */
+  page_facet_id: z.uuid().nullable(),
   rich_content:pageRichContent.nullable(),
   section_block_id:z.uuid().nullable(),
   list_parent_block_id:z.uuid().nullable(),
@@ -127,6 +130,7 @@ export type ExportBlock = z.infer<typeof exportBlock>
  * tasks are included and flagged.
  */
 export const exportTask = z.object({
+  page_facet_id: z.uuid().nullable(),
   section_block_id:z.uuid().nullable(),
   page_position:z.string().nullable(),
   id: z.uuid(),
@@ -213,6 +217,17 @@ export const exportFacet = z.object({
   blocks: z.array(exportBlock),
 })
 export type ExportFacet = z.infer<typeof exportFacet>
+
+/** One universal Page Facet, including independent and recoverably trashed Facets. */
+export const exportPageFacet = z.object({
+  id: z.uuid(),
+  page_id: z.uuid(),
+  content_page_id: z.uuid().nullable(),
+  name: z.string(),
+  position: z.string(),
+  trashed: z.boolean(),
+})
+export type ExportPageFacet = z.infer<typeof exportPageFacet>
 
 /** A task in someone else's folder that the person wrote or is assigned. */
 export const exportForeignTask = exportTask.extend({
@@ -393,6 +408,8 @@ export const exportDocument = z.object({
   personal_labels: z.array(exportLabel),
   /** The exporter's own facets; see `exportFacet`. */
   facets: z.array(exportFacet),
+  /** Facet metadata is separate from its existing Page, Task and block IDs. */
+  page_facets: z.array(exportPageFacet),
   truncated: z.array(z.enum(EXPORT_COLLECTIONS)),
 })
 export type ExportDocument = z.infer<typeof exportDocument>

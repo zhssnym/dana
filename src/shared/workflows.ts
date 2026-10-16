@@ -129,6 +129,7 @@ export const WORKFLOW_OMITTED_BLOCK_KINDS = [
   // A sub-page link would carry an id of the exporting account.
   'page',
   'result',
+  'synced',
 ] as const
 export type WorkflowOmittedBlockKind = (typeof WORKFLOW_OMITTED_BLOCK_KINDS)[number]
 
@@ -1076,7 +1077,7 @@ export function folderToWorkflowFile(
       kind: 'omitted' as const,
       was: kind,
       // A picture's caption is the only name a page read carries for it.
-      ...(text !== null && text.trim() !== '' ? { name: text.slice(0, 300) } : {}),
+      ...(kind !== 'synced' && text !== null && text.trim() !== '' ? { name: text.slice(0, 300) } : {}),
     }),
   })
   const contentEntry = (block: PageBlock, kind: WorkflowPageBlockKind): Entry => ({
@@ -1220,7 +1221,7 @@ export function folderToWorkflowFile(
         purposeBlocks.push({
           kind: 'omitted',
           was: block.kind,
-          ...(block.text !== null && block.text.trim() !== ''
+          ...(block.kind !== 'synced' && block.text !== null && block.text.trim() !== ''
             ? { name: block.text.slice(0, 300) }
             : {}),
         })

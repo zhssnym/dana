@@ -33,6 +33,9 @@ export const queryKeys = {
   /* A thread key carries the task id or 'folder', so a folder's thread and a task's never collide. */
   shelf: (id: string) => ['shelves', id] as const,
   folderPage: (id: string) => ['folders', id, 'page'] as const,
+  pageFacets: (id: string) => ['page-facets', id] as const,
+  pageFacetDocument: (pageId: string, facetId: string) =>
+    ['page-facet-document', pageId, facetId] as const,
   folderMember: (id: string, userId: string) => ['folders', id, 'members', userId] as const,
   folderMemberHistory: (id: string, userId: string) =>
     ['folders', id, 'members', userId, 'history'] as const,
@@ -60,5 +63,5 @@ export const queryKeys = {
 
   reference: (kind: string, id: string) => ['references', kind, id] as const,
   backlinks: (kind: string, id: string) => ['backlinks', kind, id] as const,
-  connectedWork: (facetId: string) => ['facets', facetId, 'connected-work'] as const,
+  syncedSource: (blockId: string) => ['synced-blocks', blockId] as const,
 } as const

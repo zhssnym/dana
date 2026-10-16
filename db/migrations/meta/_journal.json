@@ -526,6 +526,48 @@
       "when": 1796600000000,
       "tag": "0091_profile_legacy_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1796700000000,
+      "tag": "0092_page_facets_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1796800000000,
+      "tag": "0093_page_facet_writes",
+      "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1796900000000,
+      "tag": "0094_page_facet_content_association",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1797000000000,
+      "tag": "0095_facet_document_receipts",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1797100000000,
+      "tag": "0096_page_facet_trash",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1797200000000,
+      "tag": "0097_synced_blocks",
+      "breakpoints": true
     }
   ]
 }

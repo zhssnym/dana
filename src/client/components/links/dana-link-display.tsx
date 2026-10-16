@@ -9,143 +9,10 @@ import { queryKeys } from '../../api/keys.js'
 import { Link2 } from '../../lib/icons.js'
 import { danaLinkOf, referenceDisplayLabel, resolveReference } from './dana-link.js'
 import { DanaLinkKindIcon } from './kind-icon.js'
-import './connected-work.css'
 
 const CHIP = 'dana-link-chip mx-px inline-flex max-w-full items-baseline gap-1 rounded-sm border border-border bg-muted px-1.5 align-baseline text-[length:inherit] leading-[inherit] font-section text-foreground! no-underline!'
 const FACET = 'border-primary/30 bg-primary/10'
 const ARRIVED = 'ring-2 ring-primary/30 ring-offset-1 ring-offset-background'
-const SOURCE_WIDTH_DEFAULT = 200
-const SOURCE_WIDTH_MIN = 160
-const SOURCE_WIDTH_MAX = 420
-
-function splitterStorageKey(blockId: string): string {
-  return `dana:connected-source-width:${blockId}`
-}
-
-export function clampConnectedSourceWidth(value: number, available: number): number {
-  const max = Math.max(SOURCE_WIDTH_MIN, Math.min(SOURCE_WIDTH_MAX, available - 280))
-  return Math.max(SOURCE_WIDTH_MIN, Math.min(max, Math.round(value)))
-}
-
-function markedConnectedPlacement(href: string): boolean {
-  if (typeof window === 'undefined') return false
-  try {
-    return new URL(href, window.location.origin).searchParams.has('connected-work')
-  } catch {
-    return false
-  }
-}
-
-/**
- * The link can mount before Connected work marks its block, so watch the host
- * instead of expecting everything on the first pass.
- */
-export function installConnectedSourceSplitter(source: HTMLAnchorElement): () => void {
-  const placement = source.closest<HTMLElement>('.bn-block-content')
-  if (placement === null) return () => undefined
-  let cleanupHandle: (() => void) | null = null
-
-  const ensure = (): void => {
-    if (placement.dataset.connectedWorkPlacement !== 'true') return
-    const detail = placement.querySelector<HTMLElement>(':scope > [data-connected-work-detail]')
-    if (detail === null) return
-    const blockId = detail.dataset.connectedWorkDetail ?? ''
-    if (blockId === '') return
-    const stored = Number.parseFloat(window.localStorage.getItem(splitterStorageKey(blockId)) ?? '')
-    const available = placement.getBoundingClientRect().width || placement.parentElement?.getBoundingClientRect().width || 900
-    const width = clampConnectedSourceWidth(Number.isFinite(stored) ? stored : SOURCE_WIDTH_DEFAULT, available)
-    placement.style.setProperty('--dana-connected-source-width', `${width}px`)
-
-    let handle = detail.querySelector<HTMLElement>(':scope > [data-connected-work-splitter]')
-    if (handle !== null) return
-    cleanupHandle?.()
-    handle = document.createElement('div')
-    handle.dataset.connectedWorkSplitter = ''
-    handle.setAttribute('role', 'separator')
-    handle.setAttribute('aria-orientation', 'vertical')
-    handle.setAttribute('aria-label', 'Resize connected source column')
-    handle.tabIndex = 0
-    detail.append(handle)
-
-    const setWidth = (raw: number, remember: boolean): void => {
-      const box = placement.getBoundingClientRect()
-      const next = clampConnectedSourceWidth(raw, box.width || available)
-      placement.style.setProperty('--dana-connected-source-width', `${next}px`)
-      handle!.setAttribute('aria-valuenow', String(next))
-      handle!.setAttribute('aria-valuemin', String(SOURCE_WIDTH_MIN))
-      handle!.setAttribute('aria-valuemax', String(clampConnectedSourceWidth(SOURCE_WIDTH_MAX, box.width || available)))
-      if (remember) window.localStorage.setItem(splitterStorageKey(blockId), String(next))
-    }
-    setWidth(width, false)
-
-    const stopDrag = (): void => {
-      window.removeEventListener('pointermove', move, true)
-      window.removeEventListener('pointerup', up, true)
-      window.removeEventListener('pointercancel', cancel, true)
-      document.documentElement.classList.remove('dana-resizing-connected-source')
-    }
-    const move = (next: PointerEvent): void => {
-      next.preventDefault()
-      const box = placement.getBoundingClientRect()
-      setWidth(next.clientX - box.left, false)
-    }
-    const up = (next: PointerEvent): void => {
-      stopDrag()
-      const box = placement.getBoundingClientRect()
-      setWidth(next.clientX - box.left, true)
-    }
-    const cancel = (): void => { stopDrag() }
-    const down = (event: PointerEvent): void => {
-      if (event.button !== 0) return
-      event.preventDefault()
-      event.stopPropagation()
-      document.documentElement.classList.add('dana-resizing-connected-source')
-      window.addEventListener('pointermove', move, true)
-      window.addEventListener('pointerup', up, true)
-      window.addEventListener('pointercancel', cancel, true)
-    }
-    const keydown = (event: KeyboardEvent): void => {
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home') return
-      event.preventDefault()
-      const current = Number.parseFloat(placement.style.getPropertyValue('--dana-connected-source-width')) || SOURCE_WIDTH_DEFAULT
-      setWidth(event.key === 'Home' ? SOURCE_WIDTH_DEFAULT : current + (event.key === 'ArrowLeft' ? -20 : 20), true)
-    }
-    handle.addEventListener('pointerdown', down)
-    handle.addEventListener('keydown', keydown)
-    cleanupHandle = () => {
-      stopDrag()
-      handle?.removeEventListener('pointerdown', down)
-      handle?.removeEventListener('keydown', keydown)
-    }
-  }
-
-  ensure()
-  const observer = new MutationObserver(ensure)
-  observer.observe(placement, {
-    childList: true,
-    subtree: false,
-    attributes: true,
-    attributeFilter: ['data-connected-work-placement'],
-  })
-  return () => {
-    observer.disconnect()
-    cleanupHandle?.()
-  }
-}
-
-/** The source link owns navigation, so it also owns the divider. */
-function useConnectedSourceSplitter(
-  anchor: React.RefObject<HTMLAnchorElement | null>,
-  enabled: boolean,
-): void {
-  useEffect(() => {
-    if (!enabled) return
-    const source = anchor.current
-    if (source === null) return
-    return installConnectedSourceSplitter(source)
-  }, [anchor, enabled])
-}
-
 export function DanaLinkChip({ href, stored }: { readonly href: string; readonly stored: string }): React.JSX.Element {
   const target = danaLinkOf(href)
   const navigate = useNavigate()
@@ -158,8 +25,6 @@ export function DanaLinkChip({ href, stored }: { readonly href: string; readonly
     retry: false,
     staleTime: 30_000,
   })
-
-  useConnectedSourceSplitter(anchor, markedConnectedPlacement(href))
 
   // Honour `#block-<id>` from the link itself; posts handle `#post-<id>` in ThreadPosts.
   useEffect(() => {

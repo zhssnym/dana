@@ -37,6 +37,7 @@ export const BLOCK_KINDS: Readonly<Record<DocumentBlockKind, readonly BlockHome[
   page: ['work', 'doc'],
   result: ['doc', 'results'],
   person: ['work', 'doc', 'results'],
+  synced: ['work', 'doc'],
 }
 
 export function allowedIn(kind: DocumentBlockKind, home: BlockHome): boolean {

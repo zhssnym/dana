@@ -1,21 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { BlockNoteView } from '@blocknote/shadcn'
 import { useCreateBlockNote } from '@blocknote/react'
-import { Link as RouterLink } from 'react-router'
 
-import type { PageBlock, PageView } from '../../../shared/pages.js'
-import { OpenInNewTab } from '../../lib/icons.js'
-import { dehydrateCanvas, hydrateCanvas } from '../page/canvas/adapters.js'
-import type { CanvasDocument } from '../page/canvas/adapters.js'
-import { pageTheme } from '../page/canvas/BlockSideMenu.js'
-import { canvasSchema } from '../page/canvas/schema.js'
-import type { CanvasBlock } from '../page/canvas/schema.js'
-import '../page/canvas/canvas.css'
+import type { PageBlock, PageView } from '../../../../shared/pages.js'
+import { dehydrateCanvas, hydrateCanvas } from './adapters.js'
+import type { CanvasDocument } from './adapters.js'
+import { pageTheme } from './BlockSideMenu.js'
+import { canvasSchema } from './schema.js'
+import type { CanvasBlock } from './schema.js'
+import './canvas.css'
+import './synced-block.css'
 
-export type ConnectedMirrorRecord = CanvasDocument['blocks'][number]
+export type SyncedMirrorRecord = CanvasDocument['blocks'][number]
 
 /**
- * A live mirror of one connected block. Edits go back to the canonical block
+ * A live mirror of the original of a synced block. Edits go back to the canonical block
  * through the source document's transaction path; there is no second copy.
  */
 export function mirroredBlockInput(block: PageBlock, width: number) {
@@ -33,7 +32,7 @@ export function mirroredBlockInput(block: PageBlock, width: number) {
   return hydrateCanvas(page, width)[0] ?? { id: isolated.id, type: 'paragraph' as const }
 }
 
-function canonicalRecord(block: PageBlock): ConnectedMirrorRecord {
+function canonicalRecord(block: PageBlock): SyncedMirrorRecord {
   return {
     id: block.id,
     block_kind: block.kind,
@@ -55,7 +54,7 @@ function editedRecord(
   editor: ReturnType<typeof useCreateBlockNote>,
   block: PageBlock,
   width: number,
-): ConnectedMirrorRecord | null {
+): SyncedMirrorRecord | null {
   const refs: ReadonlyMap<string, string> = block.ref_folder_id === null
     ? new Map()
     : new Map([[block.id, block.ref_folder_id]])
@@ -72,16 +71,14 @@ function editedRecord(
   }
 }
 
-export function ConnectedBlockMirror({
+export function SyncedBlockMirror({
   block,
-  sourcePath,
   editable = false,
   onCommit,
 }: {
   readonly block: PageBlock
-  readonly sourcePath: string | null
   readonly editable?: boolean
-  readonly onCommit?: (record: ConnectedMirrorRecord) => Promise<void>
+  readonly onCommit?: (record: SyncedMirrorRecord) => Promise<void>
 }): React.JSX.Element {
   const host = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(640)
@@ -159,7 +156,7 @@ export function ConnectedBlockMirror({
     <div
       ref={host}
       className="group/mirror relative min-w-0"
-      data-connected-work-mirror
+      data-synced-mirror
       data-source-block-id={block.id}
       onPointerDown={(event) => { event.stopPropagation() }}
       onClick={(event) => { event.stopPropagation() }}
@@ -172,19 +169,7 @@ export function ConnectedBlockMirror({
       }}
       onKeyDown={(event) => { event.stopPropagation() }}
     >
-      {sourcePath === null ? null : (
-        <RouterLink
-          to={sourcePath}
-          aria-label="Open source block"
-          title="Open source block"
-          className="absolute right-0 top-0 z-30 inline-flex size-6 items-center justify-center rounded-sm bg-background/85 text-muted-foreground opacity-0 shadow-sm hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/mirror:opacity-100"
-          onPointerDown={(event) => { event.stopPropagation() }}
-          onClick={(event) => { event.stopPropagation() }}
-        >
-          <OpenInNewTab size={12} aria-hidden="true" />
-        </RouterLink>
-      )}
-      <div className="dana-writing-canvas dana-connected-block-mirror min-w-0">
+      <div className="dana-writing-canvas dana-synced-mirror min-w-0">
         <BlockNoteView
           editor={editor}
           editable={editable}

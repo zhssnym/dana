@@ -92,6 +92,7 @@ const DUE_TIME = sql`to_char(t.due_time, 'HH24:MI')`
 export interface TaskAccess {
   id: string
   folderId: string
+  pageFacetId: string | null
   title: string
   status: TaskStatus
   assigneeId: string | null
@@ -105,7 +106,7 @@ export interface TaskAccess {
   facts: FolderActorFacts
 }
 
-const TASK_ACCESS_COLUMNS = sql`t.id, t.folder_id, t.title, t.status,
+const TASK_ACCESS_COLUMNS = sql`t.id, t.folder_id, t.page_facet_id, t.title, t.status,
        t.assignee_id, t.assignee_ids, ${START_DATE} AS start_date,
        ${START_TIME} AS start_time,
        ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
@@ -117,6 +118,7 @@ function taskAccessFrom(scoped: Scoped | null): TaskAccess | null {
   return {
     id: String(row.id),
     folderId: String(row.folder_id),
+    pageFacetId: nullableString(row.page_facet_id),
     title: String(row.title),
     status: String(row.status) as TaskStatus,
     assigneeId: nullableString(row.assignee_id),
@@ -460,11 +462,13 @@ async function sectionInFolder(
   executor: Executor,
   blockId: string,
   folderId: string,
+  facetId?: string,
 ): Promise<boolean> {
   const found = await rowsOf(
     executor,
     sql`SELECT 1 AS present FROM page_blocks
         WHERE id = ${blockId} AND folder_id = ${folderId}
+          AND ${facetId === undefined ? sql`(page_facet_id IS NULL OR page_facet_id = (SELECT id FROM page_facets WHERE content_folder_id = ${folderId}::uuid))` : sql`page_facet_id = ${facetId}::uuid`}
           AND kind = 'section'`,
   )
   return found.length > 0
@@ -485,6 +489,16 @@ export async function createTaskIn(
   await tx.execute(
     sql`SELECT 1 FROM folders WHERE id = ${folderId}::uuid FOR UPDATE`,
   )
+  if (body.page_facet_id !== undefined) {
+    const facet = await rowsOf(tx, sql`
+      SELECT id FROM page_facets
+       WHERE id = ${body.page_facet_id}::uuid AND deleted_at IS NULL
+         AND (content_folder_id = ${folderId}::uuid OR
+              (content_folder_id IS NULL AND page_id = ${folderId}::uuid))
+         AND EXISTS (SELECT 1 FROM folders f WHERE f.id = ${folderId}::uuid
+                      AND f.deleted_at IS NULL AND f.archived_at IS NULL)`)
+    if (!facet.length) return { kind: 'folder_not_found' }
+  }
   const members = await folderMemberIds(tx, folderId)
   const onlyMember = members.length === 1 ? members[0] : undefined
   let assigneeId: string | null
@@ -505,13 +519,13 @@ export async function createTaskIn(
   assigneeId = assigneeIds[0] ?? null
 
   const sectionId = body.section_block_id ?? null
-  if (sectionId !== null && !(await sectionInFolder(tx, sectionId, folderId))) {
+  if (sectionId !== null && !(await sectionInFolder(tx, sectionId, folderId, body.page_facet_id))) {
     return { kind: 'section_not_here' }
   }
 
   let pagePosition = options.pagePosition
   if (pagePosition === undefined) {
-    const items = await seededItems(tx, folderId)
+    const items = await seededItems(tx, folderId, body.page_facet_id)
     pagePosition = positionAtSectionEnd(items, null, sectionId) ?? undefined
     if (pagePosition === undefined) return { kind: 'section_not_here' }
   }
@@ -520,12 +534,12 @@ export async function createTaskIn(
   const seriesId = rule === null ? sql`NULL` : sql`gen_random_uuid()`
   const inserted = await rowsOf(
     tx,
-    sql`INSERT INTO tasks (id, folder_id, title, notes, important,
+    sql`INSERT INTO tasks (id, folder_id, page_facet_id, title, notes, important,
                            start_date, start_time, due_date,
                            due_time, recurrence_rule, series_id,
                            assignee_id, assignee_ids, created_by, section_block_id,
                            page_position)
-        VALUES (${options.id === undefined ? sql`gen_random_uuid()` : sql`${options.id}::uuid`}, ${folderId}::uuid, ${body.title}, ${body.notes ?? null},
+        VALUES (${options.id === undefined ? sql`gen_random_uuid()` : sql`${options.id}::uuid`}, ${folderId}::uuid, ${body.page_facet_id ?? null}::uuid, ${body.title}, ${body.notes ?? null},
                 ${body.important ?? false},
                 ${body.start_date ?? null}::date,
                 ${body.start_time ?? null}::time,
@@ -722,7 +736,7 @@ async function patchTaskIn(
     if (patch.section_block_id !== undefined) {
       if (
         patch.section_block_id !== null &&
-        !(await sectionInFolder(tx, patch.section_block_id, folderId))
+        !(await sectionInFolder(tx, patch.section_block_id, folderId, moving ? undefined : current.pageFacetId ?? undefined))
       ) return { kind: 'section_not_here' }
       sectionId = patch.section_block_id
     } else if (moving) {
@@ -733,7 +747,7 @@ async function patchTaskIn(
     const repositioning = moving || effectiveSectionId !== current.sectionBlockId
     let pagePosition: string | undefined
     if (repositioning) {
-      const pageItems = await seededItems(tx, folderId)
+      const pageItems = await seededItems(tx, folderId, moving ? undefined : current.pageFacetId ?? undefined)
       const placed = positionAtSectionEnd(
         pageItems,
         moving ? null : { kind: 'task', id: taskId },
@@ -1109,7 +1123,7 @@ export async function transitionTask(
       if (generating && tz !== undefined) {
         const outcome = await generateSuccessor(tx, { taskId, tz })
         if (outcome.kind === 'generated') {
-          const items = await seededItems(tx, current.folderId)
+          const items = await seededItems(tx, current.folderId, current.pageFacetId ?? undefined)
           const successor = { kind: 'task', id: outcome.successorId } as const
           const position = positionAfter(items, successor, { kind: 'task', id: taskId })
             ?? positionAtSectionEnd(items, successor, current.sectionBlockId)
@@ -1260,7 +1274,7 @@ export async function taskDocument(
       await tx.execute(sql`SELECT 1 FROM tasks WHERE id = ${taskId}::uuid FOR UPDATE`)
       await materializeNotesLocked(tx, taskId)
     }
-    return taskDocumentViewIn(tx, taskId)
+    return taskDocumentViewIn(tx, taskId, viewerId)
   })
 }
 

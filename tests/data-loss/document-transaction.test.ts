@@ -4,6 +4,7 @@ import {startAuthTestApp} from '../support/auth-harness.js'
 import type {AuthTestApp} from '../support/auth-harness.js'
 import {sql} from 'drizzle-orm'
 import {Cast,createFolder,expectStatus,seedTask} from '../support/folders-harness.js'
+import { EXPORT_VERSION } from '../../src/shared/export.js'
 import type {Actor} from '../support/folders-harness.js'
 import type {PageView,DocumentTransaction,DocumentOperation} from '../../src/shared/pages.js'
 let app:AuthTestApp
@@ -97,7 +98,7 @@ test('duplicate, export and workflow import retain hierarchy and rich content wi
     **8 to 9 at issue #353**: settings gains the durable `focus_appearance`
     map, so an older reader cannot silently discard the viewer's Focus identity. */
  /* Version 13 adds Team bios; 14 adds formatting and attribution; 15 adds scoped teammate content; 16 adds personal Bio. */
- expect(data.version).toBe(16);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
+ expect(data.version).toBe(EXPORT_VERSION);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
  const current=await read(owner,folder)
  expectStatus(await owner.browser.json(`/folders/${folder}/page/actions`,'POST',{action:'document_transaction',mutation_id:randomUUID(),base_revision:current.revision,operations:[{op:'delete_block',id:h1},{op:'set_outline',items:[{kind:'block',id:h2,section_block_id:null,list_parent_block_id:null},{kind:'block',id:p,section_block_id:h2,list_parent_block_id:null}]}]}),200,'remove H1 promotes subgroup')
  expect((await read(owner,folder)).blocks.find(b=>b.id===h2)?.section_block_id).toBeNull()

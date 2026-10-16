@@ -24,6 +24,7 @@ export function sameItem(left: PageItemRef, right: PageItemRef): boolean {
 export async function positionedItems(
   tx: Executor,
   folderId: string,
+  facetId?: string,
 ): Promise<PositionedItem[]> {
   const rows = await rowsOf(
     tx,
@@ -37,6 +38,7 @@ export async function positionedItems(
                    b.updated_at AS fallback_time
               FROM page_blocks b
              WHERE b.folder_id = ${folderId}::uuid
+               AND ${facetId === undefined ? sql`(b.page_facet_id IS NULL OR b.page_facet_id = (SELECT id FROM page_facets WHERE content_folder_id = ${folderId}::uuid))` : sql`b.page_facet_id = ${facetId}::uuid`}
             UNION ALL
             SELECT 'task'::text AS kind, t.id, t.page_position,
                    t.section_block_id, NULL::uuid AS list_parent_block_id,
@@ -45,6 +47,7 @@ export async function positionedItems(
                    t.created_at AS fallback_time
               FROM tasks t
              WHERE t.folder_id = ${folderId}::uuid
+               AND ${facetId === undefined ? sql`(t.page_facet_id IS NULL OR t.page_facet_id = (SELECT id FROM page_facets WHERE content_folder_id = ${folderId}::uuid))` : sql`t.page_facet_id = ${facetId}::uuid`}
                AND t.deleted_at IS NULL
 
           ) item
@@ -78,8 +81,8 @@ export async function writeItemPosition(
   )
 }
 
-export async function seededItems(tx: Executor, folderId: string): Promise<PositionedItem[]> {
-  const items = await positionedItems(tx, folderId)
+export async function seededItems(tx: Executor, folderId: string, facetId?: string): Promise<PositionedItem[]> {
+  const items = await positionedItems(tx, folderId, facetId)
   if (items.every((item) => item.pagePosition !== null)) return items
   const keys = initialKeys(items.length)
   for (const [index, item] of items.entries()) {

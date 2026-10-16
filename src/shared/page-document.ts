@@ -30,7 +30,7 @@ export const isPresentationHeadingKind = (kind:string):kind is PresentationHeadi
 export const MEDIA_BLOCK_KINDS = ['image','file','audio','video'] as const
 export type MediaBlockKind = (typeof MEDIA_BLOCK_KINDS)[number]
 export const isMediaKind = (kind:string):kind is MediaBlockKind => (MEDIA_BLOCK_KINDS as readonly string[]).includes(kind)
-export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video','diagram','table','divider','page','result','person'] as const
+export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video','diagram','table','divider','page','result','person','synced'] as const
 export type DocumentBlockKind = (typeof DOCUMENT_BLOCK_KINDS)[number]
 /**
  * Kinds that persist a width (25 to 100); matches
@@ -54,6 +54,9 @@ export const BLOCK_FILE_KINDS:Readonly<Record<MediaBlockKind,readonly FileKind[]
  * Only previewable kinds may Open: File blocks are always served as attachments
  * with nosniff, so Download is their only action, whatever the extension.
  */
+/** Kinds a synced block may show. Matches the list in migration 0097. */
+export const SYNCABLE_BLOCK_KINDS = ['paragraph',...PRESENTATION_HEADING_KINDS,...LIST_BLOCK_KINDS,'quote','callout','code','diagram','table',...MEDIA_BLOCK_KINDS] as const
+export const isSyncableKind = (kind:string):boolean => (SYNCABLE_BLOCK_KINDS as readonly string[]).includes(kind)
 export const blockMayOpen = (kind:string):boolean => kind==='image'||kind==='audio'||kind==='video'
 /** `result` belongs to a Results facet only (`page_blocks_result_home_check`). */
 export const RICH_TEXT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,...LIST_BLOCK_KINDS,'quote','callout','result'] as const
@@ -98,6 +101,8 @@ export const documentOperation = z.discriminatedUnion('op',[
   // A page block names its sub-page; the title is read from that folder, never copied.
   if(b.block_kind==='page'&&(b.ref_folder_id===null||(b.text!==null&&b.text!=='')||b.rich_content!==null||b.file_id!==null||b.width_pct!==null))ctx.addIssue({code:'custom',path:['ref_folder_id'],message:'A page block names one page and carries nothing else.'})
   if(b.block_kind==='person'&&(!z.uuid().safeParse(b.text).success||b.rich_content!==null||b.file_id!==null||b.ref_folder_id!==null||b.width_pct!==null||b.checked!==null))ctx.addIssue({code:'custom',path:['text'],message:'A Person block names one Team member and carries nothing else.'})
+  // A synced block names its source block; the source document owns the content.
+  if(b.block_kind==='synced'&&(!z.uuid().safeParse(b.text).success||b.text===b.id||b.rich_content!==null||b.file_id!==null||b.ref_folder_id!==null||b.width_pct!==null||b.checked!==null))ctx.addIssue({code:'custom',path:['text'],message:'A synced block names one other block and carries nothing else.'})
   if((b.block_kind==='file'||b.block_kind==='audio'||b.block_kind==='video')&&((b.text!==null&&b.text!=='')||b.rich_content!==null))ctx.addIssue({code:'custom',path:['text'],message:'A file, audio or video block carries no text of its own.'})
   /*
   file/audio/video blocks must name a file. Checked in the schema, not over the

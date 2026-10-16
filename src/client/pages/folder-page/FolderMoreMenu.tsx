@@ -3,6 +3,8 @@ import type { NavigateFunction } from 'react-router'
 
 import type { useDuplicateFolder } from '../../api/mutations.js'
 import { ObjectMenu } from '../../components/object-menu.js'
+import { DropdownMenuItem, DropdownMenuSeparator } from '../../components/ui/dropdown-menu.js'
+import { Pencil, Plus, RotateCcw } from '../../lib/icons.js'
 import type { FolderGates } from '../../lib/folder-authority.js'
 import { folderLink } from '../../lib/nav-links.js'
 import { copyLink } from '../../lib/object-acts.js'
@@ -20,6 +22,9 @@ export function FolderMoreMenu({
   duplicate,
   navigate,
   acts,
+  onAddFacet,
+  onRenameFacet,
+  onManageDeletedFacets,
 }: {
   readonly atProject: boolean
   readonly name: string
@@ -31,6 +36,9 @@ export function FolderMoreMenu({
   readonly duplicate: ReturnType<typeof useDuplicateFolder>
   readonly navigate: NavigateFunction
   readonly acts: FolderActs
+  readonly onAddFacet?: () => void
+  readonly onRenameFacet?: () => void
+  readonly onManageDeletedFacets?: () => void
 }): React.JSX.Element {
   const { doArchive, askLeave, doDelete, saveAsWorkflow } = acts
   return (
@@ -38,6 +46,29 @@ export function FolderMoreMenu({
       kind={atProject ? 'project' : 'folder'}
       name={name}
       align="end"
+      extra={onAddFacet === undefined && onRenameFacet === undefined && onManageDeletedFacets === undefined ? undefined : (
+        <>
+          {onRenameFacet === undefined ? null : (
+            <DropdownMenuItem onClick={onRenameFacet}>
+              <Pencil className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              Rename Facet
+            </DropdownMenuItem>
+          )}
+          {onAddFacet === undefined ? null : (
+            <DropdownMenuItem onClick={onAddFacet}>
+              <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              Add Facet
+            </DropdownMenuItem>
+          )}
+          {onManageDeletedFacets === undefined ? null : (
+            <DropdownMenuItem onClick={onManageDeletedFacets}>
+              <RotateCcw className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              Deleted Facets
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+        </>
+      )}
       handlers={{
         history: () => {
           setHistoryOpen(true)
