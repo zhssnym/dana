@@ -7,6 +7,7 @@ import { TaskDependencies, isRelatableTask } from "./task-dependencies.js"
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react"
 
 import {
+  PROPERTY_BUTTON,
   PROPERTY_LABEL,
   PROPERTY_ROW,
   PROPERTY_VALUE_OFFSET,
@@ -104,7 +105,7 @@ function MenuRow({
           <button
             type="button"
             onClick={(event) => event.stopPropagation()}
-            className={PROPERTY_ROW}
+            className={PROPERTY_BUTTON}
           >
             <span className={PROPERTY_LABEL}>{label}</span>
             <span

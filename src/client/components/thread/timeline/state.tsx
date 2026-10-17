@@ -1,5 +1,5 @@
-// A task's three states: To do, Done, Dropped (stored as `abandoned`). A dropped task
-// is never drawn with the done check.
+// A task's three states: To do, Done, Dropped (stored as `abandoned`). A task is always a
+// square, as in the task list. A dropped task is never drawn with the done check.
 import type { TaskCard } from '../../../../shared/tasks.js'
 import { cn } from '../../ui/utils.js'
 
@@ -26,7 +26,7 @@ export function StateMark(props: { readonly state: TaskState; readonly className
     >
       {state === 'done' ? (
         <>
-          <circle cx="8" cy="8" r="7" fill="currentColor" />
+          <rect x="1" y="1" width="14" height="14" rx="3" fill="currentColor" />
           <path
             d="M5 8.2 7.1 10.3 11 6"
             fill="none"
@@ -38,7 +38,7 @@ export function StateMark(props: { readonly state: TaskState; readonly className
         </>
       ) : (
         <>
-          <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          <rect x="1.75" y="1.75" width="12.5" height="12.5" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
           {state === 'dropped' ? (
             <path d="M3.8 12.2 12.2 3.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           ) : null}

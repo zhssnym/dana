@@ -230,10 +230,17 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --table-cell-min-width: 120px;
   --table-handle-space: 24px;
   --table-handle-opacity: 0.7;
+  --schedule-grip-width: 3px;
+  --schedule-grip-height: 14px;
+  --schedule-grip-hit: 12px;
+  /* From the day cell centre to the grip centre: half the 32px day button plus 2px. */
+  --schedule-grip-offset: 18px;
   --table-border-width: 1px;
   --space-inline: 8px;
   --space-row: 2px;
   --space-group: 24px;
+  --settings-section-gap: 40px;
+  --settings-row-padding: 12px;
   --shell-sidebar-row-height: 28px;
   --shell-sidebar-width: 240px;
   --checkbox-size: 16px;

@@ -6,7 +6,7 @@ import { Link } from 'react-router'
 
 import { paths } from '../routes.js'
 import { signOut } from '../shell/session.js'
-import { ImagePlus } from '../lib/icons.js'
+import { ImagePlus, Settings } from '../lib/icons.js'
 import { setTheme, useTheme } from '../lib/theme.js'
 import { setClock, useTimeFormat } from '../lib/time-format.js'
 import { useDefaultWorkView } from '../views/work-view.js'
@@ -67,8 +67,7 @@ function ViewerRow() {
       }
       className="min-h-12"
       label={<span className="font-title">{viewer.name}</span>}
-      // The name comes from Google and has no write, and the line says so.
-      description={`${viewer.email} · from Google`}
+      description={viewer.email}
       control={
         <>
           {isOwnPicture(viewer.image) ? (
@@ -103,7 +102,7 @@ export function SettingsPageContent({
   }, [ready])
 
   return (
-    <Screen title="Settings" bleed={false}>
+    <Screen title="Settings" icon={Settings} bleed={false}>
       {previewState === 'loading' ? (
         <div className="space-y-3" aria-label="Loading settings" aria-busy="true">
           <Skeleton className="h-5 w-24" />
@@ -121,6 +120,7 @@ export function SettingsPageContent({
           <SettingsSection title="Preferences">
             <StackingRow
               label="Theme"
+              description="Light, dark, or the same as your device"
               control={
                 <Choice
                   label="Theme"
@@ -138,6 +138,7 @@ export function SettingsPageContent({
             />
             <StackingRow
               label="Default Work view"
+              description="The view a Work page opens in"
               control={
                 <Choice
                   label="Default Work view"
@@ -154,9 +155,10 @@ export function SettingsPageContent({
                 />
               }
             />
-            <StackingRow label="Timezone" control={<TimezoneSelect />} />
+            <StackingRow label="Timezone" description="Used for Today, due dates and reminders" control={<TimezoneSelect />} />
             <StackingRow
               label="Clock"
+              description="How times are written"
               control={
                 <Choice
                   label="Clock"
@@ -173,9 +175,7 @@ export function SettingsPageContent({
             />
           </SettingsSection>
 
-          <SettingsSection id="people" title="People" className="scroll-mt-6">
-            <PeopleSettings />
-          </SettingsSection>
+          <PeopleSettings />
 
           <SettingsSection title="Data">
             <StackingRow
@@ -188,29 +188,6 @@ export function SettingsPageContent({
               description="Work and pages removed from active views"
               control={<Button render={<Link to={paths.archivedWork} />}>Manage archived work</Button>}
             />
-          </SettingsSection>
-
-          <SettingsSection title="About">
-            <div className="rounded-[var(--radius-card)] border border-border bg-card p-[var(--space-inline)]">
-              <p className="text-sm font-section text-foreground">Dana</p>
-              <p className="mt-[var(--space-inline)] text-sm text-foreground">
-                A place to plan, shape, and collaborate on work.
-              </p>
-              <p className="mt-[var(--space-inline)] text-xs text-muted-foreground">
-                Created by its co-founders. Operated by Wafa Graphics.
-              </p>
-              <div className="mt-[var(--space-inline)] flex flex-wrap gap-[var(--space-inline)] border-t border-border pt-[var(--space-inline)] text-xs">
-                <Link to={paths.privacy} className="text-muted-foreground underline underline-offset-2 hover:text-foreground">
-                  Privacy Policy
-                </Link>
-                <Link to={paths.terms} className="text-muted-foreground underline underline-offset-2 hover:text-foreground">
-                  Terms of Service
-                </Link>
-              </div>
-              <p className="mt-[var(--space-inline)] text-xs text-muted-foreground">
-                © 2026 Imranullah Wafa and Hassan Shahir. All rights reserved.
-              </p>
-            </div>
           </SettingsSection>
 
           {/* Destructive, so last and in a card of its own. */}

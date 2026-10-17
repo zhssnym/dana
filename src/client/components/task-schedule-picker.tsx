@@ -11,17 +11,14 @@ import {
 
 import { useUpdateTask } from "../api/mutations.js"
 import { todayInBrowserZone } from "../api/tz.js"
-import { Ban, ChevronLeft, ChevronRight } from "../lib/icons.js"
+import { ChevronLeft, ChevronRight, X } from "../lib/icons.js"
 import { formatDate, weekdayName, MONTHS_FULL } from "../lib/dates.js"
 import { formatTime, useTimeFormat } from "../lib/time-format.js"
 import {
-  DAY_SHORT,
-  addDays,
   clockOfMinutes,
   dueLabelFor,
   isoDay,
   minutesOfClock,
-  nextWeekday,
   parseDueLabel,
   parseIsoDate,
   reminderWords,
@@ -29,7 +26,7 @@ import {
   type ConceptTask,
 } from "../tasks/task-model.js"
 import { CLEAR_DATE_WARNING } from "./task-copy.js"
-import { PickerDivider, PickerOption, TimeField } from "./task-pickers.js"
+import { PickerDivider, TimeField } from "./task-pickers.js"
 import { ConfirmDialog } from "./ui/ConfirmDialog.js"
 import { cn } from "./ui/utils.js"
 
@@ -72,16 +69,6 @@ export function scheduleOrderError(
   return null
 }
 
-function nextWeekAfter(from: Date): Date {
-  const monday = nextWeekday(from, 1)
-  const tomorrow = addDays(from, 1)
-  return isoDay(monday) === isoDay(tomorrow) ? addDays(monday, 7) : monday
-}
-
-function presetHint(date: Date): string {
-  return `${DAY_SHORT[date.getDay()] ?? ""} ${formatDate(isoDay(date), todayInBrowserZone())}`
-}
-
 function endpointDateText(day: string | null): string {
   return day === null ? "Add date" : formatDate(day, todayInBrowserZone())
 }
@@ -93,6 +80,7 @@ function EndpointButton({
   time,
   disabled = false,
   onSelect,
+  onClear,
 }: {
   endpoint: ScheduleEndpoint
   active: boolean
@@ -100,35 +88,43 @@ function EndpointButton({
   time: string | null
   disabled?: boolean
   onSelect: () => void
+  onClear: () => void
 }) {
   const format = useTimeFormat()
-  const timeText =
-    date === null
-      ? "Optional time"
-      : time === null
-        ? "Date only"
-        : (formatTime(time, format) ?? time)
   const name = endpoint === "start" ? "Start" : "Due"
+  const timeText = date === null || time === null ? "" : ", " + (formatTime(time, format) ?? time)
   return (
-    <button
-      type="button"
-      aria-pressed={active}
-      disabled={disabled}
-      onClick={onSelect}
-      className={cn(
-        "min-w-0 rounded-md border px-2 py-1.5 text-left transition-[background-color,border-color,color] duration-[var(--duration-fast)]",
-        active
-          ? "border-primary/40 bg-primary/10 text-foreground"
-          : "border-border bg-card text-foreground hover:bg-accent",
-        disabled && "cursor-not-allowed opacity-40",
-      )}
-    >
-      <span className="block text-[11px] font-medium text-muted-foreground">{name}</span>
-      <span className="block truncate text-sm font-medium">{endpointDateText(date)}</span>
-      <span className="block truncate text-[11px] tabular-nums text-muted-foreground">
-        {timeText}
-      </span>
-    </button>
+    <div className="relative min-w-0">
+      <button
+        type="button"
+        aria-pressed={active}
+        disabled={disabled}
+        onClick={onSelect}
+        className={cn(
+          "w-full min-w-0 rounded-md border px-2 py-1.5 text-left transition-[background-color,border-color,color] duration-[var(--duration-fast)]",
+          date !== null && "pr-7",
+          active
+            ? "border-primary/40 bg-primary/10 text-foreground"
+            : "border-border bg-card text-foreground hover:bg-accent",
+          disabled && "cursor-not-allowed opacity-40",
+        )}
+      >
+        <span className="block text-[11px] font-medium text-muted-foreground">{name}</span>
+        <span className={cn("block truncate text-sm tabular-nums", date === null ? "text-muted-foreground" : "font-medium")}>
+          {endpointDateText(date)}{timeText}
+        </span>
+      </button>
+      {date !== null && !disabled ? (
+        <button
+          type="button"
+          aria-label={"Clear " + name}
+          onClick={onClear}
+          className="absolute right-1 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent hover:text-foreground"
+        >
+          <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+        </button>
+      ) : null}
+    </div>
   )
 }
 
@@ -158,6 +154,37 @@ type DragState = {
   edge: ScheduleEndpoint
   origin: string
   preview: string
+}
+
+/** A slim pill beside one end of the selection. The hit area is wider than the pill. */
+function ScheduleGrip({
+  edge,
+  dragging,
+  onPointerDown,
+}: {
+  edge: ScheduleEndpoint
+  dragging: boolean
+  onPointerDown: (pointer: ReactPointerEvent<HTMLElement>) => void
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      onPointerDown={onPointerDown}
+      className={cn(
+        "group/grip absolute inset-y-0 z-20 flex w-(--schedule-grip-hit) cursor-ew-resize touch-none items-center justify-center",
+        edge === "start"
+          ? "left-[calc(50%-var(--schedule-grip-offset)-var(--schedule-grip-hit)/2)]"
+          : "right-[calc(50%-var(--schedule-grip-offset)-var(--schedule-grip-hit)/2)]",
+      )}
+    >
+      <span
+        className={cn(
+          "h-(--schedule-grip-height) w-(--schedule-grip-width) rounded-full transition-colors duration-[var(--duration-fast)]",
+          dragging ? "bg-primary" : "bg-primary/45 group-hover/grip:bg-primary",
+        )}
+      />
+    </span>
+  )
 }
 
 /** A compact six-week calendar whose ends resize as on the Work calendar. */
@@ -397,16 +424,16 @@ function ScheduleCalendar({
               </button>
 
               {showStartHandle ? (
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-y-0 left-0 z-20 w-3 cursor-ew-resize touch-none before:absolute before:inset-y-1 before:left-1 before:w-0.5 before:rounded-full before:bg-foreground/35 before:opacity-30 group-hover/day:before:opacity-100"
+                <ScheduleGrip
+                  edge="start"
+                  dragging={drag?.edge === "start"}
                   onPointerDown={(pointer) => beginResize("start", pointer)}
                 />
               ) : null}
               {showDueHandle ? (
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-y-0 right-0 z-20 w-3 cursor-ew-resize touch-none before:absolute before:inset-y-1 before:right-1 before:w-0.5 before:rounded-full before:bg-foreground/35 before:opacity-30 group-hover/day:before:opacity-100"
+                <ScheduleGrip
+                  edge="due"
+                  dragging={drag?.edge === "due"}
                   onPointerDown={(pointer) => beginResize("due", pointer)}
                 />
               ) : null}
@@ -432,7 +459,7 @@ export function SchedulePanel({
   const startTime = task.startTime ?? null
   const canEditStart = task.id !== "new"
   const [endpoint, setEndpoint] = useState<ScheduleEndpoint>(() =>
-    task.due ? "due" : task.start !== undefined && task.id !== "new" ? "start" : "due",
+    task.due || !canEditStart ? "due" : "start",
   )
   const [refused, setRefused] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
@@ -560,15 +587,6 @@ export function SchedulePanel({
     })
   }
 
-  const saturday = nextWeekday(today(), 6)
-  const presets = [
-    { label: "Today", date: today() },
-    { label: "Tomorrow", date: addDays(today(), 1) },
-    ...(today().getDay() >= 1 && today().getDay() <= 4
-      ? [{ label: "This weekend", date: saturday }]
-      : []),
-    { label: "Next week", date: nextWeekAfter(today()) },
-  ]
   const cascades = Boolean(task.recurrence) || Boolean(task.reminder)
 
   return (
@@ -585,6 +603,7 @@ export function SchedulePanel({
             setRefused(null)
             setEndpoint("start")
           }}
+          onClear={clearStart}
         />
         <span aria-hidden="true" className="text-center text-sm text-muted-foreground">→</span>
         <EndpointButton
@@ -596,6 +615,7 @@ export function SchedulePanel({
             setRefused(null)
             setEndpoint("due")
           }}
+          onClear={() => (cascades ? setConfirming(true) : clearDue())}
         />
       </div>
 
@@ -604,36 +624,6 @@ export function SchedulePanel({
           {refused}
         </p>
       )}
-
-      <div
-        role="group"
-        aria-label={`${endpoint === "start" ? "Start" : "Due"} date shortcuts`}
-        className="flex flex-col"
-      >
-        {presets.map((preset) => (
-          <PickerOption
-            key={preset.label}
-            label={preset.label}
-            hint={presetHint(preset.date)}
-            active={selectedKey === isoDay(preset.date)}
-            onSelect={() => commitDate(endpoint, preset.date)}
-          />
-        ))}
-        <PickerOption
-          icon={Ban}
-          label={selectedKey === null ? `No ${endpoint === "start" ? "Start" : "Due"}` : `Clear ${endpoint === "start" ? "Start" : "Due"}`}
-          active={selectedKey === null}
-          onSelect={() => {
-            if (endpoint === "start") {
-              clearStart()
-              return
-            }
-            if (dueKey === null) return
-            if (cascades) setConfirming(true)
-            else clearDue()
-          }}
-        />
-      </div>
 
       {confirming ? (
         <ConfirmDialog

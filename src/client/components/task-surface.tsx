@@ -1,6 +1,7 @@
 // A task's page: title with its state mark and "…" menu, then `TaskCard`. History opens
 // from the menu.
 
+import { CoverLine } from "./page-head.js"
 import { InlineTextarea } from "./ui/inline-field.js"
 import { useEffect, useRef, useState } from "react"
 
@@ -14,8 +15,6 @@ import { TaskHistory } from "./thread/TaskHistory.js"
 import { copyTaskLink, duplicateTask } from "../tasks/task-acts.js"
 import { cn } from "./ui/utils.js"
 import { Button } from "./ui/button.js"
-import { COMPLETE_TASK, MARK_AS_NOT_DONE } from "./ui/copy.js"
-import { StateMark } from "./thread/timeline/state.js"
 import { prefetchTask, useFolder, useTask } from "../api/queries.js"
 import { useDiscussTask } from "../api/consultation.js"
 import { closeChatDock, openChatDock, useChatDock } from "../state/chat-dock.js"
@@ -201,24 +200,9 @@ export function TaskView({
 
   return (
     <div className="flex flex-col gap-4 pt-2 pb-24">
+      {/* The cover line's height, so the title starts where a page title does. */}
+      <div className="-mb-3"><CoverLine /></div>
       <div className="flex min-w-0 items-start gap-2">
-        <span className="flex h-[var(--text-title-line)] shrink-0 items-center">
-          {state === "dropped" ? (
-            <StateMark state={state} className="size-5" />
-          ) : (
-            <button
-              type="button"
-              role="checkbox"
-              aria-checked={state === "done"}
-              aria-label={state === "done" ? MARK_AS_NOT_DONE : COMPLETE_TASK}
-              title={state === "done" ? MARK_AS_NOT_DONE : COMPLETE_TASK}
-              onClick={() => patch(task.id, { done: state !== "done" })}
-              className="relative flex size-5 items-center justify-center rounded-full outline-none before:absolute before:-inset-1 before:rounded-full hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              <StateMark state={state} className="size-5" />
-            </button>
-          )}
-        </span>
         <div className="min-w-0 flex-1">
           <Title
             // A different task is a fresh draft.

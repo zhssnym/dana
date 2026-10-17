@@ -350,6 +350,7 @@ export const Zap = icon(Lu.Zap, Anim.ZapIcon)
 // More folder icons: objects and subjects only, never acts, and in sevens so the picker's
 // seven columns fill whole rows.
 export const Activity = icon(Lu.Activity, Anim.ActivityIcon)
+export const Archive = icon(Lu.Archive, null)
 export const AlarmClock = icon(Lu.AlarmClock, Anim.AlarmClockIcon)
 export const Atom = icon(Lu.Atom, Anim.AtomIcon)
 export const AudioWaveform = icon(Lu.AudioWaveform, Anim.AudioWaveformIcon)

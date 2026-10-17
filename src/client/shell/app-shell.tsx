@@ -456,7 +456,7 @@ export function AppShell(): React.JSX.Element {
               id="dana-content"
               data-shell-scroll
               style={{ marginRight: 'var(--collaboration-right-edge, 0px)' }}
-              className="min-h-0 flex-1 overflow-y-auto transition-[margin] duration-150 ease-out"
+              className="min-h-0 flex-1 overflow-y-auto transition-[margin] duration-150 ease-out [scrollbar-gutter:stable]"
             >
               {/* The width a cover bleeds to (`100cqw`): the scroll region's width includes its scrollbar. */}
               <div className="@container">

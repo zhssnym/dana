@@ -72,7 +72,7 @@ export function SidebarFoot({
           </FootTip>
           <NotificationsBell side="top" className={FOOT_BUTTON} />
           <MessagesButton className={FOOT_BUTTON} />
-          <HelpMenu className={FOOT_BUTTON} onFeedback={() => setFeedbackOpen(true)} />
+          <HelpMenu className={FOOT_BUTTON} />
           <FootTip label="Settings">
             <Link to={paths.settings} aria-label="Settings"
               aria-current={currentPath.startsWith(paths.settings) ? 'page' : undefined}

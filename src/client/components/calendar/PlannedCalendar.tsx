@@ -131,7 +131,7 @@ function CalendarEvent({
       data-task-title={event.title}
       onPointerDown={movable ? (pointer) => onPointerStart(pointer, event.taskId, 'move', event.date) : undefined}
       className={cn(
-        'group/calendar-event @container relative flex w-full gap-1.5 overflow-hidden rounded-sm border px-1.5 text-left text-foreground transition-[background-color,border-color] focus-visible:outline-none',
+        'group/calendar-event @container relative flex w-full gap-1.5 overflow-hidden rounded-sm border px-2 text-left text-foreground transition-[background-color,border-color] focus-visible:outline-none',
         movable && 'cursor-grab active:cursor-grabbing touch-none select-none',
         compact ? 'min-h-5 items-center text-xs' : 'min-h-7 items-start py-1.5 text-xs leading-4',
         !completed && !abandoned && !ghost && 'hover:border-primary',
@@ -192,7 +192,8 @@ function RangeBar({ range, week, zoom, editable, onPointerStart, suppressOpenUnt
   const movable = editable && task.status === 'pending'
   const length = range.last - range.first + 1
   return <div
-    className={cn('group/range pointer-events-auto relative min-w-0', zoom === 'week' && 'max-sm:col-span-7!')}
+    // The same inset as the day cell's padding, so a range lines up with the single-day cards.
+    className={cn('group/range pointer-events-auto relative min-w-0 px-1.5', zoom === 'week' && 'max-sm:col-span-7!')}
     style={{ gridColumn: `${range.first + 1} / ${range.last + 2}`, gridRow: range.lane + 1 }}
   >
     <button

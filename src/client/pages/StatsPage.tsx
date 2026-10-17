@@ -1,3 +1,4 @@
+import { Activity } from '../lib/icons.js'
 /*
  * Operator stats, in no menu. The server answers 404 to non-operators, which shows the ordinary Not found. The
  * Privacy page says what operators see, so the two change together.
@@ -480,7 +481,7 @@ export function StatsPage(): React.JSX.Element {
   return (
     // Full width, wider than the page column: the shell's scroll region is a container, so 100cqw is its width.
     <div className="relative left-1/2 w-[calc(100cqw-2rem)] -translate-x-1/2 md:w-[calc(100cqw-5rem)]">
-    <Screen title="Stats" description="Accounts with an email, and how each uses Dana. Counts only: no page names or content.">
+    <Screen title="Stats" icon={Activity} description="Accounts with an email, and how each uses Dana. Counts only: no page names or content.">
       <Segmented
         label="Show"
         value={view}

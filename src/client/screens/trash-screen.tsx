@@ -9,7 +9,7 @@ import { Row, RowGroup } from "../components/ui/row.js"
 import { Screen } from "../components/settings/screen.js"
 import { cn } from "../components/ui/utils.js"
 import { markIcon } from "../components/page/icon-manifest.js"
-import { CheckCircle2, MessageSquare } from "../lib/icons.js"
+import { CheckCircle2, MessageSquare, Trash2 } from '../lib/icons.js'
 import {
   type TrashItem,
   daysLeft,
@@ -34,6 +34,7 @@ export function TrashScreen({
   return (
     <Screen
       title="Trash"
+      icon={Trash2}
       /* Only the rows the viewer may destroy leave under it. */
       actions={
         purgeable.length ? (

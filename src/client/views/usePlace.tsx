@@ -9,11 +9,12 @@ import { useCreateTask, usePatchBundle, usePullIntoMyDay } from '../api/mutation
 import { useBundle, useMe } from '../api/queries.js'
 import { presenterToday } from '../parts/presenters.js'
 import { PageCover } from '../components/page-cover.js'
-import { PageMark, usePageHasCover } from '../components/page-head.js'
+import { CoverLine, usePageHasCover } from '../components/page-head.js'
 import { IconPicker } from '../components/page/IconPicker.js'
 import { Button } from '../components/ui/button.js'
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover.js'
-import { Image as ImageIcon } from '../lib/icons.js'
+import { cn } from '../components/ui/utils.js'
+import type { LucideIcon } from '../lib/icons.js'
 import { useWearFilterLabel } from '../api/labels.js'
 import { focusMark } from '../shell/focus-lists.js'
 import type { FocusMark } from '../shell/focus-lists.js'
@@ -146,28 +147,30 @@ export function usePlace(
  */
 export function ScreenHead({
   title,
+  icon: Icon,
   controls,
   fact,
 }: {
   readonly title: ReactNode
+  /** Drawn beside the title, as a page's mark. */
+  readonly icon?: LucideIcon
   readonly controls?: ReactNode
   readonly fact?: ReactNode
 }): React.JSX.Element {
   return (
     <header className="space-y-1 pt-2">
-      {/* Built like that line (a small button in a block), so its height matches. */}
-      <div aria-hidden="true" className="[@media(hover:none)]:hidden">
-        <Button variant="ghost" size="sm" tabIndex={-1} className="invisible">
-          <ImageIcon />
-          Add cover
-        </Button>
-      </div>
-      <div className="flex min-h-(--text-title-line) items-center justify-between gap-4">
-        <h1 data-page-title="" className="min-w-0 truncate text-(length:--text-title-size) leading-(--text-title-line) font-title text-foreground">
+      <CoverLine />
+      <div className="flex min-w-0 items-start gap-2">
+        {Icon === undefined ? null : (
+          <span className="mt-1 flex size-[var(--control-height)] shrink-0 items-center justify-center">
+            <Icon className="size-7" strokeWidth={1.5} aria-hidden="true" />
+          </span>
+        )}
+        <h1 data-page-title="" className="min-w-0 flex-1 truncate text-(length:--text-title-size) leading-(--text-title-line) font-title text-foreground">
           {title}
         </h1>
         {controls === undefined || controls === null ? null : (
-          <div className="flex shrink-0 items-center gap-2">{controls}</div>
+          <div className="mt-1 flex shrink-0 items-center gap-2">{controls}</div>
         )}
       </div>
       {fact === undefined ? null : <p className="text-sm text-muted-foreground">{fact}</p>}
@@ -229,28 +232,37 @@ export function PlaceHead({
     })
   }
 
+  const MarkIcon = mark.icon
+  const glyph = (
+    <MarkIcon className="size-7" style={mark.color === undefined ? undefined : { color: mark.color }} strokeWidth={1.5} aria-hidden="true" />
+  )
+
   return (
-    <header className={hasCover ? 'group/head pt-0' : 'group/head pt-2'}>
+    // The rule stands where a page's tab strip starts, so a focus list reads like a page.
+    <header className={cn('group/head space-y-1 border-b border-border pb-4', hasCover ? 'pt-0' : 'pt-2')}>
       {hasCover ? (
         <div className="-mt-4 md:-mt-6">
           <PageCover storageName={coverStorageName} />
         </div>
-      ) : null}
+      ) : (
+        <CoverLine />
+      )}
+      <div className="flex min-w-0 items-start gap-2">
       {resolvedFocusKey === undefined ? (
-        <PageMark icon={mark.icon} hasCover={hasCover} />
+        <span className="mt-1 flex size-[var(--control-height)] shrink-0 items-center justify-center">{glyph}</span>
       ) : (
         <Popover open={markOpen} onOpenChange={setMarkOpen}>
           <PopoverTrigger
             render={
-              <PageMark
-                icon={mark.icon}
-                hasCover={hasCover}
-                interactive
+              <button
+                type="button"
                 aria-label={`Icon and colour for ${place.spine.name}`}
-                {...(mark.color === undefined ? {} : { color: mark.color })}
+                className="mt-1 flex size-[var(--control-height)] shrink-0 items-center justify-center rounded-md hover:bg-accent"
               />
             }
-          />
+          >
+            {glyph}
+          </PopoverTrigger>
           <PopoverContent align="start" className="w-auto p-0">
             <IconPicker
               icon={appearance?.icon ?? null}
@@ -286,13 +298,10 @@ export function PlaceHead({
           </PopoverContent>
         </Popover>
       )}
-      <div className="mt-1.5 flex items-baseline justify-between gap-6">
-        <div className="flex min-w-0 items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
-          <h1 data-page-title="" className="min-w-0 max-w-full truncate text-[length:var(--text-title-size)] leading-8 font-title text-foreground max-md:whitespace-normal">
-            {place.spine.name}
-          </h1>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <h1 data-page-title="" className="min-w-0 flex-1 break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-foreground">
+          {place.spine.name}
+        </h1>
+        <div className="mt-1 flex shrink-0 items-center gap-2">
           {controls}
         </div>
       </div>

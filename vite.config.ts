@@ -5,10 +5,6 @@ import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  // Compiled into the client when it is built; never a PR merge or invented deployment time.
-  define: {
-    __DANA_BUILD_TIME__: JSON.stringify(new Date().toISOString()),
-  },
   // Tailwind 4 is configured in CSS, not in JavaScript (spec 11.4, and 11.15
   // records v3 configuration idioms as defects): this plugin is the whole of
   // its build-side wiring, and there is no tailwind.config.js to add. What it

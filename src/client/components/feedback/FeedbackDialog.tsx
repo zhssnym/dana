@@ -8,13 +8,11 @@ import { sendFeedback } from '../../api/feedback.js'
 import { Maximize2, Minimize2 } from '../../lib/icons.js'
 import { Button } from '../ui/button.js'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog.js'
-import { Segmented } from '../ui/segmented.js'
 import { cn } from '../ui/utils.js'
 
 const PostEditor = lazy(() => import('../thread/PostEditor.js'))
 
 const DRAFT_KEY = 'dana-feedback-draft'
-const KIND_LABELS: Record<FeedbackKind, string> = { bug: 'Problem', idea: 'Idea', other: 'Other' }
 
 interface Draft { kind: FeedbackKind, content: PostContent | null }
 
@@ -23,7 +21,7 @@ function readDraft(): Draft {
     const saved = JSON.parse(window.localStorage.getItem(DRAFT_KEY) ?? 'null') as Draft | null
     if (saved !== null && FEEDBACK_KINDS.includes(saved.kind)) return saved
   } catch { /* storage unavailable or bad JSON */ }
-  return { kind: 'bug', content: null }
+  return { kind: 'other', content: null }
 }
 
 function writeDraft(draft: Draft | null): void {
@@ -64,7 +62,7 @@ export function FeedbackDialog({ open, onOpenChange }: {
         className={cn(
           large
             ? 'w-[min(1100px,calc(100vw-32px))] [&_.dana-post-editor]:min-h-[55vh] [&_.dana-post-editor]:max-h-[65vh]'
-            : 'w-[min(640px,calc(100vw-32px))]',
+            : 'w-[min(640px,calc(100vw-32px))] [&_.dana-post-editor]:min-h-40',
         )}
       >
         <DialogHeader>
@@ -97,14 +95,7 @@ export function FeedbackDialog({ open, onOpenChange }: {
           </div>
         ) : (
           <div className="mt-4 flex flex-col gap-3">
-            <Segmented
-              label="Kind of feedback"
-              value={draft.kind}
-              options={FEEDBACK_KINDS.map((kind) => ({ value: kind, label: KIND_LABELS[kind] }))}
-              onValueChange={(kind) => change({ kind })}
-              className="self-start"
-            />
-            <Suspense fallback={<div className="min-h-24 rounded-lg border border-border" />}>
+            <Suspense fallback={<div className="min-h-40 rounded-lg border border-border" />}>
               <PostEditor
                 folderId={null}
                 autoFocus
@@ -113,9 +104,10 @@ export function FeedbackDialog({ open, onOpenChange }: {
                 draft={draft.content}
                 onDraft={(content) => change({ content })}
                 onSubmit={async (content) => {
-                  await sendFeedback({ kind: draft.kind, content, context: contextNow() })
+                  // The box has no kind choice; the server still needs one.
+                  await sendFeedback({ kind: 'other', content, context: contextNow() })
                   writeDraft(null)
-                  setDraft({ kind: 'bug', content: null })
+                  setDraft({ kind: 'other', content: null })
                   setSent(true)
                 }}
                 renderActions={({ submit, empty, busy, attach }) => (

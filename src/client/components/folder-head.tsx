@@ -14,6 +14,7 @@ import {
 } from '../lib/page-identity.js'
 import { FolderCoverPicker } from './folder-cover.js'
 import { AddCoverAction } from './page-cover.js'
+import { CoverLine } from './page-head.js'
 import { T_FAST } from './task-row.js'
 import { IconPicker } from './page/IconPicker.js'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog.js'
@@ -80,7 +81,9 @@ export function FolderHeader({
         >
           <AddCoverAction storageName={coverKey} />
         </div>
-      ) : null}
+      ) : (
+        <CoverLine />
+      )}
       <div className="flex min-w-0 items-start gap-2">
         {editable ? (
           <Popover open={markOpen} onOpenChange={setMarkOpen}>
