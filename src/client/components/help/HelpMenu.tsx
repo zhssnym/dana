@@ -45,6 +45,7 @@ export function HelpMenu({ className }: { readonly className: string }): React.J
           className={ROW + ' w-full text-left ' + EXTERNAL_LINK}>
           <Keyboard className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
           <span className="min-w-0 flex-1">Keyboard shortcuts</span>
+          <kbd className="flex size-4 shrink-0 items-center justify-center font-sans text-sm leading-none text-muted-foreground">?</kbd>
         </button>
       </PopoverContent>
     </Popover>
