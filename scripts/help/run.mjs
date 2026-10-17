@@ -49,7 +49,11 @@ async function completion(system, user, maxTokens = 6200) {
     }),
     signal: AbortSignal.timeout(90_000),
   })
-  if (!response.ok) throw new Error('Documentation model returned HTTP ' + response.status)
+  if (!response.ok) {
+    // OpenAI answers 429 both for "too fast" and for "no credit"; its error code tells them apart.
+    const code = await response.json().then((body) => body?.error?.code ?? body?.error?.type, () => undefined)
+    throw new Error('Documentation model returned HTTP ' + response.status + (typeof code === 'string' ? ' (' + code + ')' : ''))
+  }
   const data = await response.json()
   const answer = data.choices?.[0]?.message?.content
   if (typeof answer !== 'string') throw new Error('Documentation model returned no JSON')
