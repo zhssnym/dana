@@ -52,8 +52,8 @@ async function completion(system, user) {
     })
   } catch (error) {
     if (!(error instanceof Anthropic.APIError)) throw error
-    const type = error.error?.error?.type
-    throw new Error('Documentation model returned HTTP ' + error.status + (typeof type === 'string' ? ' (' + type + ')' : ''))
+    const { type, message } = error.error?.error ?? {}
+    throw new Error('Documentation model returned HTTP ' + error.status + ' (' + String(type) + '): ' + String(message))
   }
   if (response.stop_reason !== 'end_turn') throw new Error('Documentation model stopped: ' + response.stop_reason)
   const text = response.content.filter((block) => block.type === 'text').map((block) => block.text).join('')
