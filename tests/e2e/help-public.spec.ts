@@ -14,30 +14,30 @@ test('help is available without a signed-in session', async ({ page }) => {
 
 test('direct and moved help article links resolve without an account', async ({ page }) => {
   await page.goto('/help/schedule-a-task')
-  await expect(page).toHaveURL(/\/help\/tasks-and-dates$/)
-  await expect(page.getByRole('heading', { name: 'Tasks', exact: true, level: 1 })).toBeVisible()
+  await expect(page).toHaveURL(/\/help\/pages$/)
+  await expect(page.getByRole('heading', { name: 'Pages', exact: true, level: 1 })).toBeVisible()
   await expect(page.getByText('Start Date', { exact: false }).first()).toBeVisible()
 })
 
 
 test('topics link to guides, and the sidebar marks the open guide', async ({ page }) => {
   await page.goto('/help')
-  await page.getByRole('link', { name: /^Tasks How/ }).click()
+  await page.getByRole('link', { name: /^Pages A page/ }).click()
   const nav = page.getByRole('navigation', { name: 'Help articles' })
-  await expect(page).toHaveURL(/\/help\/tasks-and-dates/)
-  await expect(page.getByRole('heading', { name: 'Tasks', exact: true, level: 1 })).toBeVisible()
-  await expect(nav.getByRole('link', { name: 'Tasks', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(page).toHaveURL(/\/help\/pages/)
+  await expect(page.getByRole('heading', { name: 'Pages', exact: true, level: 1 })).toBeVisible()
+  await expect(nav.getByRole('link', { name: 'Pages', exact: true })).toHaveAttribute('aria-current', 'page')
 })
 
 test('article navigation stays usable on a narrow screen', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/help/tasks-and-dates')
-  await expect(page.getByRole('heading', { name: 'Tasks', exact: true, level: 1 })).toBeVisible()
+  await page.goto('/help/pages')
+  await expect(page.getByRole('heading', { name: 'Pages', exact: true, level: 1 })).toBeVisible()
 
   const menu = page.locator('details', { hasText: 'Browse articles' })
   await menu.getByText('Browse articles').click()
   await expect(menu.getByRole('navigation', { name: 'Help articles' })).toBeVisible()
-  await expect(menu.getByRole('link', { name: 'Tasks', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(menu.getByRole('link', { name: 'Pages', exact: true })).toHaveAttribute('aria-current', 'page')
 })
 
 test('search can recover from no results', async ({ page }) => {

@@ -1,9 +1,9 @@
 ---
 title: Views
-summary: See the same tasks as a thread, a document, a board, or a calendar.
+summary: Look at the same page as a thread, a document, a board, or a calendar.
 related:
 ---
-A view changes how Dana shows your work. It does not copy the tasks, so a change in one view shows in all of them.
+A view sits on top of a page and changes how its tasks and writing show. It does not copy anything, so a change in one view shows in all of them.
 
 - **Thread** shows work as an ordered sequence.
 - **Freeform** shows work as one continuous document.

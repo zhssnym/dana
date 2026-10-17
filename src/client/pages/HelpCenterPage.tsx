@@ -11,8 +11,6 @@ import {
   CalendarDays,
   Compass,
   FileText,
-  ListTodo,
-  Pencil,
   Search,
   Settings,
   UsersRound,
@@ -24,9 +22,8 @@ import { paths } from '../routes.js'
 // An article without an entry here uses FileText.
 const ARTICLE_ICONS: Readonly<Record<string, LucideIcon>> = {
   'how-dana-works': Compass,
-  'tasks-and-dates': ListTodo,
+  pages: FileText,
   views: CalendarDays,
-  writing: Pencil,
   'working-together': UsersRound,
   'find-and-shortcuts': Search,
   'account-and-data': Settings,

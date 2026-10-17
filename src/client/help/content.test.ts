@@ -30,7 +30,7 @@ describe('public help articles', () => {
   })
 
   it('finds information by article title and body without a server', () => {
-    expect(findHelp('calendar').some((item) => item.slug === 'tasks-and-dates')).toBe(true)
+    expect(findHelp('calendar').some((item) => item.slug === 'pages')).toBe(true)
     expect(findHelp('keyboard').some((item) => item.slug === 'find-and-shortcuts')).toBe(true)
     expect(findHelp('search').length).toBeGreaterThan(0)
     expect(findHelp('does-not-match-any-known-help-article')).toEqual([])

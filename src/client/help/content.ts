@@ -33,7 +33,7 @@ function parseArticle(path: string, raw: string): HelpArticle {
 }
 
 // Reading order. A new article goes last until it is placed here.
-const ORDER = ['how-dana-works', 'tasks-and-dates', 'views', 'writing', 'working-together', 'find-and-shortcuts', 'account-and-data']
+const ORDER = ['how-dana-works', 'pages', 'views', 'working-together', 'find-and-shortcuts', 'account-and-data']
 const order = (slug: string): number => ORDER.indexOf(slug) + 1 || ORDER.length + 1
 
 export const helpArticles: readonly HelpArticle[] = Object.entries(sources)
@@ -46,11 +46,13 @@ export const helpBySlug = new Map(helpArticles.map((article) => [article.slug, a
 export const MOVED_HELP: Readonly<Record<string, string>> = {
   'getting-started': 'how-dana-works',
   'desk-and-pages': 'how-dana-works',
-  'create-and-complete-tasks': 'tasks-and-dates',
-  'schedule-a-task': 'tasks-and-dates',
-  'today-and-upcoming': 'tasks-and-dates',
+  'create-and-complete-tasks': 'pages',
+  'schedule-a-task': 'pages',
+  'today-and-upcoming': 'pages',
   'work-views': 'views',
-  'writing-and-blocks': 'writing',
+  'writing-and-blocks': 'pages',
+  'tasks-and-dates': 'pages',
+  writing: 'pages',
   'collaborate-on-work': 'working-together',
   'teammate-profiles': 'working-together',
   'discussions-and-messages': 'working-together',
