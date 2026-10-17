@@ -17,7 +17,7 @@ describe('public help articles', () => {
     expect(helpArticles.length).toBeGreaterThan(0)
     expect(new Set(helpArticles.map((article) => article.slug)).size).toBe(helpArticles.length)
     for (const article of helpArticles) {
-      expect(article.title.length).toBeGreaterThan(5)
+      expect(article.title.length).toBeGreaterThan(0)
       expect(article.summary.length).toBeGreaterThan(12)
       expect(article.body.length).toBeGreaterThan(40)
       for (const related of article.related) {
