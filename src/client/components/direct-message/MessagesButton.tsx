@@ -22,7 +22,7 @@ export function MessagesButton({ className }: { readonly className: string }): R
     <PopoverContent side="top" align="start" className="w-[var(--direct-message-inbox-width)] max-w-[var(--direct-message-max-width)] p-[var(--space-inline)]">
       <PopoverTitle className="px-[var(--space-inline)] py-[var(--space-inline)]">Messages</PopoverTitle>
       {center.conversations.length === 0 ? <p className="px-[var(--space-inline)] py-[var(--person-card-padding)] text-sm text-muted-foreground">
-        Private messages with Team members appear here.
+        No messages
       </p> : <div className="max-h-[var(--direct-message-inbox-height)] overflow-y-auto">
         {center.conversations.map((row) => <button key={row.id} type="button"
           className="flex w-full items-center gap-[var(--person-card-padding)] rounded-md px-[var(--space-inline)] py-[var(--space-inline)] text-left hover:bg-accent"

@@ -209,11 +209,7 @@ export function NotificationsBell({
           ) : null}
         </div>
         {rows.length === 0 ? (
-          // The empty-state copy is fixed by spec 9.12.
-          <p className="px-2 pt-1 pb-3 text-sm text-muted-foreground">
-            Nothing new. When someone assigns you a task or answers you, it
-            lands here.
-          </p>
+          <p className="px-2 pt-1 pb-3 text-sm text-muted-foreground">No notifications</p>
         ) : (
           groupNotifications(rows).map((group) => {
             const newest = group.rows[0] as NotificationLine
