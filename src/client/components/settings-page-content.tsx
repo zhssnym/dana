@@ -6,7 +6,7 @@ import { Link } from 'react-router'
 
 import { paths } from '../routes.js'
 import { signOut } from '../shell/session.js'
-import { ImagePlus } from '../lib/icons.js'
+import { ImagePlus, Settings } from '../lib/icons.js'
 import { setTheme, useTheme } from '../lib/theme.js'
 import { setClock, useTimeFormat } from '../lib/time-format.js'
 import { useDefaultWorkView } from '../views/work-view.js'
@@ -102,7 +102,7 @@ export function SettingsPageContent({
   }, [ready])
 
   return (
-    <Screen title="Settings" bleed={false}>
+    <Screen title="Settings" icon={Settings} bleed={false}>
       {previewState === 'loading' ? (
         <div className="space-y-3" aria-label="Loading settings" aria-busy="true">
           <Skeleton className="h-5 w-24" />

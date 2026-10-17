@@ -1,18 +1,21 @@
 // The shared frame for Settings and Trash: one column under a plain title.
 import type { ComponentProps, ReactNode } from 'react'
 
+import type { LucideIcon } from '../../lib/icons.js'
 import { ScreenHead } from '../../views/usePlace.js'
 import { Row } from '../ui/row.js'
 import { cn } from '../ui/utils.js'
 
 export function Screen({
   title,
+  icon,
   description,
   actions,
   bleed = true,
   children,
 }: {
   readonly title: string
+  readonly icon?: LucideIcon
   readonly description?: ReactNode
   // At most one quiet control on the title's line.
   readonly actions?: ReactNode
@@ -26,6 +29,7 @@ export function Screen({
       <div className="pb-6">
         <ScreenHead
           title={title}
+          {...(icon === undefined ? {} : { icon })}
           {...(actions === undefined ? {} : { controls: actions })}
           {...(description === undefined ? {} : { fact: description })}
         />

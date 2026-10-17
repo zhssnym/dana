@@ -9,12 +9,12 @@ import { useCreateTask, usePatchBundle, usePullIntoMyDay } from '../api/mutation
 import { useBundle, useMe } from '../api/queries.js'
 import { presenterToday } from '../parts/presenters.js'
 import { PageCover } from '../components/page-cover.js'
-import { usePageHasCover } from '../components/page-head.js'
+import { CoverLine, usePageHasCover } from '../components/page-head.js'
 import { IconPicker } from '../components/page/IconPicker.js'
 import { Button } from '../components/ui/button.js'
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover.js'
 import { cn } from '../components/ui/utils.js'
-import { Image as ImageIcon } from '../lib/icons.js'
+import type { LucideIcon } from '../lib/icons.js'
 import { useWearFilterLabel } from '../api/labels.js'
 import { focusMark } from '../shell/focus-lists.js'
 import type { FocusMark } from '../shell/focus-lists.js'
@@ -147,28 +147,30 @@ export function usePlace(
  */
 export function ScreenHead({
   title,
+  icon: Icon,
   controls,
   fact,
 }: {
   readonly title: ReactNode
+  /** Drawn beside the title, as a page's mark. */
+  readonly icon?: LucideIcon
   readonly controls?: ReactNode
   readonly fact?: ReactNode
 }): React.JSX.Element {
   return (
     <header className="space-y-1 pt-2">
-      {/* Built like that line (a small button in a block), so its height matches. */}
-      <div aria-hidden="true" className="[@media(hover:none)]:hidden">
-        <Button variant="ghost" size="sm" tabIndex={-1} className="invisible">
-          <ImageIcon />
-          Add cover
-        </Button>
-      </div>
-      <div className="flex min-h-(--text-title-line) items-center justify-between gap-4">
-        <h1 data-page-title="" className="min-w-0 truncate text-(length:--text-title-size) leading-(--text-title-line) font-title text-foreground">
+      <CoverLine />
+      <div className="flex min-w-0 items-start gap-2">
+        {Icon === undefined ? null : (
+          <span className="mt-1 flex size-[var(--control-height)] shrink-0 items-center justify-center">
+            <Icon className="size-7" strokeWidth={1.5} aria-hidden="true" />
+          </span>
+        )}
+        <h1 data-page-title="" className="min-w-0 flex-1 truncate text-(length:--text-title-size) leading-(--text-title-line) font-title text-foreground">
           {title}
         </h1>
         {controls === undefined || controls === null ? null : (
-          <div className="flex shrink-0 items-center gap-2">{controls}</div>
+          <div className="mt-1 flex shrink-0 items-center gap-2">{controls}</div>
         )}
       </div>
       {fact === undefined ? null : <p className="text-sm text-muted-foreground">{fact}</p>}
@@ -243,13 +245,7 @@ export function PlaceHead({
           <PageCover storageName={coverStorageName} />
         </div>
       ) : (
-        // The same hidden "Add cover" line as a page head, so titles sit at one height.
-        <div aria-hidden="true" className="[@media(hover:none)]:hidden">
-          <Button variant="ghost" size="sm" tabIndex={-1} className="invisible">
-            <ImageIcon />
-            Add cover
-          </Button>
-        </div>
+        <CoverLine />
       )}
       <div className="flex min-w-0 items-start gap-2">
       {resolvedFocusKey === undefined ? (

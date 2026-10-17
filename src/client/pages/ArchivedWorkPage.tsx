@@ -8,7 +8,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
 import { Button } from '../components/ui/button.js'
 import { Input } from '../components/ui/input.js'
 import { Row, RowGroup } from '../components/ui/row.js'
-import { Box } from '../lib/icons.js'
+import { Archive, Box } from '../lib/icons.js'
 import { showToast } from '../state/toasts.js'
 
 export function ArchivedWorkPage(): React.JSX.Element {
@@ -21,7 +21,7 @@ export function ArchivedWorkPage(): React.JSX.Element {
     row.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
 
   return (
-    <Screen title="Archived work" description="Restore work to its previous place or delete it permanently.">
+    <Screen title="Archived work" icon={Archive} description="Restore work to its previous place or delete it permanently.">
       <div className="mb-4 max-w-sm">
         <Input
           type="search"

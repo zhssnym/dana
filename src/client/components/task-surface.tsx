@@ -1,6 +1,7 @@
 // A task's page: title with its state mark and "…" menu, then `TaskCard`. History opens
 // from the menu.
 
+import { CoverLine } from "./page-head.js"
 import { InlineTextarea } from "./ui/inline-field.js"
 import { useEffect, useRef, useState } from "react"
 
@@ -199,6 +200,8 @@ export function TaskView({
 
   return (
     <div className="flex flex-col gap-4 pt-2 pb-24">
+      {/* The cover line's height, so the title starts where a page title does. */}
+      <div className="-mb-3"><CoverLine /></div>
       <div className="flex min-w-0 items-start gap-2">
         <div className="min-w-0 flex-1">
           <Title
