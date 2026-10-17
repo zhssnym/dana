@@ -13,6 +13,7 @@ import { usePageHasCover } from '../components/page-head.js'
 import { IconPicker } from '../components/page/IconPicker.js'
 import { Button } from '../components/ui/button.js'
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover.js'
+import { cn } from '../components/ui/utils.js'
 import { Image as ImageIcon } from '../lib/icons.js'
 import { useWearFilterLabel } from '../api/labels.js'
 import { focusMark } from '../shell/focus-lists.js'
@@ -235,7 +236,8 @@ export function PlaceHead({
   )
 
   return (
-    <header className={hasCover ? 'group/head space-y-1 pt-0' : 'group/head space-y-1 pt-2'}>
+    // The rule stands where a page's tab strip starts, so a focus list reads like a page.
+    <header className={cn('group/head space-y-1 border-b border-border pb-4', hasCover ? 'pt-0' : 'pt-2')}>
       {hasCover ? (
         <div className="-mt-4 md:-mt-6">
           <PageCover storageName={coverStorageName} />
