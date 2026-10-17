@@ -67,8 +67,7 @@ function ViewerRow() {
       }
       className="min-h-12"
       label={<span className="font-title">{viewer.name}</span>}
-      // The name comes from Google and has no write, and the line says so.
-      description={`${viewer.email} · from Google`}
+      description={viewer.email}
       control={
         <>
           {isOwnPicture(viewer.image) ? (
@@ -188,29 +187,6 @@ export function SettingsPageContent({
             />
           </SettingsSection>
 
-          <SettingsSection title="About">
-            <div className="rounded-[var(--radius-card)] border border-border bg-card p-[var(--space-inline)]">
-              <p className="text-sm font-section text-foreground">Dana</p>
-              <p className="mt-[var(--space-inline)] text-sm text-foreground">
-                A place to plan, shape, and collaborate on work.
-              </p>
-              <p className="mt-[var(--space-inline)] text-xs text-muted-foreground">
-                Created by its co-founders. Operated by Wafa Graphics.
-              </p>
-              <div className="mt-[var(--space-inline)] flex flex-wrap gap-[var(--space-inline)] border-t border-border pt-[var(--space-inline)] text-xs">
-                <Link to={paths.privacy} className="text-muted-foreground underline underline-offset-2 hover:text-foreground">
-                  Privacy Policy
-                </Link>
-                <Link to={paths.terms} className="text-muted-foreground underline underline-offset-2 hover:text-foreground">
-                  Terms of Service
-                </Link>
-              </div>
-              <p className="mt-[var(--space-inline)] text-xs text-muted-foreground">
-                © 2026 Imranullah Wafa and Hassan Shahir. All rights reserved.
-              </p>
-            </div>
-          </SettingsSection>
-
           {/* Destructive, so last and in a card of its own. */}
           <SettingsSection aria-label="Delete account">
             <StackingRow
@@ -223,6 +199,12 @@ export function SettingsPageContent({
               }
             />
           </SettingsSection>
+
+          <p className="flex gap-[var(--space-inline)] px-2 text-xs text-muted-foreground">
+            <Link to={paths.privacy} className="hover:text-foreground">Privacy policy</Link>
+            <span aria-hidden="true">·</span>
+            <Link to={paths.terms} className="hover:text-foreground">Terms of service</Link>
+          </p>
 
         </>
       )}
