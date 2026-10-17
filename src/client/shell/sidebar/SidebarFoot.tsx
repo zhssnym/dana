@@ -3,7 +3,7 @@ import type { ReactElement } from 'react'
 import { Link } from 'react-router'
 import { Megaphone, Search, Settings, Trash2 } from '../../lib/icons.js'
 import { FeedbackDialog } from '../../components/feedback/FeedbackDialog.js'
-import { HelpUpdatesMenu } from '../../components/help/HelpUpdatesMenu.js'
+import { HelpMenu } from '../../components/help/HelpMenu.js'
 import { SidebarFooter, SidebarTrigger } from '../../components/ui/sidebar.js'
 import { NotificationsBell } from '../../components/notifications-bell.js'
 import { MessagesButton } from '../../components/direct-message/MessagesButton.js'
@@ -72,7 +72,7 @@ export function SidebarFoot({
           </FootTip>
           <NotificationsBell side="top" className={FOOT_BUTTON} />
           <MessagesButton className={FOOT_BUTTON} />
-          <HelpUpdatesMenu className={FOOT_BUTTON} onFeedback={() => setFeedbackOpen(true)} />
+          <HelpMenu className={FOOT_BUTTON} onFeedback={() => setFeedbackOpen(true)} />
           <FootTip label="Settings">
             <Link to={paths.settings} aria-label="Settings"
               aria-current={currentPath.startsWith(paths.settings) ? 'page' : undefined}

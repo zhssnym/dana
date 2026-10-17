@@ -265,14 +265,12 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --direct-message-layer: 65;
   --help-hero-title-size: 36px;
   --help-hero-title-line: 44px;
-  --help-nav-viewport-gap: 64px;
+  --help-header-height: 56px;
   --help-mobile-nav-height: 50dvh;
   --help-layout-width: 1200px;
   --help-article-width: 720px;
-  --help-nav-width: 232px;
-  --help-toc-width: 172px;
+  --help-nav-width: 288px;
   --help-search-width: 640px;
-  --help-suggestions-width: 256px;
   --content-list: clamp(720px, 60vw, 900px);
   --shell-content-max: var(--content-list);
   --calendar-month-cell-height: 104px;

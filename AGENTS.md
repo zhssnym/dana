@@ -35,8 +35,8 @@ npm run e2e                         # browser tests (Playwright)
 
 1. Make a branch from `main`. Open a pull request. The title is a Conventional Commit
    (`feat:`, `fix:`, `chore:`, `docs:`).
-2. Before you push, run `npm run gate` (about 30 seconds) and the tests for the
-   code you changed.
+2. Do not run tests while you edit. Run `npm run gate` and `npm test` one time, before
+   you open the pull request.
 3. CI runs lint, typecheck, build, all tests on Postgres and a browser smoke test, on
    GitHub-hosted runners.
 4. Merge with squash only when CI is green. **A merge to `main` deploys to production.**
@@ -94,6 +94,8 @@ These pass every test when they are wrong. Look for them in your diff.
 - Add a test only for security, data loss or a core path. Do not add a test for each
   change.
 - Do not pin counts (routes, files, rows). Do not assert server message text.
+- Do not test UI text, names, menus, layout or styles. The product changes often, and
+  these tests only slow the work. When such a test breaks, delete it.
 - Do not change a test only to make your code pass. Change it when the behaviour changes,
   and say so in the PR.
 - `tests/README.md` lists the tests that we keep.
