@@ -194,6 +194,12 @@ real. Re-run at most once.
   The checkout path contains a directory starting with a dot, such as .claude/worktrees/.
   Express's `res.sendFile()` refuses dot segments, so the SPA fallback 404s. Copy or clone the
   tree to a path with no dot directory, or rely on CI.
+- **Local browser runs fail with 500 on `POST /folders` or `POST /folders/:id/tabs`, and CI
+  passes.** The local PGlite database in `.data` was migrated on another branch, for example
+  `archive/one-page` with its own `0085_page_kind.sql`. The seed empties the tables but keeps
+  that schema, so a check such as `folders_kind_check` refuses `main`'s values. The server
+  log hides the database message. Move `.data` away (`mv .data .data-old`) and run again; the
+  server makes a new database with `main`'s migrations.
 - **Page crashes, tests failing at 0 ms, and timeouts that pass alone.** Two browser runs are
   sharing a port, both seeding and truncating one database. The port is `DANA_E2E_PORT`
   (default 3100). Give each parallel session its own port.
