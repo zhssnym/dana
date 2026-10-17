@@ -4,11 +4,11 @@ import Anthropic from '@anthropic-ai/sdk'
 
 import { checkArticles, currentArticles } from './check.mjs'
 import { impactedHelp } from './topics.mjs'
-import { missingHelpSecrets } from './readiness.mjs'
+import { helpModel, helpModelKey, missingHelpSecrets } from './readiness.mjs'
 import { hasHelpCheck, recordHelpCheck, openHelpIssue, openHelpPullRequest } from './github.mjs'
 
 const BASE = '235ff6b509ab5791319c3bfb953bc3550c43fa74'
-const MODEL = process.env.HELP_WRITER_MODEL || 'claude-opus-5-5'
+const MODEL = helpModel(process.env)
 const FORCE = process.env.HELP_FORCE === 'true'
 const PRODUCTION = 'https://dana.so/api/v1/build'
 const SHA = /^[a-f0-9]{40}$/
@@ -37,7 +37,11 @@ async function deployedCommit() {
 }
 
 async function completion(system, user) {
-  if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not configured')
+  if (!process.env[helpModelKey(process.env)]) throw new Error(helpModelKey(process.env) + ' is not configured')
+  return helpModelKey(process.env) === 'ANTHROPIC_API_KEY' ? claudeCompletion(system, user) : openaiCompletion(system, user)
+}
+
+async function claudeCompletion(system, user) {
   let response
   try {
     // "default" fallbacks re-run a safety-classifier decline on another model in the same call.
@@ -58,6 +62,28 @@ async function completion(system, user) {
   if (response.stop_reason !== 'end_turn') throw new Error('Documentation model stopped: ' + response.stop_reason)
   const text = response.content.filter((block) => block.type === 'text').map((block) => block.text).join('')
   return JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1))
+}
+
+async function openaiCompletion(system, user) {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + process.env.OPENAI_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: JSON.stringify(user) }],
+      response_format: { type: 'json_object' },
+      temperature: 0.1,
+      max_completion_tokens: 16000,
+    }),
+    signal: AbortSignal.timeout(90_000),
+  })
+  if (!response.ok) {
+    const code = await response.json().then((body) => body?.error?.code ?? body?.error?.type, () => undefined)
+    throw new Error('Documentation model returned HTTP ' + response.status + (typeof code === 'string' ? ' (' + code + ')' : ''))
+  }
+  const answer = (await response.json()).choices?.[0]?.message?.content
+  if (typeof answer !== 'string') throw new Error('Documentation model returned no JSON')
+  return JSON.parse(answer)
 }
 
 function currentFileAt(sha, path) {

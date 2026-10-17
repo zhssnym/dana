@@ -7,6 +7,7 @@ test('missing credentials are reported by name, never by value', () => {
   assert.deepEqual(missingHelpSecrets({}), ['ANTHROPIC_API_KEY', 'HELP_BOT_TOKEN'])
   assert.deepEqual(missingHelpSecrets({ ANTHROPIC_API_KEY: 'configured', HELP_BOT_TOKEN: 'configured' }), [])
   assert.deepEqual(missingHelpSecrets({ ANTHROPIC_API_KEY: '  ', HELP_BOT_TOKEN: 'configured' }), ['ANTHROPIC_API_KEY'])
+  assert.deepEqual(missingHelpSecrets({ HELP_WRITER_MODEL: 'gpt-4.1-mini', ANTHROPIC_API_KEY: 'configured', HELP_BOT_TOKEN: 'configured' }), ['OPENAI_API_KEY'])
 })
 
 test('previous secret-related audit errors are retryable after setup', () => {

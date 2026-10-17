@@ -68,8 +68,10 @@ review issue. Removing an old guide always needs human review.
 
 Create these repository Actions secrets:
 
-- ANTHROPIC_API_KEY: An Anthropic API key for the documentation model (Claude). The
-  workflow sends relevant source, test excerpts and existing help text to that model.
+- ANTHROPIC_API_KEY: An Anthropic API key for the documentation model (Claude). The key
+  must belong to a workspace. The workflow sends relevant source, test excerpts and
+  existing help text to that model.
+- OPENAI_API_KEY: Used only when HELP_WRITER_MODEL is not a claude-* model.
 - HELP_BOT_TOKEN: A fine-grained GitHub personal access token for this repository
   with Contents and Pull requests read/write. Use a dedicated bot account where
   possible. A PR created with this token triggers regular GitHub CI. A PR created
@@ -90,8 +92,9 @@ enabling unattended publication.
 
 Optional repository variables:
 
-- HELP_WRITER_MODEL: The Claude model used for drafting and verification. Defaults to
-  claude-opus-5-5. The model must accept the `fallbacks` request field.
+- HELP_WRITER_MODEL: The model used for drafting and verification. Defaults to
+  claude-opus-5-5. A claude-* model uses Anthropic and must accept the `fallbacks` request
+  field. Any other name, for example gpt-4.1-mini, uses OpenAI.
 - HELP_AUTOPUBLISH: Set to true **only after** a test-generated PR has passed
   verification and manual review. Its default is off. When enabled, a second
   workflow merges only a nondraft Help-bot PR whose latest head passed CI, whose

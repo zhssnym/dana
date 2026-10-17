@@ -1,6 +1,15 @@
 /** No secrets are logged: only the missing repository secret names. */
+export function helpModel(env) {
+  return env.HELP_WRITER_MODEL || 'claude-opus-5-5'
+}
+
+/** A claude-* model uses Anthropic; any other model name uses OpenAI. */
+export function helpModelKey(env) {
+  return helpModel(env).startsWith('claude') ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'
+}
+
 export function missingHelpSecrets(env) {
-  return ['ANTHROPIC_API_KEY', 'HELP_BOT_TOKEN'].filter((name) => (
+  return [helpModelKey(env), 'HELP_BOT_TOKEN'].filter((name) => (
     typeof env[name] !== 'string' || env[name].trim().length === 0
   ))
 }
