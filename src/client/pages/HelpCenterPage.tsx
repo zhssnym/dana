@@ -60,6 +60,11 @@ function SearchField({ query, onQuery }: {
 }
 
 function HelpShell({ children }: { readonly children: ReactNode }): React.JSX.Element {
+  // Keep the scrollbar space when a short page has no scrollbar, so the layout does not shift.
+  useEffect(() => {
+    document.documentElement.style.scrollbarGutter = 'stable'
+    return () => { document.documentElement.style.scrollbarGutter = '' }
+  }, [])
   return (
     <div className="min-h-svh bg-background text-foreground">
       <header className="sticky top-0 z-10 h-(--help-header-height) border-b border-border bg-background">
