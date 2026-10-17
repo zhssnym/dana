@@ -2,15 +2,7 @@
 // the publishing input for future documentation automation (#678).
 const sources = import.meta.glob('./articles/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 
-export const HELP_SECTIONS = [
-  'Getting started',
-  'Tasks and planning',
-  'Pages and writing',
-  'Collaboration',
-  'Navigation',
-  'Account and settings',
-  'Troubleshooting',
-] as const
+export const HELP_SECTIONS = ['Basics', 'Collaboration', 'Reference'] as const
 
 export type HelpSection = typeof HELP_SECTIONS[number]
 
@@ -47,11 +39,35 @@ function parseArticle(path: string, raw: string): HelpArticle {
   }
 }
 
+// Reading order inside a section. A new article goes last until it is placed here.
+const ORDER = ['how-dana-works', 'tasks-and-dates', 'views', 'writing', 'find-and-shortcuts', 'account-and-data']
+const order = (slug: string): number => ORDER.indexOf(slug) + 1 || ORDER.length + 1
+
 export const helpArticles: readonly HelpArticle[] = Object.entries(sources)
   .map(([path, raw]) => parseArticle(path, raw))
-  .sort((a, b) => a.title.localeCompare(b.title))
+  .sort((a, b) => HELP_SECTIONS.indexOf(a.section) - HELP_SECTIONS.indexOf(b.section) || order(a.slug) - order(b.slug))
 
 export const helpBySlug = new Map(helpArticles.map((article) => [article.slug, article]))
+
+// Old article links stay valid after the 16 guides were merged into concept pages.
+export const MOVED_HELP: Readonly<Record<string, string>> = {
+  'getting-started': 'how-dana-works',
+  'desk-and-pages': 'how-dana-works',
+  'create-and-complete-tasks': 'tasks-and-dates',
+  'schedule-a-task': 'tasks-and-dates',
+  'today-and-upcoming': 'tasks-and-dates',
+  'work-views': 'views',
+  'writing-and-blocks': 'writing',
+  'collaborate-on-work': 'working-together',
+  'teammate-profiles': 'working-together',
+  'discussions-and-messages': 'working-together',
+  'find-work': 'find-and-shortcuts',
+  'keyboard-shortcuts': 'find-and-shortcuts',
+  'account-and-preferences': 'account-and-data',
+  'archived-work': 'account-and-data',
+  'common-questions': 'account-and-data',
+  feedback: 'account-and-data',
+}
 
 // A local index avoids a public database and never sends a visitor's query to the API.
 export function findHelp(query: string): HelpArticle[] {

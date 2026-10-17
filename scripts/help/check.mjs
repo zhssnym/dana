@@ -4,10 +4,7 @@ import { join, resolve } from 'node:path'
 import { TOPICS } from './topics.mjs'
 
 const ARTICLES = fileURLToPath(new URL('../../src/client/help/articles/', import.meta.url))
-const CATEGORIES = new Set([
-  'Getting started', 'Tasks and planning', 'Pages and writing',
-  'Collaboration', 'Navigation', 'Account and settings', 'Troubleshooting',
-])
+const CATEGORIES = new Set(['Basics', 'Collaboration', 'Reference'])
 const SLOP = /\b(seamless(?:ly)?|effortless(?:ly)?|game.changing|empower(?:s|ing)?|unlock (?:the |your )?(?:power|potential)|revolutionary)\b/i
 
 export function parseHelp(file, content) {
