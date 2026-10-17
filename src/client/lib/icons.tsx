@@ -209,6 +209,11 @@ export const ChevronLeft = icon(Lu.ChevronLeft, Anim.ChevronLeftIcon)
 export const ChevronRight = icon(Lu.ChevronRight, Anim.ChevronRightIcon)
 export const CircleAlert = icon(Lu.CircleAlert, null)
 export const CircleHelp = icon(Lu.CircleHelp, null)
+// Lucide has no bare "?": these are the strokes of circle-help without the circle.
+export const QuestionMark = icon(Lu.createLucideIcon('question-mark', [
+  ['path', { d: 'M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3', key: 'mark' }],
+  ['path', { d: 'M12 17h.01', key: 'dot' }],
+]), null)
 export const Info = icon(Lu.Info, null)
 export const Copy = icon(Lu.Copy, Anim.CopyIcon)
 // The animated `ImageIcon` draws a different picture, so this one is plain.
