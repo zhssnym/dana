@@ -15,7 +15,7 @@ A page shows its content in **Facets**, the tabs at the top of the page. A Work 
 
 ## Tasks
 
-A task is work that someone can finish. It can have assignees, a Start Date, a Due Date, and its own notes. A checklist in your writing is only text. Use a task when the work must be assigned, scheduled, or completed. See [Tasks and dates](/help/tasks-and-dates).
+A task is work that someone can finish. It can have assignees, a Start Date, a Due Date, and its own notes. A checklist in your writing is only text. Use a task when the work must be assigned, scheduled, or completed. See [Tasks](/help/tasks-and-dates).
 
 ## Your Desk and shared work
 

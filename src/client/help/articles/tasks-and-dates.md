@@ -1,5 +1,5 @@
 ---
-title: Tasks and dates
+title: Tasks
 summary: How tasks, Start and Due dates, and the Today, Upcoming, and Assigned lists work.
 related:
 ---
