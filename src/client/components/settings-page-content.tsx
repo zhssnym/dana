@@ -200,12 +200,6 @@ export function SettingsPageContent({
             />
           </SettingsSection>
 
-          <p className="flex gap-[var(--space-inline)] px-2 text-xs text-muted-foreground">
-            <Link to={paths.privacy} className="hover:text-foreground">Privacy policy</Link>
-            <span aria-hidden="true">·</span>
-            <Link to={paths.terms} className="hover:text-foreground">Terms of service</Link>
-          </p>
-
         </>
       )}
 
