@@ -1,5 +1,5 @@
 ---
-title: Search and shortcuts
+title: Navigation
 summary: Search, the Library, breadcrumbs, and the keyboard shortcuts that make Dana fast.
 related:
 ---
