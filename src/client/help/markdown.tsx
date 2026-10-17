@@ -64,9 +64,9 @@ function ShortcutReference(): React.JSX.Element {
   )
 }
 
-export type HelpHeading = { readonly id: string; readonly title: string; readonly level: 2 | 3 }
+type HelpHeading = { readonly id: string; readonly title: string; readonly level: 2 | 3 }
 
-export function helpHeadings(body: string): HelpHeading[] {
+function helpHeadings(body: string): HelpHeading[] {
   const used = new Map<string, number>()
   const headings: HelpHeading[] = []
   for (const line of body.split(/\r?\n/)) {

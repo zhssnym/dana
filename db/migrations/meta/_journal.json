@@ -568,6 +568,13 @@
       "when": 1797200000000,
       "tag": "0097_synced_blocks",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1797300000000,
+      "tag": "0098_drop_dead_schema",
+      "breakpoints": true
     }
   ]
 }
