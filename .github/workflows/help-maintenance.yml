@@ -39,12 +39,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
       - name: Check help sources and article links
         run: npm run help:check
       - name: Inspect deployed changes and propose documentation
         run: node scripts/help/run.mjs
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           HELP_BOT_TOKEN: ${{ secrets.HELP_BOT_TOKEN }}
           HELP_WRITER_MODEL: ${{ vars.HELP_WRITER_MODEL }}
