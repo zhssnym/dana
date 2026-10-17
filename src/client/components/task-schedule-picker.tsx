@@ -11,7 +11,7 @@ import {
 
 import { useUpdateTask } from "../api/mutations.js"
 import { todayInBrowserZone } from "../api/tz.js"
-import { Ban, ChevronLeft, ChevronRight } from "../lib/icons.js"
+import { ChevronLeft, ChevronRight, X } from "../lib/icons.js"
 import { formatDate, weekdayName, MONTHS_FULL } from "../lib/dates.js"
 import { formatTime, useTimeFormat } from "../lib/time-format.js"
 import {
@@ -26,7 +26,7 @@ import {
   type ConceptTask,
 } from "../tasks/task-model.js"
 import { CLEAR_DATE_WARNING } from "./task-copy.js"
-import { PickerDivider, PickerOption, TimeField } from "./task-pickers.js"
+import { PickerDivider, TimeField } from "./task-pickers.js"
 import { ConfirmDialog } from "./ui/ConfirmDialog.js"
 import { cn } from "./ui/utils.js"
 
@@ -80,6 +80,7 @@ function EndpointButton({
   time,
   disabled = false,
   onSelect,
+  onClear,
 }: {
   endpoint: ScheduleEndpoint
   active: boolean
@@ -87,35 +88,43 @@ function EndpointButton({
   time: string | null
   disabled?: boolean
   onSelect: () => void
+  onClear: () => void
 }) {
   const format = useTimeFormat()
-  const timeText =
-    date === null
-      ? "Optional time"
-      : time === null
-        ? "Date only"
-        : (formatTime(time, format) ?? time)
   const name = endpoint === "start" ? "Start" : "Due"
+  const timeText = date === null || time === null ? "" : ", " + (formatTime(time, format) ?? time)
   return (
-    <button
-      type="button"
-      aria-pressed={active}
-      disabled={disabled}
-      onClick={onSelect}
-      className={cn(
-        "min-w-0 rounded-md border px-2 py-1.5 text-left transition-[background-color,border-color,color] duration-[var(--duration-fast)]",
-        active
-          ? "border-primary/40 bg-primary/10 text-foreground"
-          : "border-border bg-card text-foreground hover:bg-accent",
-        disabled && "cursor-not-allowed opacity-40",
-      )}
-    >
-      <span className="block text-[11px] font-medium text-muted-foreground">{name}</span>
-      <span className="block truncate text-sm font-medium">{endpointDateText(date)}</span>
-      <span className="block truncate text-[11px] tabular-nums text-muted-foreground">
-        {timeText}
-      </span>
-    </button>
+    <div className="relative min-w-0">
+      <button
+        type="button"
+        aria-pressed={active}
+        disabled={disabled}
+        onClick={onSelect}
+        className={cn(
+          "w-full min-w-0 rounded-md border px-2 py-1.5 text-left transition-[background-color,border-color,color] duration-[var(--duration-fast)]",
+          date !== null && "pr-7",
+          active
+            ? "border-primary/40 bg-primary/10 text-foreground"
+            : "border-border bg-card text-foreground hover:bg-accent",
+          disabled && "cursor-not-allowed opacity-40",
+        )}
+      >
+        <span className="block text-[11px] font-medium text-muted-foreground">{name}</span>
+        <span className={cn("block truncate text-sm tabular-nums", date === null ? "text-muted-foreground" : "font-medium")}>
+          {endpointDateText(date)}{timeText}
+        </span>
+      </button>
+      {date !== null && !disabled ? (
+        <button
+          type="button"
+          aria-label={"Clear " + name}
+          onClick={onClear}
+          className="absolute right-1 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent hover:text-foreground"
+        >
+          <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+        </button>
+      ) : null}
+    </div>
   )
 }
 
@@ -594,6 +603,7 @@ export function SchedulePanel({
             setRefused(null)
             setEndpoint("start")
           }}
+          onClear={clearStart}
         />
         <span aria-hidden="true" className="text-center text-sm text-muted-foreground">→</span>
         <EndpointButton
@@ -605,6 +615,7 @@ export function SchedulePanel({
             setRefused(null)
             setEndpoint("due")
           }}
+          onClear={() => (cascades ? setConfirming(true) : clearDue())}
         />
       </div>
 
@@ -613,23 +624,6 @@ export function SchedulePanel({
           {refused}
         </p>
       )}
-
-      <div className="flex flex-col">
-        <PickerOption
-          icon={Ban}
-          label={selectedKey === null ? `No ${endpoint === "start" ? "Start" : "Due"}` : `Clear ${endpoint === "start" ? "Start" : "Due"}`}
-          active={selectedKey === null}
-          onSelect={() => {
-            if (endpoint === "start") {
-              clearStart()
-              return
-            }
-            if (dueKey === null) return
-            if (cascades) setConfirming(true)
-            else clearDue()
-          }}
-        />
-      </div>
 
       {confirming ? (
         <ConfirmDialog
