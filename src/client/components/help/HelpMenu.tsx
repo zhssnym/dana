@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { BookOpen, CircleHelp, Keyboard } from '../../lib/icons.js'
+import { ArrowUpRight, BookOpen, CircleHelp, Keyboard } from '../../lib/icons.js'
 import { paths } from '../../routes.js'
 import { openShortcuts } from '../../shell/overlays.js'
 import {
@@ -39,12 +39,12 @@ export function HelpMenu({ className }: { readonly className: string }): React.J
           className={ROW + ' ' + EXTERNAL_LINK}>
           <BookOpen className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
           <span className="min-w-0 flex-1">Help center</span>
+          <ArrowUpRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         </a>
         <button type="button" onClick={() => { setOpen(false); openShortcuts() }}
           className={ROW + ' w-full text-left ' + EXTERNAL_LINK}>
           <Keyboard className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
           <span className="min-w-0 flex-1">Keyboard shortcuts</span>
-          <kbd className="font-sans text-xs text-muted-foreground">?</kbd>
         </button>
       </PopoverContent>
     </Popover>
