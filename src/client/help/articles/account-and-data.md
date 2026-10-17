@@ -1,7 +1,6 @@
 ---
 title: Account and data
 summary: Settings, Archive and Trash, data export, app updates, and how to report a problem.
-section: Reference
 related:
 ---
 Open **Settings** from the sidebar. Dana uses your Google account to sign in, and **Sign out** is in Settings.

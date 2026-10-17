@@ -103,9 +103,9 @@ function verifyDraft(output, impact, evidence) {
     if (original === change.markdown) continue
     if (original) {
       if (!impact.slugs.includes(slug)) articlesMapped = false
-      const before = original.match(/^(title|section):[^\n]+/gm)?.join('\n')
-      const after = change.markdown.match(/^(title|section):[^\n]+/gm)?.join('\n')
-      if (before !== after) throw new Error('Model changed an existing article title or category')
+      const before = original.match(/^title:[^\n]+/gm)?.join('\n')
+      const after = change.markdown.match(/^title:[^\n]+/gm)?.join('\n')
+      if (before !== after) throw new Error('Model changed an existing article title')
       // Large rewrites must receive review rather than silently replacing good prose.
       const oldLines = original.split('\n')
       const newLines = change.markdown.split('\n')
@@ -146,7 +146,7 @@ const WRITE_RULES = [
   'Output JSON with decision (change, no_change, needs_review), reason and articles array.',
   'An article change has slug, markdown (the complete Markdown article), and evidence [{path,quote}].',
   'Every evidence quote must occur verbatim in the provided current source or test excerpts.',
-  'Keep existing slug, title, section, stable links, relevant steps, and unrelated paragraphs unchanged.',
+  'Keep existing slug, title, stable links, relevant steps, and unrelated paragraphs unchanged.',
   'Edit only what changed. Existing articles should be updated rather than duplicated.',
   'You may propose a new article for a genuinely new feature. Never delete or retire an article automatically.',
   'Write plain, specific, user-facing text with exact interface names. No promotional claims or filler.',

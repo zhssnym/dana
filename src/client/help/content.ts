@@ -2,15 +2,10 @@
 // the publishing input for future documentation automation (#678).
 const sources = import.meta.glob('./articles/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 
-export const HELP_SECTIONS = ['Basics', 'Collaboration', 'Reference'] as const
-
-export type HelpSection = typeof HELP_SECTIONS[number]
-
 export interface HelpArticle {
   readonly slug: string
   readonly title: string
   readonly summary: string
-  readonly section: HelpSection
   readonly body: string
   readonly related: readonly string[]
 }
@@ -25,27 +20,25 @@ function parseArticle(path: string, raw: string): HelpArticle {
   }
   const title = fields.get('title')
   const summary = fields.get('summary')
-  const section = fields.get('section')
-  if (!title || !summary || !HELP_SECTIONS.some((name) => name === section)) {
+  if (!title || !summary) {
     throw new Error('Invalid help article metadata: ' + path)
   }
   return {
     slug: path.split('/').at(-1)!.replace(/\.md$/, ''),
     title,
     summary,
-    section: section as HelpSection,
     body: raw.slice(frontmatter[0].length).trim(),
     related: (fields.get('related') ?? '').split(',').map((slug) => slug.trim()).filter(Boolean),
   }
 }
 
-// Reading order inside a section. A new article goes last until it is placed here.
-const ORDER = ['how-dana-works', 'tasks-and-dates', 'views', 'writing', 'find-and-shortcuts', 'account-and-data']
+// Reading order. A new article goes last until it is placed here.
+const ORDER = ['how-dana-works', 'tasks-and-dates', 'views', 'writing', 'working-together', 'find-and-shortcuts', 'account-and-data']
 const order = (slug: string): number => ORDER.indexOf(slug) + 1 || ORDER.length + 1
 
 export const helpArticles: readonly HelpArticle[] = Object.entries(sources)
   .map(([path, raw]) => parseArticle(path, raw))
-  .sort((a, b) => HELP_SECTIONS.indexOf(a.section) - HELP_SECTIONS.indexOf(b.section) || order(a.slug) - order(b.slug))
+  .sort((a, b) => order(a.slug) - order(b.slug) || a.title.localeCompare(b.title))
 
 export const helpBySlug = new Map(helpArticles.map((article) => [article.slug, article]))
 
@@ -75,7 +68,7 @@ export function findHelp(query: string): HelpArticle[] {
   if (terms.length === 0) return helpArticles.slice()
   return helpArticles
     .filter((article) => {
-      const haystack = (article.title + ' ' + article.summary + ' ' + article.section + ' ' + article.body)
+      const haystack = (article.title + ' ' + article.summary + ' ' + article.body)
         .toLocaleLowerCase()
       return terms.every((term) => haystack.includes(term))
     })

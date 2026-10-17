@@ -1,7 +1,6 @@
 ---
 title: Tasks and dates
 summary: How tasks, Start and Due dates, and the Today, Upcoming, and Assigned lists work.
-section: Basics
 related:
 ---
 A task is a unit of work with an owner and, if you want, a schedule. Dates are optional: a task can have a **Start Date**, a **Due Date**, both, or neither.

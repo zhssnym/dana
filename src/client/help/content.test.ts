@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { findHelp, HELP_SECTIONS, helpArticles, helpBySlug } from './content.js'
+import { findHelp, helpArticles, helpBySlug } from './content.js'
 import { helpHeadings } from './markdown.js'
 
 describe('public help articles', () => {
@@ -19,7 +19,6 @@ describe('public help articles', () => {
     for (const article of helpArticles) {
       expect(article.title.length).toBeGreaterThan(5)
       expect(article.summary.length).toBeGreaterThan(12)
-      expect(HELP_SECTIONS).toContain(article.section)
       expect(article.body.length).toBeGreaterThan(40)
       for (const related of article.related) {
         expect(helpBySlug.has(related), article.slug + ' references ' + related).toBe(true)

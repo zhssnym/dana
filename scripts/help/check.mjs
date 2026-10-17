@@ -4,7 +4,6 @@ import { join, resolve } from 'node:path'
 import { TOPICS } from './topics.mjs'
 
 const ARTICLES = fileURLToPath(new URL('../../src/client/help/articles/', import.meta.url))
-const CATEGORIES = new Set(['Basics', 'Collaboration', 'Reference'])
 const SLOP = /\b(seamless(?:ly)?|effortless(?:ly)?|game.changing|empower(?:s|ing)?|unlock (?:the |your )?(?:power|potential)|revolutionary)\b/i
 
 export function parseHelp(file, content) {
@@ -15,15 +14,14 @@ export function parseHelp(file, content) {
     const index = row.indexOf(':')
     if (index < 1) throw new Error(file + ': invalid frontmatter row')
     const key = row.slice(0, index).trim()
-    if (!['title', 'summary', 'section', 'related'].includes(key) || meta.has(key)) throw new Error(file + ': invalid/duplicate key ' + key)
+    if (!['title', 'summary', 'related'].includes(key) || meta.has(key)) throw new Error(file + ': invalid/duplicate key ' + key)
     meta.set(key, row.slice(index + 1).trim())
   }
   const title = meta.get('title')
   const summary = meta.get('summary')
-  const section = meta.get('section')
   const body = content.slice(front[0].length).trim()
-  if (!title || title.length > 90 || !summary || summary.length > 190 || !CATEGORIES.has(section)) {
-    throw new Error(file + ': invalid title, summary or section')
+  if (!title || title.length > 90 || !summary || summary.length > 190) {
+    throw new Error(file + ': invalid title or summary')
   }
   if (body.length < 60 || content.length > 12_000) throw new Error(file + ': article body is empty or too long')
   if (SLOP.test(content)) throw new Error(file + ': marketing filler is not allowed')
@@ -31,7 +29,7 @@ export function parseHelp(file, content) {
   if (/!\[[^\]]*\]\(/.test(body)) throw new Error(file + ': image Markdown is not supported')
   if (/\]\((?!\/help\/|https:\/\/)[^)]+\)/.test(body)) throw new Error(file + ': unsupported link URL')
   return {
-    title, summary, section, body,
+    title, summary, body,
     related: (meta.get('related') ?? '').split(',').map((part) => part.trim()).filter(Boolean),
     links: [...body.matchAll(/\]\(\/help\/([a-z]+(?:-[a-z]+)*)\)/g)].map((m) => m[1]),
   }

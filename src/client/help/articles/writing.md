@@ -1,7 +1,6 @@
 ---
 title: Writing
 summary: Write beside your work, see which pages point to a page, and keep one block the same on many pages.
-section: Basics
 related:
 ---
 Every Work and Doc Facet is also a place to write. Keep the context, notes, and decisions next to the tasks they explain.

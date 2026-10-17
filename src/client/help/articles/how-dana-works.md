@@ -1,7 +1,6 @@
 ---
 title: How Dana works
 summary: The few ideas behind Dana, and how pages, Facets, tasks, and your Desk fit together.
-section: Basics
 related:
 ---
 Dana keeps tasks and writing together, beside the work they belong to. Four ideas cover most of the app.

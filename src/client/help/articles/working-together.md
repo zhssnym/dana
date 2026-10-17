@@ -1,7 +1,6 @@
 ---
 title: Working together
 summary: Invite people, control what they can do, and talk about the work.
-section: Collaboration
 related:
 ---
 Shared work lives in a shared work area. Everyone you invite can read its pages, and their access level controls what they can change. Your Desk stays private.

@@ -3,11 +3,10 @@
 The public /help routes read Markdown articles from articles/. They are separate from
 the internal docs/ developer rules, architecture and troubleshooting.
 
-Each article starts with four frontmatter fields:
+Each article starts with three frontmatter fields:
 
 - title: The concept, in Dana's current terminology.
 - summary: One sentence about what the reader will learn.
-- section: One value from HELP_SECTIONS in content.ts.
 - related: Optional comma-separated slugs of existing articles.
 
 Stable URLs use the filename as the slug. Rename or remove a slug only with an entry in

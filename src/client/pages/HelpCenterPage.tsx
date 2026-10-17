@@ -2,14 +2,12 @@ import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router'
 
-import { findHelp, helpArticles, helpBySlug, HELP_SECTIONS, MOVED_HELP } from '../help/content.js'
-import type { HelpSection } from '../help/content.js'
+import { findHelp, helpArticles, helpBySlug, MOVED_HELP } from '../help/content.js'
 import { HelpMarkdown } from '../help/markdown.js'
 import {
   ArrowRight,
   ArrowUpRight,
   ChevronDown,
-  ChevronRight,
   CalendarDays,
   Compass,
   FileText,
@@ -33,8 +31,6 @@ const ARTICLE_ICONS: Readonly<Record<string, LucideIcon>> = {
   'find-and-shortcuts': Search,
   'account-and-data': Settings,
 }
-
-const articlesIn = (section: HelpSection) => helpArticles.filter((article) => article.section === section)
 
 function SearchField({ query, onQuery }: {
   readonly query: string
@@ -142,26 +138,21 @@ function HelpHome(): React.JSX.Element {
 
 function ArticleNavigation({ current }: { readonly current: string }): React.JSX.Element {
   return (
-    <nav aria-label="Help articles" className="space-y-5">
-      {HELP_SECTIONS.map((section) => (
-        <section key={section}>
-          <h2 className="px-2 pb-1 text-xs font-section text-muted-foreground">{section}</h2>
-          <ul>
-            {articlesIn(section).map((article) => (
-              <li key={article.slug}>
-                <Link
-                  to={paths.helpArticle(article.slug)}
-                  aria-current={article.slug === current ? 'page' : undefined}
-                  className={'block truncate rounded-md px-2 py-1 text-sm transition-colors ' +
-                    (article.slug === current ? 'bg-selected font-section text-foreground' : 'text-muted-foreground hover:bg-hover hover:text-foreground')}
-                >
-                  {article.title}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+    <nav aria-label="Help articles">
+      <ul>
+        {helpArticles.map((article) => (
+          <li key={article.slug}>
+            <Link
+              to={paths.helpArticle(article.slug)}
+              aria-current={article.slug === current ? 'page' : undefined}
+              className={'block truncate rounded-md px-2 py-1.5 text-sm transition-colors ' +
+                (article.slug === current ? 'bg-selected font-section text-foreground' : 'text-muted-foreground hover:bg-hover hover:text-foreground')}
+            >
+              {article.title}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </nav>
   )
 }
@@ -202,11 +193,6 @@ function HelpArticleView({ slug }: { readonly slug: string }): React.JSX.Element
           </div>
         </details>
         <article className="max-w-[var(--help-article-width)] pt-8 lg:pt-10">
-          <nav aria-label="Breadcrumb" className="mb-5 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Link to={paths.help} className="hover:text-foreground">Help</Link>
-            <ChevronRight className="size-3.5" aria-hidden="true" />
-            <span>{article.section}</span>
-          </nav>
           <h1 className="font-title text-[length:var(--text-title-size)] leading-[var(--text-title-line)]">{article.title}</h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">{article.summary}</p>
           <div className="pt-4"><HelpMarkdown body={article.body} /></div>
