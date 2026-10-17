@@ -7,6 +7,6 @@ Press **Ctrl+K** on Windows and Linux, or **⌘K** on Mac, to search the tasks a
 
 ## Shortcuts
 
-Press **?** when you are not typing to see this list in Dana. **Mod** means Ctrl on Windows and Linux, and ⌘ on Mac. Some shortcuts work only outside a text field or inside a task.
+Press **?** when you are not typing, or select **Keyboard shortcuts** in the **Help** menu, to see this list in Dana. **Mod** means Ctrl on Windows and Linux, and ⌘ on Mac. Some shortcuts work only outside a text field or inside a task.
 
 [[shortcuts]]
