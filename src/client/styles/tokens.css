@@ -239,6 +239,8 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --space-inline: 8px;
   --space-row: 2px;
   --space-group: 24px;
+  --settings-section-gap: 40px;
+  --settings-row-padding: 12px;
   --shell-sidebar-row-height: 28px;
   --shell-sidebar-width: 240px;
   --checkbox-size: 16px;

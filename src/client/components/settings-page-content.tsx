@@ -120,6 +120,7 @@ export function SettingsPageContent({
           <SettingsSection title="Preferences">
             <StackingRow
               label="Theme"
+              description="Light, dark, or the same as your device"
               control={
                 <Choice
                   label="Theme"
@@ -137,6 +138,7 @@ export function SettingsPageContent({
             />
             <StackingRow
               label="Default Work view"
+              description="The view a Work page opens in"
               control={
                 <Choice
                   label="Default Work view"
@@ -153,9 +155,10 @@ export function SettingsPageContent({
                 />
               }
             />
-            <StackingRow label="Timezone" control={<TimezoneSelect />} />
+            <StackingRow label="Timezone" description="Used for Today, due dates and reminders" control={<TimezoneSelect />} />
             <StackingRow
               label="Clock"
+              description="How times are written"
               control={
                 <Choice
                   label="Clock"

@@ -2,7 +2,7 @@
 import type { ComponentProps, ReactNode } from 'react'
 
 import { ScreenHead } from '../../views/usePlace.js'
-import { Row, RowGroup } from '../ui/row.js'
+import { Row } from '../ui/row.js'
 import { cn } from '../ui/utils.js'
 
 export function Screen({
@@ -35,8 +35,8 @@ export function Screen({
   )
 }
 
-// Headings and whitespace group settings; only the untitled destructive tail gets
-// a divider.
+// A titled section with a rule under its heading, as in Notion's settings. The untitled
+// destructive tail gets only the rule.
 export function SettingsSection({
   title,
   className,
@@ -44,26 +44,27 @@ export function SettingsSection({
   ...props
 }: Omit<ComponentProps<'section'>, 'title'> & { readonly title?: string }): React.JSX.Element {
   return (
-    <RowGroup
-      title={title}
-      divider={title === undefined}
+    <section
       aria-label={title}
-      className={cn(title === undefined && 'pt-1', className)}
+      className={cn('flex flex-col [&+&]:mt-(--settings-section-gap)', className)}
       {...props}
     >
-      {children}
-    </RowGroup>
+      <div className="mx-2 border-b border-border pb-3">
+        {title === undefined ? null : <h2 className="text-base font-section text-foreground">{title}</h2>}
+      </div>
+      <div className="flex flex-col pt-1">{children}</div>
+    </section>
   )
 }
 
-// Compact, aligned with the section heading. On a phone the control stays on the
-// label's line and the description wraps.
+// A label with a one-line description and the control at the right. On a phone the
+// control stays on the label's line and the description wraps.
 export function StackingRow({ className, label, ...props }: ComponentProps<typeof Row>): React.JSX.Element {
   return (
     <Row
-      label={label}
+      label={<span className="font-section">{label}</span>}
       className={cn(
-        'min-h-9 gap-4 py-1 max-sm:gap-3',
+        'gap-4 py-(--settings-row-padding) max-sm:gap-3',
         className,
       )}
       {...props}
