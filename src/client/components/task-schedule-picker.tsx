@@ -15,13 +15,10 @@ import { Ban, ChevronLeft, ChevronRight } from "../lib/icons.js"
 import { formatDate, weekdayName, MONTHS_FULL } from "../lib/dates.js"
 import { formatTime, useTimeFormat } from "../lib/time-format.js"
 import {
-  DAY_SHORT,
-  addDays,
   clockOfMinutes,
   dueLabelFor,
   isoDay,
   minutesOfClock,
-  nextWeekday,
   parseDueLabel,
   parseIsoDate,
   reminderWords,
@@ -70,16 +67,6 @@ export function scheduleOrderError(
     return START_TIME_AFTER_DUE_TIME
   }
   return null
-}
-
-function nextWeekAfter(from: Date): Date {
-  const monday = nextWeekday(from, 1)
-  const tomorrow = addDays(from, 1)
-  return isoDay(monday) === isoDay(tomorrow) ? addDays(monday, 7) : monday
-}
-
-function presetHint(date: Date): string {
-  return `${DAY_SHORT[date.getDay()] ?? ""} ${formatDate(isoDay(date), todayInBrowserZone())}`
 }
 
 function endpointDateText(day: string | null): string {
@@ -591,15 +578,6 @@ export function SchedulePanel({
     })
   }
 
-  const saturday = nextWeekday(today(), 6)
-  const presets = [
-    { label: "Today", date: today() },
-    { label: "Tomorrow", date: addDays(today(), 1) },
-    ...(today().getDay() >= 1 && today().getDay() <= 4
-      ? [{ label: "This weekend", date: saturday }]
-      : []),
-    { label: "Next week", date: nextWeekAfter(today()) },
-  ]
   const cascades = Boolean(task.recurrence) || Boolean(task.reminder)
 
   return (
@@ -636,20 +614,7 @@ export function SchedulePanel({
         </p>
       )}
 
-      <div
-        role="group"
-        aria-label={`${endpoint === "start" ? "Start" : "Due"} date shortcuts`}
-        className="flex flex-col"
-      >
-        {presets.map((preset) => (
-          <PickerOption
-            key={preset.label}
-            label={preset.label}
-            hint={presetHint(preset.date)}
-            active={selectedKey === isoDay(preset.date)}
-            onSelect={() => commitDate(endpoint, preset.date)}
-          />
-        ))}
+      <div className="flex flex-col">
         <PickerOption
           icon={Ban}
           label={selectedKey === null ? `No ${endpoint === "start" ? "Start" : "Due"}` : `Clear ${endpoint === "start" ? "Start" : "Due"}`}
