@@ -62,7 +62,7 @@ export function FeedbackDialog({ open, onOpenChange }: {
         className={cn(
           large
             ? 'w-[min(1100px,calc(100vw-32px))] [&_.dana-post-editor]:min-h-[55vh] [&_.dana-post-editor]:max-h-[65vh]'
-            : 'w-[min(640px,calc(100vw-32px))]',
+            : 'w-[min(640px,calc(100vw-32px))] [&_.dana-post-editor]:min-h-40',
         )}
       >
         <DialogHeader>
@@ -95,7 +95,7 @@ export function FeedbackDialog({ open, onOpenChange }: {
           </div>
         ) : (
           <div className="mt-4 flex flex-col gap-3">
-            <Suspense fallback={<div className="min-h-24 rounded-lg border border-border" />}>
+            <Suspense fallback={<div className="min-h-40 rounded-lg border border-border" />}>
               <PostEditor
                 folderId={null}
                 autoFocus
