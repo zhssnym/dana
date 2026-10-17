@@ -22,7 +22,7 @@ test('direct and moved help article links resolve without an account', async ({ 
 
 test('topics link to guides, and the sidebar marks the open guide', async ({ page }) => {
   await page.goto('/help')
-  await page.getByRole('link', { name: /^Tasksb/ }).click()
+  await page.getByRole('link', { name: /^Tasks How/ }).click()
   const nav = page.getByRole('navigation', { name: 'Help articles' })
   await expect(page).toHaveURL(/\/help\/tasks-and-dates/)
   await expect(page.getByRole('heading', { name: 'Tasks', exact: true, level: 1 })).toBeVisible()
