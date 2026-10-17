@@ -160,6 +160,37 @@ type DragState = {
   preview: string
 }
 
+/** A slim pill beside one end of the selection. The hit area is wider than the pill. */
+function ScheduleGrip({
+  edge,
+  dragging,
+  onPointerDown,
+}: {
+  edge: ScheduleEndpoint
+  dragging: boolean
+  onPointerDown: (pointer: ReactPointerEvent<HTMLElement>) => void
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      onPointerDown={onPointerDown}
+      className={cn(
+        "group/grip absolute inset-y-0 z-20 flex w-(--schedule-grip-hit) cursor-ew-resize touch-none items-center justify-center",
+        edge === "start"
+          ? "left-[calc(50%-var(--schedule-grip-offset)-var(--schedule-grip-hit)/2)]"
+          : "right-[calc(50%-var(--schedule-grip-offset)-var(--schedule-grip-hit)/2)]",
+      )}
+    >
+      <span
+        className={cn(
+          "h-(--schedule-grip-height) w-(--schedule-grip-width) rounded-full transition-colors duration-[var(--duration-fast)]",
+          dragging ? "bg-primary" : "bg-primary/45 group-hover/grip:bg-primary",
+        )}
+      />
+    </span>
+  )
+}
+
 /** A compact six-week calendar whose ends resize as on the Work calendar. */
 function ScheduleCalendar({
   active,
@@ -397,16 +428,16 @@ function ScheduleCalendar({
               </button>
 
               {showStartHandle ? (
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-y-0 left-0 z-20 w-3 cursor-ew-resize touch-none before:absolute before:inset-y-1 before:left-1 before:w-0.5 before:rounded-full before:bg-foreground/35 before:opacity-30 group-hover/day:before:opacity-100"
+                <ScheduleGrip
+                  edge="start"
+                  dragging={drag?.edge === "start"}
                   onPointerDown={(pointer) => beginResize("start", pointer)}
                 />
               ) : null}
               {showDueHandle ? (
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-y-0 right-0 z-20 w-3 cursor-ew-resize touch-none before:absolute before:inset-y-1 before:right-1 before:w-0.5 before:rounded-full before:bg-foreground/35 before:opacity-30 group-hover/day:before:opacity-100"
+                <ScheduleGrip
+                  edge="due"
+                  dragging={drag?.edge === "due"}
                   onPointerDown={(pointer) => beginResize("due", pointer)}
                 />
               ) : null}
@@ -432,7 +463,7 @@ export function SchedulePanel({
   const startTime = task.startTime ?? null
   const canEditStart = task.id !== "new"
   const [endpoint, setEndpoint] = useState<ScheduleEndpoint>(() =>
-    task.due ? "due" : task.start !== undefined && task.id !== "new" ? "start" : "due",
+    task.due || !canEditStart ? "due" : "start",
   )
   const [refused, setRefused] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
