@@ -7,8 +7,8 @@ test('help is available without a signed-in session', async ({ page }) => {
 
   await page.getByRole('searchbox', { name: 'Search help articles' }).fill('keyboard')
   const results = page.getByRole('list', { name: 'Search results' })
-  await results.getByRole('link', { name: /keyboard shortcuts/ }).click()
-  await expect(page.getByRole('heading', { name: 'Find anything and keyboard shortcuts', level: 1 })).toBeVisible()
+  await results.getByRole('link', { name: /^Search and shortcuts/ }).click()
+  await expect(page.getByRole('heading', { name: 'Search and shortcuts', level: 1 })).toBeVisible()
   await expect(page.getByText('Search', { exact: true }).first()).toBeVisible()
 })
 

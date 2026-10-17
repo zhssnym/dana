@@ -1,5 +1,5 @@
 ---
-title: Writing, backlinks, and synced blocks
+title: Writing
 summary: Write beside your work, see which pages point to a page, and keep one block the same on many pages.
 section: Basics
 related:

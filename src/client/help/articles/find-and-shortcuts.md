@@ -1,6 +1,6 @@
 ---
-title: Find anything and keyboard shortcuts
-summary: Search, the Library, breadcrumbs, and the shortcuts that make Dana fast.
+title: Search and shortcuts
+summary: Search, the Library, breadcrumbs, and the keyboard shortcuts that make Dana fast.
 section: Reference
 related:
 ---

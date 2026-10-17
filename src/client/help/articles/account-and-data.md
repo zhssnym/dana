@@ -1,5 +1,5 @@
 ---
-title: Your account and data
+title: Account and data
 summary: Settings, Archive and Trash, data export, app updates, and how to report a problem.
 section: Reference
 related:
