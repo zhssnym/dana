@@ -12,8 +12,6 @@ export const paths = {
   terms: '/terms',
   help: '/help',
   helpArticle: (slug: string) => '/help/' + slug,
-  updates: '/updates',
-  updateArticle: (id: string) => '/updates/' + id,
   /** The app's entry and the installed app's start_url (10.6); it lands on Today. */
   home: '/app',
   today: '/app/today',

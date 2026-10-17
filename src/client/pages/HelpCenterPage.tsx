@@ -1,28 +1,166 @@
-import { PublicInfoShell } from '../components/public/PublicInfoShell.js'
 import type { ReactNode } from 'react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 
 import { findHelp, helpArticles, helpBySlug, HELP_SECTIONS } from '../help/content.js'
+import type { HelpSection } from '../help/content.js'
 import { HelpMarkdown } from '../help/markdown.js'
-import { ArrowRight, ChevronDown, ChevronRight, Search, X } from '../lib/icons.js'
+import {
+  ArrowRight,
+  ArrowUpRight,
+  ChevronDown,
+  ChevronRight,
+  CircleAlert,
+  Compass,
+  FileText,
+  ListTodo,
+  Search,
+  Settings,
+  UsersRound,
+  X,
+} from '../lib/icons.js'
+import type { LucideIcon } from '../lib/icons.js'
 import { paths } from '../routes.js'
 
-// All guides stay visible, as in a standard docs sidebar. The sidebar scrolls on its own.
-function HelpSidebar({ current }: { readonly current?: string }): React.JSX.Element {
+const SECTION_ICONS: Record<HelpSection, LucideIcon> = {
+  'Getting started': Compass,
+  'Tasks and planning': ListTodo,
+  'Pages and writing': FileText,
+  Collaboration: UsersRound,
+  Navigation: Search,
+  'Account and settings': Settings,
+  Troubleshooting: CircleAlert,
+}
+
+const articlesIn = (section: HelpSection) => helpArticles.filter((article) => article.section === section)
+
+function SearchField({ query, onQuery }: {
+  readonly query: string
+  readonly onQuery: (query: string) => void
+}): React.JSX.Element {
+  return (
+    <div role="search" className="flex items-center gap-2 rounded-md border border-input bg-background px-4 focus-within:border-primary">
+      <Search className="size-5 shrink-0 text-muted-foreground" strokeWidth={1.6} aria-hidden="true" />
+      <input
+        type="search"
+        value={query}
+        onChange={(event) => onQuery(event.target.value)}
+        aria-label="Search help articles"
+        placeholder="Search help articles"
+        autoComplete="off"
+        className="h-12 min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:appearance-none"
+      />
+      {query ? (
+        <button
+          type="button"
+          onClick={() => onQuery('')}
+          aria-label="Clear search"
+          className="rounded-sm p-1 text-muted-foreground hover:bg-hover hover:text-foreground"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+function HelpShell({ children }: { readonly children: ReactNode }): React.JSX.Element {
+  return (
+    <div className="min-h-svh bg-background text-foreground">
+      <header className="sticky top-0 z-10 h-(--help-header-height) border-b border-border bg-background">
+        <div className="mx-auto flex h-full max-w-[var(--help-layout-width)] items-center justify-between gap-4 px-5 sm:px-8">
+          <Link to={paths.help} className="flex items-center gap-2.5 rounded-sm text-foreground">
+            <img src="/dana-mark.svg" alt="" className="size-7 shrink-0" />
+            <span className="font-title text-sm">Dana Help</span>
+          </Link>
+          <a href={paths.home} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-hover hover:text-foreground">
+            Open Dana <ArrowUpRight className="size-4" aria-hidden="true" />
+          </a>
+        </div>
+      </header>
+      <main>{children}</main>
+    </div>
+  )
+}
+
+function SearchResults({ query }: { readonly query: string }): React.JSX.Element {
+  const results = useMemo(() => findHelp(query), [query])
+  if (results.length === 0) {
+    return (
+      <div aria-live="polite">
+        <h2 className="text-sm font-section">No matching articles</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Try a different word.</p>
+      </div>
+    )
+  }
+  return (
+    <ul aria-label="Search results" aria-live="polite" className="-mx-3">
+      {results.map((article) => (
+        <li key={article.slug}>
+          <Link to={paths.helpArticle(article.slug)} className="block rounded-md px-3 py-2.5 hover:bg-hover">
+            <span className="block text-sm text-foreground">{article.title}</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">{article.summary}</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function HelpHome(): React.JSX.Element {
+  const [query, setQuery] = useState('')
+  return (
+    <div className="mx-auto max-w-[var(--help-layout-width)] px-5 pb-24 sm:px-8">
+      <div className="mx-auto max-w-[var(--help-search-width)] pb-12 pt-14 text-center sm:pt-20">
+        <h1 className="font-title text-[length:var(--text-title-size)] leading-[var(--text-title-line)] sm:text-[length:var(--help-hero-title-size)] sm:leading-[var(--help-hero-title-line)]">
+          How can we help?
+        </h1>
+        <div className="mt-7 text-left"><SearchField query={query} onQuery={setQuery} /></div>
+      </div>
+      {query.trim() ? (
+        <div className="mx-auto max-w-[var(--help-search-width)]"><SearchResults query={query} /></div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {HELP_SECTIONS.map((section) => {
+            const Icon = SECTION_ICONS[section]
+            return (
+              <section key={section} className="rounded-lg border border-border p-5">
+                <h2 className="flex items-center gap-2.5 text-sm font-section">
+                  <Icon className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+                  {section}
+                </h2>
+                <ul className="-mx-2 mt-3">
+                  {articlesIn(section).map((article) => (
+                    <li key={article.slug}>
+                      <Link to={paths.helpArticle(article.slug)} className="block rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-hover hover:text-foreground">
+                        {article.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ArticleNavigation({ current }: { readonly current: string }): React.JSX.Element {
   return (
     <nav aria-label="Help articles" className="space-y-5">
       {HELP_SECTIONS.map((section) => (
         <section key={section}>
           <h2 className="px-2 pb-1 text-xs font-section text-muted-foreground">{section}</h2>
           <ul>
-            {helpArticles.filter((article) => article.section === section).map((article) => (
+            {articlesIn(section).map((article) => (
               <li key={article.slug}>
                 <Link
                   to={paths.helpArticle(article.slug)}
                   aria-current={article.slug === current ? 'page' : undefined}
-                  className={'block rounded-md px-2 py-1.5 text-sm transition-colors ' +
-                    (article.slug === current ? 'bg-selected text-foreground' : 'text-foreground hover:bg-hover')}
+                  className={'block truncate rounded-md px-2 py-1 text-sm transition-colors ' +
+                    (article.slug === current ? 'bg-selected font-section text-foreground' : 'text-muted-foreground hover:bg-hover hover:text-foreground')}
                 >
                   {article.title}
                 </Link>
@@ -35,126 +173,55 @@ function HelpSidebar({ current }: { readonly current?: string }): React.JSX.Elem
   )
 }
 
-function HelpLayout({ current, children }: { readonly current?: string; readonly children: ReactNode }): React.JSX.Element {
+function HelpArticleView({ slug }: { readonly slug: string }): React.JSX.Element {
+  const article = helpBySlug.get(slug)
+  // A new guide opens at its top, not at the scroll position of the last one.
+  useEffect(() => { window.scrollTo(0, 0) }, [slug])
+  if (!article) {
+    return (
+      <div className="mx-auto max-w-[var(--help-layout-width)] px-5 py-16 sm:px-8">
+        <h1 className="font-title text-[length:var(--text-title-size)]">Article not found</h1>
+        <p className="mt-3 text-sm text-muted-foreground">This guide may have moved.</p>
+        <Link to={paths.help} className="mt-6 inline-flex items-center gap-2 text-sm text-primary hover:underline">
+          <ArrowRight className="size-4 rotate-180" aria-hidden="true" /> Browse help articles
+        </Link>
+      </div>
+    )
+  }
+
   return (
-    <div className="mx-auto grid w-full max-w-[var(--help-layout-width)] flex-1 content-start px-5 sm:px-8 lg:content-stretch lg:grid-cols-[var(--help-nav-width)_minmax(0,1fr)] lg:gap-12">
-      <aside className="hidden min-w-0 border-r border-border pr-4 lg:block">
-        <div className="sticky top-0 max-h-[calc(100dvh_-_var(--help-nav-viewport-gap))] overflow-y-auto py-8">
-          <HelpSidebar current={current} />
+    <div className="mx-auto grid max-w-[var(--help-layout-width)] px-5 sm:px-8 lg:grid-cols-[var(--help-nav-width)_minmax(0,1fr)] lg:gap-12">
+      <aside className="hidden lg:block">
+        <div className="sticky top-(--help-header-height) max-h-[calc(100dvh_-_var(--help-header-height))] overflow-y-auto py-8 [scrollbar-width:thin]">
+          <ArticleNavigation current={slug} />
         </div>
       </aside>
-      <div className="min-w-0 pb-20">
+      <div className="min-w-0 pb-24">
         <details className="group border-b border-border py-3 lg:hidden">
           <summary className="flex cursor-pointer list-none items-center gap-2 rounded-sm py-1 text-sm font-section [&::-webkit-details-marker]:hidden">
             Browse articles
             <ChevronDown className="ml-auto size-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
           </summary>
           <div className="mt-3 max-h-[var(--help-mobile-nav-height)] overflow-y-auto">
-            <HelpSidebar current={current} />
+            <ArticleNavigation current={slug} />
           </div>
         </details>
-        {children}
+        <article className="max-w-[var(--help-article-width)] pt-8 lg:pt-10">
+          <nav aria-label="Breadcrumb" className="mb-5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Link to={paths.help} className="hover:text-foreground">Help</Link>
+            <ChevronRight className="size-3.5" aria-hidden="true" />
+            <span>{article.section}</span>
+          </nav>
+          <h1 className="font-title text-[length:var(--text-title-size)] leading-[var(--text-title-line)]">{article.title}</h1>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">{article.summary}</p>
+          <div className="pt-4"><HelpMarkdown body={article.body} /></div>
+        </article>
       </div>
     </div>
   )
 }
 
-function HelpHome(): React.JSX.Element {
-  const [query, setQuery] = useState('')
-  const results = useMemo(() => findHelp(query), [query])
-  const searching = query.trim().length > 0
-
-  return (
-    <HelpLayout>
-      <div className="mx-auto max-w-[var(--help-search-width)] pt-12 sm:pt-20">
-        <h1 className="text-center font-title text-[length:var(--text-title-size)] leading-[var(--text-title-line)] sm:text-[length:var(--help-hero-title-size)] sm:leading-[var(--help-hero-title-line)]">
-          How can we help?
-        </h1>
-        <div role="search" className="mt-6 flex items-center gap-2 rounded-md border border-input bg-background px-3 focus-within:border-primary">
-          <Search className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.6} aria-hidden="true" />
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            aria-label="Search help articles"
-            placeholder="Search help articles"
-            autoComplete="off"
-            className="h-11 min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:appearance-none"
-          />
-          {query ? (
-            <button
-              type="button"
-              onClick={() => setQuery('')}
-              aria-label="Clear search"
-              className="rounded-sm p-1 text-muted-foreground hover:bg-hover hover:text-foreground"
-            >
-              <X className="size-4" aria-hidden="true" />
-            </button>
-          ) : null}
-        </div>
-        {searching ? (
-          <div className="mt-6" aria-live="polite">
-            {results.length === 0 ? (
-              <>
-                <h2 className="text-sm font-section">No matching articles</h2>
-                <p className="mt-1 text-xs text-muted-foreground">Try a different word.</p>
-              </>
-            ) : (
-              <ul aria-label="Search results">
-                {results.map((article) => (
-                  <li key={article.slug}>
-                    <Link to={paths.helpArticle(article.slug)} className="block rounded-md px-3 py-2.5 hover:bg-hover">
-                      <span className="block text-sm text-foreground">{article.title}</span>
-                      <span className="mt-0.5 block text-xs text-muted-foreground">{article.summary}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ) : null}
-      </div>
-    </HelpLayout>
-  )
-}
-
-function HelpArticleView({ slug }: { readonly slug: string }): React.JSX.Element {
-  const article = helpBySlug.get(slug)
-  if (!article) {
-    return (
-      <HelpLayout>
-        <div className="pt-12">
-          <h1 className="font-title text-[length:var(--text-title-size)]">Article not found</h1>
-          <p className="mt-3 text-sm text-muted-foreground">This guide may have moved.</p>
-          <Link to={paths.help} className="mt-6 inline-flex items-center gap-2 text-sm text-primary hover:underline">
-            <ArrowRight className="size-4 rotate-180" aria-hidden="true" /> Browse help articles
-          </Link>
-        </div>
-      </HelpLayout>
-    )
-  }
-
-  return (
-    <HelpLayout current={slug}>
-      <article className="max-w-[var(--help-article-width)] pt-8">
-        <nav aria-label="Breadcrumb" className="mb-6 flex items-center gap-2 text-xs text-muted-foreground">
-          <Link to={paths.help} className="hover:text-foreground">Help</Link>
-          <ChevronRight className="size-3.5" aria-hidden="true" />
-          <span>{article.section}</span>
-        </nav>
-        <h1 className="font-title text-[length:var(--text-title-size)] leading-[var(--text-title-line)]">{article.title}</h1>
-        <p className="mt-3 text-sm leading-6 text-muted-foreground">{article.summary}</p>
-        <div className="pt-4"><HelpMarkdown body={article.body} /></div>
-      </article>
-    </HelpLayout>
-  )
-}
-
 export function HelpCenterPage(): React.JSX.Element {
   const { slug } = useParams()
-  return (
-    <PublicInfoShell section="help">
-      {slug === undefined ? <HelpHome /> : <HelpArticleView slug={slug} />}
-    </PublicInfoShell>
-  )
+  return <HelpShell>{slug === undefined ? <HelpHome /> : <HelpArticleView slug={slug} />}</HelpShell>
 }

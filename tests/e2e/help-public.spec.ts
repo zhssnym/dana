@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 test('help is available without a signed-in session', async ({ page }) => {
   await page.goto('/help')
   await expect(page.getByRole('heading', { name: 'How can we help?' })).toBeVisible()
-  await expect(page.getByRole('navigation', { name: 'Help articles' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Getting started' })).toBeVisible()
 
   await page.getByRole('searchbox', { name: 'Search help articles' }).fill('keyboard')
   const results = page.getByRole('list', { name: 'Search results' })
@@ -19,10 +19,10 @@ test('direct help article links resolve without an account', async ({ page }) =>
 })
 
 
-test('the sidebar lists every guide and marks the open one', async ({ page }) => {
+test('topics link to guides, and the sidebar marks the open guide', async ({ page }) => {
   await page.goto('/help')
+  await page.getByRole('link', { name: 'Schedule a task', exact: true }).click()
   const nav = page.getByRole('navigation', { name: 'Help articles' })
-  await nav.getByRole('link', { name: 'Schedule a task', exact: true }).click()
   await expect(page).toHaveURL(/\/help\/schedule-a-task/)
   await expect(page.getByRole('heading', { name: 'Schedule a task', level: 1 })).toBeVisible()
   await expect(nav.getByRole('link', { name: 'Schedule a task', exact: true })).toHaveAttribute('aria-current', 'page')

@@ -86,8 +86,7 @@ reviewed or raising per-commit issues. An earlier setup-only audit marked
 
 After adding both secrets, open **Actions → Help maintenance → Run workflow** to
 validate a deployed commit; review any generated PR or exception issue before
-enabling unattended publication. The What's New maintenance workflow uses the
-same `HELP_BOT_TOKEN` secret and can be run manually for its own end-to-end test.
+enabling unattended publication.
 
 Optional repository variables:
 
