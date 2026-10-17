@@ -4,9 +4,9 @@ import { Link, Navigate, useParams } from 'react-router'
 
 import { findHelp, helpArticles, helpBySlug, MOVED_HELP } from '../help/content.js'
 import { HelpMarkdown } from '../help/markdown.js'
+import { buttonVariants } from '../components/ui/button.js'
 import {
   ArrowRight,
-  ArrowUpRight,
   ChevronDown,
   CalendarDays,
   Compass,
@@ -71,9 +71,7 @@ function HelpShell({ children }: { readonly children: ReactNode }): React.JSX.El
             <img src="/dana-mark.svg" alt="" className="size-7 shrink-0" />
             <span className="font-title text-sm">Dana Help</span>
           </Link>
-          <a href={paths.home} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-hover hover:text-foreground">
-            Open Dana <ArrowUpRight className="size-4" aria-hidden="true" />
-          </a>
+          <a href={paths.home} className={buttonVariants({ variant: 'commit', className: 'px-3' })}>Open Dana</a>
         </div>
       </header>
       <main>{children}</main>
