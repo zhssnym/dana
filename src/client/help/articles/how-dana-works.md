@@ -19,7 +19,7 @@ A task is work that someone can finish. It can have assignees, a Start Date, a D
 
 ## Your Desk and shared work
 
-Your **Desk** is private and cannot be shared. For work with other people, make a shared work area and invite them. Access applies to the whole area, not to each task. See [Working together](/help/working-together).
+Your **Desk** is private and cannot be shared. For work with other people, make a shared work area and invite them. Access applies to the whole area, not to each task. See [Collaboration](/help/working-together).
 
 ## Getting in
 

@@ -1,5 +1,5 @@
 ---
-title: Working together
+title: Collaboration
 summary: Invite people, control what they can do, and talk about the work.
 related:
 ---
