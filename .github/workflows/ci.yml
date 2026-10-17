@@ -1,8 +1,7 @@
 name: CI
 
-# GitHub-hosted runner. Postgres runs as a service container. The tests use it through
-# TEST_DATABASE_URL; without it they would fall back to PGlite and report a green that never
-# touched Postgres, so the job sets it for every step.
+# GitHub-hosted runners. Three jobs run at the same time, so a run takes as long as the
+# slowest job, not the sum of all steps.
 on:
   push:
     branches: [main]
@@ -19,9 +18,26 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  ci:
+  gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Check Help Center content and source map
+        run: npm run help:check
+      - name: Lint, typecheck, build
+        run: npm run gate
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Postgres runs as a service container. Without TEST_DATABASE_URL the tests fall back to
+    # PGlite and report a green that never touched Postgres.
     services:
       postgres:
         image: postgres:18
@@ -46,18 +62,35 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - name: Check Help Center content and source map
-        run: npm run help:check
-      - name: Lint, typecheck, build
-        run: npm run gate
       - name: Test (Postgres)
         run: npm test -- --maxWorkers=4
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The browser test seeds its own PGlite database (playwright.config.ts) and needs no service.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache the Playwright browser
+        id: browser-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      # The runner image already has the Chrome system libraries, so a cache hit skips the install.
+      - name: Install the Playwright browser
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
       - name: Playwright
-        env:
-          DANA_E2E_PREBUILT: '1'
-        run: |
-          npx playwright install --with-deps chromium
-          npx playwright test
+        run: npx playwright test
       - name: Failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
@@ -68,3 +101,13 @@ jobs:
             test-results/
           if-no-files-found: ignore
           retention-days: 7
+
+  # The main ruleset requires a check named "ci". It passes only when every job above passed.
+  ci:
+    if: always()
+    needs: [gate, test, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: All jobs passed
+        run: test "${{ needs.gate.result }}" = success && test "${{ needs.test.result }}" = success && test "${{ needs.e2e.result }}" = success
