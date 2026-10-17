@@ -155,7 +155,7 @@ export function PropertyPicker({
           <button
             type="button"
             onClick={(event) => event.stopPropagation()}
-            className={PROPERTY_ROW}
+            className={PROPERTY_BUTTON}
           >
             <span className={PROPERTY_LABEL}>{label}</span>
             <span
@@ -179,7 +179,13 @@ export function PropertyPicker({
 
 /** One row of the task panel's properties block: the name, then the value. */
 export const PROPERTY_ROW =
-  "grid h-[var(--control-height)] w-full grid-cols-[6rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2 text-left text-sm transition-colors duration-100 hover:bg-accent data-popup-open:bg-accent"
+  "grid h-[var(--control-height)] w-full grid-cols-[6rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2 text-left text-sm"
+// A row that opens a picker. Only the value is highlighted, as the name is a plain label.
+export const PROPERTY_BUTTON = cn(
+  PROPERTY_ROW,
+  "[&>:last-child]:-mx-1.5 [&>:last-child]:justify-self-start [&>:last-child]:rounded-sm [&>:last-child]:px-1.5 [&>:last-child]:py-0.5",
+  "[&>:last-child]:transition-colors [&>:last-child]:duration-100 [&>:last-child:hover]:bg-accent data-popup-open:[&>:last-child]:bg-accent",
+)
 export const PROPERTY_LABEL = "truncate text-muted-foreground"
 // Where PROPERTY_ROW's value column starts, in px: px-2 + 6rem label + gap-2 = 7rem.
 export const PROPERTY_VALUE_OFFSET = 112

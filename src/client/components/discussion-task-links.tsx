@@ -26,7 +26,7 @@ import { showToast } from '../state/toasts.js'
 import { openChatDock } from '../state/chat-dock.js'
 import { paths } from '../routes.js'
 import { Plus, X } from '../lib/icons.js'
-import { PROPERTY_LABEL, PROPERTY_ROW } from './task-pickers.js'
+import { PROPERTY_BUTTON, PROPERTY_LABEL, PROPERTY_ROW } from './task-pickers.js'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover.js'
 import { cn } from './ui/utils.js'
 import { StateMark, STATE_WORD, taskState } from './thread/timeline/state.js'
@@ -231,7 +231,7 @@ function TaskDiscussionPicker({
         render={
           <button
             type="button"
-            className={PROPERTY_ROW}
+            className={PROPERTY_BUTTON}
             aria-label={linked.length === 0 ? 'Start or link a discussion' : 'Manage linked discussions'}
             onClick={(event) => event.stopPropagation()}
           />

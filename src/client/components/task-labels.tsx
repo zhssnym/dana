@@ -5,7 +5,7 @@ import { useArchiveLabel, useCreateLabel, useLabels, usePatchLabel, useSetTaskLa
 import { IDENTITY_COLORS } from '../parts/identity-colors.js'
 import { Check } from '../lib/icons.js'
 import { LabelChip, LabelDot, byName } from './label-chip.js'
-import { PROPERTY_LABEL, PROPERTY_ROW } from './task-pickers.js'
+import { PROPERTY_BUTTON, PROPERTY_LABEL } from './task-pickers.js'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover.js'
 
 type Scope = 'personal' | 'folder'
@@ -91,7 +91,7 @@ export function TaskLabels({ taskId, folderId, worn, canManageFolder, canApplyFo
       setSearch('')
     }
   }}>
-    <PopoverTrigger render={<button type="button" className={PROPERTY_ROW}
+    <PopoverTrigger render={<button type="button" className={PROPERTY_BUTTON}
       aria-label={`Labels: ${worn.length === 0 ? 'Add labels' : worn.map((label) => label.name).join(', ')}`}
       onClick={(event) => event.stopPropagation()} />}>
       <span className={PROPERTY_LABEL}>Labels</span>
