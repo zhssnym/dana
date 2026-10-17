@@ -173,9 +173,7 @@ export function SettingsPageContent({
             />
           </SettingsSection>
 
-          <SettingsSection id="people" title="People" className="scroll-mt-6">
-            <PeopleSettings />
-          </SettingsSection>
+          <PeopleSettings />
 
           <SettingsSection title="Data">
             <StackingRow
