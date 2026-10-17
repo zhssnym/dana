@@ -1,6 +1,6 @@
 /** No secrets are logged: only the missing repository secret names. */
 export function missingHelpSecrets(env) {
-  return ['OPENAI_API_KEY', 'HELP_BOT_TOKEN'].filter((name) => (
+  return ['ANTHROPIC_API_KEY', 'HELP_BOT_TOKEN'].filter((name) => (
     typeof env[name] !== 'string' || env[name].trim().length === 0
   ))
 }

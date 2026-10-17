@@ -1,12 +1,14 @@
 import { execFileSync, spawnSync } from 'node:child_process'
 
+import Anthropic from '@anthropic-ai/sdk'
+
 import { checkArticles, currentArticles } from './check.mjs'
 import { impactedHelp } from './topics.mjs'
 import { missingHelpSecrets } from './readiness.mjs'
 import { hasHelpCheck, recordHelpCheck, openHelpIssue, openHelpPullRequest } from './github.mjs'
 
 const BASE = '235ff6b509ab5791319c3bfb953bc3550c43fa74'
-const MODEL = process.env.HELP_WRITER_MODEL || 'gpt-4.1-mini'
+const MODEL = process.env.HELP_WRITER_MODEL || 'claude-opus-5-5'
 const FORCE = process.env.HELP_FORCE === 'true'
 const PRODUCTION = 'https://dana.so/api/v1/build'
 const SHA = /^[a-f0-9]{40}$/
@@ -34,30 +36,28 @@ async function deployedCommit() {
   }
 }
 
-async function completion(system, user, maxTokens = 6200) {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) throw new Error('OPENAI_API_KEY is not configured')
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+async function completion(system, user) {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not configured')
+  let response
+  try {
+    // "default" fallbacks re-run a safety-classifier decline on another model in the same call.
+    response = await new Anthropic().beta.messages.create({
       model: MODEL,
-      messages: [{ role: 'system', content: system }, { role: 'user', content: JSON.stringify(user) }],
-      response_format: { type: 'json_object' },
-      temperature: 0.1,
-      max_completion_tokens: maxTokens,
-    }),
-    signal: AbortSignal.timeout(90_000),
-  })
-  if (!response.ok) {
-    // OpenAI answers 429 both for "too fast" and for "no credit"; its error code tells them apart.
-    const code = await response.json().then((body) => body?.error?.code ?? body?.error?.type, () => undefined)
-    throw new Error('Documentation model returned HTTP ' + response.status + (typeof code === 'string' ? ' (' + code + ')' : ''))
+      max_tokens: 16000,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: 'medium' },
+      system: system + ' Return only the JSON object, with no other text.',
+      messages: [{ role: 'user', content: JSON.stringify(user) }],
+    })
+  } catch (error) {
+    if (!(error instanceof Anthropic.APIError)) throw error
+    const type = error.error?.error?.type
+    throw new Error('Documentation model returned HTTP ' + error.status + (typeof type === 'string' ? ' (' + type + ')' : ''))
   }
-  const data = await response.json()
-  const answer = data.choices?.[0]?.message?.content
-  if (typeof answer !== 'string') throw new Error('Documentation model returned no JSON')
-  return JSON.parse(answer)
+  if (response.stop_reason !== 'end_turn') throw new Error('Documentation model stopped: ' + response.stop_reason)
+  const text = response.content.filter((block) => block.type === 'text').map((block) => block.text).join('')
+  return JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1))
 }
 
 function currentFileAt(sha, path) {
@@ -187,7 +187,6 @@ async function processCommit(sha) {
           'If an explanation is incomplete or behavior changed, return JSON {verified:false,reason:string}.',
         ].join(' '),
         input,
-        700,
       )
       if (confirmation.verified === true) {
         await recordHelpCheck(sha, 'success', 'Two reviews found no user-facing documentation change. ' +
@@ -225,7 +224,6 @@ async function processCommit(sha) {
       deployedCommit: sha, source: evidence.code, changedDiff: evidence.diff,
       existingArticles: current, proposedArticles: gate.edits,
     },
-    900,
   )
   const verified = review.verified === true && gate.evidenceValid && gate.smallEdits &&
     gate.articlesMapped && gate.hasTests && !gate.unmapped
